@@ -18,12 +18,22 @@ review_trigger: "릴리스 범위 변경 시"
 
 ## Phase 1 — 기반 인프라와 CMS
 
-- Next.js 프로젝트 초기화
-- Directus + PostgreSQL Docker 구성
+Phase 1은 한 PR에 묶지 않고 다음 경계로 나눈다.
+
+### Phase 1A — 애플리케이션·인프라 부트스트랩
+
+- Next.js App Router + TypeScript + Static Export 초기화
+- Directus + PostgreSQL 개발 전용 Docker Compose
+- local 환경변수 예시와 persistent volume
+- lint, typecheck, contract test, static build/export, Compose smoke gate
+
+### Phase 1B 이후 — CMS 계약
+
 - CMS 컬렉션·관계·권한
 - 스키마 스냅샷
-- 로컬 개발 환경
 - 샘플 콘텐츠
+
+Phase 1A는 CMS schema나 공개 랜딩 기능의 완료를 의미하지 않는다.
 
 ## Phase 2 — 공개 랜딩 MVP
 

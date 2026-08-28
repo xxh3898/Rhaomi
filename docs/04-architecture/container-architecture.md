@@ -9,6 +9,22 @@ review_trigger: "서비스 배치·네트워크 변경 시"
 
 # 컨테이너 구조
 
+## Phase 1A 로컬 개발 구성
+
+`compose.dev.yaml`은 운영 구성과 분리된 `dev-rhaomi` project다.
+
+| 서비스 | 고정 image | local 공개 | 영속화 |
+|---|---|---|---|
+| `frontend` | `node:24.20.0-alpine3.23` | `127.0.0.1:3000` | `node_modules`, npm cache |
+| `directus` | `directus/directus:12.3.1` | `127.0.0.1:8055` | uploads |
+| `postgres` | `postgres:18.6-alpine3.23` | 없음 | PostgreSQL data |
+
+- `frontend`는 `frontend` profile에서만 실행하며 source를 read/write bind mount한다.
+- Directus와 PostgreSQL은 `dev-rhaomi-cms-internal` 내부 network에서 통신하며 Directus만 별도 `dev-rhaomi-directus-local` network를 통해 loopback port를 공개한다.
+- PostgreSQL과 Directus healthcheck가 통과해야 개발 stack을 정상으로 본다.
+- 실제 값은 Git 제외 `.env.dev.local`에서 주입하며 운영 `.env`, network, volume, DB를 참조하지 않는다.
+- 일반 종료는 named volume을 보존하는 `docker compose ... down`을 사용한다.
+
 ## 운영 구성
 
 ```mermaid

@@ -19,6 +19,21 @@ production
 
 별도 staging을 장기간 운영하지 않더라도 로컬 또는 임시 환경에서 production compose와 같은 구조를 검증한다.
 
+## Phase 1A 로컬 개발 계약
+
+- Compose file: `compose.dev.yaml`
+- Compose project: `dev-rhaomi`
+- local 환경파일: Git 제외 `.env.dev.local`
+- 공개 example: `.env.example`
+- Node.js: `24.20.0` LTS image
+- Directus: `12.3.1`
+- PostgreSQL: `18.6-alpine3.23`
+- frontend port: `127.0.0.1:3000`
+- Directus port: `127.0.0.1:8055`
+- PostgreSQL host port: 없음
+
+재현 가능한 설치, lint, typecheck, test, build와 stack 명령은 [프로젝트 README](../../README.md#로컬-개발)를 따른다. Phase 1A 공개 화면은 CMS를 읽지 않으며 아래 공개 프론트 빌드 변수는 후속 정적 콘텐츠 파이프라인에서 사용한다.
+
 ## 공개 프론트 빌드
 
 | 변수 | 비밀 | 설명 |
@@ -82,6 +97,15 @@ production
 - 생성 방법 설명
 - 실제 키와 비밀번호 금지
 - 운영 `.env`의 파일 권한 제한
+
+Phase 1A example에는 다음 local bootstrap key만 둔다.
+
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
+- `DIRECTUS_SECRET`
+- `DIRECTUS_ADMIN_EMAIL`, `DIRECTUS_ADMIN_PASSWORD`
+- `DIRECTUS_PUBLIC_URL`
+
+Compose는 `DIRECTUS_*` bootstrap 변수를 container의 `SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `PUBLIC_URL`로 명시적으로 매핑한다. example placeholder를 실제 운영 credential로 사용하지 않는다.
 
 ## 도메인
 

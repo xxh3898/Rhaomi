@@ -1,5 +1,5 @@
 ---
-title: "패키지 매니페스트"
+title: "초기 문서 패키지 매니페스트"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
@@ -8,6 +8,12 @@ review_trigger: "패키지 재생성 시"
 ---
 
 # 패키지 매니페스트
+
+## 적용 범위
+
+이 문서는 2026-08-28에 생성한 **초기 기준 문서 ZIP**의 파일 트리와 SHA-256 snapshot이다. Issue #1 이후 추가되는 source, runtime 설정, workflow와 구현 PR에서 동기화한 문서의 현재 checksum을 나타내지 않는다.
+
+아래 값은 최초 수신 패키지의 provenance 확인을 위해 보존하며 일반 구현 변경마다 재계산하지 않는다. 새 문서 패키지를 다시 배포하는 경우에만 전체 package를 재검증하고 갱신한다.
 
 - 생성일: 2026-08-28
 - 대상 저장소: `xxh3898/Rhaomi`
