@@ -15,7 +15,7 @@ const html = await readFile(indexPath, "utf8");
 assert.ok(indexStat.size > 0, "out/index.html이 비어 있습니다.");
 assert.match(html, /<html[^>]*lang="ko"/);
 assert.match(html, /라오미펫/);
-assert.doesNotMatch(html, /https?:\/\/(?:localhost|127\.0\.0\.1):8055/i);
+assert.doesNotMatch(html, /https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?/i);
 
 const localAssets = [
   ...html.matchAll(/(?:href|src)="(\/_next\/[^"?#]+)"/g),

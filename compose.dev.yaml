@@ -2,7 +2,7 @@ name: dev-rhaomi
 
 services:
   frontend:
-    image: node:24.20.0-alpine3.23
+    image: node:24.20.0-alpine3.23@sha256:0388af2af070cd4736a1567cfed02469ba117848845b4165d87a333edb53d2ca
     profiles: ["frontend"]
     init: true
     working_dir: /workspace
@@ -18,8 +18,44 @@ services:
     networks:
       - frontend-local
 
+  backend:
+    image: eclipse-temurin:21.0.12_8-jdk-alpine-3.23@sha256:bcc6da0b0efc6fb0e445173784dddb45d5f70afa8a9128430a63f79ef0154601
+    init: true
+    working_dir: /workspace/backend
+    command: ["./gradlew", "bootRun", "--no-daemon"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?POSTGRES_USER is required}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      RHAOMI_SESSION_COOKIE_SECURE: ${RHAOMI_SESSION_COOKIE_SECURE:-false}
+      RHAOMI_TEST_DATABASE_ALLOWED: ${RHAOMI_TEST_DATABASE_ALLOWED:-false}
+      RHAOMI_BOOTSTRAP_ADMIN_ENABLED: ${RHAOMI_BOOTSTRAP_ADMIN_ENABLED:-false}
+      RHAOMI_BOOTSTRAP_ADMIN_EMAIL: ${RHAOMI_BOOTSTRAP_ADMIN_EMAIL:-}
+      RHAOMI_BOOTSTRAP_ADMIN_PASSWORD: ${RHAOMI_BOOTSTRAP_ADMIN_PASSWORD:-}
+    volumes:
+      - ./backend:/workspace/backend
+      - backend-gradle-cache:/root/.gradle
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - backend-internal
+      - backend-local
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q '\"status\":\"UP\"'",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
   postgres:
-    image: postgres:18.6-alpine3.23
+    image: postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
       POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
@@ -27,7 +63,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql
     networks:
-      - cms-internal
+      - backend-internal
     healthcheck:
       test:
         [
@@ -39,55 +75,38 @@ services:
       retries: 20
       start_period: 10s
 
-  directus:
-    image: directus/directus:12.3.1
+  smoke:
+    image: node:24.20.0-alpine3.23@sha256:0388af2af070cd4736a1567cfed02469ba117848845b4165d87a333edb53d2ca
+    profiles: ["smoke"]
+    init: true
+    working_dir: /workspace
+    command: ["node", "scripts/validate-backend-auth.mjs", "http://backend:8080"]
     depends_on:
-      postgres:
+      backend:
         condition: service_healthy
     environment:
-      SECRET: ${DIRECTUS_SECRET:?DIRECTUS_SECRET is required}
-      PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-http://localhost:8055}
-      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL:?DIRECTUS_ADMIN_EMAIL is required}
-      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD:?DIRECTUS_ADMIN_PASSWORD is required}
-      DB_CLIENT: pg
-      DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_DATABASE: ${POSTGRES_DB:?POSTGRES_DB is required}
-      DB_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      STORAGE_LOCATIONS: local
-      STORAGE_LOCAL_DRIVER: local
-      STORAGE_LOCAL_ROOT: /directus/uploads
-      TELEMETRY: "false"
+      RHAOMI_BOOTSTRAP_ADMIN_EMAIL: ${RHAOMI_BOOTSTRAP_ADMIN_EMAIL:-}
+      RHAOMI_BOOTSTRAP_ADMIN_PASSWORD: ${RHAOMI_BOOTSTRAP_ADMIN_PASSWORD:-}
     volumes:
-      - directus-uploads:/directus/uploads
-    ports:
-      - "127.0.0.1:8055:8055"
+      - ./scripts:/workspace/scripts:ro
     networks:
-      - cms-internal
-      - directus-local
-    healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:8055/server/ping || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 30s
+      - backend-internal
 
 volumes:
   frontend-node-modules:
     name: dev-rhaomi-frontend-node-modules
   frontend-npm-cache:
     name: dev-rhaomi-frontend-npm-cache
+  backend-gradle-cache:
+    name: dev-rhaomi-backend-gradle-cache
   postgres-data:
-    name: dev-rhaomi-postgres-18-data
-  directus-uploads:
-    name: dev-rhaomi-directus-uploads
+    name: dev-rhaomi-postgres-18-backend-data
 
 networks:
   frontend-local:
     name: dev-rhaomi-frontend-local
-  directus-local:
-    name: dev-rhaomi-directus-local
-  cms-internal:
-    name: dev-rhaomi-cms-internal
+  backend-local:
+    name: dev-rhaomi-backend-local
+  backend-internal:
+    name: dev-rhaomi-backend-internal
     internal: true

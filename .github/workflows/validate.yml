@@ -47,10 +47,54 @@ jobs:
       - name: 정적 산출물 검증
         run: npm run validate:export
 
-  cms-compose:
-    name: CMS Compose
+  backend:
+    name: Backend
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f
+        env:
+          POSTGRES_DB: rhaomi_ci
+          POSTGRES_USER: rhaomi_ci
+          POSTGRES_PASSWORD: rhaomi-ci-database-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rhaomi_ci -d rhaomi_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://127.0.0.1:5432/rhaomi_ci
+      SPRING_DATASOURCE_USERNAME: rhaomi_ci
+      SPRING_DATASOURCE_PASSWORD: rhaomi-ci-database-password
+      RHAOMI_TEST_DATABASE_ALLOWED: "true"
+    steps:
+      - name: 저장소 checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Java 21 설정
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Gradle 설정
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: PostgreSQL·Flyway·인증 계약 검증
+        working-directory: backend
+        run: ./gradlew test --no-daemon
+
+  compose-smoke:
+    name: Compose Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RHAOMI_BOOTSTRAP_ADMIN_ENABLED: "true"
+      RHAOMI_BOOTSTRAP_ADMIN_EMAIL: admin.smoke@example.com
+      RHAOMI_BOOTSTRAP_ADMIN_PASSWORD: "local-smoke-password-123!"
     steps:
       - name: 저장소 checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -58,5 +102,5 @@ jobs:
       - name: CI용 local 환경파일 준비
         run: cp .env.example .env.dev.local
 
-      - name: Compose health와 persistence 검증
-        run: sh scripts/validate-cms-compose.sh .env.dev.local
+      - name: Compose health·인증·재기동 검증
+        run: sh scripts/validate-backend-compose.sh .env.dev.local
