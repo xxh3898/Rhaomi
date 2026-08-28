@@ -3,13 +3,13 @@ title: "공식 참고자료"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "기술·정책 문서 변경 또는 업그레이드 시"
 ---
 
 # 공식 참고자료
 
-접근일: 2026-08-28
+접근일: 2026-08-29
 
 ## Next.js
 
@@ -24,7 +24,28 @@ review_trigger: "기술·정책 문서 변경 또는 업그레이드 시"
 - `sitemap.xml` metadata file  
   https://nextjs.org/docs/app/api-reference/file-conventions/metadata/sitemap
 
-## Directus
+## Spring Boot·Security·Gradle·PostgreSQL
+
+- Spring Boot project와 stable version
+  https://spring.io/projects/spring-boot/
+- Spring Boot reference
+  https://docs.spring.io/spring-boot/
+- Spring Boot system requirements
+  https://docs.spring.io/spring-boot/system-requirements.html
+- Spring Security CSRF
+  https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html
+- Spring Security session management
+  https://docs.spring.io/spring-security/reference/servlet/authentication/session-management.html
+- Gradle releases
+  https://gradle.org/releases/
+- Gradle Java compatibility
+  https://docs.gradle.org/current/userguide/compatibility.html
+- PostgreSQL documentation
+  https://www.postgresql.org/docs/
+
+## Directus — superseded 결정 조사 기록
+
+아래 링크는 ADR-002·005와 ADR-009의 전환 근거를 보존하기 위한 역사적 참고자료다. 현재 runtime dependency가 아니다.
 
 - Overview and Data Studio  
   https://directus.com/docs/getting-started/overview

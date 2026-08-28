@@ -3,7 +3,7 @@ title: "릴리스 증거 템플릿"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "릴리스 절차 변경 시"
 ---
 
@@ -43,7 +43,7 @@ review_trigger: "릴리스 절차 변경 시"
 - [ ] Android Chrome
 - [ ] keyboard
 - [ ] CTA
-- [ ] CMS CRUD
+- [ ] 관리 API CRUD
 - [ ] rollback
 
 ## 운영 확인

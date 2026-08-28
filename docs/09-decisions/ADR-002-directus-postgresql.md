@@ -1,16 +1,18 @@
 ---
 title: "ADR-002: Directus + PostgreSQL"
-status: "approved"
+status: "superseded"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "CMS·DB 변경 또는 라이선스 영향 발생 시"
 ---
 
 # ADR-002: Directus + PostgreSQL
 
 - 결정일: 2026-08-28
-- 상태: Accepted
+- 상태: Superseded by [ADR-009](ADR-009-spring-boot-backend-admin.md)
+
+> 이 결정은 2026-08-29에 ADR-009로 대체됐다. 아래 내용은 Directus를 채택했던 역사적 근거이며 현재 구현 기준이 아니다.
 
 ## 맥락
 

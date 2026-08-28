@@ -3,7 +3,7 @@ title: "로드맵"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "릴리스 범위 변경 시"
 ---
 
@@ -16,24 +16,35 @@ review_trigger: "릴리스 범위 변경 시"
 - GitHub 템플릿
 - 출시 전 미확정 항목 분리
 
-## Phase 1 — 기반 인프라와 CMS
+## Phase 1 — 실행 기반과 관리 backend
 
-Phase 1은 한 PR에 묶지 않고 다음 경계로 나눈다.
+### Phase 1A — 공개 frontend 부트스트랩 완료
 
-### Phase 1A — 애플리케이션·인프라 부트스트랩
-
-- Next.js App Router + TypeScript + Static Export 초기화
-- Directus + PostgreSQL 개발 전용 Docker Compose
+- Next.js App Router + TypeScript + Static Export
+- 개발 전용 Docker Compose와 PostgreSQL
 - local 환경변수 예시와 persistent volume
-- lint, typecheck, contract test, static build/export, Compose smoke gate
+- lint, typecheck, contract test, static build/export gate
 
-### Phase 1B 이후 — CMS 계약
+### Phase 1B — Spring Boot 관리자 인증 기반
 
-- CMS 컬렉션·관계·권한
-- 스키마 스냅샷
+- Directus 실행 경로 제거
+- Java 25 LTS + Spring Boot + PostgreSQL
+- Flyway V1 `admin_users`
+- Spring Security 서버 세션과 CSRF
+- login, me, logout, 최소 health
+- local/test bootstrap과 실제 PostgreSQL contract test
+- Frontend, Backend, Compose Smoke Hosted CI
+
+Phase 1B는 콘텐츠 CRUD나 관리자 화면의 완료를 의미하지 않는다.
+
+### Phase 1C 이후 — 콘텐츠 도메인
+
+- 공지·견종·서비스·갤러리·매장정보 table과 Flyway migration
+- 관리자 DTO field allowlist와 archive 정책
+- `/admin` 로그인·콘텐츠 관리 UI
+- 이미지 원본 storage와 upload validation
+- build-time read-only API와 credential 분리
 - 샘플 콘텐츠
-
-Phase 1A는 CMS schema나 공개 랜딩 기능의 완료를 의미하지 않는다.
 
 ## Phase 2 — 공개 랜딩 MVP
 
@@ -49,12 +60,12 @@ Phase 1A는 CMS schema나 공개 랜딩 기능의 완료를 의미하지 않는�
 
 ## Phase 3 — 정적 콘텐츠 배포
 
-- CMS 데이터 스냅샷
+- content snapshot
 - 이미지 최적화 파생본
-- 정적 라우트 생성
-- Directus Flow
+- 정적 route 생성
+- backend 콘텐츠 변경 event 또는 outbox
 - 내부 deploy hook
-- 원자적 배포·롤백
+- 원자적 배포·rollback
 
 ## Phase 4 — SEO·출시 품질
 
@@ -64,17 +75,16 @@ Phase 1A는 CMS schema나 공개 랜딩 기능의 완료를 의미하지 않는�
 - Google Search Console
 - 네이버 서치어드바이저
 - 성능·접근성·실기기 검증
-- 운영 백업·모니터링
+- 운영 backup·monitoring
+- 관리자 2FA와 TLS/session cookie production gate
 
 ## Phase 5 — 운영 검증 후 선택
-
-다음은 초기 운영 데이터가 확인된 뒤에만 검토한다.
 
 - 견종별 독립 SEO 페이지
 - 공지 RSS
 - Before/After 비교
-- 전용 모바일 관리자 화면
-- 외부 객체 스토리지
+- 관리자 UX 간소화
+- 외부 객체 storage
 - 개인정보 최소형 분석
 - 임시휴무 배너
 - 다중 이미지 갤러리

@@ -3,30 +3,48 @@ title: "API·빌드 계약"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-28"
-review_trigger: "CMS 필드 또는 빌드 입력 변경 시"
+last_updated: "2026-08-29"
+review_trigger: "관리 API·build 입력 변경 시"
 ---
 
 # API·빌드 계약
 
-## 공개 사이트 런타임 계약
+## 공개 사이트 runtime 계약
 
-공개 브라우저는 Directus API를 호출하지 않는다. Directus API는 빌더와 관리자만 사용한다.
+공개 고객 브라우저는 Spring Boot API나 PostgreSQL을 호출하지 않는다. 공개 release는 Static Export 결과만 제공한다.
 
-## 빌더 계정
+## 현재 관리자 인증 API
 
-- API-only 사용자
-- App access 없음
-- static token
-- 공개 콘텐츠와 관련 파일에 대한 read-only 정책
+| method | path | anonymous | CSRF | 응답 |
+|---|---|---:|---:|---|
+| `GET` | `/api/admin/auth/csrf` | 허용 | N/A | header name, parameter name, token |
+| `POST` | `/api/admin/auth/login` | 허용 | 필수 | id, email, role |
+| `GET` | `/api/admin/auth/me` | 거부 | N/A | id, email, role |
+| `POST` | `/api/admin/auth/logout` | 거부 | 필수 | `204 No Content` |
+
+- 인증은 server session에 저장한다.
+- login 실패는 잘못된 password, 없는 email과 inactive account를 같은 401 계약으로 처리한다.
+- 인증 service 또는 repository 장애는 내부 원인을 노출하지 않는 503 `AUTH_SERVICE_UNAVAILABLE`로 처리한다.
+- login password는 UTF-8 최대 72 byte이며 초과 입력은 credential 비교 전에 400 `INVALID_REQUEST`로 거부한다.
+- request/response와 인증 완료 principal·저장된 `SecurityContext`에 `password_hash`를 포함하지 않는다.
+- `/api/admin/**`는 위 anonymous 예외 외 인증이 기본이다.
+- 아직 설계하지 않은 `/api/**`는 deny한다.
+- 세 anonymous endpoint 외 non-API path와 미허용 Actuator path를 포함한 모든 request는 deny한다.
+
+## build API — planned
+
+후속 Issue에서 관리자 session과 분리된 namespace·credential을 설계한다.
+
+- 예: `/api/build/**`
+- API-only service credential
+- published 콘텐츠와 연결된 공개용 file metadata만 read
 - create/update/delete/share 금지
-- 시스템 컬렉션 최소 read
-- 토큰은 빌드 컨테이너에만 주입
-- `NEXT_PUBLIC_*` 금지
+- 관리자 cookie/session 재사용 금지
+- credential은 build container에만 주입하고 `NEXT_PUBLIC_*` 금지
 
-## 조회 범위
+현재 repository에는 build API나 build credential이 없다.
 
-빌더가 읽는 사용자 컬렉션:
+## 조회 범위 — planned
 
 ```text
 shop_settings
@@ -34,29 +52,23 @@ services
 breeds
 gallery_items
 notices
+public media metadata
 ```
 
-파일 메타데이터:
-
-```text
-directus_files
-```
-
-조회 조건:
+조회와 transformer는 모두 다음을 검증한다.
 
 - `status = published`
 - `notices.expires_at IS NULL OR expires_at > build_time`
 - 관계 대상도 published
-- 정렬은 데이터 모델 문서 기준
+- 파일이 라오미펫 공개 콘텐츠에 연결됐고 공개 파생 대상임
+- 정렬은 도메인 데이터 모델 기준
 
-## 콘텐츠 스냅샷
-
-개념적 형식:
+## content snapshot — planned
 
 ```json
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-28T12:00:00Z",
+  "generatedAt": "2026-08-29T00:00:00Z",
   "sourceRevision": {
     "shopUpdatedAt": "...",
     "maxContentUpdatedAt": "..."
@@ -69,49 +81,39 @@ directus_files
 }
 ```
 
-## 스냅샷 규칙
+- 모든 조회가 성공한 뒤 임시 file과 atomic rename으로 기록한다.
+- 일부 collection만 과거 data로 fallback하지 않는다.
+- raw persistence/API response를 component에 직접 전달하지 않는다.
+- runtime schema와 published/relation/file 조건을 transformer에서 다시 검증한다.
 
-- 모든 조회가 성공한 뒤 한 파일로 기록한다.
-- 임시 파일에 쓴 뒤 rename한다.
-- 일부 컬렉션만 과거 데이터로 fallback하지 않는다.
-- `generatedAt`은 빌드 시각이며 게시일을 대체하지 않는다.
-- raw Directus 응답을 컴포넌트에 직접 전달하지 않고 내부 domain type으로 변환한다.
-- 빌드 시 입력값을 runtime schema로 검증한다.
-
-## URL 변환
-
-Directus 파일 ID와 내부 URL을 공개 HTML에 직접 남기지 않는다.
+## media 변환 — planned
 
 ```text
-Directus file
-→ build-time download
+backend-owned original
+→ authenticated build-time download
+→ MIME/signature/pixel 검증
+→ metadata 제거와 최적화
 → content hash
 → /generated/media/<item-id>-<hash>-<width>.<format>
 ```
 
-## 실패 조건
+원본 id·storage path·내부 URL을 공개 HTML에 남기지 않는다.
 
-아래 중 하나면 빌드를 실패시킨다.
+## build 실패 조건 — planned
 
-- CMS 연결 실패
-- 인증 실패
+- build API 연결·인증 실패
 - singleton 없음
-- 필수 필드 누락
+- 필수 field 누락
 - duplicate slug
-- 관계 대상 없음
-- 공개 이미지 다운로드·디코딩 실패
-- 지원하지 않는 이미지 형식
+- draft/archived/만료 콘텐츠 포함
+- 관계 대상 없음 또는 비공개
+- file scope·다운로드·decode 실패
+- 지원하지 않는 image 형식
 - 잘못된 외부 URL
 - snapshot schema mismatch
 - HTML sanitize 실패
-- sitemap에 중복 canonical 발생
+- sitemap duplicate canonical
 
 ## 호환성
 
-스냅샷 구조가 바뀌면:
-
-1. `schemaVersion` 증가 여부 검토
-2. CMS 데이터 모델 문서 수정
-3. 변환기와 테스트 수정
-4. 기존 운영 데이터 migration 계획
-5. release evidence 기록
+계약이 바뀌면 API DTO, 도메인 데이터 모델, Flyway migration, transformer/test, 운영 data migration과 release evidence를 함께 갱신한다.

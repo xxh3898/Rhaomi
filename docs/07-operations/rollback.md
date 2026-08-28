@@ -3,7 +3,7 @@ title: "롤백"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "배포 저장구조 변경 시"
 ---
 
@@ -14,7 +14,7 @@ review_trigger: "배포 저장구조 변경 시"
 - 정적 공개 사이트
 - 코드 release
 - 콘텐츠 snapshot
-- Directus schema
+- Flyway schema
 - PostgreSQL 데이터
 
 ## 정적 사이트 롤백
@@ -41,7 +41,7 @@ Nginx 설정이 바뀌지 않았다면 reload 없이 전환하는 구조를 우�
 
 ### 단일 항목
 
-- Directus revision 또는 version 확인
+- application audit/history 또는 backup 확인
 - 잘못된 내용을 draft/archive
 - 이전 값 복원
 - 새 정적 배포
@@ -50,7 +50,7 @@ Nginx 설정이 바뀌지 않았다면 reload 없이 전환하는 구조를 우�
 
 - 쓰기 중지
 - 백업을 임시 환경에 복구
-- 데이터와 uploads 일치 확인
+- DB data와 후속 원본 image storage 일치 확인
 - 운영 전환 전 정적 build
 - 직접 운영 DB 덮어쓰기는 승인 후 수행
 
@@ -58,18 +58,18 @@ Nginx 설정이 바뀌지 않았다면 reload 없이 전환하는 구조를 우�
 
 - 직전 정상 main commit 또는 release artifact 사용
 - DB schema가 forward-only로 변경되었는지 확인
-- 현재 CMS 데이터와 이전 코드의 호환성 확인
+- 현재 DB data와 이전 code의 호환성 확인
 - 단순 `git reset`만으로 운영 데이터를 되돌리지 않는다.
 
-## Directus schema 롤백
+## Flyway schema rollback
 
 고위험 작업이다.
 
-- schema snapshot/diff
+- forward migration과 reverse migration 검토
 - 데이터 손실 가능성
 - 컬럼 삭제 여부
-- Directus system table 영향
-- 라이선스·버전 호환성
+- `admin_users`와 콘텐츠 table 영향
+- Spring Boot/JPA/Flyway version 호환성
 - 백업과 임시 restore
 
 확인 전 실행 보류.

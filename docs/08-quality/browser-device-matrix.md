@@ -3,7 +3,7 @@ title: "브라우저·기기 매트릭스"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "유입 채널·지원 범위 변경 시"
 ---
 
@@ -38,7 +38,7 @@ review_trigger: "유입 채널·지원 범위 변경 시"
 - HEIC 파일
 - 긴 본문과 키보드
 
-Directus Data Studio의 실제 모바일 사용성이 업무를 방해하면 전용 `/manage` UI를 Phase 5 후보로 올린다.
+후속 `/admin` UI는 실제 iPhone에서 login, CSRF, form validation과 image upload를 검증한 뒤 운영에 사용한다.
 
 ## 화면
 

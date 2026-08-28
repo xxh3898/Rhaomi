@@ -3,87 +3,15 @@ title: "저장소 구조"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-28"
-review_trigger: "모듈·배포 구조 변경 시"
+last_updated: "2026-08-29"
+review_trigger: "module·배포 구조 변경 시"
 ---
 
 # 저장소 구조
 
-전체 제품 구현 단계의 목표 구조다. Phase 1A는 아래 최소 실행 기반만 생성하며 나머지 module은 관련 Issue에서 추가한다.
+기존 Next.js source를 이동하지 않고 repository root에 `backend/`를 추가한다.
 
-```text
-Rhaomi/
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx
-│   │   ├── page.tsx
-│   │   ├── not-found.tsx
-│   │   ├── robots.ts
-│   │   ├── sitemap.ts
-│   │   ├── opengraph-image.*
-│   │   └── notice/
-│   │       └── [slug]/
-│   │           └── page.tsx
-│   ├── components/
-│   │   ├── layout/
-│   │   ├── hero/
-│   │   ├── gallery/
-│   │   ├── groomer/
-│   │   ├── services/
-│   │   ├── notices/
-│   │   ├── location/
-│   │   └── ui/
-│   ├── config/
-│   │   └── site.ts
-│   ├── generated/
-│   │   ├── content.json
-│   │   └── media-manifest.json
-│   ├── lib/
-│   │   ├── cms/
-│   │   ├── content/
-│   │   ├── media/
-│   │   ├── seo/
-│   │   └── validation/
-│   ├── styles/
-│   └── types/
-├── public/
-│   ├── brand/
-│   └── generated/
-├── directus/
-│   ├── schema/
-│   ├── seed/
-│   └── README.md
-├── infra/
-│   ├── compose/
-│   ├── nginx/
-│   ├── deploy-hook/
-│   └── backup/
-├── scripts/
-│   ├── sync-content.*
-│   ├── sync-media.*
-│   ├── build-static.*
-│   ├── validate-export.*
-│   ├── deploy-static.*
-│   ├── rollback.*
-│   ├── backup.*
-│   └── restore-test.*
-├── tests/
-│   ├── unit/
-│   ├── component/
-│   ├── e2e/
-│   ├── accessibility/
-│   └── smoke/
-├── docs/
-├── .github/
-├── AGENTS.md
-├── next.config.ts
-├── package.json
-├── tsconfig.json
-├── .env.example
-└── README.md
-```
-
-## Phase 1A 현재 구조
+## Phase 1B 현재 구조
 
 ```text
 Rhaomi/
@@ -91,77 +19,110 @@ Rhaomi/
 │   └── workflows/
 │       └── validate.yml
 ├── src/
-│   └── app/
-│       ├── globals.css
-│       ├── layout.tsx
-│       ├── page.module.css
-│       └── page.tsx
+│   └── app/                       # Next.js Static Export
+├── backend/
+│   ├── gradle/wrapper/            # Gradle 9.7.1 Wrapper
+│   ├── src/main/java/kr/co/rhaomi/backend/
+│   │   ├── admin/                 # admin_users domain
+│   │   ├── auth/                  # login/me/logout/csrf API
+│   │   └── config/                # security와 bootstrap
+│   ├── src/main/resources/
+│   │   ├── db/migration/          # Flyway source of truth
+│   │   └── application.yml
+│   └── src/test/                  # PostgreSQL auth contract
 ├── scripts/
-│   ├── validate-cms-compose.sh
+│   ├── validate-backend-auth.mjs
+│   ├── validate-backend-compose.sh
 │   └── validate-export.mjs
-├── tests/
-│   └── bootstrap-contract.test.mjs
+├── tests/                         # frontend·runtime contract
 ├── docs/
 ├── compose.dev.yaml
 ├── next.config.ts
 ├── package.json
 ├── package-lock.json
-├── tsconfig.json
+├── .env.example
 └── README.md
 ```
 
-- `compose.dev.yaml`은 `dev-rhaomi` project 이름과 개발 전용 network/volume만 사용한다.
-- `next-env.d.ts`, `.next/`, `out/`, `node_modules/`는 생성 파일 또는 local dependency이므로 Git에 포함하지 않는다.
-- `directus/schema`, CMS sync, image pipeline, Nginx와 배포 script는 Phase 1A에 포함하지 않는다.
+- `compose.dev.yaml`은 `dev-rhaomi` project와 개발 전용 network/volume만 사용한다.
+- `backend/build`, `.gradle`, `.next`, `out`, `node_modules`는 생성 파일이므로 Git에 포함하지 않는다.
+- Directus runtime, schema snapshot, permission artifact와 provisioning script는 현재 구조에 없다.
+
+## 전체 제품 목표 구조 — planned
+
+```text
+Rhaomi/
+├── src/
+│   ├── app/
+│   │   ├── page.tsx
+│   │   ├── admin/                 # 후속 static 관리자 UI
+│   │   └── notice/[slug]/
+│   ├── components/
+│   ├── generated/
+│   │   ├── content.json
+│   │   └── media-manifest.json
+│   ├── lib/
+│   │   ├── content/
+│   │   ├── media/
+│   │   ├── seo/
+│   │   └── validation/
+│   └── types/
+├── backend/
+│   └── src/main/
+│       ├── java/                  # 후속 콘텐츠·build API
+│       └── resources/db/migration/
+├── public/
+│   ├── brand/
+│   └── generated/
+├── infra/
+│   ├── compose/
+│   ├── nginx/
+│   ├── deploy-hook/
+│   └── backup/
+├── scripts/
+├── tests/
+└── docs/
+```
+
+planned 경로는 관련 Issue가 구현할 때만 추가한다.
 
 ## 디렉터리 계약
 
-### `src/config`
+### `backend/src/main/java`
 
-코드 소유 설정만 둔다.
+- controller는 entity를 직접 response로 반환하지 않는다.
+- 관리자 request DTO는 명시적 field allowlist를 사용한다.
+- 인증·인가·domain·persistence 경계를 package로 구분하되 불필요한 layer를 만들지 않는다.
+- password hash, session id와 credential을 log에 남기지 않는다.
 
-- fallback이 아닌 기술 설정
-- route 이름
-- 정적 생성 규칙
-- 지원 이미지 폭
-- 사이트 언어
+### `backend/src/main/resources/db/migration`
 
-실제 매장 콘텐츠를 중복 저장하지 않는다.
+- PostgreSQL schema source of truth
+- 적용된 migration 수정 금지, 변경은 새 version migration
+- JPA `ddl-auto`로 schema 생성 금지
+- destructive migration은 별도 data/backup/rollback 승인 필요
 
-### `src/generated`
+### `src/generated` — 후속
 
-CMS 동기화 스크립트가 만든 빌드 입력이다.
-
+- build API 동기화가 만든 고정 입력
 - 수동 수정 금지
-- 기본적으로 Git에 커밋하지 않음
 - schema version 포함
-- 빌드마다 새로 생성
+- 일부 실패에서 과거 데이터와 혼합 금지
 
-### `public/generated`
+### `public/generated` — 후속
 
-공개용 이미지 파생본이다.
+- 공개용 image 파생본
+- 원본 upload 금지
+- 내용 hash 기반 파일명
+- metadata 제거 후 export에 포함
 
-- 원본 업로드 금지
-- 수동 수정 금지
-- 내용 hash가 파일명에 포함
-- 빌드 작업 디렉터리에서 생성 후 export에 포함
+### `infra` — 후속
 
-### `directus/schema`
-
-- Directus 스키마 snapshot/diff
-- 정책과 Flow 설정의 재현 가능한 정의
-- 비밀값 제외
-- 운영 UI에서 스키마를 바꿨다면 같은 PR 또는 긴급 변경 후속 PR로 반영
-
-### `infra`
-
-- Docker Compose
-- Nginx
-- deploy hook
-- backup job
-- 운영 명령과 healthcheck
+- 운영 Docker Compose, Nginx, deploy hook과 backup job
+- local 개발 Compose와 운영 credential·volume을 공유하지 않음
 
 ### `scripts`
 
-- 로컬과 CI가 공유하는 단일 진실 공급원
-- GitHub Actions에 긴 shell을 직접 중복 작성하지 않는다.
+- local과 CI가 공유하는 검증 진입점
+- GitHub Actions에 긴 shell을 중복 작성하지 않음
+- 실제 credential 출력 금지

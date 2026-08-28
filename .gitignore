@@ -14,8 +14,6 @@
 !.env.example
 
 # local runtime data when a bind mount is used intentionally
-/directus/uploads/
-/directus/extensions/
 /infra/local-data/
 
 # tooling

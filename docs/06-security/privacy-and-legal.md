@@ -3,7 +3,7 @@ title: "개인정보·법적 검토"
 status: "draft"
 owner: "은총쌤"
 reviewers: "조치호"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "데이터 수집·사진·외부 도구 변경 시"
 ---
 
@@ -30,7 +30,7 @@ review_trigger: "데이터 수집·사진·외부 도구 변경 시"
 
 - 웹 서버 access log의 IP, user-agent, 시각
 - 관리자 로그인 기록
-- Directus 활동·revision
+- Spring Boot 관리자 audit·변경 이력
 - 업로드 원본의 EXIF
 - 고객 또는 보호자가 포함된 사진
 - 외부 분석 도구를 추가할 경우 이벤트·기기 정보

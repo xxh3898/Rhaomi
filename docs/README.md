@@ -3,7 +3,7 @@ title: "문서 인덱스"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "문서 추가·이동 시"
 ---
 
@@ -17,6 +17,7 @@ review_trigger: "문서 추가·이동 시"
 | `proposed` | 구현 전 검토가 필요한 권장안 |
 | `draft` | 외부 정보 또는 운영 확인이 남은 문서 |
 | `deprecated` | 더 이상 기준이 아니며 대체 문서를 명시해야 함 |
+| `superseded` | 새 ADR로 대체된 역사적 결정 |
 
 ## 00. 거버넌스
 
@@ -60,7 +61,7 @@ review_trigger: "문서 추가·이동 시"
 - [컨테이너 구조](04-architecture/container-architecture.md)
 - [저장소 구조](04-architecture/repository-structure.md)
 - [프론트엔드 구조](04-architecture/frontend-architecture.md)
-- [CMS 데이터 모델](04-architecture/cms-data-model.md)
+- [도메인 데이터 모델](04-architecture/cms-data-model.md)
 - [API·빌드 계약](04-architecture/api-and-build-contract.md)
 - [정적 퍼블리싱 파이프라인](04-architecture/static-publishing-pipeline.md)
 - [이미지 파이프라인](04-architecture/image-pipeline.md)
@@ -108,7 +109,8 @@ review_trigger: "문서 추가·이동 시"
 - [ADR-005: Directus 관리자 UI 우선](09-decisions/ADR-005-directus-admin-first.md)
 - [ADR-006: 운영 삭제는 보관 처리](09-decisions/ADR-006-soft-delete.md)
 - [ADR-007: 자체 예약·문의 폼 제외](09-decisions/ADR-007-external-contact-only.md)
-- [ADR-008: 공개 사이트의 CMS 런타임 독립](09-decisions/ADR-008-runtime-independent-public-site.md)
+- [ADR-008: 공개 사이트의 관리 backend 런타임 독립](09-decisions/ADR-008-runtime-independent-public-site.md)
+- [ADR-009: Spring Boot 관리자 백엔드와 서버 세션 인증](09-decisions/ADR-009-spring-boot-backend-admin.md)
 
 ## 10. 템플릿
 

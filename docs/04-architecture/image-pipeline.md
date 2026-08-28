@@ -1,9 +1,9 @@
 ---
 title: "이미지 파이프라인"
-status: "approved"
+status: "proposed"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "미디어 형식·저장소 변경 시"
 ---
 
@@ -15,13 +15,13 @@ review_trigger: "미디어 형식·저장소 변경 시"
 - 공개 사이트는 작은 최적화 파일만 제공한다.
 - 위치정보 등 원본 메타데이터가 공개되지 않는다.
 - 이미지 크기 때문에 LCP와 데이터 사용량이 악화되지 않는다.
-- CMS 장애와 무관하게 이미지를 제공한다.
+- 관리 backend 장애와 무관하게 이미지를 제공한다.
 
 ## 흐름
 
 ```text
 휴대전화 원본
-→ Directus uploads
+→ backend 소유 원본 storage
 → 빌더 인증 다운로드
 → 형식·크기 검증
 → EXIF orientation 적용
@@ -37,7 +37,7 @@ review_trigger: "미디어 형식·저장소 변경 시"
 
 ### 원본
 
-- Directus 업로드 볼륨
+- backend 소유 원본 image storage
 - 공개 Nginx root 밖
 - 백업 대상
 - 운영자와 빌더만 접근
@@ -80,7 +80,7 @@ review_trigger: "미디어 형식·저장소 변경 시"
 
 은총쌤이 iPhone을 사용할 가능성이 높으므로 실제 iPhone HEIC 업로드를 반드시 시험한다.
 
-- Directus 업로드 성공 여부
+- 관리자 API 업로드 성공 여부
 - 빌더 decode 여부
 - orientation
 - 색상 프로파일
@@ -109,7 +109,7 @@ HEIC 처리가 검증되지 않으면 운영자에게 지원 형식을 안내하
 
 ## 대체텍스트
 
-- CMS의 `alt_text`를 사용
+- 콘텐츠 API의 `alt_text`를 사용
 - 비어 있는 경우 공개 빌드 실패
 - 파일명이나 키워드 목록으로 자동 대체하지 않음
 - 장식적 파생본은 빈 alt 가능하나 같은 이미지가 정보 역할이면 명시적 alt 사용

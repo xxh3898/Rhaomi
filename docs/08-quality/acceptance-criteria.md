@@ -3,7 +3,7 @@ title: "수용 기준"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "제품 기능 변경 시"
 ---
 
@@ -62,7 +62,7 @@ review_trigger: "제품 기능 변경 시"
 
 ## AC-08 정적 독립성
 
-**Given** 공개 사이트가 정상 배포된 후 Directus와 PostgreSQL을 중지했을 때  
+**Given** 공개 사이트가 정상 배포된 후 Spring Boot와 PostgreSQL을 중지했을 때
 **Then** 고객은 홈, 공지, 이미지, CTA를 계속 사용할 수 있다.
 
 ## AC-09 SEO

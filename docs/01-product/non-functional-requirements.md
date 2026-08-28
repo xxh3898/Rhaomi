@@ -3,7 +3,7 @@ title: "비기능 요구사항"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "품질·운영 목표 변경 시"
 ---
 
@@ -19,8 +19,8 @@ review_trigger: "품질·운영 목표 변경 시"
 
 ## 가용성
 
-- 공개 사이트는 Directus 또는 PostgreSQL 장애 시에도 마지막 정상 릴리스로 계속 서비스되어야 한다.
-- CMS 장애는 콘텐츠 편집만 제한해야 하며 고객 사이트 장애로 전파되면 안 된다.
+- 공개 사이트는 Spring Boot 또는 PostgreSQL 장애 시에도 마지막 정상 release로 계속 서비스되어야 한다.
+- 관리 backend 장애는 콘텐츠 편집만 제한해야 하며 고객 사이트 장애로 전파되면 안 된다.
 - 콘텐츠 빌드 실패 시 공개 산출물을 교체하지 않는다.
 
 ## 접근성
@@ -40,7 +40,7 @@ review_trigger: "품질·운영 목표 변경 시"
 
 ## 유지보수
 
-- 제품·CMS·인프라 계약은 문서와 스키마 스냅샷으로 버전 관리한다.
+- 제품·API·인프라 계약은 문서, Flyway migration과 test로 version 관리한다.
 - Docker 이미지는 검증된 명시 버전 또는 digest로 고정한다.
 - 자동 업데이트로 운영 서비스를 즉시 변경하지 않는다.
 - 백업과 복구 테스트를 정기 수행한다.

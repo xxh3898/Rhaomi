@@ -1,113 +1,89 @@
 ---
 title: "정적 퍼블리싱 파이프라인"
-status: "approved"
+status: "proposed"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "콘텐츠 배포 방식 변경 시"
 ---
 
 # 정적 퍼블리싱 파이프라인
 
+## 구현 상태
+
+Static Export 기반과 기존 release 유지 방향은 승인됐지만, 콘텐츠 CRUD, build API, event와 deploy hook은 아직 구현되지 않았다. 이 문서는 후속 Issue가 따라야 할 목표 계약이다.
+
 ## 목적
 
-은총쌤이 Directus에서 저장한 공개 콘텐츠를 검색엔진이 읽을 수 있는 정적 HTML로 반영하면서, 실패 시 기존 영업 사이트를 보호한다.
+은총쌤이 관리 backend에 저장한 공개 콘텐츠를 검색 가능한 정적 HTML에 반영하면서 실패 시 기존 영업 사이트를 보호한다.
 
-## 트리거
+## planned trigger
 
-### 콘텐츠 변경
+- Spring Boot가 관련 콘텐츠 transaction을 성공시킨 뒤 domain event 또는 outbox를 기록한다.
+- 비동기 내부 deploy hook이 인증된 build 요청을 받는다.
+- hard delete는 일반 운영 경로에 포함하지 않는다.
+- 연속 저장은 debounce하고 global build lock으로 직렬화한다.
+- code release와 콘텐츠 release가 같은 검증·atomic switch 경로를 사용한다.
 
-Directus Flow가 아래 컬렉션의 create/update를 감지한다.
+구체적인 event/outbox 방식은 콘텐츠 API Issue에서 transaction 일관성·재시도·중복 처리와 함께 확정한다.
 
-```text
-shop_settings
-services
-breeds
-gallery_items
-notices
-```
-
-- Event Hook은 저장을 지연시키지 않는 non-blocking 방식
-- 내부 `deploy-hook`으로 인증된 POST 요청
-- hard delete는 운영자에게 금지하므로 일반 흐름에 포함하지 않음
-- 초안 변경도 빌드를 유발할 수 있으나 작은 사이트에서는 정확성과 단순성을 우선
-- 연속 저장은 deploy hook에서 debounce
-
-### 코드 변경
-
-- `main`의 검증된 변경이 같은 release 스크립트를 호출
-- 코드와 콘텐츠 배포가 동시에 시작되면 단일 lock으로 직렬화
-
-## 파이프라인
+## planned pipeline
 
 ```mermaid
 sequenceDiagram
     participant O as 은총쌤
-    participant D as Directus
+    participant A as Admin UI
+    participant S as Spring Boot
     participant H as Deploy Hook
     participant B as Builder
     participant N as Nginx
 
-    O->>D: 콘텐츠 저장
-    D-->>O: 저장 성공
-    D->>H: 내부 인증 Build 요청
+    O->>A: 콘텐츠 저장
+    A->>S: authenticated 관리 API
+    S-->>A: transaction 성공
+    S->>H: 내부 인증 build event
     H->>H: debounce + lock
-    H->>B: 새 작업 디렉터리 생성
-    B->>D: 읽기 전용 데이터·파일 조회
-    B->>B: 스냅샷 검증
-    B->>B: 이미지 파생본 생성
-    B->>B: Next static export
-    B->>B: 링크·SEO·스모크 검증
+    H->>B: 새 작업 directory
+    B->>S: read-only build API
+    B->>B: snapshot·published·관계·file 검증
+    B->>B: image 파생본 + Next Static Export
+    B->>B: link·SEO·smoke 검증
     alt 성공
-      B->>N: current symlink 원자적 교체
+      B->>N: current symlink atomic switch
       B->>B: previous 보존
     else 실패
-      B->>B: 실패 로그·산출물 격리
+      B->>B: 실패 artifact 격리
       N-->>O: 기존 사이트 유지
     end
 ```
 
 ## 상세 단계
 
-1. 요청 인증
-2. 중복 요청 병합
-3. 전역 build lock 획득
-4. release ID 생성
-5. Git의 배포 대상 commit 확인
-6. CMS 데이터 조회
-7. 스냅샷 schema 검증
-8. 이미지 다운로드·변환
-9. Next.js build/export
-10. `out/` 존재와 크기 확인
-11. HTML, 내부 링크, canonical, sitemap, robots 검증
-12. 핵심 URL HTTP 또는 파일 스모크
-13. release 디렉터리로 이동
-14. `previous` 기록
-15. `current` symlink atomic switch
-16. Nginx 확인
-17. 결과 로그
-18. lock 해제
-19. 대기 중 변경이 있으면 최신 상태로 한 번 더 빌드
+1. 요청 인증과 event 중복 제거
+2. global build lock
+3. release ID와 exact code commit 확인
+4. read-only build API 조회
+5. snapshot schema·published·expiry·관계·file scope 검증
+6. image download·validation·metadata 제거·변환
+7. Next.js build/export
+8. HTML, link, canonical, sitemap, robots 검증
+9. 핵심 URL/file smoke
+10. release directory 이동
+11. `previous` 기록과 `current` atomic switch
+12. 전환 후 smoke, 실패 시 previous 복귀
+13. 대기 중 변경이 있으면 최신 상태로 한 번 재build
 
-## 원자성
+## 원자성·일관성
 
-- 활성 `current` 디렉터리 안에서 빌드하지 않는다.
-- 모든 작업은 임시 release 디렉터리에서 수행한다.
-- 검증 성공 전에는 symlink를 바꾸지 않는다.
-- Nginx reload가 필요 없는 정적 root 구조를 우선한다.
-- 전환 직후 스모크가 실패하면 `previous`로 즉시 복귀한다.
-
-## 배포 일관성
-
-빌드 중 추가 콘텐츠 변경이 발생할 수 있다.
-
-- 각 빌드는 시작 시점의 일관된 스냅샷을 사용한다.
-- 변경 감지 플래그가 있으면 현재 빌드 종료 후 다시 빌드한다.
-- 오래된 빌드가 더 최신 결과를 덮지 않게 release sequence를 비교한다.
+- 활성 `current` 안에서 build하지 않는다.
+- 모든 입력 조회가 성공하기 전 snapshot을 확정하지 않는다.
+- 일부 최신/일부 과거 콘텐츠를 혼합하지 않는다.
+- 검증 성공 전 symlink를 바꾸지 않는다.
+- 오래된 build가 최신 release를 덮지 않도록 source revision을 비교한다.
 
 ## 운영자 기대값
 
-- Directus의 저장 성공과 공개 반영 성공은 다른 상태다.
+- 관리 API 저장 성공과 공개 반영 성공은 다른 상태다.
 - 저장 직후 사이트에 즉시 보이지 않을 수 있다.
-- 공개 반영 실패 시 기존 사이트는 유지된다.
-- 1차 Directus UI에는 배포 결과 표시가 없을 수 있으므로 운영자는 상태 페이지 또는 개발자 알림 절차를 따른다.
+- 공개 반영 실패 시 기존 사이트를 유지한다.
+- 후속 `/admin` UI나 상태 경로에서 build 결과를 확인할 수 있어야 한다.

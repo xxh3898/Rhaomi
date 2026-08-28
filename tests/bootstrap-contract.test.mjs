@@ -49,7 +49,9 @@ test("요청 시점 서버 기능을 공개 app source에 포함하지 않는다
 
     assert.doesNotMatch(source, /["']use server["']/);
     assert.doesNotMatch(source, /from\s+["']next\/(?:headers|server)["']/);
-    assert.doesNotMatch(source, /DIRECTUS_(?:INTERNAL_URL|BUILD_TOKEN)/);
+    assert.doesNotMatch(source, /SPRING_DATASOURCE_/);
+    assert.doesNotMatch(source, /RHAOMI_BOOTSTRAP_ADMIN_/);
+    assert.doesNotMatch(source, /\/api\/admin/);
   }
 });
 

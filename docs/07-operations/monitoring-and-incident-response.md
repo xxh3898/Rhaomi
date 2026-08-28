@@ -3,7 +3,7 @@ title: "모니터링·장애 대응"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "모니터링 도구·장애 등급 변경 시"
 ---
 
@@ -23,10 +23,10 @@ review_trigger: "모니터링 도구·장애 등급 변경 시"
 
 ### 관리자
 
-- Directus health endpoint
+- Spring Boot 최소 health endpoint
 - 로그인 가능 여부
 - PostgreSQL 연결
-- uploads 쓰기
+- 후속 원본 image storage 쓰기
 - 로그인 실패 급증
 - 관리자 certificate
 
@@ -43,7 +43,7 @@ review_trigger: "모니터링 도구·장애 등급 변경 시"
 
 - 마지막 성공 시각
 - dump 크기
-- uploads 백업 크기
+- 후속 원본 image storage backup 크기
 - offsite 전송
 - 복구 테스트일
 
@@ -72,7 +72,7 @@ review_trigger: "모니터링 도구·장애 등급 변경 시"
 
 영업시간, 휴무, 전화번호가 잘못된 경우:
 
-1. Directus에서 수정
+1. 후속 `/admin`에서 수정
 2. 재배포 결과 확인
 3. 네이버지도·카카오맵·블로그도 확인
 4. 캐시된 공유 미리보기와 검색 결과는 즉시 바뀌지 않을 수 있음을 기록
@@ -81,11 +81,11 @@ review_trigger: "모니터링 도구·장애 등급 변경 시"
 ## 침해 의심
 
 - 운영자 계정 비활성화
-- 모든 Directus session 폐기
-- Builder token rotation
+- 모든 관리자 session 폐기
+- 후속 build credential rotation
 - Deploy hook secret rotation
 - GitHub runner와 credential 확인
-- Nginx·Directus access log 보존
+- Nginx·Spring Boot access log 보존
 - 파일·콘텐츠 변경 이력 확인
 - clean release 재배포
 - 재발 방지 조치

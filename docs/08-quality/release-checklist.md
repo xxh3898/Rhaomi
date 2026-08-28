@@ -3,7 +3,7 @@ title: "출시 체크리스트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "출시 기준 변경 시"
 ---
 
@@ -23,25 +23,24 @@ review_trigger: "출시 기준 변경 시"
 - [ ] 빈 채널 버튼 미노출
 - [ ] 사진 사용 권한
 
-## CMS
+## 관리 backend
 
-- [ ] Directus 잠금 버전
+- [ ] Java image·Spring Boot·Gradle Wrapper 잠금 버전
 - [ ] PostgreSQL 연결
-- [ ] schema snapshot
-- [ ] Content Owner policy
-- [ ] Site Builder policy
-- [ ] Public 무권한
-- [ ] 운영자 2FA
+- [ ] Flyway migration과 JPA schema validation
+- [ ] server session·CSRF·fixation 방어
+- [ ] 관리자 API field allowlist와 anonymous deny
+- [ ] build API credential·read-only policy
 - [ ] 관리자 2FA
 - [ ] 상태 validation
 - [ ] archive 운영
-- [ ] Flow와 hook
+- [ ] domain event/outbox와 deploy hook
 - [ ] 실제 iPhone CRUD
 
 ## 공개 사이트
 
 - [ ] static export
-- [ ] CMS runtime 요청 없음
+- [ ] 공개 고객 site의 backend runtime 요청 없음
 - [ ] 모바일 반응형
 - [ ] 데스크톱
 - [ ] 견종 필터
@@ -93,13 +92,13 @@ review_trigger: "출시 기준 변경 시"
 ## 보안·운영
 
 - [ ] HTTPS
-- [ ] admin hostname
+- [ ] same-origin `/admin`, `/api` route
 - [ ] DB 외부 비공개
 - [ ] deploy hook 내부·인증
 - [ ] secrets scan
-- [ ] Directus license 최신 확인
+- [ ] production session `Secure`, TLS와 관리자 2FA 확인
 - [ ] DB backup
-- [ ] uploads backup
+- [ ] 원본 image storage backup
 - [ ] offsite backup
 - [ ] restore test
 - [ ] rollback
