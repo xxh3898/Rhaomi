@@ -1,0 +1,93 @@
+name: dev-rhaomi
+
+services:
+  frontend:
+    image: node:24.20.0-alpine3.23
+    profiles: ["frontend"]
+    init: true
+    working_dir: /workspace
+    command: ["npm", "run", "dev", "--", "--hostname", "0.0.0.0"]
+    environment:
+      NEXT_TELEMETRY_DISABLED: "1"
+    volumes:
+      - .:/workspace
+      - frontend-node-modules:/workspace/node_modules
+      - frontend-npm-cache:/root/.npm
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - frontend-local
+
+  postgres:
+    image: postgres:18.6-alpine3.23
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    networks:
+      - cms-internal
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  directus:
+    image: directus/directus:12.3.1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SECRET: ${DIRECTUS_SECRET:?DIRECTUS_SECRET is required}
+      PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-http://localhost:8055}
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL:?DIRECTUS_ADMIN_EMAIL is required}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD:?DIRECTUS_ADMIN_PASSWORD is required}
+      DB_CLIENT: pg
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: ${POSTGRES_DB:?POSTGRES_DB is required}
+      DB_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      STORAGE_LOCATIONS: local
+      STORAGE_LOCAL_DRIVER: local
+      STORAGE_LOCAL_ROOT: /directus/uploads
+      TELEMETRY: "false"
+    volumes:
+      - directus-uploads:/directus/uploads
+    ports:
+      - "127.0.0.1:8055:8055"
+    networks:
+      - cms-internal
+      - directus-local
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:8055/server/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+volumes:
+  frontend-node-modules:
+    name: dev-rhaomi-frontend-node-modules
+  frontend-npm-cache:
+    name: dev-rhaomi-frontend-npm-cache
+  postgres-data:
+    name: dev-rhaomi-postgres-18-data
+  directus-uploads:
+    name: dev-rhaomi-directus-uploads
+
+networks:
+  frontend-local:
+    name: dev-rhaomi-frontend-local
+  directus-local:
+    name: dev-rhaomi-directus-local
+  cms-internal:
+    name: dev-rhaomi-cms-internal
+    internal: true

@@ -1,0 +1,26 @@
+# dependencies
+/node_modules/
+
+# Next.js build output
+/.next/
+/out/
+/build/
+
+# test output
+/coverage/
+
+# local environment files
+.env*
+!.env.example
+
+# local runtime data when a bind mount is used intentionally
+/directus/uploads/
+/directus/extensions/
+/infra/local-data/
+
+# tooling
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+.DS_Store
+.vercel/

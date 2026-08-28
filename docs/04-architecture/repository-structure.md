@@ -9,7 +9,7 @@ review_trigger: "모듈·배포 구조 변경 시"
 
 # 저장소 구조
 
-구현 단계의 목표 구조다. 이 문서 ZIP에는 실제 구현 디렉터리를 생성하지 않는다.
+전체 제품 구현 단계의 목표 구조다. Phase 1A는 아래 최소 실행 기반만 생성하며 나머지 module은 관련 Issue에서 추가한다.
 
 ```text
 Rhaomi/
@@ -82,6 +82,37 @@ Rhaomi/
 ├── .env.example
 └── README.md
 ```
+
+## Phase 1A 현재 구조
+
+```text
+Rhaomi/
+├── .github/
+│   └── workflows/
+│       └── validate.yml
+├── src/
+│   └── app/
+│       ├── globals.css
+│       ├── layout.tsx
+│       ├── page.module.css
+│       └── page.tsx
+├── scripts/
+│   ├── validate-cms-compose.sh
+│   └── validate-export.mjs
+├── tests/
+│   └── bootstrap-contract.test.mjs
+├── docs/
+├── compose.dev.yaml
+├── next.config.ts
+├── package.json
+├── package-lock.json
+├── tsconfig.json
+└── README.md
+```
+
+- `compose.dev.yaml`은 `dev-rhaomi` project 이름과 개발 전용 network/volume만 사용한다.
+- `next-env.d.ts`, `.next/`, `out/`, `node_modules/`는 생성 파일 또는 local dependency이므로 Git에 포함하지 않는다.
+- `directus/schema`, CMS sync, image pipeline, Nginx와 배포 script는 Phase 1A에 포함하지 않는다.
 
 ## 디렉터리 계약
 

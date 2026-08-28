@@ -1,5 +1,5 @@
 ---
-title: "Rhaomi 프로젝트 문서 패키지"
+title: "Rhaomi 프로젝트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
@@ -21,43 +21,78 @@ review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 - 데이터베이스: PostgreSQL
 - 정적 웹 서버·리버스 프록시: Nginx
 
-## 이 패키지의 범위
+## 현재 구현 범위
 
-이 ZIP은 구현 코드가 아니라 개발 착수 전 기준 문서와 GitHub 템플릿을 제공한다.
+Phase 0 기준 문서와 GitHub 템플릿을 보존하면서 Issue #1의 Phase 1A 실행 기반을 제공한다. 현재 공개 화면은 Static Export를 검증하기 위한 최소 화면이며 실제 랜딩 디자인과 CMS 데이터 모델은 후속 Issue에서 구현한다.
 
 ```text
 .
-├── README.md
-├── AGENTS.md
-├── PACKAGE-MANIFEST.md
 ├── .github/
 │   ├── CODEOWNERS
+│   ├── workflows/validate.yml
 │   ├── pull_request_template.md
 │   └── ISSUE_TEMPLATE/
-└── docs/
-    ├── 00-governance/
-    ├── 01-product/
-    ├── 02-content/
-    ├── 03-design/
-    ├── 04-architecture/
-    ├── 05-seo/
-    ├── 06-security/
-    ├── 07-operations/
-    ├── 08-quality/
-    ├── 09-decisions/
-    └── 10-templates/
+├── src/app/                 # 최소 App Router 화면
+├── scripts/                 # 정적 산출물 검증
+├── tests/                   # Phase 1A contract test
+├── docs/                    # 제품·아키텍처·운영 기준 문서
+├── compose.dev.yaml         # 개발 전용 frontend/CMS/DB
+├── next.config.ts
+├── package.json
+├── package-lock.json
+├── AGENTS.md
+└── README.md
 ```
 
-## 문서 적용 순서
+## 작업 원칙
 
-1. ZIP 내용을 저장소 루트에 복사한다.
-2. `docs/01-product/open-items.md`에서 출시 전 미확정 항목을 확인한다.
-3. `docs/09-decisions/`의 ADR을 기준으로 첫 구현 이슈를 설계한다.
-4. 실제 구현으로 계약이 바뀌면 코드와 문서를 같은 PR에서 동기화한다.
-5. 문서만 먼저 커밋할 때는 아래 메시지를 권장한다.
+1. `docs/01-product/open-items.md`에서 출시 전 미확정 항목을 확인한다.
+2. `docs/09-decisions/`의 accepted ADR을 구현 기준으로 사용한다.
+3. 실제 구현으로 계약이 바뀌면 코드와 문서를 같은 PR에서 동기화한다.
+4. feature PR은 `dev`를 대상으로 하고 검증된 release만 `main`으로 승격한다.
 
-```text
-docs: 라오미펫 제품 및 시스템 기준 문서 초기화
+## 로컬 개발
+
+host에 Node.js를 설치하지 않고 `compose.dev.yaml`의 고정된 Node.js image를 사용한다. 먼저 example을 복사하고 placeholder를 local 개발 전용 값으로 교체한다.
+
+```bash
+cp .env.example .env.dev.local
+```
+
+### 프론트엔드
+
+```bash
+docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend run --rm frontend npm ci
+docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend run --rm frontend npm run lint
+docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend run --rm frontend npm run typecheck
+docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend run --rm frontend npm test
+docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend run --rm frontend npm run build
+docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend run --rm frontend npm run validate:export
+```
+
+개발 서버는 `127.0.0.1:3000`에만 공개한다.
+
+```bash
+docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend up frontend
+```
+
+### Directus와 PostgreSQL
+
+PostgreSQL은 host port를 공개하지 않으며 Directus만 `127.0.0.1:8055`에 bind한다.
+
+```bash
+docker compose --env-file .env.dev.local -f compose.dev.yaml config
+docker compose --env-file .env.dev.local -f compose.dev.yaml up -d --wait postgres directus
+docker compose --env-file .env.dev.local -f compose.dev.yaml ps
+docker compose --env-file .env.dev.local -f compose.dev.yaml down
+```
+
+마지막 `down`은 container와 network만 종료하고 개발 named volume은 보존한다. 운영 Compose, 운영 data, 운영 credential은 이 개발 구성을 사용하지 않는다.
+
+health, Directus의 PostgreSQL bootstrap, 재기동 후 persistent volume을 한 번에 검증하려면 다음 script를 사용한다. 성공·실패와 관계없이 container와 network를 종료하고 named volume은 보존한다.
+
+```bash
+sh scripts/validate-cms-compose.sh .env.dev.local
 ```
 
 ## 현재 핵심 결론
