@@ -23,7 +23,7 @@ review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 
 ## 현재 구현 범위
 
-Phase 0 기준 문서와 Issue #1의 Static Export 기반을 유지하면서 Issue #3의 Spring Boot 관리자 인증 기반을 제공한다. 현재 backend 범위는 `admin_users`, Flyway, 세션 인증과 CSRF 계약까지다. 콘텐츠 CRUD, 관리자 화면과 실제 랜딩 디자인은 후속 Issue에서 구현한다.
+Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1에서는 Flyway V2와 관리자용 견종·서비스 create/read/update API를 추가했다. 갤러리·이미지·공지·매장정보, 관리자 화면과 실제 랜딩 디자인은 후속 Issue에서 구현한다.
 
 ```text
 .
@@ -33,7 +33,7 @@ Phase 0 기준 문서와 Issue #1의 Static Export 기반을 유지하면서 Iss
 │   ├── pull_request_template.md
 │   └── ISSUE_TEMPLATE/
 ├── src/app/                 # 최소 App Router 화면
-├── backend/                 # Spring Boot 관리 API와 인증 contract test
+├── backend/                 # Spring Boot 인증·견종·서비스 관리 API와 PostgreSQL contract test
 ├── scripts/                 # 정적 산출물·Compose smoke 검증
 ├── tests/                   # 공개 frontend contract test
 ├── docs/                    # 제품·아키텍처·운영 기준 문서
@@ -99,6 +99,8 @@ docker compose --env-file .env.dev.local -f compose.dev.yaml run --rm --no-deps 
 docker compose --env-file .env.dev.local -f compose.dev.yaml down
 ```
 
+현재 콘텐츠 관리 API는 `/api/admin/breeds`와 `/api/admin/services`에 `GET`, `POST`, `PUT`만 제공한다. 생성은 항상 `draft`이며 수정 요청은 slug를 제외한 전체 mutable representation을 보낸다. `POST`와 `PUT`에는 관리자 session과 CSRF token이 모두 필요하고, `PATCH`와 영구 `DELETE` endpoint는 제공하지 않는다.
+
 health, local/test bootstrap, CSRF login/me/logout, 재기동 후 persistent volume을 한 번에 검증하려면 다음처럼 명시적 test credential을 process 환경으로 전달한다. 실제 운영 email/password를 사용하지 않는다.
 
 ```bash
@@ -113,7 +115,8 @@ sh scripts/validate-backend-compose.sh .env.dev.local
 - 고객 페이지는 정적 HTML로 배포하며 SSR을 사용하지 않는다.
 - 공개 사이트는 런타임에 Spring Boot나 PostgreSQL에 의존하지 않는다.
 - 관리자 인증은 HttpOnly session cookie와 CSRF 보호를 사용하는 Spring Security 기반이다.
-- 은총쌤용 콘텐츠 CRUD와 `/admin` 화면은 후속 Issue에서 구현한다.
+- 견종·서비스 기준정보는 관리자 session·CSRF가 적용된 API로 생성·조회·수정·보관할 수 있다.
+- 갤러리·공지·매장정보·이미지와 `/admin` 화면은 후속 Issue에서 구현한다.
 - 공개 콘텐츠 변경은 정적 사이트 재빌드·검증·원자적 교체를 유발한다.
 - 고객용 예약 시스템, 결제, 회원가입, 문의 폼은 만들지 않는다.
 - 전화, 인스타그램, 네이버톡톡 등 외부 문의 채널로 연결한다.

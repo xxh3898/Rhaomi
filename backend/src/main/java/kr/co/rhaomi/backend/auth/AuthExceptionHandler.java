@@ -1,6 +1,7 @@
 package kr.co.rhaomi.backend.auth;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -22,7 +23,7 @@ public class AuthExceptionHandler {
         return new ApiError("AUTH_SERVICE_UNAVAILABLE", "인증 서비스를 사용할 수 없습니다.");
     }
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
+    @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     ApiError handleValidationFailure() {
         return new ApiError("INVALID_REQUEST", "요청 형식을 확인해 주세요.");

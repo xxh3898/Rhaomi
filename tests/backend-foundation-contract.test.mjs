@@ -60,6 +60,30 @@ test("Flyway와 Spring Security의 fail-closed 계약을 보존한다", async ()
   assert.doesNotMatch(security, /csrf\([^)]*disable/);
 });
 
+test("견종·서비스 V2와 제한된 관리자 API 계약을 고정한다", async () => {
+  const [application, migration, breedController, serviceController] = await Promise.all([
+    source("backend/src/main/resources/application.yml"),
+    source("backend/src/main/resources/db/migration/V2__create_breeds_and_services.sql"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/breed/BreedAdminController.java"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/service/ServiceAdminController.java"),
+  ]);
+
+  assert.match(application, /fail-on-unknown-properties: true/);
+  assert.match(migration, /CREATE TABLE breeds/);
+  assert.match(migration, /CREATE TABLE services/);
+  assert.match(migration, /CONSTRAINT uk_breeds_slug UNIQUE/);
+  assert.match(migration, /CONSTRAINT uk_services_slug UNIQUE/);
+  assert.match(migration, /CONSTRAINT ck_services_published_fields CHECK/);
+  assert.match(migration, /REFERENCES admin_users\(id\) ON DELETE RESTRICT/);
+
+  for (const controller of [breedController, serviceController]) {
+    assert.match(controller, /@GetMapping/);
+    assert.match(controller, /@PostMapping/);
+    assert.match(controller, /@PutMapping/);
+    assert.doesNotMatch(controller, /@(?:Patch|Delete)Mapping/);
+  }
+});
+
 test("실행 경로에 Directus 설정을 남기지 않는다", async () => {
   const runtimeFiles = await Promise.all([
     source("compose.dev.yaml"),

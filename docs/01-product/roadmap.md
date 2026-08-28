@@ -37,9 +37,19 @@ review_trigger: "릴리스 범위 변경 시"
 
 Phase 1B는 콘텐츠 CRUD나 관리자 화면의 완료를 의미하지 않는다.
 
-### Phase 1C 이후 — 콘텐츠 도메인
+### Phase 1C-1 — 견종·서비스 관리 API
 
-- 공지·견종·서비스·갤러리·매장정보 table과 Flyway migration
+- Flyway V2 `breeds`, `services`
+- `draft | published | archived` 상태와 복구 가능한 archive 정책
+- 관리자 session·CSRF 기반 create/read/full update API
+- immutable slug, DTO field allowlist, actor/audit 추적
+- 실제 PostgreSQL API·DB 계약 테스트
+
+Phase 1C-1은 갤러리·이미지·공지·매장정보, 관리자 화면이나 공개 build API의 완료를 의미하지 않는다.
+
+### Phase 1C-2 이후 — 나머지 콘텐츠 도메인
+
+- 공지·갤러리·매장정보 table과 Flyway migration
 - 관리자 DTO field allowlist와 archive 정책
 - `/admin` 로그인·콘텐츠 관리 UI
 - 이미지 원본 storage와 upload validation

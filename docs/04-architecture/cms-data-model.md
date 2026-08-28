@@ -11,10 +11,10 @@ review_trigger: "PostgreSQL table·field·API 변경 시"
 
 ## 구현 상태
 
-- 현재 구현: Flyway V1의 `admin_users`
-- 후속 구현: 매장정보, 견종, 서비스, 갤러리, 공지, 원본 이미지
+- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`와 `services`
+- 후속 구현: 매장정보, 갤러리, 공지, 원본 이미지
 
-아래 콘텐츠 모델은 제품 방향을 위한 proposed 계약이다. 이번 Issue에서 table이나 CRUD가 존재하는 것으로 해석하지 않는다.
+`breeds`와 `services`는 현재 schema와 관리 API 계약이고, 나머지 콘텐츠 모델은 제품 방향을 위한 proposed 계약이다.
 
 ## 현재 `admin_users`
 
@@ -30,15 +30,15 @@ review_trigger: "PostgreSQL table·field·API 변경 시"
 
 schema source of truth는 `backend/src/main/resources/db/migration/V1__create_admin_users.sql`이다.
 
-## 후속 콘텐츠 공통 규칙
+## 콘텐츠 공통 규칙
 
 - primary key: UUID
 - 공개 상태: `draft | published | archived`
 - 정렬: 작은 값이 먼저
 - 시간: DB에는 timezone-aware timestamp, 화면은 Asia/Seoul
-- slug: unique, 게시 후 변경 제한
+- slug: lowercase ASCII kebab-case, unique, 생성 후 관리 API에서 변경 불가
 - raw HTML 입력 금지
-- 공지 본문은 Markdown 또는 제한된 rich text, build 시 sanitize
+- 공지 본문은 후속 구현에서 Markdown 또는 제한된 rich text를 사용하고 build 시 sanitize
 - 운영 삭제는 `archived`
 - id, audit timestamp와 내부 field는 관리자 update DTO에서 제외
 
@@ -64,18 +64,27 @@ erDiagram
 - 복잡한 요일별 시간은 별도 ADR로 확장한다.
 - 선택형 URL이 없으면 button을 숨긴다.
 
-## `breeds` — planned
+## 현재 `breeds`
 
-필드: id, status, name, unique slug, description, sort, audit timestamps.
+필드: id, status, name, unique slug, description, sort_order, created_at, updated_at, created_by, updated_by.
 
+- 생성 상태는 항상 `draft`이고 생성 요청에서 status를 받지 않는다.
+- publish 시 name과 slug가 유효해야 한다.
+- 목록 정렬은 `sort_order ASC, name ASC, id ASC`다.
+- actor field는 `admin_users(id)`를 참조하고 `ON DELETE RESTRICT`다.
 - 공개 gallery가 없는 견종은 filter에 표시하지 않는다.
 - 참조 중인 견종은 archive한다.
 
-## `services` — planned
+## 현재 `services`
 
-필드: id, status, name, unique slug, description, price text, sort, audit timestamps.
+필드: id, status, name, unique slug, description, price_text, sort_order, created_at, updated_at, created_by, updated_by.
 
-- publish 시 description과 price text가 필수다.
+- 생성 상태는 항상 `draft`이고 생성 요청에서 status를 받지 않는다.
+- publish 시 description과 price_text가 필수이며 application과 `ck_services_published_fields`가 이중 검증한다.
+- 목록 정렬은 `sort_order ASC, name ASC, id ASC`다.
+- actor field는 `admin_users(id)`를 참조하고 `ON DELETE RESTRICT`다.
+
+두 table의 schema source of truth는 `backend/src/main/resources/db/migration/V2__create_breeds_and_services.sql`이다. status·slug 형식·slug unique·name non-blank·sort_order와 actor FK constraint에는 식별 가능한 이름을 부여한다.
 
 ## `gallery_items` — planned
 
@@ -92,17 +101,17 @@ erDiagram
 - `expires_at`은 없거나 `published_at`보다 늦어야 한다.
 - build time이 `expires_at` 이상이면 공개 snapshot에서 제외한다.
 
-## 정렬 — planned
+## 정렬
 
 ```text
-gallery: featured DESC, sort ASC, published_at DESC, id ASC
 services/breeds: sort ASC, name ASC
+gallery: featured DESC, sort ASC, published_at DESC, id ASC (planned)
 notices: pinned DESC, published_at DESC, id ASC
 ```
 
 ## 무결성 구현 원칙
 
 - PostgreSQL constraint와 application validation을 역할에 맞게 이중 적용한다.
-- publish validation은 partial update 후의 최종 entity 상태를 기준으로 수행한다.
+- publish validation은 `PUT`으로 받은 전체 mutable representation을 적용할 최종 entity 상태를 기준으로 수행한다.
 - API request DTO allowlist로 id/audit/system field mass assignment를 차단한다.
 - 공개 build query와 transformer가 published/relation/file 조건을 각각 검증한다.

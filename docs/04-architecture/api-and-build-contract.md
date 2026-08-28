@@ -31,6 +31,33 @@ review_trigger: "관리 API·build 입력 변경 시"
 - 아직 설계하지 않은 `/api/**`는 deny한다.
 - 세 anonymous endpoint 외 non-API path와 미허용 Actuator path를 포함한 모든 request는 deny한다.
 
+## 현재 견종·서비스 관리 API
+
+모든 endpoint는 관리자 session 인증이 필요하다. `POST`와 `PUT`은 유효한 CSRF token이 있어야 한다.
+
+| method | path | 용도 | 성공 응답 |
+|---|---|---|---|
+| `GET` | `/api/admin/breeds` | 전체 상태 견종 목록 | `200 OK` |
+| `GET` | `/api/admin/breeds/{id}` | 견종 단건 | `200 OK` |
+| `POST` | `/api/admin/breeds` | `draft` 견종 생성 | `201 Created` |
+| `PUT` | `/api/admin/breeds/{id}` | 견종 전체 mutable field 수정·상태 전환 | `200 OK` |
+| `GET` | `/api/admin/services` | 전체 상태 서비스 목록 | `200 OK` |
+| `GET` | `/api/admin/services/{id}` | 서비스 단건 | `200 OK` |
+| `POST` | `/api/admin/services` | `draft` 서비스 생성 | `201 Created` |
+| `PUT` | `/api/admin/services/{id}` | 서비스 전체 mutable field 수정·상태 전환 | `200 OK` |
+
+- 생성 request allowlist는 name, slug, description, 선택형 priceText, sortOrder만 허용하며 status는 받지 않는다.
+- 수정 request allowlist는 status, name, description, 선택형 priceText, sortOrder만 허용하며 slug는 받지 않는다.
+- 두 DTO 모두 id, createdAt, updatedAt, createdBy, updatedBy와 unknown/system field를 거부한다.
+- slug는 `^[a-z0-9]+(?:-[a-z0-9]+)*$` 형식이며 unique이고 생성 후 변경할 수 없다.
+- 목록은 `sort_order ASC, name ASC, id ASC`로 정렬하고 pagination/search는 아직 제공하지 않는다.
+- `PATCH`, `DELETE`, anonymous/public read endpoint는 제공하지 않는다.
+- application service는 actor를 `AdminPrincipal.id`에서만 받고 생성 시 created_by·updated_by, 수정 시 updated_by를 기록한다.
+
+오류 응답은 request·unknown field·slug 오류 `400 INVALID_REQUEST`, 없는 id `404 CONTENT_NOT_FOUND`, 중복 slug `409 SLUG_CONFLICT`, 게시 필수값 부족 `422 PUBLISH_VALIDATION_FAILED`를 사용한다. anonymous는 `401`, CSRF 실패는 `403`이며 DB 장애의 내부 detail은 generic `5xx` response에 포함하지 않는다.
+
+서비스가 `published`가 되려면 name·slug·description·priceText가 모두 유효해야 한다. 검증 실패는 기존 row를 부분 변경하지 않는다. `archived` row는 삭제하지 않고 유효한 전체 값으로 `draft`나 `published`로 복구할 수 있다.
+
 ## build API — planned
 
 후속 Issue에서 관리자 session과 분리된 namespace·credential을 설계한다.
