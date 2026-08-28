@@ -1,0 +1,33 @@
+name: 문서 변경
+description: 기준 문서, ADR, 운영절차 또는 템플릿을 수정합니다.
+title: "[Docs] "
+labels: ["documentation"]
+body:
+  - type: textarea
+    id: reason
+    attributes:
+      label: 변경 이유
+    validations:
+      required: true
+  - type: textarea
+    id: target
+    attributes:
+      label: 대상 문서
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: 근거
+      description: 코드, 의사결정, 공식 문서 또는 운영 사실을 적어주세요.
+    validations:
+      required: true
+  - type: checkboxes
+    id: consistency
+    attributes:
+      label: 일관성 확인
+      options:
+        - label: 관련 문서의 중복·충돌을 확인했습니다.
+          required: true
+        - label: 링크와 상태 메타데이터를 확인했습니다.
+          required: true

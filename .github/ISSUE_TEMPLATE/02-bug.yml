@@ -1,0 +1,56 @@
+name: 버그
+description: 재현 가능한 결함을 기록합니다.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 현상
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 재현 절차
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 동작
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 동작
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: 환경
+      options:
+        - 로컬
+        - 개발
+        - 운영
+        - Directus 관리자
+        - 검색엔진/공유 미리보기
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 증거
+      description: 화면, 로그, URL, 기기/브라우저 정보를 적어주세요.
+  - type: textarea
+    id: risk
+    attributes:
+      label: 운영 영향과 임시 대응
+    validations:
+      required: true

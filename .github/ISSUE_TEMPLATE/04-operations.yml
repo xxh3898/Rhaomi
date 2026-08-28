@@ -1,0 +1,44 @@
+name: 운영·인프라
+description: 배포, 백업, 보안, 모니터링, 장애 대응 작업입니다.
+title: "[Ops] "
+labels: ["operations"]
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: 목표
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: 현재 상태
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: 변경 계획
+    validations:
+      required: true
+  - type: textarea
+    id: risk
+    attributes:
+      label: 실패 비용과 위험
+    validations:
+      required: true
+  - type: textarea
+    id: rollback
+    attributes:
+      label: 롤백·복구 계획
+    validations:
+      required: true
+  - type: checkboxes
+    id: gates
+    attributes:
+      label: 실행 게이트
+      options:
+        - label: 백업 상태 확인
+        - label: 비밀값 노출 여부 확인
+        - label: 운영자 영향 공지
+        - label: 복구 명령 또는 절차 검증
