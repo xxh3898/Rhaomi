@@ -46,6 +46,8 @@ build-time 공개 콘텐츠 조회는 후속 Issue에서 `/api/build/**` 같은 
 | `/api/admin/**` 나머지 | 거부 | 기본 인증 필요 | 실제 업무 API는 후속 Issue |
 | `/api/**` 나머지 | 거부 | 거부 | 명시 설계 전 fail closed |
 | `GET /actuator/health` | 허용 | 허용 | health만 노출 |
+| `/actuator/**` 나머지 | 거부 | 거부 | health 외 노출 금지 |
+| 그 밖의 모든 path | 거부 | 거부 | 명시 정책 전 `denyAll` |
 
 ## 세션·CSRF
 
@@ -53,6 +55,7 @@ build-time 공개 콘텐츠 조회는 후속 Issue에서 `/api/build/**` 같은 
 - session cookie는 `HttpOnly`와 `SameSite=Lax`를 명시한다.
 - 운영에서는 TLS와 함께 `Secure=true`를 강제하며 production profile이 false 설정으로 기동되지 않게 한다.
 - 로그인 성공 시 session fixation 방어로 session id를 교체한다.
+- `ProviderManager` 인증 완료 시 principal credential을 지우고 password hash가 없는 `SecurityContext`만 session에 저장한다.
 - CSRF 보호를 비활성화하지 않는다.
 - static admin client는 CSRF endpoint에서 받은 token을 state-changing request header에 보낸다.
 - password, password hash, session id, CSRF token을 application log에 남기지 않는다.
@@ -61,6 +64,7 @@ build-time 공개 콘텐츠 조회는 후속 Issue에서 `/api/build/**` 같은 
 
 - 기본값은 비활성이다.
 - local/test 환경에서 explicit enable flag, email, password가 모두 있을 때만 idempotent하게 생성한다.
+- password는 최소 12자이면서 UTF-8 최대 72 byte여야 하며 초과 입력은 `PasswordEncoder` 호출 전에 명시적 validation 오류로 중단한다.
 - credential이 일부만 있거나 빈 값이면 기동을 실패시켜 잘못된 보안 상태를 숨기지 않는다.
 - production profile에서는 bootstrap을 실행하지 않는다.
 - `.env.example`에는 실제 email/password를 넣지 않는다.

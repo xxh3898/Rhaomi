@@ -27,7 +27,7 @@ review_trigger: "기술·브랜치·운영 방식 변경 시"
 - 공개 사이트는 런타임에 Spring Boot API를 호출하지 않는다.
 - 콘텐츠 데이터와 이미지는 후속 build API에서 빌드 시점에 동기화해 정적 산출물에 포함한다.
 - 예약·결제·회원가입·문의 폼을 구현하지 않는다.
-- 관리 backend는 Java 21 + Spring Boot + PostgreSQL이며 DB schema source of truth는 Flyway다.
+- 관리 backend는 Java 25 LTS + Spring Boot + PostgreSQL이며 DB schema source of truth는 Flyway다.
 - 관리자 인증은 Spring Security 서버 세션과 CSRF 보호를 사용하고 JWT를 기본안으로 추가하지 않는다.
 - 관리자 UI는 후속 Issue에서 same-origin `/admin`으로 구현한다.
 - 이미지 원본 storage는 후속 Issue에서 backend 소유로 설계하고, 공개 사이트에는 메타데이터를 제거한 최적화 파생본만 배포한다.

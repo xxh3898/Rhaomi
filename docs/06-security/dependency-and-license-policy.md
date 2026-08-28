@@ -11,7 +11,7 @@ review_trigger: "주요 의존성·라이선스 변경 시"
 
 ## 현재 핵심 의존성
 
-- Java 21 LTS
+- Java 25 LTS
 - Spring Boot `4.1.1`
 - Gradle Wrapper `9.7.1`
 - PostgreSQL `18.6-alpine3.23`

@@ -45,6 +45,15 @@ fi
 compose up -d --wait --wait-timeout 300 postgres backend
 compose ps
 
+backend_java_version=$(compose exec -T backend java -version 2>&1)
+case "$backend_java_version" in
+  *'version "25.'*) ;;
+  *)
+    echo "backend Java 25 runtime을 확인하지 못했습니다." >&2
+    exit 1
+    ;;
+esac
+
 curl --fail --silent --show-error http://127.0.0.1:8080/actuator/health | grep -q '"status":"UP"'
 compose exec -T postgres sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 test "$(compose port backend 8080)" = "127.0.0.1:8080"

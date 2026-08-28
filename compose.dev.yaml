@@ -19,7 +19,7 @@ services:
       - frontend-local
 
   backend:
-    image: eclipse-temurin:21.0.12_8-jdk-alpine-3.23@sha256:bcc6da0b0efc6fb0e445173784dddb45d5f70afa8a9128430a63f79ef0154601
+    image: eclipse-temurin:25.0.4_7-jdk-alpine-3.23@sha256:b7c88ce22d575642650ec83cbf4e470a0c183a46871467180238e4b27ad9e20a
     init: true
     working_dir: /workspace/backend
     command: ["./gradlew", "bootRun", "--no-daemon"]

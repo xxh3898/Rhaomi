@@ -4,15 +4,16 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import kr.co.rhaomi.backend.admin.AdminRole;
+import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-public final class AdminPrincipal implements UserDetails {
+public final class AdminPrincipal implements UserDetails, CredentialsContainer {
 
     private final UUID id;
     private final String email;
-    private final String passwordHash;
+    private String passwordHash;
     private final AdminRole role;
     private final boolean active;
 
@@ -55,6 +56,11 @@ public final class AdminPrincipal implements UserDetails {
     @Override
     public boolean isEnabled() {
         return active;
+    }
+
+    @Override
+    public void eraseCredentials() {
+        passwordHash = null;
     }
 
     @Override

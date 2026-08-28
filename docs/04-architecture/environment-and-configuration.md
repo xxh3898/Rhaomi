@@ -26,7 +26,7 @@ production
 - local 환경파일: Git 제외 `.env.dev.local`
 - 공개 example: `.env.example`
 - Node.js: `24.20.0-alpine3.23`
-- Java: `eclipse-temurin:21.0.12_8-jdk-alpine-3.23`
+- Java: `eclipse-temurin:25.0.4_7-jdk-alpine-3.23`
 - Spring Boot: `4.1.1`
 - Gradle Wrapper: `9.7.1`
 - PostgreSQL: `18.6-alpine3.23`
@@ -56,9 +56,10 @@ Compose는 `POSTGRES_*`에서 backend의 `SPRING_DATASOURCE_*`를 내부 service
 |---|---:|---|---|
 | `RHAOMI_BOOTSTRAP_ADMIN_ENABLED` | N | `false` | 명시적 local/test bootstrap gate |
 | `RHAOMI_BOOTSTRAP_ADMIN_EMAIL` | Y 취급 | 빈 값 | test/local 관리자 email |
-| `RHAOMI_BOOTSTRAP_ADMIN_PASSWORD` | Y | 빈 값 | 최소 12자의 test/local password |
+| `RHAOMI_BOOTSTRAP_ADMIN_PASSWORD` | Y | 빈 값 | 최소 12자, UTF-8 최대 72 byte의 test/local password |
 
 - enable flag와 두 credential이 모두 유효할 때만 account를 idempotent하게 생성한다.
+- 72-byte 초과 password는 encoder 호출 전에 validation 오류로 기동을 중단한다.
 - flag가 false면 credential이 있더라도 account를 만들지 않는다.
 - production profile에서 flag가 true면 기동을 실패시킨다.
 - 실제 은총쌤 credential을 `.env.example`, CI, 문서에 사용하지 않는다.

@@ -42,8 +42,10 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | session fixation | 로그인 전 session 탈취 연계 | 로그인 성공 시 session id 교체 |
 | 비활성 계정 로그인 | 해지 계정 재사용 | `active` 확인과 동일한 401 실패 |
 | bootstrap 오용 | default 관리자 생성 | 기본 비활성, 완전한 env 요구, production profile 차단 |
-| API fail-open | 미설계 endpoint 노출 | login/csrf/health만 anonymous, `/api/**` 명시 전 deny |
-| password hash 노출 | offline cracking | entity 직접 반환 금지, DTO allowlist, log/body 검사 |
+| API fail-open | 미설계 endpoint 노출 | login/csrf/health만 anonymous, API·Actuator·non-API 모두 명시 전 `denyAll` |
+| password hash 노출 | offline cracking | entity 직접 반환 금지, DTO allowlist, 인증 완료 credential erase, session principal·log·body 검사 |
+| 인증 service 장애 오분류 | 장애 은폐, 진단 지연 | credential 401 allowlist, service/repository 장애 generic 503 |
+| BCrypt 입력 경계 불일치 | 예외 기반 5xx, bootstrap 기동 실패 | login·bootstrap 공통 UTF-8 72-byte validation을 encoder 전에 적용 |
 | DB 포트 노출 | 데이터 탈취 | host port 금지, 개발 전용 내부 network |
 | 공급망 취약점 | 코드 실행 | exact version, Wrapper/lockfile, scanner, 별도 upgrade 검증 |
 | backend 장애 | 관리자 작업 중단 | 공개 Static Export와 runtime 분리 |

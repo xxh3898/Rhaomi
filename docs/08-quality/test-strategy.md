@@ -31,10 +31,13 @@ review_trigger: "기술·기능 범위 변경 시"
 
 ### Backend unit
 
+- test runtime `Runtime.version().feature() == 25`
 - bootstrap 기본 비활성
 - bootstrap credential 불완전 시 fail closed
 - production profile bootstrap 거부
 - email 정규화·password hash 생성
+- bootstrap UTF-8 password 72-byte 허용·73-byte encoder 전 거부
+- 인증 service·repository 장애의 generic 503과 내부 detail 비노출
 
 ### Backend PostgreSQL integration
 
@@ -42,14 +45,16 @@ review_trigger: "기술·기능 범위 변경 시"
 - Flyway V1 `admin_users` 생성
 - JPA `ddl-auto=validate`
 - plaintext password 비저장과 BCrypt match
-- bad/inactive/good login
+- missing/bad/inactive/good login과 동일한 credential 401
+- login UTF-8 password 72-byte 성공·73-byte validation 거부
+- `ProviderManager` 인증 완료 principal과 session `SecurityContext`의 password hash 부재
 - anonymous `/me`와 보호 endpoint 거부
 - login 후 `/me`
 - logout CSRF deny/allow와 session 무효화
 - login CSRF deny/allow
 - HttpOnly·SameSite session cookie와 fixation 후 id 변경
 - response의 password/hash 비노출
-- health 외 미설계 API deny
+- health 외 미설계 API·Actuator·non-API path deny
 
 H2 전용 통과는 DB contract 증거로 인정하지 않는다. Hosted CI Backend job은 실제 PostgreSQL service를 사용한다.
 Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 application context를 시작하기 전에 중단한다. fixture 정리는 지정된 test email에만 한정한다.
@@ -57,6 +62,7 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 ### Compose Smoke
 
 - exact service/image와 config validation
+- exact Temurin 25 image의 Java 25 `bootRun` 확인
 - backend/PostgreSQL health
 - backend loopback bind와 PostgreSQL host port 부재
 - explicit local/test bootstrap

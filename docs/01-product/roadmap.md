@@ -28,7 +28,7 @@ review_trigger: "릴리스 범위 변경 시"
 ### Phase 1B — Spring Boot 관리자 인증 기반
 
 - Directus 실행 경로 제거
-- Java 21 + Spring Boot + PostgreSQL
+- Java 25 LTS + Spring Boot + PostgreSQL
 - Flyway V1 `admin_users`
 - Spring Security 서버 세션과 CSRF
 - login, me, logout, 최소 health

@@ -24,9 +24,12 @@ review_trigger: "관리 API·build 입력 변경 시"
 
 - 인증은 server session에 저장한다.
 - login 실패는 잘못된 password, 없는 email과 inactive account를 같은 401 계약으로 처리한다.
-- request/response에 `password_hash`를 포함하지 않는다.
+- 인증 service 또는 repository 장애는 내부 원인을 노출하지 않는 503 `AUTH_SERVICE_UNAVAILABLE`로 처리한다.
+- login password는 UTF-8 최대 72 byte이며 초과 입력은 credential 비교 전에 400 `INVALID_REQUEST`로 거부한다.
+- request/response와 인증 완료 principal·저장된 `SecurityContext`에 `password_hash`를 포함하지 않는다.
 - `/api/admin/**`는 위 anonymous 예외 외 인증이 기본이다.
 - 아직 설계하지 않은 `/api/**`는 deny한다.
+- 세 anonymous endpoint 외 non-API path와 미허용 Actuator path를 포함한 모든 request는 deny한다.
 
 ## build API — planned
 

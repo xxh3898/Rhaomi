@@ -17,7 +17,7 @@ review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 - 개발·인프라 담당: 조치호
 - 배포 대상: Mac mini
 - 공개 프론트엔드: Next.js App Router + TypeScript + Static Export
-- 관리 API: Java 21 + Spring Boot 4.1.1
+- 관리 API: Java 25 LTS + Spring Boot 4.1.1
 - 데이터베이스: PostgreSQL
 - 정적 웹 서버·리버스 프록시: Nginx
 

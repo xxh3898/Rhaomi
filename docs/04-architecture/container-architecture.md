@@ -16,7 +16,7 @@ review_trigger: "서비스 배치·network·image 변경 시"
 | 서비스 | 고정 image | local 공개 | 영속화 |
 |---|---|---|---|
 | `frontend` | `node:24.20.0-alpine3.23` | `127.0.0.1:3000` | `node_modules`, npm cache |
-| `backend` | `eclipse-temurin:21.0.12_8-jdk-alpine-3.23` | `127.0.0.1:8080` | Gradle cache |
+| `backend` | `eclipse-temurin:25.0.4_7-jdk-alpine-3.23` | `127.0.0.1:8080` | Gradle cache |
 | `postgres` | `postgres:18.6-alpine3.23` | 없음 | backend PostgreSQL data |
 | `smoke` | `node:24.20.0-alpine3.23` | 없음 | 없음 |
 

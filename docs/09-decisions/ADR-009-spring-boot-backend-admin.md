@@ -22,7 +22,7 @@ review_trigger: "관리자 인증·콘텐츠 API·DB·배포 구조 변경 시"
 ## 결정
 
 - Directus runtime, Data Studio, role/policy/permission, schema apply, file storage, license 의존을 제거한다.
-- 관리 API는 Java 21과 Spring Boot 4.1.1을 사용하고 PostgreSQL을 유지한다.
+- 관리 API는 Java 25 LTS와 Spring Boot 4.1.1을 사용하고 PostgreSQL을 유지한다.
 - DB schema 변경은 Flyway만 수행하며 JPA는 schema를 자동 생성하지 않고 검증한다.
 - 관리자 인증은 Spring Security 서버 세션을 사용한다.
 - session cookie는 HttpOnly이고 SameSite를 명시하며, 운영 환경에서 Secure를 강제할 수 있어야 한다.
@@ -47,9 +47,12 @@ review_trigger: "관리자 인증·콘텐츠 API·DB·배포 구조 변경 시"
 ## 보안 계약
 
 - `/api/admin/**`는 명시한 login/csrf endpoint를 제외하고 인증이 기본이다.
+- anonymous 허용은 `GET /api/admin/auth/csrf`, `POST /api/admin/auth/login`, `GET /actuator/health`로 한정하고 그 밖의 모든 request는 명시적 정책이 생기기 전 `denyAll`로 거부한다.
 - state-changing request는 CSRF token 없이는 거부한다.
 - 로그인 실패는 계정 존재·활성 여부를 구분해 노출하지 않는다.
-- password는 검증된 Spring Security `PasswordEncoder`로 해시하고 response와 log에 hash·session id를 남기지 않는다.
+- 잘못된 계정·password·비활성 계정만 같은 401로 처리하고 인증 service·repository 장애는 내부 정보를 숨긴 503으로 구분한다.
+- password 입력은 BCrypt 계약에 맞춰 login과 bootstrap 모두 UTF-8 최대 72 byte로 제한한다.
+- password는 검증된 Spring Security `PasswordEncoder`로 해시하고 인증 완료 직후 principal credential을 지운 뒤 `SecurityContext`를 저장한다. response와 log에도 hash·session id를 남기지 않는다.
 - bootstrap은 명시적 local/test 활성화와 완전한 credential이 모두 있어야 실행하며 production profile에서는 실행하지 않는다.
 - backend와 frontend 개발 port는 loopback에만 bind하고 PostgreSQL host port는 열지 않는다.
 

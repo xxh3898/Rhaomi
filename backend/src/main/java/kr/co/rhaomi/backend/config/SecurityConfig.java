@@ -52,7 +52,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/**")
                         .denyAll()
                         .anyRequest()
-                        .permitAll())
+                        .denyAll())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))

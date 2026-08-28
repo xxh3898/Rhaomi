@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import kr.co.rhaomi.backend.admin.AdminUser;
 import kr.co.rhaomi.backend.admin.AdminUserRepository;
+import kr.co.rhaomi.backend.validation.Utf8ByteLength;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.env.Environment;
@@ -63,5 +64,5 @@ public class AdminBootstrap implements ApplicationRunner {
 
     private record BootstrapCredential(
             @NotBlank @Email @Size(max = 320) String email,
-            @NotBlank @Size(min = 12, max = 1024) String password) {}
+            @NotBlank @Size(min = 12) @Utf8ByteLength(max = 72) String password) {}
 }

@@ -1,6 +1,7 @@
 package kr.co.rhaomi.backend.auth;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -13,6 +14,12 @@ public class AuthExceptionHandler {
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     ApiError handleInvalidCredentials() {
         return new ApiError("INVALID_CREDENTIALS", "이메일 또는 비밀번호를 확인해 주세요.");
+    }
+
+    @ExceptionHandler(AuthenticationServiceException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    ApiError handleAuthenticationServiceFailure() {
+        return new ApiError("AUTH_SERVICE_UNAVAILABLE", "인증 서비스를 사용할 수 없습니다.");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
