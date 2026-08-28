@@ -3,7 +3,7 @@ title: "브랜치·릴리스 정책"
 status: "proposed"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "GitHub 운영 방식 확정 시"
 ---
 
@@ -56,5 +56,5 @@ feature/* ──PR──> dev ──Release PR──> main
 ## 배포 트리거
 
 - 코드 배포: `main` 변경
-- 콘텐츠 배포: Directus의 공개 콘텐츠 변경
+- 콘텐츠 배포: Spring Boot에서 승인된 공개 콘텐츠 변경
 - 두 트리거 모두 동일한 `build → validate → atomic switch` 파이프라인으로 수렴한다.

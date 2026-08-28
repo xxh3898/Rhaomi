@@ -3,7 +3,7 @@ title: "Codex 및 AI 에이전트 작업 지침"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "기술·브랜치·운영 방식 변경 시"
 ---
 
@@ -24,11 +24,13 @@ review_trigger: "기술·브랜치·운영 방식 변경 시"
 - `next.config`에 `output: 'export'`를 사용한다.
 - SSR, Server Actions, Next.js API Routes, 런타임 동적 렌더링을 추가하지 않는다.
 - 브라우저에서 PostgreSQL로 직접 연결하지 않는다.
-- 공개 사이트는 런타임에 Directus API를 호출하지 않는다.
-- CMS 데이터와 이미지는 빌드 시점에 동기화해 정적 산출물에 포함한다.
+- 공개 사이트는 런타임에 Spring Boot API를 호출하지 않는다.
+- 콘텐츠 데이터와 이미지는 후속 build API에서 빌드 시점에 동기화해 정적 산출물에 포함한다.
 - 예약·결제·회원가입·문의 폼을 구현하지 않는다.
-- 관리자 UI는 1차에서 Directus Data Studio를 사용한다.
-- 이미지 원본은 Directus 업로드 볼륨에 저장하고, 공개 사이트에는 메타데이터를 제거한 최적화 파생본만 배포한다.
+- 관리 backend는 Java 21 + Spring Boot + PostgreSQL이며 DB schema source of truth는 Flyway다.
+- 관리자 인증은 Spring Security 서버 세션과 CSRF 보호를 사용하고 JWT를 기본안으로 추가하지 않는다.
+- 관리자 UI는 후속 Issue에서 same-origin `/admin`으로 구현한다.
+- 이미지 원본 storage는 후속 Issue에서 backend 소유로 설계하고, 공개 사이트에는 메타데이터를 제거한 최적화 파생본만 배포한다.
 
 위 조건을 바꿔야 한다면 구현 전에 ADR을 먼저 추가하거나 기존 ADR을 개정한다.
 
@@ -36,9 +38,10 @@ review_trigger: "기술·브랜치·운영 방식 변경 시"
 
 - 비밀값, 토큰, 비밀번호, 실사용 이메일을 저장소에 커밋하지 않는다.
 - `.env.example`에는 키 이름과 설명만 둔다.
-- Directus Public role에는 원칙적으로 권한을 부여하지 않는다.
-- 사이트 빌더용 계정은 읽기 전용 최소 권한 정책을 사용한다.
-- 운영자 계정과 시스템 관리자 계정을 분리한다.
+- 미설계 `/api/**` endpoint는 기본 거부하고 login/csrf/최소 health만 anonymous로 허용한다.
+- 사이트 빌더용 namespace와 credential은 관리자 session과 분리하고 읽기 전용 최소 권한을 사용한다.
+- 관리자 session cookie는 HttpOnly·SameSite를 명시하고 production에서 Secure를 강제한다.
+- state-changing 관리 API에서 CSRF 보호를 비활성화하지 않는다.
 - 운영자에게 영구 삭제 권한을 기본 제공하지 않는다. 화면상 삭제는 `archived` 전환으로 처리한다.
 - 관리자 계정은 2단계 인증을 배포 게이트로 둔다.
 
@@ -49,7 +52,7 @@ review_trigger: "기술·브랜치·운영 방식 변경 시"
 | 코드 변경 | 같이 수정할 문서 |
 |---|---|
 | 페이지 또는 섹션 추가 | 정보 구조, 기능 요구사항, 수용 기준 |
-| Directus 컬렉션·필드 변경 | CMS 데이터 모델, 권한, 스키마 스냅샷 |
+| PostgreSQL table·field 또는 API 변경 | 도메인 데이터 모델, 접근제어, Flyway migration, API 계약 |
 | 배포 방식 변경 | 배포, 롤백, ADR |
 | SEO 메타데이터·URL 변경 | SEO 전략, 사이트맵, 검색엔진 체크리스트 |
 | 이미지 처리 변경 | 이미지 파이프라인, 성능 예산, 개인정보 |

@@ -3,7 +3,7 @@ title: "정기 유지보수"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "운영 주기 변경 시"
 ---
 
@@ -14,7 +14,7 @@ review_trigger: "운영 주기 변경 시"
 - 공개 사이트 healthcheck
 - 관리자 healthcheck
 - PostgreSQL backup
-- uploads backup
+- 후속 원본 image storage backup
 - 디스크 여유 확인
 - 인증서 만료 확인
 - 마지막 콘텐츠 배포 상태
@@ -41,7 +41,7 @@ review_trigger: "운영 주기 변경 시"
 ## 분기
 
 - 실제 restore test
-- Directus·PostgreSQL upgrade 필요성 검토
+- Spring Boot·Java·PostgreSQL upgrade 필요성 검토
 - 계정·token rotation 검토
 - 개인정보·로그 보존 검토
 - 콘텐츠 운영 불편 수집
@@ -66,7 +66,7 @@ review_trigger: "운영 주기 변경 시"
 
 - 최신 DB backup
 - 유일한 offsite backup
-- Directus 원본 uploads
+- backend 소유 원본 image storage
 - 현재·직전 정상 release
 - 사고 조사 중 로그
 - 라이선스 또는 도메인 복구 정보

@@ -3,7 +3,7 @@ title: "완료 정의"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "품질 기준 변경 시"
 ---
 
@@ -24,12 +24,12 @@ Issue는 아래 조건을 모두 충족해야 `READY`다.
 - `output: 'export'` 빌드가 성공하고 `out/`이 생성된다.
 - 런타임 서버 기능을 우회적으로 도입하지 않았다.
 - 환경별 비밀값이 코드에 포함되지 않았다.
-- 공개 사이트가 CMS 장애 시에도 동작한다.
+- 공개 사이트가 관리 backend 장애 시에도 동작한다.
 
-## 데이터·CMS
+## 데이터·관리 backend
 
-- 스키마 변경이 스냅샷과 문서에 반영됐다.
-- 운영자 권한으로 필요한 작업이 가능하고 시스템 설정은 불가능하다.
+- schema 변경이 Flyway migration과 문서에 반영됐다.
+- 관리자 API는 request field allowlist와 인증·인가 경계를 자동 test로 검증한다.
 - `draft`와 `archived` 콘텐츠가 공개 산출물에 포함되지 않는다.
 - 게시·수정·보관이 정적 배포까지 정상 연결된다.
 

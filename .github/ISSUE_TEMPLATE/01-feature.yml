@@ -1,5 +1,5 @@
 name: 기능 개발
-description: 고객 화면, CMS, SEO 또는 운영 기능을 구현합니다.
+description: 고객 화면, 관리 backend, SEO 또는 운영 기능을 구현합니다.
 title: "[Feature] "
 labels: ["feature"]
 body:
@@ -51,7 +51,7 @@ body:
       label: 계약 영향
       options:
         - label: URL/라우트
-        - label: Directus 스키마 또는 권한
+        - label: Backend schema 또는 권한
         - label: SEO/메타데이터
         - label: 배포/백업/보안
         - label: 영향 없음

@@ -3,8 +3,8 @@ title: "콘텐츠 배포 테스트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
-review_trigger: "CMS·배포 Flow 변경 시"
+last_updated: "2026-08-29"
+review_trigger: "관리 backend·배포 event 변경 시"
 ---
 
 # 콘텐츠 배포 테스트
@@ -59,7 +59,7 @@ review_trigger: "CMS·배포 Flow 변경 시"
 
 ## 실패 안전성
 
-- [ ] Directus 중단 → build 실패, current 유지
+- [ ] Spring Boot/build API 중단 → build 실패, current 유지
 - [ ] PostgreSQL 중단 → build 실패, current 유지
 - [ ] invalid content → build 실패, current 유지
 - [ ] image decoder 실패 → build 실패, current 유지

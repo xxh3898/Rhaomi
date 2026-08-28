@@ -3,7 +3,7 @@ title: "문서 작성 규칙"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "문서 체계 변경 시"
 ---
 
@@ -25,13 +25,15 @@ review_trigger: "문서 체계 변경 시"
 ```yaml
 ---
 title: "문서 제목"
-status: "approved | proposed | draft | deprecated"
+status: "approved | proposed | draft | deprecated | superseded"
 owner: "문서 책임자"
 reviewers: "검토자"
 last_updated: "YYYY-MM-DD"
 review_trigger: "재검토 조건"
 ---
 ```
+
+`superseded`는 새 ADR이 대체한 역사적 결정을 보존할 때 사용하고 대체 문서 링크를 본문에 명시한다.
 
 ## 규범 표현
 

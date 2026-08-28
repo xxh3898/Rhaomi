@@ -3,7 +3,7 @@ title: "배포"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "호스트·파이프라인 변경 시"
 ---
 
@@ -14,7 +14,7 @@ review_trigger: "호스트·파이프라인 변경 시"
 - Host: Mac mini
 - Runtime: Docker Compose
 - Public web: Nginx static files
-- Admin: Directus
+- Admin API: Spring Boot, same-origin `/api/**` 목표
 - DB: PostgreSQL
 - Source: GitHub `xxh3898/Rhaomi`
 
@@ -33,8 +33,8 @@ feature → dev 검증
 ### 콘텐츠 배포
 
 ```text
-Directus 저장
-→ Flow
+Spring Boot 콘텐츠 transaction
+→ domain event 또는 outbox
 → internal deploy hook
 → 공통 build/release pipeline
 ```
@@ -43,17 +43,15 @@ Directus 저장
 
 ## 최초 배포 사전 조건
 
-- [ ] 최종 도메인과 관리자 도메인
+- [ ] 최종 도메인과 same-origin `/admin`, `/api` route
 - [ ] DNS
 - [ ] HTTPS
-- [ ] Directus 라이선스 검토
 - [ ] PostgreSQL 영속 볼륨
-- [ ] Directus uploads 영속 볼륨
+- [ ] 후속 원본 이미지 storage 영속화
 - [ ] 운영 비밀값
-- [ ] System Administrator 2FA
-- [ ] Content Owner 2FA
+- [ ] 관리자 2FA
 - [ ] offsite backup 목적지
-- [ ] 초기 CMS 스키마 적용
+- [ ] Flyway migration 적용·검증
 - [ ] 실제 매장정보 승인
 - [ ] 사진 사용 기준
 - [ ] Nginx 404와 security headers
@@ -63,10 +61,10 @@ Directus 저장
 
 1. 대상 commit SHA 기록
 2. working tree와 runner 상태 확인
-3. 운영 DB와 uploads 최근 백업 확인
+3. 운영 DB와 후속 원본 storage 최근 backup 확인
 4. 의존성 설치
 5. 타입·린트·테스트
-6. CMS schema compatibility 확인
+6. Flyway/JPA schema compatibility 확인
 7. 콘텐츠 스냅샷
 8. 이미지 파생본
 9. Next static export
@@ -80,7 +78,7 @@ Directus 저장
 ## 콘텐츠 배포 단계
 
 - 코드 checkout은 마지막 승인된 main commit을 사용한다.
-- CMS snapshot revision을 기록한다.
+- content snapshot revision을 기록한다.
 - 초안 데이터는 산출물에 포함하지 않는다.
 - 게시된 콘텐츠의 이미지 변환 실패 시 전체 배포를 실패시킨다.
 - 현재 공개 사이트를 유지한다.
@@ -97,14 +95,14 @@ root /srv/rhaomi/current;
 - HTML은 짧은 cache 또는 재검증
 - content-hashed CSS/JS/image는 장기 immutable cache
 - 404는 실제 404 상태
-- 관리자 host는 Directus reverse proxy
+- same-origin `/api/**`는 Spring Boot reverse proxy
 - PostgreSQL과 deploy hook route는 없음
 - 관리자 응답에 `X-Robots-Tag: noindex, nofollow`
 
 ## 배포 실패 조건
 
 - 테스트 실패
-- CMS validation 실패
+- content/API validation 실패
 - 이미지 처리 실패
 - `out/` 누락
 - 내부 링크 오류
@@ -121,4 +119,4 @@ root /srv/rhaomi/current;
 - 백업 확인 없는 major upgrade
 - `latest` 이미지 pull 후 즉시 운영 재시작
 - feature branch를 운영 배포
-- Directus admin 비밀번호를 CI log에 출력
+- 관리자 password·session·bootstrap credential을 CI log에 출력

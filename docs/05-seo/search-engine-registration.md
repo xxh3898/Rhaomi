@@ -3,7 +3,7 @@ title: "검색엔진 등록"
 status: "draft"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "도메인 확정 또는 검색엔진 절차 변경 시"
 ---
 
@@ -20,7 +20,7 @@ review_trigger: "도메인 확정 또는 검색엔진 절차 변경 시"
 - robots 접근 가능
 - sitemap 접근 가능
 - 404가 실제 404 상태 반환
-- Directus 관리자 URL이 sitemap에 없음
+- `/admin`과 `/api/**`가 sitemap에 없음
 - NAP 최종 확인
 - 최소 실제 사진과 콘텐츠 반영
 

@@ -3,7 +3,7 @@ title: "프론트엔드 아키텍처"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "Next.js 구조 또는 렌더링 방식 변경 시"
 ---
 
@@ -64,21 +64,21 @@ Client boundary는 가장 작은 상호작용 단위에 둔다.
 - Server Actions
 - Next API Routes 또는 Route Handler 기반 운영 API
 - 런타임 dynamic rendering
-- 브라우저에서 Directus SDK 토큰 사용
-- 고객 페이지 최초 렌더 뒤 CMS fetch로 핵심 콘텐츠 주입
+- 브라우저에서 관리/build API credential 사용
+- 고객 페이지 최초 렌더 뒤 backend fetch로 핵심 콘텐츠 주입
 - 검색봇 user-agent에 따라 다른 콘텐츠 제공
 
 ## 콘텐츠 입력
 
 ```text
-Directus
+Spring Boot read-only build API
 → sync script
 → validated content snapshot
 → Next build
 → static HTML
 ```
 
-페이지 컴포넌트는 CMS 네트워크 호출이 아니라 검증된 로컬 스냅샷을 읽는다.
+페이지 컴포넌트는 backend network 호출이 아니라 검증된 로컬 snapshot을 읽는다.
 
 ## 라우트
 

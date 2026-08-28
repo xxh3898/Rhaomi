@@ -3,8 +3,8 @@ title: "관리자 콘텐츠 규칙"
 status: "approved"
 owner: "은총쌤"
 reviewers: "조치호"
-last_updated: "2026-08-28"
-review_trigger: "CMS 필드·운영 절차 변경 시"
+last_updated: "2026-08-29"
+review_trigger: "관리 API field·운영 절차 변경 시"
 ---
 
 # 관리자 콘텐츠 규칙

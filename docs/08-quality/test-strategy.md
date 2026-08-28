@@ -3,7 +3,7 @@ title: "테스트 전략"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "기술·기능 범위 변경 시"
 ---
 
@@ -12,116 +12,106 @@ review_trigger: "기술·기능 범위 변경 시"
 ## 목표
 
 - 정적 사이트 생성 계약 보호
-- CMS 데이터 오류의 공개 유출 방지
-- 모바일 문의 흐름 보호
-- 검색 메타데이터 보호
+- 관리자 session·CSRF·인가 경계 보호
+- PostgreSQL/Flyway/JPA schema 일치
+- 콘텐츠 오류의 공개 유출 방지
+- 모바일 문의·검색 metadata 보호
 - 배포 실패 시 기존 사이트 보호
-- 운영자 CRUD 검증
 
-## 계층
+## 현재 Phase 1B 자동 검증
 
-### 단위 테스트
+### Frontend
 
-- URL validation
-- phone link 변환
-- 상태·만료 필터
-- 정렬
-- slug/canonical 생성
-- LocalBusiness JSON-LD 생성
-- alt validation
-- image manifest 변환
-- content snapshot schema
+- lint
+- TypeScript typecheck
+- Node contract test
+- Next Static Export
+- `out/index.html`·runtime server artifact 부재 검증
+- 공개 source의 관리자 API·DB 환경변수 비노출
 
-### 컴포넌트 테스트
+### Backend unit
 
-- 견종 필터
-- 갤러리 빈 상태
-- lightbox focus
-- 서비스 아코디언
-- 공지 목록
-- 조건부 CTA
-- sticky CTA
-- reduced motion class/behavior
+- bootstrap 기본 비활성
+- bootstrap credential 불완전 시 fail closed
+- production profile bootstrap 거부
+- email 정규화·password hash 생성
 
-### 통합 테스트
+### Backend PostgreSQL integration
 
-- Directus fixture → snapshot
-- 관계 resolve
-- draft/archived 제외
-- 파일 다운로드
-- 이미지 변환
-- notice static params
-- sitemap generation
-- build failure conditions
+- Spring context와 실제 PostgreSQL 연결
+- Flyway V1 `admin_users` 생성
+- JPA `ddl-auto=validate`
+- plaintext password 비저장과 BCrypt match
+- bad/inactive/good login
+- anonymous `/me`와 보호 endpoint 거부
+- login 후 `/me`
+- logout CSRF deny/allow와 session 무효화
+- login CSRF deny/allow
+- HttpOnly·SameSite session cookie와 fixation 후 id 변경
+- response의 password/hash 비노출
+- health 외 미설계 API deny
 
-### E2E
+H2 전용 통과는 DB contract 증거로 인정하지 않는다. Hosted CI Backend job은 실제 PostgreSQL service를 사용한다.
+Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 application context를 시작하기 전에 중단한다. fixture 정리는 지정된 test email에만 한정한다.
 
-- 홈 → 갤러리 필터 → 상세 → 문의
+### Compose Smoke
+
+- exact service/image와 config validation
+- backend/PostgreSQL health
+- backend loopback bind와 PostgreSQL host port 부재
+- explicit local/test bootstrap
+- 실제 HTTP CSRF login/me/logout
+- backend/PostgreSQL restart 후 Flyway·account 지속성
+- Directus service 부재
+- 종료 시 named volume 보존
+
+## 후속 콘텐츠 단위·통합 테스트
+
+- URL, phone link, status·expiry filter, sort
+- slug/canonical, JSON-LD, alt validation
+- final entity 상태 기준 publish validation과 partial update 우회 방지
+- 관리자 DTO field allowlist와 id/audit/system field 불변성
+- published 관계와 file scope
+- build API read-only와 모든 mutation deny
+- snapshot schema와 image manifest
+- content fixture → transformer → static snapshot
+
+## 후속 UI/E2E
+
+- 홈 → gallery filter → 상세 → 문의
 - 홈 → 공지 → 상세 → 홈
-- 홈 → 지도 링크
-- 전화 CTA href
-- 네이버톡톡 값 유무
-- 모바일 sticky CTA
-- 404
-- keyboard only
+- map/phone/external CTA
+- mobile sticky CTA, 404, keyboard only
+- `/admin` login/logout, validation, archive
+- axe, heading/landmark/focus/dialog/contrast/reflow/reduced motion
+- 실제 iPhone image upload와 session cookie 동작
 
-### 접근성
+## 후속 배포 테스트
 
-- axe
-- heading
-- landmark
-- focus visible
-- dialog focus trap/restore
-- button accessible name
-- contrast
-- zoom/reflow
-- reduced motion
-- VoiceOver 표본
-
-### 배포 테스트
-
-- content publish
-- content archive
-- build hook auth
-- debounce
-- build lock
+- content publish/archive
+- build event auth, debounce, lock
 - failed build does not switch
-- atomic switch
-- rollback
+- atomic switch와 rollback
 - stale build ordering
+- backend/PostgreSQL 중단 중 공개 site 유지
 
-## 테스트 데이터
+## test data
 
-- 모든 필수 서비스
-- 4개 이상 견종
-- 각 견종 공개/초안/보관 사진
-- 고정 공지
-- 일반 공지
-- 만료 공지
-- 빈 선택형 URL
-- 긴 제목과 긴 견종명
-- portrait/landscape 이미지
-- 손상 이미지
-- HEIC 실제 iPhone 파일
+- test-only 관리자 email/password
+- active/inactive admin
+- 공개/초안/보관 콘텐츠와 만료 공지
+- 긴 title·견종명, 선택형 URL 빈 값
+- portrait/landscape/손상/HEIC image
 
-## CI 게이트
+실사용 email, 실제 운영 password, token과 운영 DB/API는 test에 사용하지 않는다.
+
+## CI gate
 
 PR:
 
-- typecheck
-- lint
-- unit/component
-- static build with deterministic fixture
-- internal link
-- accessibility smoke
-- docs link
+- Frontend
+- Backend PostgreSQL/auth contract
+- Compose Smoke
+- diff·secret·문서 link 검사
 
-Release:
-
-- 실제 CMS read-only snapshot
-- image pipeline
-- E2E
-- SEO
-- Nginx preview
-- actual device checklist
-- rollback evidence
+Release는 실제 build snapshot, image pipeline, E2E, SEO, Nginx preview, actual device와 rollback evidence를 추가한다.

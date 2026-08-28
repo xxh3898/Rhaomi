@@ -3,7 +3,7 @@ title: "ADR-003: 콘텐츠 변경 시 정적 재빌드"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "콘텐츠 반영 방식 변경 시"
 ---
 
@@ -14,15 +14,15 @@ review_trigger: "콘텐츠 반영 방식 변경 시"
 
 ## 맥락
 
-CMS를 사용하면서도 공지·사진·서비스가 검색 가능한 정적 HTML에 포함되어야 한다. 운영자는 저장 후 개발자의 수동 코드 변경 없이 공개 반영할 수 있어야 한다.
+관리 backend를 사용하면서도 공지·사진·서비스가 검색 가능한 정적 HTML에 포함되어야 한다. 운영자는 저장 후 개발자의 수동 코드 변경 없이 공개 반영할 수 있어야 한다.
 
 ## 결정
 
-관련 Directus 콘텐츠가 변경되면 Flow가 내부 deploy hook을 호출하고, 현재 승인된 코드로 정적 사이트를 다시 생성한다.
+관련 콘텐츠 transaction이 성공하면 Spring Boot의 domain event 또는 outbox가 내부 deploy hook을 호출하고, 현재 승인된 코드로 정적 사이트를 다시 생성한다. event/outbox와 hook은 후속 Issue에서 구현한다.
 
 ```text
-Directus save
-→ non-blocking Flow
+Spring Boot content transaction
+→ domain event / outbox
 → authenticated internal hook
 → snapshot
 → image variants
@@ -47,7 +47,7 @@ Directus save
 
 ### 장점
 
-- CMS 콘텐츠가 HTML과 sitemap에 포함
+- 관리 콘텐츠가 HTML과 sitemap에 포함
 - 운영자는 저장만으로 반영 요청
 - 공개 사이트 런타임 독립
 - 모든 배포를 검증 가능
@@ -57,13 +57,13 @@ Directus save
 - 저장과 공개 반영 사이 지연
 - build service와 queue 운영
 - 연속 저장 시 build 자원 사용
-- 운영자는 Directus 저장 성공과 공개 성공을 구분해야 함
+- 운영자는 관리 API 저장 성공과 공개 성공을 구분해야 함
 
 ## 거부한 대안
 
 ### 브라우저 runtime fetch
 
-즉시 반영은 쉽지만 공개 사이트를 CMS에 결합하고 핵심 콘텐츠가 초기 HTML에 없게 된다.
+즉시 반영은 쉽지만 공개 사이트를 backend에 결합하고 핵심 콘텐츠가 초기 HTML에 없게 된다.
 
 ### 정기 cron build만
 
@@ -78,4 +78,4 @@ Directus save
 - build 시간이 운영자 요구를 충족하지 못함
 - 콘텐츠 변경 빈도가 급증
 - 실시간성이 제품 핵심이 됨
-- CMS preview/approval workflow가 필요
+- 콘텐츠 preview/approval workflow가 필요

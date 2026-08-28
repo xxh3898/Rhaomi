@@ -3,99 +3,82 @@ title: "접근제어"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
-review_trigger: "역할·권한 변경 시"
+last_updated: "2026-08-29"
+review_trigger: "역할·권한·인증 방식 변경 시"
 ---
 
 # 접근제어
 
-Directus 11+ 계열의 역할·정책 모델을 기준으로 하되, 실제 잠금 버전의 공식 문서를 확인한다.
+[ADR-009](../09-decisions/ADR-009-spring-boot-backend-admin.md)에 따라 Spring Security 서버 세션을 관리 API의 인증 경계로 사용한다.
 
-## 역할
+## 현재 역할
 
-### System Administrator
+### ADMIN
 
-대상: 조치호
+대상: 실제 운영 계정은 후속 운영 승인에서 생성
 
-- Directus Admin access
-- 데이터 모델
-- Policies/Roles
-- Flows
-- Settings
-- 사용자 관리
-- 영구 삭제
-- 스키마 migration
-- license 설정
+- 관리자 인증 API 사용
+- 향후 승인된 콘텐츠 관리 API 사용
+- 일반 고객 회원 기능 없음
+- 초기 단계에서 불필요한 다중 RBAC를 만들지 않음
 
-일상 콘텐츠 편집에는 사용하지 않는다.
+이번 Issue에는 콘텐츠 CRUD와 관리자 UI가 없으므로 `ADMIN`이 접근할 수 있는 업무 endpoint도 인증 상태 확인용 최소 endpoint뿐이다.
 
-### Content Owner
+### Public customer
 
-대상: 은총쌤
+- `/api/admin/auth/csrf`와 `/api/admin/auth/login`만 anonymous 호출 가능
+- `/api/admin/**`의 그 밖의 endpoint 접근 금지
+- 공개 사이트는 Static Export를 사용하며 runtime 관리 API 호출 없음
+- PostgreSQL 직접 접근 없음
 
-- Data Studio App access
-- `shop_settings` read/update
-- `services` create/read/update
-- `breeds` create/read/update
-- `gallery_items` create/read/update
-- `notices` create/read/update
-- 허용 폴더의 파일 create/read
-- system collection, flow, role, user, extension, license 접근 금지
-- 영구 delete 금지
-- share 금지
+### Build service
 
-### Site Builder
+build-time 공개 콘텐츠 조회는 후속 Issue에서 `/api/build/**` 같은 별도 namespace와 별도 credential로 설계한다. 관리자 session을 재사용하거나 이번 Issue에서 미리 endpoint·token을 만들지 않는다.
 
-대상: API-only service account
+## endpoint 정책
 
-- App access 없음
-- static token
-- 공개 빌드에 필요한 collection read
-- 관련 file read
-- create/update/delete/share 금지
-- published 필터 또는 빌드 변환기에서 엄격한 필터
-- 토큰 주기적 rotation
+| 경로 | anonymous | authenticated ADMIN | 비고 |
+|---|---:|---:|---|
+| `GET /api/admin/auth/csrf` | 허용 | 허용 | CSRF token 발급 |
+| `POST /api/admin/auth/login` | 허용 | 허용 | 유효 CSRF 필요 |
+| `GET /api/admin/auth/me` | 거부 | 허용 | 최소 식별 정보만 반환 |
+| `POST /api/admin/auth/logout` | 거부 | 허용 | 유효 CSRF 필요, session 무효화 |
+| `/api/admin/**` 나머지 | 거부 | 기본 인증 필요 | 실제 업무 API는 후속 Issue |
+| `/api/**` 나머지 | 거부 | 거부 | 명시 설계 전 fail closed |
+| `GET /actuator/health` | 허용 | 허용 | health만 노출 |
 
-### Public
+## 세션·CSRF
 
-- 사용자 collection 권한 없음
-- file read 없음
-- 공개 사이트가 Directus를 호출하지 않으므로 불필요
+- 인증 상태는 서버 `HttpSession`에 저장한다.
+- session cookie는 `HttpOnly`와 `SameSite=Lax`를 명시한다.
+- 운영에서는 TLS와 함께 `Secure=true`를 강제하며 production profile이 false 설정으로 기동되지 않게 한다.
+- 로그인 성공 시 session fixation 방어로 session id를 교체한다.
+- CSRF 보호를 비활성화하지 않는다.
+- static admin client는 CSRF endpoint에서 받은 token을 state-changing request header에 보낸다.
+- password, password hash, session id, CSRF token을 application log에 남기지 않는다.
 
-## 필드 제한
+## 관리자 bootstrap
 
-운영자가 수정하면 안 되는 예:
+- 기본값은 비활성이다.
+- local/test 환경에서 explicit enable flag, email, password가 모두 있을 때만 idempotent하게 생성한다.
+- credential이 일부만 있거나 빈 값이면 기동을 실패시켜 잘못된 보안 상태를 숨기지 않는다.
+- production profile에서는 bootstrap을 실행하지 않는다.
+- `.env.example`에는 실제 email/password를 넣지 않는다.
+- 실사용 은총쌤 계정 생성은 운영 Secret·2FA·복구 절차를 확인하는 별도 승인 작업이다.
 
-- system id
-- audit timestamps
-- schema version
-- 내부 배포 상태
-- 권한/role
-- file storage path
-- license
-- build token
+## 2FA와 계정 수명주기
 
-## 검증
+- 관리자 2FA는 운영 배포 게이트다. 이번 backend bootstrap에는 포함하지 않으며 2FA 없는 상태를 production-ready로 표현하지 않는다.
+- 공유 계정을 만들지 않는다.
+- 운영자 변경 시 계정을 즉시 비활성화하고 활성 session을 폐기한다.
+- 강한 고유 비밀번호와 검증된 `PasswordEncoder`를 사용한다.
+- 비활성 계정은 credential이 맞아도 로그인할 수 없다.
+- 계정 존재 여부와 활성 여부를 로그인 실패 응답으로 구분해 노출하지 않는다.
 
-- 기본 생성 상태 `draft`
-- publish 필수값 validation
-- URL allowlist
-- status presets
-- 운영자에게 임의 HTML·스크립트 필드 노출 금지
-- system collection read도 최소화
+## 후속 콘텐츠 권한 원칙
 
-## 2FA
-
-- System Administrator 필수
-- Content Owner 필수
-- 복구코드는 계정과 다른 안전한 장소에 보관
-- 운영자 휴대전화 변경 시 복구 절차 사전 확인
-
-## 계정 수명주기
-
-- 공유 계정 금지
-- 퇴사·운영자 변경 시 즉시 비활성화
-- 비밀번호 재사용 금지
-- 토큰은 사람 계정 대신 API-only 계정에 발급
-- 장기간 미사용 계정 검토
-- 보안 사고 의심 시 세션·토큰 폐기
+- 운영자용 update DTO는 명시적 field allowlist를 사용한다.
+- `id`, `password_hash`, audit timestamp와 내부/system field는 일반 update API에서 받지 않는다.
+- 화면상 삭제는 `archived` 전환이며 영구 delete는 별도 관리·백업 승인 없이는 제공하지 않는다.
+- schema, role, user, setting 변경 endpoint를 일반 콘텐츠 API에 포함하지 않는다.
+- 공개 build API와 관리자 write API의 credential·DTO·감사 경계를 분리한다.

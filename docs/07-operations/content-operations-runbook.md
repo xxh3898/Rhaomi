@@ -1,13 +1,15 @@
 ---
 title: "콘텐츠 운영 런북"
-status: "approved"
+status: "proposed"
 owner: "은총쌤"
 reviewers: "조치호"
-last_updated: "2026-08-28"
-review_trigger: "Directus 화면·필드 변경 시"
+last_updated: "2026-08-29"
+review_trigger: "관리자 UI·API·field 변경 시"
 ---
 
 # 콘텐츠 운영 런북
+
+> `/admin` UI와 콘텐츠 CRUD는 아직 구현되지 않았다. 아래 절차는 후속 기능의 운영 수용 기준이며 실제 화면이 생기면 route·label·오류 흐름을 다시 검증한다.
 
 ## 로그인
 
@@ -19,7 +21,7 @@ review_trigger: "Directus 화면·필드 변경 시"
 
 ## 시술사진 등록
 
-1. `시술사진` 컬렉션
+1. `/admin`의 `시술사진`
 2. 새 항목
 3. 상태 `draft`
 4. 대표 사진 업로드
@@ -63,7 +65,7 @@ status: published → archived
 
 ## 공지 등록
 
-1. `공지사항`
+1. `/admin`의 `공지사항`
 2. 제목
 3. summary
 4. 본문
@@ -104,7 +106,7 @@ status: published → archived
 
 영업시간, 휴무, 주소, 전화 변경은:
 
-1. Directus 수정
+1. `/admin`에서 수정
 2. 공개 사이트 확인
 3. 네이버지도/플레이스
 4. 카카오맵

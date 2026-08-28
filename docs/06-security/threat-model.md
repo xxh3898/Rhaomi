@@ -3,70 +3,71 @@ title: "위협 모델"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-28"
-review_trigger: "외부 노출·관리 기능 변경 시"
+last_updated: "2026-08-29"
+review_trigger: "외부 노출·관리 기능·인증 변경 시"
 ---
 
 # 위협 모델
 
 ## 보호 자산
 
-- Directus 관리자 계정
-- 빌더 static token
-- Directus signing secret
+- 관리자 계정과 password hash
+- 관리자 session과 CSRF token
 - PostgreSQL 데이터
-- 원본 시술사진
-- deploy hook secret
-- 백업
+- 향후 원본 시술사진
+- 향후 build credential·deploy hook secret
+- backup
 - 공개 도메인과 배포 권한
 - GitHub 저장소와 Actions 권한
 
 ## 공격 표면
 
-- 관리자 로그인
-- Directus API와 파일 업로드
-- Nginx
-- 외부 공개 링크
-- Directus Flow
-- deploy hook
-- 이미지 decoder
+- Spring Boot 관리자 login과 `/api/admin/**`
+- session cookie와 CSRF token 전달
+- local/test 관리자 bootstrap
+- Actuator health
+- Nginx와 향후 same-origin `/api/**` proxy
+- PostgreSQL 연결
+- 향후 파일 upload·image decoder·build hook
 - GitHub Actions/self-hosted runner
-- 백업 파일
-- 운영자 휴대전화
+- backup 파일과 운영자 휴대전화
 
 ## 주요 위협과 통제
 
 | 위협 | 영향 | 통제 |
 |---|---|---|
-| 관리자 계정 탈취 | 콘텐츠 변조, 원본 접근 | 2FA, 강한 비밀번호, rate limit, 별도 운영자 역할 |
-| Public role 과권한 | CMS 데이터 유출 | Public 무권한, 공개 사이트 정적화 |
-| 빌드 토큰 노출 | 콘텐츠·파일 조회 | 서버 전용 env, read-only, 로그 마스킹, rotation |
-| deploy hook 위조 | 자원 고갈, 임의 배포 | 내부 network, secret, rate limit, lock |
-| 악성 이미지 | 빌더 장애·취약점 | MIME/signature 검사, pixel 제한, 최신 decoder, sandboxed container |
-| 원본 EXIF 노출 | 위치·기기 정보 노출 | 원본 비공개, 파생본 metadata 제거 |
-| DB 포트 노출 | 데이터 탈취 | host port 금지, 내부 network |
-| 백업 유출 | 전체 데이터 유출 | 접근권한, 암호화, 외부 저장소 통제 |
-| 공급망 취약점 | 코드 실행 | 버전 고정, 취약점 스캔, 검증된 이미지 |
-| 콘텐츠 삭제 | 영업 자산 손실 | archive, revisions, backup |
-| 빌드 실패 | 최신 정보 미반영 | 기존 release 유지, 경보, 재시도 |
+| 관리자 credential 탈취 | 콘텐츠 변조, 내부 데이터 접근 | BCrypt, 일반화된 로그인 실패, 2FA 배포 게이트, session 폐기 |
+| session 탈취 | 관리자 권한 사용 | HttpOnly, SameSite, production Secure/TLS fail-fast, log 마스킹 |
+| CSRF | 관리자 의도와 다른 변경 | Spring Security CSRF 유지, token 없는 state change 거부 |
+| session fixation | 로그인 전 session 탈취 연계 | 로그인 성공 시 session id 교체 |
+| 비활성 계정 로그인 | 해지 계정 재사용 | `active` 확인과 동일한 401 실패 |
+| bootstrap 오용 | default 관리자 생성 | 기본 비활성, 완전한 env 요구, production profile 차단 |
+| API fail-open | 미설계 endpoint 노출 | login/csrf/health만 anonymous, `/api/**` 명시 전 deny |
+| password hash 노출 | offline cracking | entity 직접 반환 금지, DTO allowlist, log/body 검사 |
+| DB 포트 노출 | 데이터 탈취 | host port 금지, 개발 전용 내부 network |
+| 공급망 취약점 | 코드 실행 | exact version, Wrapper/lockfile, scanner, 별도 upgrade 검증 |
+| backend 장애 | 관리자 작업 중단 | 공개 Static Export와 runtime 분리 |
+| 콘텐츠 삭제 | 영업 자산 손실 | 후속 CRUD에서 archive, migration·backup gate |
 | self-hosted runner 악용 | Mac mini 장악 | 전용 runner scope, untrusted PR 실행 금지, 최소 권한 |
 
-## 우선순위
-
-### 출시 차단
+## 출시 차단
 
 - 관리자 2FA 없음
+- TLS 없이 production session cookie 사용
+- production에서 `Secure=false`
 - PostgreSQL 외부 노출
-- 비밀값 커밋
-- Public role 광범위 권한
-- 백업 없음
-- deploy hook 공용 무인증 노출
-- 원본 파일 공개 URL 노출
+- 실제 secret·password·실사용 email 커밋
+- CSRF disable 또는 state-changing anonymous endpoint
+- default production 관리자 자동 생성
+- 미설계 `/api/**` anonymous 허용
+- backup 없음
 
-### 출시 후 개선
+이번 Issue의 local backend는 운영 배포 대상이 아니므로 2FA·TLS·운영 account provisioning을 구현하지 않는다. 이 미구현 상태를 운영 준비 완료로 간주하지 않는다.
+
+## 출시 후 개선
 
 - 관리자 IP/Access 정책
+- 공유 session store가 필요한 규모인지 측정
 - offsite backup 암호화 강화
-- 중앙 로그
-- 정기 보안 스캔
-- 운영자 전용 간소화 UI
+- 중앙 log와 login rate limit
+- 정기 보안 scan
