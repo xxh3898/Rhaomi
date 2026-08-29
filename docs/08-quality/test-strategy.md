@@ -175,6 +175,29 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 - Directus service 부재
 - 종료 시 named volume 보존
 
+## 현재 Phase 1D 운영 아키텍처 문서 검증
+
+Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 다음 계약을 검증한다.
+
+- ADR-010~014 frontmatter `approved`, 본문 `Accepted`와 decision log 승인 상태 일치
+- Markdown 상대 link와 문서 작성 규칙
+- Cloudflare Tunnel → host edge Nginx → loopback project Nginx와 `/api/admin/**` public route
+- `/api/build/**`, `/internal/**`, `/actuator/**` public deny와 backend/PostgreSQL direct exposure 금지
+- macOS host canonical `/private/var/lib/rhaomi/{app,public,data/media,state,logs}` 경로 일치와 `/data/postgres` bind source 부재
+- Mac public/media/state source와 Linux web/publisher/backend target의 mount mapping·RO/RW 경계 일치
+- `/srv/rhaomi`가 container target으로만 쓰이고 Mac host authority·`synthetic.conf`·custom File Sharing prerequisite가 아님
+- PostgreSQL production project-scoped named volume, 일반 Compose `down` 보존과 `down -v`·prune·direct delete 금지 일치
+- main merge와 manual production apply 분리, exact SHA·digest와 one-shot Flyway
+- same-transaction immediate·scheduled event, `contentRevision`·`publishGeneration`, single publisher, overdue recovery·30초 debounce·retry·atomic switch
+- external SSD·iCloud 별도 encrypted restic repository, local integrity와 remote sync evidence 분리, 03:30 KST, daily 7 / weekly 4 / monthly 6
+- weekly structural check, monthly full data read, quarterly isolated restore, 최초 fresh retrieval remote evidence, local/offsite RPO 24h·RTO 8h 분리
+- HomeOps 단일 authority, exact 임계값, stateless single restart allowlist·lock·30분 cooldown·금지 범위
+- libheif `v1.23.1` exact commit, libde265 decoder-only와 x265 absence·SBOM·amd64/arm64 gate
+- application source, Flyway, Dockerfile, Compose, Nginx, workflow와 script diff 0
+- corrective exact-head Hosted CI Frontend·Backend·Compose Smoke 3/3 성공
+
+문서 PASS는 production Compose, publisher, backup, HomeOps 또는 decoder-only image의 runtime acceptance 증거가 아니다.
+
 ## 후속 build·콘텐츠 단위·통합 테스트
 
 - URL, phone link, 공지 build-time 게시 도래·expiry filter
@@ -182,6 +205,14 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 - published 관계와 file scope
 - 매장정보 Hero·프로필·OG relation의 active status·private master·파생 file 재검증
 - build API read-only와 모든 mutation deny
+- same-transaction immediate event와 future publishedAt·expiresAt `availableAt` scheduled event, draft-only trigger 분류
+- eligible event claim·`publishGeneration`·첫 attempt atomicity와 claim crash recovery
+- additional admin mutation 없는 future publish·expiry와 publisher restart 뒤 overdue 처리
+- reschedule·draft/archive·window 변경 뒤 old event의 current-row/snapshot 재검증과 stale no-op
+- `contentRevision`·`publishGeneration` 분리, 같은 content revision의 여러 public generation
+- 30초 debounce·global lock·highest generation coalescing과 최종 snapshot 정확성
+- 동일 `publishGeneration` 1분·5분·15분 최대 3회 retry와 data error non-retry
+- 낮거나 같은 generation의 old build switch 거부와 승인된 manual rebuild/retry의 새 generation
 - snapshot schema와 image manifest
 - content fixture → transformer → static snapshot
 
@@ -198,11 +229,25 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 ## 후속 배포 테스트
 
 - content publish/archive
-- build event auth, debounce, lock
+- exact main SHA·image digest·manual environment approval와 고정 deploy entrypoint
+- write maintenance·one-shot Flyway·schema validate와 expand/contract compatibility
+- immediate/due publishing event·overdue recovery·service auth·debounce·lock
 - failed build does not switch
 - atomic switch와 rollback
-- stale build ordering
+- 실제 Mac canonical directory 생성·ownership·permission과 public/media/state bind mount smoke
+- PostgreSQL named volume의 container restart·일반 Compose `down`·`up` persistence, destructive volume command 부재
+- `publishGeneration` stale build ordering과 manifest의 `contentRevision`·`publishGeneration`·`generatedAt`
 - backend/PostgreSQL 중단 중 공개 site 유지
+- `/api/build/**`, `/internal/**`, `/actuator/**` public deny
+- successful release 5개와 current/previous retention, failed artifact 7일
+- 외장 SSD·iCloud backup set, local repository snapshot/check와 Apple remote sync evidence 분리, retention·prune post-check
+- second trusted device 또는 local cache를 배제한 clean path의 fresh retrieval·restic check·대표 restore
+- isolated restore의 manifest·DB·media·static build와 local/offsite RPO·RTO
+- raw PGDATA volume을 required restic input으로 사용하지 않고 `pg_dump -Fc`를 새 isolated named volume에 `pg_restore`
+- 외장 SSD `/Volumes/<provisioned-volume>/...` exact path·volume identity와 encrypted repository 검증
+- HomeOps synthetic/internal/container/host/DB/publisher/backup threshold·alert
+- stateless web/backend single restart와 deploy/backup lock·30분 cooldown·audit
+- decoder-only image x265 absence와 Linux amd64·Mac mini Linux arm64 actual HEIC
 
 ## test data
 

@@ -22,7 +22,7 @@ review_trigger: "주요 의존성·라이선스 변경 시"
 
 Spring Boot 버전은 구현 시점의 Spring 공식 stable과 system requirements를 확인해 선택했다. major/minor 변경은 별도 Issue에서 Java·Gradle·plugin 호환성과 보안 변경을 함께 검토한다.
 
-## HEIC runtime 인벤토리
+## 현재 개발 HEIC runtime 인벤토리
 
 backend Dockerfile은 exact Temurin 25 manifest와 Alpine 3.23의 `libheif=1.23.0-r0`, `libheif-dev=1.23.0-r0`를 고정한다. application runtime에서 codec이나 모델을 다운로드하지 않으며 client 문자열로 외부 process를 실행하지 않는다.
 
@@ -37,7 +37,23 @@ Alpine package가 동적 link하는 현재 runtime package와 Alpine metadata의
 | `aom-libs` | `3.14.1-r0` | BSD-2-Clause AND custom | Alpine `libheif` transitive codec library |
 | `libsharpyuv` | `1.6.0-r0` | BSD-3-Clause | color conversion dependency |
 
-현재 workflow는 image를 test용으로 build할 뿐 registry에 publish하지 않는다. 후속 production image 배포 전에는 위 transitive package를 SBOM·notice에 포함하고 LGPL/GPL source·재연결 조건을 충족해야 한다. 제품 배포 정책과 GPL 구성의 양립이 어렵다면 x265 encoder를 제외한 decoder-only `libheif` build를 별도 ADR·CI로 교체한다. 이 license gate를 무시한 image publish는 허용하지 않는다.
+현재 workflow는 위 image를 test용으로 build할 뿐 registry에 publish하지 않는다. 개발 package의 x265 encoder는 application에서 사용하지 않는다.
+
+## Production HEIC runtime target — planned
+
+[ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)에 따라 production은 Alpine `libheif` package를 그대로 복사하지 않고 decoder-only source build를 사용한다.
+
+| 구성 | production 계약 |
+|---|---|
+| libheif | official `v1.23.1`, commit `2c4bbb54c2738d4a5efbbe3e5fa1d5d76bb88eb0` |
+| HEIC decoder | pinned libde265 활성 |
+| x265·HEIC encoder | 비활성, final image package·link·plugin 부재 |
+| 다른 encoder·CLI·example·dev tool | 비활성 또는 runtime에서 제거 |
+| plugin loading·experimental feature | 비활성 |
+| Java adapter | NightMonkeys `imageio-heif 1.1.0` 유지 |
+| 검증 | Linux amd64 CI, Mac mini Linux arm64 actual HEIC fixture |
+
+production image build·publish는 아직 구현되지 않았다. 구현 시 source·license notice, LGPL 의무 검토, SBOM, vulnerability scan, CMake configure summary와 final image의 x265 absence를 release evidence에 포함한다. encoder 제거는 남은 native dependency의 license 검토를 생략하는 근거가 아니다.
 
 ## Directus 결정 기록
 
@@ -76,6 +92,7 @@ Directus 12.3.1 Core의 custom permission entitlement가 라오미펫의 item fi
 - 심각도뿐 아니라 실제 노출 경로 분석
 - 관리자 인증·Spring Security 취약점 우선 처리
 - decoder·image processing 취약점은 향후 upload 공격면 도입 전에 검토
+- pinned libheif·libde265 source는 production image build마다 upstream security advisory와 더 최신 stable release를 확인하고 version 변경은 별도 검증·문서 동기화
 
 ## 공식 확인 기준
 
@@ -84,6 +101,9 @@ Directus 12.3.1 Core의 custom permission entitlement가 라오미펫의 item fi
 - Gradle releases: `https://gradle.org/releases/`
 - Java/Gradle compatibility: `https://docs.gradle.org/current/userguide/compatibility.html`
 - PostgreSQL: `https://www.postgresql.org/docs/`
+- libheif: `https://github.com/strukturag/libheif/`
+- libheif v1.23.1: `https://github.com/strukturag/libheif/releases/tag/v1.23.1`
+- libde265: `https://github.com/strukturag/libde265/`
 
 ## 폰트·아이콘·사진
 

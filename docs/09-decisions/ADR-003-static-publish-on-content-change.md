@@ -11,6 +11,7 @@ review_trigger: "콘텐츠 반영 방식 변경 시"
 
 - 결정일: 2026-08-28
 - 상태: Accepted
+- 구체화: [ADR-011](ADR-011-transactional-outbox-static-publisher.md)
 
 ## 맥락
 
@@ -18,12 +19,12 @@ review_trigger: "콘텐츠 반영 방식 변경 시"
 
 ## 결정
 
-관련 콘텐츠 transaction이 성공하면 Spring Boot의 domain event 또는 outbox가 내부 deploy hook을 호출하고, 현재 승인된 코드로 정적 사이트를 다시 생성한다. event/outbox와 hook은 후속 Issue에서 구현한다.
+공개 결과에 영향을 주는 콘텐츠 변경과 publishing outbox를 같은 PostgreSQL transaction에 기록한다. 미래 게시·만료 경계를 가진 notice는 저장 transaction에서 durable scheduled publishing event도 함께 기록한다. single internal publisher는 immediate pending event와 due scheduled event를 처리해 현재 승인된 production code image/digest로 정적 사이트를 다시 생성한다. outbox, build API와 publisher는 후속 Issue에서 구현한다.
 
 ```text
 Spring Boot content transaction
-→ domain event / outbox
-→ authenticated internal hook
+→ same-transaction immediate·scheduled publishing event
+→ single internal publisher
 → snapshot
 → image variants
 → static export
@@ -33,14 +34,18 @@ Spring Boot content transaction
 
 ## 안전장치
 
-- hook은 외부 공개하지 않음
-- secret 검증
-- debounce
+- build API와 publisher는 외부 공개하지 않음
+- 관리자 session과 분리된 read-only service credential
+- future `publishedAt`·`expiresAt`의 durable `availableAt` event와 restart 후 overdue 처리
+- scheduled event 처리 시 current notice row·snapshot 재검증과 stale no-op/coalesce
+- 콘텐츠 mutation `contentRevision`과 public trigger `publishGeneration` 분리
+- 30초 debounce
 - global build lock
 - 임시 release에서 build
 - 검증 성공 전 current 미변경
 - 실패 시 기존 release 유지
-- build 중 새 변경은 후속 build
+- 낮은 `publishGeneration`은 더 높은 current generation을 전환하지 못함
+- build 중 새 mutation·시간 경계는 후속 generation
 - code/content deploy가 같은 release 스크립트 사용
 
 ## 결과
@@ -55,7 +60,8 @@ Spring Boot content transaction
 ### 비용
 
 - 저장과 공개 반영 사이 지연
-- build service와 queue 운영
+- outbox와 publisher 운영
+- future boundary scheduling과 두 revision 운영
 - 연속 저장 시 build 자원 사용
 - 운영자는 관리 API 저장 성공과 공개 성공을 구분해야 함
 

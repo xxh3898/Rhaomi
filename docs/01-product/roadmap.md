@@ -116,6 +116,16 @@ Phase 1C-7은 실제 콘텐츠 CRUD 화면, 운영 Nginx/TLS·2FA, 공개 build 
 - build-time read-only API와 credential 분리
 - 샘플 콘텐츠
 
+### Phase 1D — Production 운영 아키텍처 계약
+
+- ADR-010 Cloudflare Tunnel·계층형 Nginx topology, macOS `/private/var/lib/rhaomi` host root, PostgreSQL project-scoped named volume과 수동 digest code release
+- ADR-011 immediate·scheduled transactional event, 두 revision·single publisher·atomic switch
+- ADR-012 외장 SSD·iCloud encrypted restic backup, remote-sync evidence와 isolated restore
+- ADR-013 HomeOps 단일 관제·제한된 stateless restart
+- ADR-014 pinned source HEIC decoder-only production runtime
+
+Phase 1D는 문서·계약 확정만 의미한다. 실제 Mac directory ownership·bind smoke, PostgreSQL restart·일반 Compose `down` persistence·isolated `pg_restore`, production Compose/Nginx, GitHub Environment, publisher/outbox/build API, backup repository, HomeOps 설정과 production image는 후속 Issue에서 구현·검증한다.
+
 ## Phase 2 — 공개 랜딩 MVP
 
 - Hero
@@ -133,9 +143,10 @@ Phase 1C-7은 실제 콘텐츠 CRUD 화면, 운영 Nginx/TLS·2FA, 공개 build 
 - content snapshot
 - 이미지 최적화 파생본
 - 정적 route 생성
-- backend 콘텐츠 변경 event 또는 outbox
-- 내부 deploy hook
-- 원자적 배포·rollback
+- backend 콘텐츠 transaction과 같은 PostgreSQL transaction의 immediate·future notice boundary publishing event
+- `contentRevision`·`publishGeneration`, overdue recovery와 30초 debounce를 처리하는 단일 internal publisher
+- internal read-only build API와 build transformer 이중 검증
+- `publishGeneration` 기준 원자적 배포·rollback
 
 ## Phase 4 — SEO·출시 품질
 
@@ -145,7 +156,9 @@ Phase 1C-7은 실제 콘텐츠 CRUD 화면, 운영 Nginx/TLS·2FA, 공개 build 
 - Google Search Console
 - 네이버 서치어드바이저
 - 성능·접근성·실기기 검증
-- 운영 backup·monitoring
+- 외장 SSD·iCloud encrypted restic backup, local/offsite RPO 분리·fresh retrieval·isolated restore
+- HomeOps 단일 관제·alert·bounded stateless restart
+- decoder-only HEIC production image와 SBOM·amd64/arm64 검증
 - 관리자 2FA와 TLS/session cookie production gate
 
 ## Phase 5 — 운영 검증 후 선택

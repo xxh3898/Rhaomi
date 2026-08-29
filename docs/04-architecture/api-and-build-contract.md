@@ -130,16 +130,26 @@ review_trigger: "관리 API·build 입력 변경 시"
 
 오류는 missing/empty/malformed/unknown field `400 INVALID_REQUEST`, source 초과 `413 MEDIA_TOO_LARGE`, unsupported byte·AVIF 또는 명시 MIME·extension 충돌 `415 MEDIA_TYPE_UNSUPPORTED`, 손상·decode 불가·APNG·multi-image/sequence·dimension/pixel/output limit `422 MEDIA_INVALID_IMAGE`, 없는 id `404 MEDIA_NOT_FOUND`, codec unavailable `503 MEDIA_PROCESSOR_UNAVAILABLE`를 사용한다. `heim | heis`는 format detector에서 HEIC still로 인식하며 현재 decoder가 처리하지 못하면 unsupported가 아니라 `422 MEDIA_INVALID_IMAGE`로 종료한다. filesystem·DB 장애는 내부 path·constraint detail 없는 generic `5xx`다.
 
+## publisher event — planned
+
+- 공개 영향 콘텐츠 transaction은 same-transaction immediate publishing event를 기록한다.
+- notice create/update/publish transaction이 미래 `publishedAt` 또는 `expiresAt`을 만들면 같은 PostgreSQL transaction에 각 boundary의 durable scheduled event를 기록한다.
+- scheduled event는 최소 event kind, `availableAt` 또는 동등한 `notBefore`, notice ID, event 생성 시점의 current notice/content revision과 boundary 값을 가진다.
+- publisher는 immediate pending event와 `availableAt <= now` event를 처리하고 restart 뒤 overdue event를 다시 claim한다.
+- 처리 시 event payload를 public authority로 사용하지 않고 current notice row와 전체 build snapshot을 다시 검증한다. reschedule, draft·archived 전환 또는 window 변경으로 stale이면 no-op하거나 최신 pending generation에 합친다.
+
 ## build API — planned
 
-후속 Issue에서 관리자 session과 분리된 namespace·credential을 설계한다.
+후속 Issue에서 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에 따른 관리자 session과 분리된 internal namespace·service credential을 구현한다.
 
 - 예: `/api/build/**`
 - API-only service credential
 - published 콘텐츠와 연결된 공개용 file metadata만 read
 - create/update/delete/share 금지
 - 관리자 cookie/session 재사용 금지
-- credential은 build container에만 주입하고 `NEXT_PUBLIC_*` 금지
+- credential은 single publisher에만 주입하고 `NEXT_PUBLIC_*` 금지
+- public Nginx에서 `/api/build/**` 명시적 거부
+- response에 `contentRevision`, target `publishGeneration`과 `generatedAt` 포함
 
 현재 repository에는 build API나 build credential이 없다.
 
@@ -172,10 +182,9 @@ public media metadata
 {
   "schemaVersion": 1,
   "generatedAt": "2026-08-29T00:00:00Z",
-  "sourceRevision": {
-    "shopUpdatedAt": "...",
-    "maxContentUpdatedAt": "..."
-  },
+  "contentRevision": 123,
+  "publishGeneration": 128,
+  "codeImageDigest": "sha256:<digest>",
   "shop": {},
   "services": [],
   "breeds": [],
@@ -185,9 +194,15 @@ public media metadata
 ```
 
 - 모든 조회가 성공한 뒤 임시 file과 atomic rename으로 기록한다.
+- `generatedAt`을 notice 게시·만료 eligibility의 build timestamp로 사용한다.
+- `contentRevision`은 지원되는 콘텐츠 domain mutation snapshot의 monotonic revision이다. draft-only mutation에도 증가하지만 public trigger는 만들지 않으며, mutation이 없는 게시·만료 경계에서는 같은 값으로 새 snapshot을 만들 수 있다.
+- `publishGeneration`은 immediate 콘텐츠 mutation, due 게시·만료 boundary, 승인된 code release와 manual rebuild/retry를 포함하는 public trigger의 monotonic sequence다.
+- transient failure의 자동 attempt retry는 같은 generation을 유지하고 운영자가 승인한 새 rebuild/retry만 새 generation을 만든다.
+- release manifest도 `contentRevision`, `publishGeneration`, `generatedAt`을 기록하고 `current` atomic switch는 `publishGeneration`을 stale protection authority로 사용한다.
 - 일부 collection만 과거 data로 fallback하지 않는다.
 - raw persistence/API response를 component에 직접 전달하지 않는다.
 - runtime schema와 published/relation/file 조건을 transformer에서 다시 검증한다.
+- scheduled event의 notice ID나 과거 boundary는 snapshot filter를 우회하는 입력으로 사용하지 않는다.
 
 ## 공개 media 파생 — planned
 
@@ -216,6 +231,7 @@ backend-owned private canonical master
 - snapshot schema mismatch
 - HTML sanitize 실패
 - sitemap duplicate canonical
+- target `publishGeneration`이 current generation 이하
 
 ## 호환성
 

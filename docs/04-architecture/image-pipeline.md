@@ -35,7 +35,7 @@ JPEG / PNG / HEIC / HEIF upload
 → static export
 ```
 
-현재 완료 범위는 upload에서 private canonical master, 갤러리 relation과 매장정보 Hero·프로필·OG scalar relation까지다. 공개 파생본, Builder credential/API와 Static Export 반영은 완료로 보지 않는다.
+현재 완료 범위는 upload에서 private canonical master, 갤러리 relation과 매장정보 Hero·프로필·OG scalar relation까지다. 공개 파생본, publisher credential/API와 Static Export 반영은 완료로 보지 않는다.
 
 ## 저장 정책
 
@@ -44,7 +44,7 @@ JPEG / PNG / HEIC / HEIF upload
 - backend 소유 filesystem storage와 PostgreSQL metadata 분리
 - 공개 Nginx root 밖
 - 백업 대상
-- 현재는 session 인증 ADMIN만 API 조회, 후속 Builder는 별도 read-only credential
+- 현재는 session 인증 ADMIN만 API 조회, 후속 publisher는 별도 read-only credential
 - 수정 시 새 파일 생성 권장
 - JPEG·PNG는 검증한 source byte를 유지하므로 private master에 source metadata가 남을 수 있음
 - HEIC·HEIF raw byte는 temp에서만 존재하고 canonical JPEG만 장기 보관
@@ -89,6 +89,16 @@ JPEG / PNG / HEIC / HEIF upload
 - runtime download·client filename 기반 shell command 없음
 - codec 누락·link 실패는 backend startup에서 fail-fast
 
+### Production upload normalization runtime — planned
+
+- [ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)의 official libheif `v1.23.1`, exact commit `2c4bbb54c2738d4a5efbbe3e5fa1d5d76bb88eb0`
+- libde265 HEVC decoder만 native codec allowlist로 활성화
+- x265·다른 encoder·사용하지 않는 decoder·CLI·plugin·experimental feature 비활성
+- NightMonkeys, JPEG/PNG passthrough, JPEG quality 92, orientation·sRGB·metadata strip과 크기 제한 유지
+- SBOM·source/license notice와 final image의 x265 package·link·plugin 부재 검사
+
+production decoder-only image는 아직 구현되지 않았다. 현재 local/CI Alpine package runtime과 future production source build를 같은 상태로 표현하지 않는다.
+
 ### 후속 public derivative
 
 - Node.js 기반 `sharp` 또는 동등한 검증된 도구
@@ -99,13 +109,13 @@ JPEG / PNG / HEIC / HEIF upload
 합성 HEIC의 backend 업로드·orientation·sRGB·metadata 제거는 amd64 CI와 arm64 container에서 자동 검증한다. 다만 은총쌤이 iPhone을 사용할 가능성이 높으므로 후속 `/admin` UI 통합에서 실제 iPhone Safari 원본 선택·전송을 반드시 시험한다.
 
 - 실제 Safari multipart 업로드 성공 여부
-- 후속 빌더 download·decode 여부
+- 후속 publisher download·decode 여부
 - orientation
 - 색상 프로파일
 - 변환 결과
 - 실패 메시지
 
-synthetic backend 검증은 physical-device와 Builder 검증을 대체하지 않는다. 둘 중 하나라도 검증되지 않으면 사진 기능을 출시하지 않는다.
+synthetic backend 검증은 physical-device와 publisher 검증을 대체하지 않는다. 둘 중 하나라도 검증되지 않으면 사진 기능을 출시하지 않는다.
 
 ## 개인정보
 

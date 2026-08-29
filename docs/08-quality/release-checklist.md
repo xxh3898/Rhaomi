@@ -34,7 +34,15 @@ review_trigger: "출시 기준 변경 시"
 - [ ] 관리자 2FA
 - [ ] 상태 validation
 - [ ] archive 운영
-- [ ] domain event/outbox와 deploy hook
+- [ ] 공개 영향 transaction과 같은 PostgreSQL transaction의 immediate publishing event
+- [ ] future notice publishedAt·expiresAt의 `availableAt` durable scheduled event와 overdue recovery
+- [ ] scheduled event current-row/snapshot 재검증과 reschedule·draft/archive·window-change stale no-op/coalesce
+- [ ] `contentRevision`·`publishGeneration` 분리와 draft-only 변경 trigger 분류
+- [ ] single publisher 30초 debounce·global lock·highest generation coalescing
+- [ ] build API read-only와 public `/api/build/**` deny
+- [ ] published·notice expiry·relation·media/file의 API/transformer 이중 검증
+- [ ] publisher 동일 generation 1분·5분·15분 최대 3회 retry, 승인된 manual rebuild/retry의 새 generation과 data 오류 중단
+- [ ] snapshot/release manifest의 `contentRevision`·`publishGeneration`·`generatedAt`과 generation 기준 stale switch 거부
 - [ ] 실제 iPhone CRUD
 
 ## 공개 사이트
@@ -83,6 +91,11 @@ review_trigger: "출시 기준 변경 시"
 - [ ] 이미지 파생본
 - [ ] EXIF 제거
 - [ ] HEIC 검증
+- [ ] decoder-only libheif `v1.23.1` exact commit과 libde265 decode
+- [ ] production CMake의 libde265-only fail-closed codec allowlist와 encoder·plugin·experimental path OFF
+- [ ] production image x265 package·library·link·plugin 부재
+- [ ] source·license notice·SBOM·image scan
+- [ ] Linux amd64와 Mac mini Linux arm64 actual HEIC fixture
 - [ ] asset budgets
 - [ ] Lighthouse
 - [ ] 저속 모바일 표본
@@ -92,19 +105,37 @@ review_trigger: "출시 기준 변경 시"
 ## 보안·운영
 
 - [ ] HTTPS
-- [ ] same-origin `/admin`, `/api` route
+- [ ] Cloudflare Tunnel → host edge Nginx → loopback project Nginx
+- [ ] same-origin `/admin`, `/api/admin/**` route
+- [ ] public `/api/build/**`, `/internal/**`, `/actuator/**` deny
 - [ ] DB 외부 비공개
-- [ ] deploy hook 내부·인증
+- [ ] publisher public network·Docker socket 부재
 - [ ] secrets scan
 - [ ] production session `Secure`, TLS와 관리자 2FA 확인
-- [ ] DB backup
-- [ ] 원본 image storage backup
-- [ ] offsite backup
-- [ ] restore test
-- [ ] rollback
-- [ ] monitoring
-- [ ] disk alert
-- [ ] certificate alert
+- [ ] exact main SHA·immutable image·digest와 `latest` 부재
+- [ ] GitHub production environment 수동 승인과 고정 Tailscale deploy entrypoint
+- [ ] write maintenance·one-shot Flyway·schema validate·expand/contract
+- [ ] 실제 Mac `/private/var/lib/rhaomi/{app,public,data/media,state,logs}` 생성·ownership·permission
+- [ ] Mac public/media/state source의 Docker Desktop bind smoke와 web RO·backend/publisher 최소 write mode
+- [ ] `/srv/rhaomi/public`이 web/publisher Linux container target일 뿐 Mac host source가 아님
+- [ ] PostgreSQL host PGDATA bind 부재, production project-scoped named volume exact identity·mount
+- [ ] PostgreSQL container restart와 일반 Compose `down`·`up` 뒤 DB persistence
+- [ ] production `docker compose down -v`, `docker volume prune`, named volume direct delete 금지
+- [ ] DB `pg_dump -Fc`와 canonical media의 동일 backup-set manifest
+- [ ] raw PostgreSQL volume required restic input 부재와 새 isolated named volume `pg_restore` 검증
+- [ ] 외장 SSD·iCloud의 별도 encrypted restic repository
+- [ ] 외장 SSD `/Volumes/<provisioned-volume>/...` exact repository path·volume identity·ownership
+- [ ] local iCloud Drive repository snapshot/check와 Apple remote sync 완료 증거 분리
+- [ ] remote sync 미증명 backup set의 offsite RPO `PASS` 금지와 local/offsite RPO 별도 표시
+- [ ] 최초 production gate의 second trusted device 또는 clean retrieval path fresh retrieval·restic check·대표 restore
+- [ ] daily 7 / weekly 4 / monthly 6와 post-prune check
+- [ ] quarterly isolated full restore, local/offsite RPO 24h 분리·RTO 8h evidence
+- [ ] `current`·`previous` atomic switch·rollback과 성공 release 5개 보존
+- [ ] HomeOps 단일 관제·incident·Activity·Discord authority
+- [ ] public/internal/container/host/DB/publisher/backup monitor와 임계값
+- [ ] stateless single restart의 lock·30분 cooldown·audit와 금지 범위
+- [ ] same-host blind spot 수용 기록
+- [ ] service당 약 100 MiB bounded log와 일반 14일·incident hold
 
 ## 승인
 

@@ -20,6 +20,11 @@ review_trigger: "의사결정 추가·변경 시"
 | ADR-007 | 자체 예약·문의 폼은 만들지 않는다. | 승인 | [ADR-007](../09-decisions/ADR-007-external-contact-only.md) |
 | ADR-008 | 공개 사이트는 관리 backend 장애와 무관하게 서비스되어야 한다. | 승인 | [ADR-008](../09-decisions/ADR-008-runtime-independent-public-site.md) |
 | ADR-009 | 관리 backend는 Spring Boot + PostgreSQL과 서버 세션 인증을 사용한다. | 승인 | [ADR-009](../09-decisions/ADR-009-spring-boot-backend-admin.md) |
+| ADR-010 | Production은 Cloudflare Tunnel·계층형 Nginx, macOS `/private/var/lib/rhaomi` host root, PostgreSQL named volume과 수동 digest release를 사용한다. | 승인 | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md) |
+| ADR-011 | 공개 콘텐츠는 transactional outbox와 단일 정적 publisher로 배포한다. | 승인 | [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md) |
+| ADR-012 | PostgreSQL logical dump·private media를 application-consistent encrypted restic backup set으로 보호하고 raw PGDATA volume은 required backup input에서 제외한다. | 승인 | [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md) |
+| ADR-013 | HomeOps를 단일 관제 authority로 사용하고 자동 복구를 stateless 단일 restart로 제한한다. | 승인 | [ADR-013](../09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md) |
+| ADR-014 | Production HEIC runtime은 pinned libheif·libde265 decoder-only image로 구성한다. | 승인 | [ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md) |
 
 ## 변경 규칙
 

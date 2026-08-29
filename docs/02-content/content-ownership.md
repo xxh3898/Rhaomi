@@ -11,7 +11,7 @@ review_trigger: "관리 범위 변경 시"
 
 ## 후속 `/admin`에서 운영자가 관리
 
-현재는 인증 기반만 구현됐으며 아래 콘텐츠 API와 UI는 planned다.
+아래 관리자 API와 private media master는 구현됐고 콘텐츠 CRUD UI는 planned다.
 
 | 콘텐츠 | 컬렉션 | 운영자 권한 |
 |---|---|---|
@@ -20,7 +20,7 @@ review_trigger: "관리 범위 변경 시"
 | 견종 필터 | `breeds` | 생성·수정·보관 |
 | 시술사진 | `gallery_items` | 생성·수정·보관 |
 | 공지 | `notices` | 생성·수정·보관 |
-| 업로드 파일 | `media_files` 예정 | 라오미펫 원본 생성·조회·보관 |
+| 업로드 파일 | `media_assets` | 라오미펫 원본 생성·조회·보관 |
 
 ## 코드에서 개발자가 관리
 
@@ -31,7 +31,7 @@ review_trigger: "관리 범위 변경 시"
 - 디자인 토큰
 - 배포와 이미지 파이프라인
 - 환경변수 이름
-- 권한, domain event와 deploy hook
+- 권한, publishing outbox와 single publisher
 - 관리자 역할과 시스템 설정
 - 검색엔진 인증 파일 또는 메타 태그
 
