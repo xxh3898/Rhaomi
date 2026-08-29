@@ -1,3 +1,4 @@
+import { createRef } from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -67,6 +68,29 @@ afterEach(() => {
 });
 
 describe("AdminMediaPicker", () => {
+  it("parent가 open 직후 사용할 initial focus ref를 close control에 연결한다", () => {
+    const initialFocusRef = createRef<HTMLButtonElement>();
+    render(
+      <AdminMediaPicker
+        api={createApi()}
+        id="hero-picker"
+        slotLabel="Hero 이미지"
+        state={{ kind: "loading" }}
+        selectedId={null}
+        disabled={false}
+        initialFocusRef={initialFocusRef}
+        onSelect={vi.fn()}
+        onRetry={vi.fn()}
+        onClose={vi.fn()}
+        onSessionExpired={vi.fn()}
+      />,
+    );
+
+    expect(initialFocusRef.current).toBe(
+      screen.getByRole("button", { name: "선택 닫기" }),
+    );
+  });
+
   it("server ordering을 유지하고 active asset만 single-select option으로 제공한다", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();

@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent, Ref } from "react";
 
 import { isAdminApiError } from "@/features/admin-auth/api";
 import type { AdminApiTransport } from "@/features/admin-auth/types";
@@ -77,6 +78,7 @@ type MediaRelationControlProps = Readonly<{
   disabled: boolean;
   altValue?: string;
   onAltChange?: (value: string) => void;
+  triggerRef: Ref<HTMLButtonElement>;
   onOpen: () => void;
   onClear: () => void;
 }>;
@@ -282,6 +284,7 @@ function MediaRelationControl({
   disabled,
   altValue,
   onAltChange,
+  triggerRef,
   onOpen,
   onClear,
 }: MediaRelationControlProps) {
@@ -299,6 +302,8 @@ function MediaRelationControl({
       </div>
       <div className={styles.relationActions}>
         <button
+          id={`${id}-picker-trigger`}
+          ref={triggerRef}
           type="button"
           disabled={disabled}
           aria-describedby={statusId}
@@ -351,6 +356,11 @@ export function AdminShopSettingsManager({
   const shopRequestSequenceRef = useRef(0);
   const mediaRequestSequenceRef = useRef(0);
   const saveBusyRef = useRef(false);
+  const heroPickerTriggerRef = useRef<HTMLButtonElement>(null);
+  const groomerPickerTriggerRef = useRef<HTMLButtonElement>(null);
+  const ogPickerTriggerRef = useRef<HTMLButtonElement>(null);
+  const pickerInitialFocusRef = useRef<HTMLButtonElement>(null);
+  const restoreFocusSlotRef = useRef<PickerSlot | null>(null);
 
   const loadShop = useCallback(async () => {
     if (saveBusyRef.current) {
@@ -419,6 +429,23 @@ export function AdminShopSettingsManager({
     };
   }, [loadMedia, loadShop]);
 
+  useEffect(() => {
+    if (pickerSlot !== null) {
+      pickerInitialFocusRef.current?.focus();
+      return;
+    }
+
+    const restoreSlot = restoreFocusSlotRef.current;
+    restoreFocusSlotRef.current = null;
+    if (restoreSlot === "hero") {
+      heroPickerTriggerRef.current?.focus();
+    } else if (restoreSlot === "groomer") {
+      groomerPickerTriggerRef.current?.focus();
+    } else if (restoreSlot === "og") {
+      ogPickerTriggerRef.current?.focus();
+    }
+  }, [pickerSlot]);
+
   const draft =
     shopState.kind === "uninitialized" ||
     shopState.kind === "ready" ||
@@ -466,6 +493,16 @@ export function AdminShopSettingsManager({
       return;
     }
     updateDraft({ ogImageId: selectedId });
+  }
+
+  function openPicker(slot: PickerSlot) {
+    restoreFocusSlotRef.current = null;
+    setPickerSlot(slot);
+  }
+
+  function closePicker(slot: PickerSlot) {
+    restoreFocusSlotRef.current = slot;
+    setPickerSlot(null);
   }
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
@@ -516,17 +553,30 @@ export function AdminShopSettingsManager({
     }
   }
 
-  const pickerConfig =
-    draft && pickerSlot
-      ? {
-          hero: { label: "Hero 이미지", selectedId: draft.heroImageId },
-          groomer: {
-            label: "미용사 이미지",
-            selectedId: draft.groomerImageId,
-          },
-          og: { label: "OG 이미지", selectedId: draft.ogImageId },
-        }[pickerSlot]
-      : null;
+  function renderPicker(
+    slot: PickerSlot,
+    slotLabel: string,
+    selectedId: string | null,
+  ) {
+    if (pickerSlot !== slot) {
+      return null;
+    }
+    return (
+      <AdminMediaPicker
+        api={mediaApi}
+        id={`shop-${slot}-media-picker`}
+        slotLabel={slotLabel}
+        state={mediaState}
+        selectedId={selectedId}
+        disabled={saving}
+        initialFocusRef={pickerInitialFocusRef}
+        onSelect={(nextSelectedId) => selectMedia(slot, nextSelectedId)}
+        onRetry={() => void loadMedia()}
+        onClose={() => closePicker(slot)}
+        onSessionExpired={onSessionExpired}
+      />
+    );
+  }
 
   return (
     <section className={styles.manager} aria-labelledby="shop-settings-title">
@@ -725,9 +775,11 @@ export function AdminShopSettingsManager({
                 disabled={saving}
                 altValue={draft.heroImageAltText}
                 onAltChange={(value) => updateDraft({ heroImageAltText: value })}
-                onOpen={() => setPickerSlot("hero")}
+                triggerRef={heroPickerTriggerRef}
+                onOpen={() => openPicker("hero")}
                 onClear={() => selectMedia("hero", null)}
               />
+              {renderPicker("hero", "Hero 이미지", draft.heroImageId)}
             </section>
 
             <section className={styles.formSection} aria-labelledby="shop-groomer-title">
@@ -755,9 +807,11 @@ export function AdminShopSettingsManager({
                 disabled={saving}
                 altValue={draft.groomerImageAltText}
                 onAltChange={(value) => updateDraft({ groomerImageAltText: value })}
-                onOpen={() => setPickerSlot("groomer")}
+                triggerRef={groomerPickerTriggerRef}
+                onOpen={() => openPicker("groomer")}
                 onClear={() => selectMedia("groomer", null)}
               />
+              {renderPicker("groomer", "미용사 이미지", draft.groomerImageId)}
             </section>
 
             <section className={styles.formSection} aria-labelledby="shop-reservation-title">
@@ -812,25 +866,12 @@ export function AdminShopSettingsManager({
                 selectedId={draft.ogImageId}
                 relationState={relationState(draft.ogImageId, mediaState)}
                 disabled={saving}
-                onOpen={() => setPickerSlot("og")}
+                triggerRef={ogPickerTriggerRef}
+                onOpen={() => openPicker("og")}
                 onClear={() => selectMedia("og", null)}
               />
+              {renderPicker("og", "OG 이미지", draft.ogImageId)}
             </section>
-
-            {pickerSlot && pickerConfig ? (
-              <AdminMediaPicker
-                api={mediaApi}
-                id="shop-media-picker"
-                slotLabel={pickerConfig.label}
-                state={mediaState}
-                selectedId={pickerConfig.selectedId}
-                disabled={saving}
-                onSelect={(selectedId) => selectMedia(pickerSlot, selectedId)}
-                onRetry={() => void loadMedia()}
-                onClose={() => setPickerSlot(null)}
-                onSessionExpired={onSessionExpired}
-              />
-            ) : null}
           </fieldset>
 
           <button className={styles.saveButton} type="submit" disabled={saving}>

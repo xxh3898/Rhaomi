@@ -37,7 +37,8 @@ review_trigger: "유입 채널·지원 범위 변경 시"
 - password/CSRF browser persistence 금지 정적 검사
 - 매장정보·미디어 dashboard navigation과 same-page 관리 홈 복귀 component test
 - shop GET loading·404 미초기화·error retry, full form control과 200/201 canonical save test
-- active-only single media picker, archived/missing relation, clear·same-media reuse와 Hero·미용사 alt pair test
+- Hero·미용사·OG relation 바로 아래의 active-only single media picker, slot 전환 시 단일 instance, Enter open·내부 focus 진입·close/selection trigger 복귀 component test
+- archived/missing relation, clear·same-media reuse와 Hero·미용사 alt pair test
 - 미디어 filter·upload·archive/restore native control과 aria state component test
 - 20 MiB client 차단, multipart boundary, private Blob preview lazy load·object URL revoke와 401/403 test
 

@@ -1,5 +1,7 @@
 "use client";
 
+import type { Ref } from "react";
+
 import { AdminMediaPreview } from "./AdminMediaPreview";
 import { AdminMediaApi } from "./api";
 import type { MediaItem } from "./types";
@@ -17,6 +19,7 @@ type AdminMediaPickerProps = Readonly<{
   state: AdminMediaPickerState;
   selectedId: string | null;
   disabled: boolean;
+  initialFocusRef?: Ref<HTMLButtonElement>;
   onSelect: (id: string | null) => void;
   onRetry: () => void;
   onClose: () => void;
@@ -30,6 +33,7 @@ export function AdminMediaPicker({
   state,
   selectedId,
   disabled,
+  initialFocusRef,
   onSelect,
   onRetry,
   onClose,
@@ -56,7 +60,12 @@ export function AdminMediaPicker({
           <p>Private media library</p>
           <h4 id={titleId}>{slotLabel} 선택</h4>
         </div>
-        <button type="button" disabled={disabled} onClick={onClose}>
+        <button
+          ref={initialFocusRef}
+          type="button"
+          disabled={disabled}
+          onClick={onClose}
+        >
           선택 닫기
         </button>
       </div>

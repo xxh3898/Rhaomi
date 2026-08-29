@@ -48,7 +48,9 @@ review_trigger: "기술·기능 범위 변경 시"
 - shop GET loading→200 populate, 404 미초기화 empty form, generic error+retry와 session expiry
 - required/nullable/time/weekday/parking/url control, nullable blank→null과 backend canonical response form 교체
 - 최초·후속 full PUT, pending double submit·field 변경 방지, 400/422/403/5xx fixed message와 raw detail 비노출
-- active-only single media picker, 없음/clear, same media Hero·미용사·OG 재사용과 OG alt field 부재
+- Hero·미용사·OG relation 직후 slot별 inline picker 배치, slot 전환 시 active-only single instance
+- `미디어 선택` Enter open, picker 첫 control focus 진입, close·selection 후 해당 slot trigger focus 복귀
+- 없음/clear, same media Hero·미용사·OG 재사용과 OG alt field 부재
 - Hero·미용사 image-alt pair와 300 code-point, archived/missing 현재 relation 가시화·새 선택 금지·clear/active 교체
 - picker private Blob bounded load·object URL revoke, media list retry와 preview/session expiry
 - shop ready 상태 background GET·auto-save 부재와 save snapshot/canonical response의 stale overwrite 방지

@@ -326,6 +326,131 @@ describe("AdminShopSettingsManager", () => {
     expect(requestJsonMutation).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ["Hero 이미지", "shop-hero-title"],
+    ["미용사 이미지", "shop-groomer-title"],
+    ["OG 이미지", "shop-sharing-title"],
+  ] as const)(
+    "%s picker를 해당 relation 바로 다음 sibling에 렌더링한다",
+    async (groupName, sectionTitleId) => {
+      const user = userEvent.setup();
+      render(
+        <AdminShopSettingsManager
+          transport={createTransport({
+            requestAuthenticatedJson: vi.fn().mockImplementation((path: string) =>
+              path === "/api/admin/shop-settings"
+                ? Promise.resolve(shopSettings())
+                : Promise.resolve([mediaItem()]),
+            ),
+          })}
+          onBack={vi.fn()}
+          onSessionExpired={vi.fn()}
+        />,
+      );
+
+      const relation = await screen.findByRole("group", { name: groupName });
+      await user.click(within(relation).getByRole("button", { name: "미디어 선택" }));
+      const picker = screen.getByRole("region", { name: `${groupName} 선택` });
+
+      expect(relation.nextElementSibling).toBe(picker);
+      expect(picker.parentElement).toHaveAttribute("aria-labelledby", sectionTitleId);
+      expect(screen.getAllByText("Private media library")).toHaveLength(1);
+    },
+  );
+
+  it("slot을 바꿔도 inline picker를 동시에 하나만 유지한다", async () => {
+    const user = userEvent.setup();
+    render(
+      <AdminShopSettingsManager
+        transport={createTransport({
+          requestAuthenticatedJson: vi.fn().mockImplementation((path: string) =>
+            path === "/api/admin/shop-settings"
+              ? Promise.resolve(shopSettings())
+              : Promise.resolve([mediaItem()]),
+          ),
+        })}
+        onBack={vi.fn()}
+        onSessionExpired={vi.fn()}
+      />,
+    );
+
+    const hero = await screen.findByRole("group", { name: "Hero 이미지" });
+    await user.click(within(hero).getByRole("button", { name: "미디어 선택" }));
+    expect(screen.getByRole("region", { name: "Hero 이미지 선택" })).toBeInTheDocument();
+
+    const groomer = screen.getByRole("group", { name: "미용사 이미지" });
+    await user.click(within(groomer).getByRole("button", { name: "미디어 선택" }));
+    expect(
+      screen.queryByRole("region", { name: "Hero 이미지 선택" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "미용사 이미지 선택" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Private media library")).toHaveLength(1);
+  });
+
+  it("keyboard Enter로 picker를 열고 내부 focus 진입 뒤 close하면 원 trigger로 복귀한다", async () => {
+    const user = userEvent.setup();
+    render(
+      <AdminShopSettingsManager
+        transport={createTransport({
+          requestAuthenticatedJson: vi.fn().mockImplementation((path: string) =>
+            path === "/api/admin/shop-settings"
+              ? Promise.resolve(shopSettings())
+              : Promise.resolve([mediaItem()]),
+          ),
+        })}
+        onBack={vi.fn()}
+        onSessionExpired={vi.fn()}
+      />,
+    );
+
+    const hero = await screen.findByRole("group", { name: "Hero 이미지" });
+    const trigger = within(hero).getByRole("button", { name: "미디어 선택" });
+    expect(trigger).toHaveAttribute("id", "heroImage-picker-trigger");
+    trigger.focus();
+    await user.keyboard("{Enter}");
+
+    const picker = screen.getByRole("region", { name: "Hero 이미지 선택" });
+    const closeButton = within(picker).getByRole("button", { name: "선택 닫기" });
+    await waitFor(() => expect(closeButton).toHaveFocus());
+    expect(await within(picker).findByRole("img")).toBeInTheDocument();
+    expect(createObjectUrl).toHaveBeenCalledTimes(1);
+
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(revokeObjectUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it("media 선택 완료 뒤 해당 slot의 원 trigger로 focus를 복귀한다", async () => {
+    const user = userEvent.setup();
+    render(
+      <AdminShopSettingsManager
+        transport={createTransport({
+          requestAuthenticatedJson: vi.fn().mockImplementation((path: string) =>
+            path === "/api/admin/shop-settings"
+              ? Promise.resolve(shopSettings())
+              : Promise.resolve([mediaItem()]),
+          ),
+        })}
+        onBack={vi.fn()}
+        onSessionExpired={vi.fn()}
+      />,
+    );
+
+    const groomer = await screen.findByRole("group", { name: "미용사 이미지" });
+    const trigger = within(groomer).getByRole("button", { name: "미디어 선택" });
+    await user.click(trigger);
+    const picker = screen.getByRole("region", { name: "미용사 이미지 선택" });
+    await user.click(within(picker).getByRole("button", { name: "이 미디어 선택" }));
+
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(within(groomer).getByLabelText(/대체텍스트/)).toHaveValue("");
+    expect(
+      screen.queryByRole("region", { name: "미용사 이미지 선택" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("active media 하나를 Hero·미용사·OG에 재사용하고 OG alt field는 만들지 않는다", async () => {
     const requestAuthenticatedJson = vi.fn().mockImplementation((path: string) =>
       path === "/api/admin/shop-settings"

@@ -86,7 +86,7 @@ Client boundary는 가장 작은 상호작용 단위에 둔다.
 - media preview는 authenticated GET의 JPEG/PNG content-type을 검증해 object URL을 만들고 item 교체·refresh·unmount에서 revoke한다. `IntersectionObserver`로 현재 viewport 근처 항목만 bounded fetch한다.
 - 현재 dashboard는 매장정보와 미디어가 enabled이고 갤러리·공지·견종·서비스는 disabled placeholder다. 별도 route·query/hash authority나 fake data를 만들지 않는다.
 - shop settings는 404를 빈 미초기화 form으로 처리하고 26개 mutable key를 명시한 full PUT 한 번만 보낸다. nullable input은 `null`로 보내며 server audit key는 form/request에 포함하지 않는다.
-- Hero·미용사·OG가 한 inline media picker를 공유한다. active asset만 새 선택 option이며 archived/missing 기존 relation은 field에 남겨 clear/replace 필요 상태를 표시한다.
+- Hero·미용사·OG는 현재 활성 slot의 relation 바로 아래에 한 inline media picker만 공유한다. picker를 열면 첫 내부 control로 focus를 이동하고, 닫기·선택 완료 후에는 해당 slot의 원래 trigger로 복귀한다. active asset만 새 선택 option이며 archived/missing 기존 relation은 field에 남겨 clear/replace 필요 상태를 표시한다.
 - shop save 중 form과 picker를 잠그고 성공 response를 canonical state로 적용한다. ready form의 background refresh·auto-save·mutation retry는 없다.
 - 현재 관리 홈 이동에는 unsaved-change 확인을 두지 않으므로 저장하지 않은 shop form 변경은 화면 전환 시 폐기된다. router/blocker infrastructure 없이 유지하는 알려진 UX 제한이며 운영자는 저장 완료 feedback을 확인한 뒤 이동해야 한다.
 - upload `accept`와 20 MiB client check는 UX 보조이며 실제 type·size·decoder validation authority는 backend다.

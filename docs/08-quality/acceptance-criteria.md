@@ -102,7 +102,11 @@ review_trigger: "제품 기능 변경 시"
 
 **When** 운영자가 media picker를 사용하면
 
-**Then** active private media를 선택·해제하고 같은 media를 여러 slot에 재사용할 수 있다.
+**Then** 현재 slot의 relation 바로 아래에 picker 하나만 표시하고 active private media를 선택·해제하며 같은 media를 여러 slot에 재사용할 수 있다.
+
+**Given** keyboard 사용자가 Hero·미용사·OG의 `미디어 선택` trigger를 활성화했을 때
+
+**Then** focus가 중간 form control을 거치지 않고 해당 inline picker의 첫 control로 이동하고, 닫기·선택 완료 후 원래 slot trigger로 복귀한다.
 
 **Given** 기존 relation이 archived이거나 목록에서 찾을 수 없을 때
 
