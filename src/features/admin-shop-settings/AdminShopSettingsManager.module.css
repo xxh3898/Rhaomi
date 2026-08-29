@@ -1,0 +1,346 @@
+.manager,
+.form,
+.formFields,
+.formSection,
+.field,
+.mediaRelation,
+.relationSummary {
+  display: grid;
+  min-width: 0;
+}
+
+.manager {
+  gap: 1.35rem;
+}
+
+.form,
+.formFields {
+  gap: 1rem;
+}
+
+.formFields {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.topBar button,
+.errorPanel button,
+.relationActions button,
+.saveButton {
+  min-height: 2.75rem;
+  padding: 0.65rem 0.9rem;
+  font: inherit;
+  font-weight: 800;
+  border-radius: 0.7rem;
+  cursor: pointer;
+}
+
+.topBar button,
+.errorPanel button,
+.relationActions button {
+  color: #513929;
+  background: #fffaf5;
+  border: 1px solid #987d68;
+}
+
+.header p,
+.header h2,
+.header span,
+.formSection h3,
+.sectionHelp,
+.notice,
+.alert,
+.success,
+.errorPanel p,
+.relationSummary p,
+.help {
+  margin: 0;
+}
+
+.header p {
+  margin-bottom: 0.3rem;
+  color: #806957;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.header h2 {
+  color: #35261d;
+  font-size: clamp(1.55rem, 7vw, 2.3rem);
+}
+
+.header span {
+  display: block;
+  margin-top: 0.45rem;
+  color: #67584e;
+  line-height: 1.55;
+}
+
+.statePanel,
+.errorPanel,
+.notice,
+.alert,
+.success {
+  padding: 1rem;
+  line-height: 1.55;
+  border-radius: 0.85rem;
+}
+
+.statePanel,
+.notice {
+  color: #5f5046;
+  background: #f6efe8;
+  border: 1px solid #dfd1c2;
+}
+
+.errorPanel,
+.alert {
+  color: #6a201d;
+  background: #fff0ed;
+  border: 1px solid #e5b1a9;
+}
+
+.success {
+  color: #245b39;
+  background: #edf8f0;
+  border: 1px solid #a9d1b5;
+}
+
+.errorPanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.formSection {
+  gap: 0.9rem;
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid #dfd1c2;
+  border-radius: 1rem;
+}
+
+.formSection h3 {
+  color: #3d2c22;
+  font-size: 1.08rem;
+}
+
+.sectionHelp,
+.help {
+  color: #73645a;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.field {
+  align-content: start;
+  gap: 0.4rem;
+}
+
+.field label,
+.radioGroup legend,
+.mediaRelation legend {
+  color: #3e3027;
+  font-weight: 800;
+}
+
+.field label span {
+  margin-left: 0.25rem;
+  color: #79695f;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.field input,
+.field textarea,
+.field select {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.7rem 0.8rem;
+  color: #2d2119;
+  font: inherit;
+  background: #fffdf9;
+  border: 1px solid #a89280;
+  border-radius: 0.7rem;
+}
+
+.field textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+
+.field input:disabled,
+.field textarea:disabled,
+.field select:disabled {
+  color: #756a62;
+  background: #f1ece7;
+}
+
+.radioGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.radioGroup legend {
+  width: 100%;
+  margin-bottom: 0.15rem;
+}
+
+.radioGroup label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  gap: 0.45rem;
+  padding: 0.55rem 0.75rem;
+  color: #43342a;
+  background: #fffdf9;
+  border: 1px solid #a89280;
+  border-radius: 0.7rem;
+  cursor: pointer;
+}
+
+.radioGroup input {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.mediaRelation {
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.9rem;
+  background: #f7f1eb;
+  border: 1px solid #d8c8bb;
+  border-radius: 0.85rem;
+}
+
+.relationSummary {
+  gap: 0.35rem;
+}
+
+.relationSummary p {
+  color: #58493f;
+  line-height: 1.5;
+}
+
+.relationSummary p[role="alert"] {
+  color: #6a201d;
+  font-weight: 750;
+}
+
+.relationSummary code {
+  overflow-wrap: anywhere;
+  color: #44342b;
+  font-size: 0.75rem;
+}
+
+.relationActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.saveButton {
+  width: 100%;
+  min-height: 3rem;
+  color: #fff;
+  background: #65432d;
+  border: 1px solid #65432d;
+}
+
+.topBar button:disabled,
+.errorPanel button:disabled,
+.relationActions button:disabled,
+.saveButton:disabled {
+  color: #e5ddd6;
+  background: #87766a;
+  border-color: #87766a;
+  cursor: wait;
+}
+
+.topBar button:focus-visible,
+.errorPanel button:focus-visible,
+.relationActions button:focus-visible,
+.saveButton:focus-visible,
+.field input:focus-visible,
+.field textarea:focus-visible,
+.field select:focus-visible,
+.radioGroup input:focus-visible {
+  outline: 3px solid #bf6b2e;
+  outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  .fieldGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .errorPanel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .errorPanel button,
+  .relationActions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 359px) {
+  .manager,
+  .formSection,
+  .mediaRelation {
+    min-width: 0;
+  }
+
+  .radioGroup,
+  .relationActions {
+    flex-direction: column;
+  }
+
+  .radioGroup label {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .manager *,
+  .manager *::before,
+  .manager *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

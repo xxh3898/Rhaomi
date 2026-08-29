@@ -3,7 +3,7 @@ title: "기능 요구사항"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "기능 범위 변경 시"
 ---
 
@@ -62,6 +62,8 @@ review_trigger: "기능 범위 변경 시"
 | FR-ADM-027 | 매장정보 Hero·프로필 이미지는 nullable `media_assets` relation과 Unicode trim·최대 300 code-point의 nonblank 대체텍스트를 pair로 관리해야 하며 OG relation에는 alt field를 만들지 않아야 한다. |
 | FR-ADM-028 | 매장정보 PUT의 non-null Hero·프로필·OG media는 모두 존재하고 `active`여야 한다. 검증 실패에는 `422 SHOP_MEDIA_RELATION_INVALID`를 반환하고 기존 row와 audit를 변경하지 않아야 한다. |
 | FR-ADM-029 | 같은 media를 Hero·프로필·OG에 재사용할 수 있어야 한다. 대상이 나중에 archived돼도 relation과 audit를 자동 변경하지 않고 후속 public build가 relation·status·file 유효성을 다시 검증해야 한다. |
+| FR-ADM-030 | `/admin/` 매장정보 UI는 row 없음과 조회 장애를 구분하고 mutable field 26개를 모두 포함한 단일 full PUT으로 최초 생성·수정해야 한다. nullable field는 `null`을 명시하고 server audit field를 request에 포함하지 않아야 한다. |
+| FR-ADM-031 | 매장정보 media picker는 active private media만 Hero·미용사·OG의 새 관계로 선택하고 같은 media 재사용과 선택 해제를 허용해야 한다. archived/missing 기존 relation은 숨기지 않고 clear 또는 active 교체가 필요함을 표시해야 한다. |
 
 ## 배포
 

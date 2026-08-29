@@ -3,7 +3,7 @@ title: "정보 구조"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-30"
 review_trigger: "페이지·섹션 순서 변경 시"
 ---
 
@@ -26,6 +26,34 @@ review_trigger: "페이지·섹션 순서 변경 시"
 | `/grooming/` | 홈 갤러리 이상의 탐색 수요가 확인될 때 |
 | `/grooming/[breed-slug]/` | 견종별 공개 사진과 고유 설명이 충분할 때 |
 | `/rss.xml` | 공지 운영이 안정화되고 네이버 최신글 수집 활용이 필요할 때 |
+
+## 관리자 URL
+
+| URL | 목적 | 생성 방식 |
+|---|---|---|
+| `/admin/` | session 기반 관리자 login·관리 홈·매장정보·미디어 UI | Static Export client shell |
+
+`/admin/`은 공개 navigation과 sitemap에 링크하지 않고 `noindex, nofollow, noarchive`를 유지한다. 관리 홈, 매장정보 form과 미디어 manager는 query/hash나 추가 route 없이 같은 client state에서 전환한다. 갤러리·공지·견종·서비스는 구현 전까지 `준비 중` disabled 상태다.
+
+### 현재 관리자 화면 구조
+
+```text
+관리 홈
+├── 매장정보
+│   ├── 기본 정보
+│   ├── 영업·주차
+│   ├── Hero + private media picker
+│   ├── 미용사 소개 + private media picker
+│   ├── 예약 안내
+│   ├── 외부 채널
+│   └── OG private media picker
+└── 미디어
+    ├── 단일 upload
+    ├── active/archived 목록·private preview
+    └── archive/restore
+```
+
+private media picker는 별도 URL이나 public asset route를 만들지 않고 active asset의 authenticated Blob preview를 사용한다.
 
 ## 홈 섹션 순서
 

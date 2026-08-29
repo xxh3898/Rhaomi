@@ -18,7 +18,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - 모바일 문의·검색 metadata 보호
 - 배포 실패 시 기존 사이트 보호
 
-## 현재 Phase 1C-8a 자동 검증
+## 현재 Phase 1C-8b 자동 검증
 
 ### Frontend
 
@@ -37,12 +37,21 @@ review_trigger: "기술·기능 범위 변경 시"
 - logout 204/401/403, mutation non-retry와 authenticated API 401 session-expired 처리
 - visible label/autocomplete, Enter, pending 중복 방지, live alert, password focus, retry와 identity
 - browser storage·URL·log credential/token 비저장 정적 검사
-- 미디어만 enabled인 dashboard navigation과 same-page 관리 홈 복귀
+- 매장정보·미디어만 enabled인 dashboard navigation과 same-page 관리 홈 복귀
 - media list loading/ready/empty/error/refreshing, server ordering 유지와 active/archived client filter
 - private image Blob GET의 JPEG/PNG 검증, bounded lazy fetch와 object URL refresh/unmount revoke
 - 단일 multipart `file`, 20 MiB client 차단, pending double-submit 차단과 success file state clear
 - 400/413/415/422/503/403/network의 frontend-owned upload 문구와 raw detail 비노출
 - active/archive status-only PUT, item pending isolation, 403 non-retry·no optimistic success와 401 login 복귀
+- shop `SHOP_SETTINGS_NOT_FOUND`, `BUSINESS_HOURS_INVALID`, `SHOP_MEDIA_RELATION_INVALID` allowlist와 기존 media mapping 회귀
+- shop response mutable 26개+audit 4개 strict shape, malformed/extra field 거부와 full request mutable key 전체·audit key 부재
+- shop GET loading→200 populate, 404 미초기화 empty form, generic error+retry와 session expiry
+- required/nullable/time/weekday/parking/url control, nullable blank→null과 backend canonical response form 교체
+- 최초·후속 full PUT, pending double submit·field 변경 방지, 400/422/403/5xx fixed message와 raw detail 비노출
+- active-only single media picker, 없음/clear, same media Hero·미용사·OG 재사용과 OG alt field 부재
+- Hero·미용사 image-alt pair와 300 code-point, archived/missing 현재 relation 가시화·새 선택 금지·clear/active 교체
+- picker private Blob bounded load·object URL revoke, media list retry와 preview/session expiry
+- shop ready 상태 background GET·auto-save 부재와 save snapshot/canonical response의 stale overwrite 방지
 - 320px CSS, 44px control, keyboard native control, aria status/alert/pressed와 archived text state
 
 ### Backend unit
@@ -229,7 +238,7 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 - 홈 → 공지 → 상세 → 홈
 - map/phone/external CTA
 - mobile sticky CTA, 404, keyboard only
-- `/admin` 매장정보·갤러리·공지·견종·서비스 form/list와 media picker
+- `/admin` 갤러리·공지·견종·서비스 form/list와 gallery relation picker
 - axe, heading/landmark/focus/dialog/contrast/reflow/reduced motion
 - 실제 iPhone Safari HEIC photo-library upload와 session cookie·object URL 동작
 

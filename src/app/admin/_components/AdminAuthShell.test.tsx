@@ -256,25 +256,43 @@ describe("AdminAuthShell", () => {
     expect(getSession).toHaveBeenCalledTimes(2);
   });
 
-  it("dashboard에서 미디어만 열고 나머지 관리 영역은 준비 중으로 유지한다", async () => {
+  it("dashboard에서 매장정보와 미디어를 같은 /admin state로 열고 나머지는 준비 중으로 유지한다", async () => {
     const user = userEvent.setup();
     const client = createClient({
       getSession: vi.fn().mockResolvedValue(ADMIN),
+      requestAuthenticatedJson: vi.fn().mockImplementation((path: string) =>
+        path === "/api/admin/shop-settings"
+          ? Promise.reject(new AdminApiError("not-found"))
+          : Promise.resolve([]),
+      ),
     });
 
     render(<AdminAuthShell client={client} />);
 
     expect(await screen.findByText(ADMIN.email)).toBeInTheDocument();
     expect(screen.getByText("역할: ADMIN")).toBeInTheDocument();
-    expect(screen.getAllByText("준비 중")).toHaveLength(5);
-    for (const area of ["매장정보", "갤러리", "공지", "견종", "서비스"]) {
+    expect(screen.getAllByText("준비 중")).toHaveLength(4);
+    for (const area of ["갤러리", "공지", "견종", "서비스"]) {
       expect(screen.getByRole("button", { name: `${area}, 준비 중` })).toBeDisabled();
     }
+    const shopButton = screen.getByRole("button", { name: "매장정보 관리 열기" });
     const mediaButton = screen.getByRole("button", { name: "미디어 관리 열기" });
+    expect(shopButton).toBeEnabled();
     expect(mediaButton).toBeEnabled();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
 
-    mediaButton.focus();
+    shopButton.focus();
+    await user.keyboard("{Enter}");
+    expect(
+      await screen.findByRole("heading", { name: "매장정보 관리" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/아직 매장정보가 등록되지 않았습니다/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "관리 홈으로" }));
+
+    const returnedMediaButton = screen.getByRole("button", {
+      name: "미디어 관리 열기",
+    });
+    returnedMediaButton.focus();
     await user.keyboard("{Enter}");
     expect(await screen.findByRole("heading", { name: "미디어 관리" })).toBeInTheDocument();
     expect(screen.getByText(/업로드된 미디어가 없습니다/)).toBeInTheDocument();

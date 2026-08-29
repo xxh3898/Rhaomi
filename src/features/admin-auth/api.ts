@@ -25,6 +25,8 @@ type AdminAuthClientOptions = Readonly<{
 export type AdminApiErrorKind =
   | "invalid-request"
   | "not-found"
+  | "business-hours-invalid"
+  | "shop-media-relation-invalid"
   | "too-large"
   | "type-unsupported"
   | "invalid-image"
@@ -135,7 +137,10 @@ async function mapApiFailure(response: Response): Promise<AdminApiError> {
   if (response.status === 400 && code === "INVALID_REQUEST") {
     return new AdminApiError("invalid-request");
   }
-  if (response.status === 404 && code === "MEDIA_NOT_FOUND") {
+  if (
+    response.status === 404 &&
+    (code === "MEDIA_NOT_FOUND" || code === "SHOP_SETTINGS_NOT_FOUND")
+  ) {
     return new AdminApiError("not-found");
   }
   if (response.status === 413 && code === "MEDIA_TOO_LARGE") {
@@ -146,6 +151,12 @@ async function mapApiFailure(response: Response): Promise<AdminApiError> {
   }
   if (response.status === 422 && code === "MEDIA_INVALID_IMAGE") {
     return new AdminApiError("invalid-image");
+  }
+  if (response.status === 422 && code === "BUSINESS_HOURS_INVALID") {
+    return new AdminApiError("business-hours-invalid");
+  }
+  if (response.status === 422 && code === "SHOP_MEDIA_RELATION_INVALID") {
+    return new AdminApiError("shop-media-relation-invalid");
   }
   if (response.status === 503 && code === "MEDIA_PROCESSOR_UNAVAILABLE") {
     return new AdminApiError("processor-unavailable");

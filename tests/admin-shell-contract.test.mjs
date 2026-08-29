@@ -88,6 +88,23 @@ test("admin API client 경계를 relative same-origin과 no-store로 고정한�
     join(sourceRoot, "features", "admin-media", "AdminMediaManager.tsx"),
     "utf8",
   );
+  const mediaPicker = await readFile(
+    join(sourceRoot, "features", "admin-media", "AdminMediaPicker.tsx"),
+    "utf8",
+  );
+  const shopApi = await readFile(
+    join(sourceRoot, "features", "admin-shop-settings", "api.ts"),
+    "utf8",
+  );
+  const shopManager = await readFile(
+    join(
+      sourceRoot,
+      "features",
+      "admin-shop-settings",
+      "AdminShopSettingsManager.tsx",
+    ),
+    "utf8",
+  );
 
   assert.match(source, /["']\/api\/admin\//);
   assert.match(source, /credentials:\s*["']same-origin["']/);
@@ -98,9 +115,18 @@ test("admin API client 경계를 relative same-origin과 no-store로 고정한�
   assert.match(mediaApi, /requestAuthenticatedBlob/);
   assert.doesNotMatch(mediaApi, /https?:\/\//);
   assert.doesNotMatch(mediaManager, /src=[{]?["']\/api\/admin\/media/);
+  assert.match(shopApi, /["']\/api\/admin\/shop-settings["']/);
+  assert.match(shopApi, /requestAuthenticatedJson/);
+  assert.match(shopApi, /requestJsonMutation/);
+  assert.doesNotMatch(shopApi, /https?:\/\//);
+  assert.match(shopManager, /AdminMediaPicker/);
+  assert.match(shopManager, /buildShopSettingsRequest/);
+  assert.doesNotMatch(shopManager, /(?:POST|PATCH|DELETE)["']/);
+  assert.match(mediaPicker, /AdminMediaPreview/);
+  assert.doesNotMatch(mediaPicker, /src=[{]?["']\/api\/admin\/media/);
 });
 
-test("admin media UI의 320px, touch target, focus와 reduced-motion 계약을 고정한다", async () => {
+test("admin content UI의 320px, touch target, focus와 reduced-motion 계약을 고정한다", async () => {
   const shellCss = await readFile(
     join(sourceRoot, "app", "admin", "admin.module.css"),
     "utf8",
@@ -113,6 +139,19 @@ test("admin media UI의 320px, touch target, focus와 reduced-motion 계약을 �
     join(sourceRoot, "features", "admin-media", "AdminMediaManager.module.css"),
     "utf8",
   );
+  const pickerCss = await readFile(
+    join(sourceRoot, "features", "admin-media", "AdminMediaPicker.module.css"),
+    "utf8",
+  );
+  const shopCss = await readFile(
+    join(
+      sourceRoot,
+      "features",
+      "admin-shop-settings",
+      "AdminShopSettingsManager.module.css",
+    ),
+    "utf8",
+  );
 
   assert.match(shellCss, /env\(safe-area-inset-top\)/);
   assert.match(shellCss, /env\(safe-area-inset-right\)/);
@@ -123,6 +162,14 @@ test("admin media UI의 320px, touch target, focus와 reduced-motion 계약을 �
   assert.match(mediaCss, /@media \(max-width: 560px\)[\s\S]*grid-template-columns: 1fr/);
   assert.match(mediaCss, /:focus-visible|:focus-within/);
   assert.match(mediaCss, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(pickerCss, /min-height: 2\.75rem/);
+  assert.match(pickerCss, /@media \(max-width: 560px\)[\s\S]*grid-template-columns: 1fr/);
+  assert.match(pickerCss, /:focus-visible/);
+  assert.match(pickerCss, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(shopCss, /min-height: 2\.75rem/);
+  assert.match(shopCss, /@media \(max-width: 359px\)/);
+  assert.match(shopCss, /:focus-visible/);
+  assert.match(shopCss, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
 test("gateway image, routing, HMR, upload limit과 proxy header 계약을 고정한다", async () => {

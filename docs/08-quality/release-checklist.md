@@ -35,6 +35,8 @@ review_trigger: "출시 기준 변경 시"
 - [ ] 상태 validation
 - [ ] archive 운영
 - [ ] `/admin/` media list·authenticated preview·single upload·archive/restore와 401/403 non-retry 계약
+- [ ] `/admin/` shop settings 404 미초기화·26-key full PUT·canonical response와 audit field 제외
+- [ ] Hero·미용사·OG active-only private media picker, image-alt pair와 archived/missing relation clear·replace
 - [ ] 공개 영향 transaction과 같은 PostgreSQL transaction의 immediate publishing event
 - [ ] future notice publishedAt·expiresAt의 `availableAt` durable scheduled event와 overdue recovery
 - [ ] scheduled event current-row/snapshot 재검증과 reschedule·draft/archive·window-change stale no-op/coalesce

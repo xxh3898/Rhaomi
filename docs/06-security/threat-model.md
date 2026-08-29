@@ -51,6 +51,8 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | post-login CSRF 준비 실패 오분류 | 생성된 session 방치, 불필요한 credential 재입력 | unavailable 분리, 재시도 시 `/me` 확인 후 fresh CSRF만 재획득, mutation-ready 전환 보류 |
 | 관리자 mutation 자동 재전송 | upload 중복·의도하지 않은 상태 변경 | 403에서 CSRF 폐기, network/5xx/malformed 포함 자동 retry 금지, 다음 명시적 사용자 action만 1회 전송 |
 | private media URL 오노출 | 보관 원본의 공개 cache·session 우회 | authenticated Blob GET, JPEG/PNG 검증, object URL lifecycle revoke, public media route·storage metadata 부재 |
+| 매장정보 mass assignment·partial update | server audit 변조, 기존 field 유실 | exact 26-key full request builder, audit/unknown key 제외, strict response shape, backend DTO allowlist |
+| stale media relation 은폐 | archived/missing 원본의 공개 후보 오인 | active-only 새 선택, 기존 UUID 가시화, clear/replace 안내, backend relation 재검증 |
 | gateway route 혼합 | API 오류를 HTML 성공으로 오인, 보호 경계 우회 | `/api/**` 전용 backend location, upstream 실패 non-200, frontend fallback 분리 |
 | CORS·cookie rewrite 완화 | 의도하지 않은 origin의 session 사용 | same-origin relative URL, CORS header와 cookie Domain rewrite 금지 |
 | DB 포트 노출 | 데이터 탈취 | host port 금지, 개발 전용 내부 network |
@@ -80,7 +82,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - Mac `/private/var/lib/rhaomi` ownership·bind smoke, PostgreSQL named-volume restart/일반 `down` persistence와 isolated `pg_restore` 증거 부재
 - HomeOps 자동 복구가 DB·volume·migration·backup을 변경할 수 있음
 
-현재 local backend·gateway와 `/admin/` 인증 셸·미디어 관리 UI는 운영 배포 대상이 아니므로 2FA·TLS·운영 account provisioning을 구현하지 않는다. noindex와 client session 확인도 보안 통제로 간주하지 않으며, 실제 iPhone Safari HEIC upload 증거가 없는 상태를 운영 준비 완료로 표현하지 않는다.
+현재 local backend·gateway와 `/admin/` 인증 셸·미디어·매장정보 관리 UI는 운영 배포 대상이 아니므로 2FA·TLS·운영 account provisioning을 구현하지 않는다. noindex와 client session 확인도 보안 통제로 간주하지 않으며, 실제 iPhone Safari HEIC upload·shop form·VoiceOver 증거가 없는 상태를 운영 준비 완료로 표현하지 않는다.
 
 ## 출시 후 개선
 

@@ -13,6 +13,7 @@ import {
 import { isAdminApiError } from "@/features/admin-auth/api";
 import type { AdminApiTransport } from "@/features/admin-auth/types";
 
+import { AdminMediaPreview } from "./AdminMediaPreview";
 import { AdminMediaApi } from "./api";
 import type { MediaItem, MediaStatus } from "./types";
 import styles from "./AdminMediaManager.module.css";
@@ -27,13 +28,6 @@ type ListState = "loading" | "ready" | "error" | "refreshing";
 type AdminMediaManagerProps = Readonly<{
   transport: AdminApiTransport;
   onBack: () => void;
-  onSessionExpired: () => void;
-}>;
-
-type MediaPreviewProps = Readonly<{
-  api: AdminMediaApi;
-  item: MediaItem;
-  position: number;
   onSessionExpired: () => void;
 }>;
 
@@ -99,108 +93,6 @@ function statusErrorMessage(error: unknown): string {
     }
   }
   return "상태를 변경하지 못했습니다. 다시 시도해 주세요.";
-}
-
-function MediaPreview({
-  api,
-  item,
-  position,
-  onSessionExpired,
-}: MediaPreviewProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [shouldLoad, setShouldLoad] = useState(false);
-  const [preview, setPreview] = useState<
-    | Readonly<{ kind: "waiting" | "error" }>
-    | Readonly<{ kind: "ready"; url: string }>
-  >({ kind: "waiting" });
-
-  useEffect(() => {
-    const element = containerRef.current;
-    if (!element || typeof IntersectionObserver === "undefined") {
-      setShouldLoad(true);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setShouldLoad(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "160px" },
-    );
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!shouldLoad) {
-      return;
-    }
-
-    let active = true;
-    let objectUrl: string | null = null;
-
-    void api.content(item.id).then(
-      (blob) => {
-        if (!active) {
-          return;
-        }
-        try {
-          objectUrl = URL.createObjectURL(blob);
-          setPreview({ kind: "ready", url: objectUrl });
-        } catch {
-          setPreview({ kind: "error" });
-        }
-      },
-      (error: unknown) => {
-        if (!active) {
-          return;
-        }
-        if (isSessionExpired(error)) {
-          onSessionExpired();
-          return;
-        }
-        setPreview({ kind: "error" });
-      },
-    );
-
-    return () => {
-      active = false;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-  }, [api, item.id, onSessionExpired, shouldLoad]);
-
-  const stateLabel = item.status === "active" ? "활성" : "보관됨";
-  const alt = `미디어 미리보기, ${stateLabel}, ${position}번`;
-  const previewLoading = shouldLoad && preview.kind === "waiting";
-
-  return (
-    <div className={styles.preview} ref={containerRef}>
-      {preview.kind === "ready" ? (
-        // private authenticated Blob URL은 Next image optimizer를 거치지 않는다.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={preview.url}
-          alt={alt}
-          width={item.width}
-          height={item.height}
-          onError={() => setPreview({ kind: "error" })}
-        />
-      ) : (
-        <p role={previewLoading ? "status" : undefined}>
-          {preview.kind === "waiting" && !previewLoading
-            ? "미리보기 대기 중"
-            : previewLoading
-              ? "미리보기 불러오는 중"
-              : "미리보기를 불러오지 못했습니다."}
-        </p>
-      )}
-    </div>
-  );
 }
 
 export function AdminMediaManager({
@@ -476,10 +368,10 @@ export function AdminMediaManager({
             const pending = pendingIds.has(item.id);
             return (
               <li key={`${item.id}:${item.updatedAt}:${previewGeneration}`}>
-                <MediaPreview
+                <AdminMediaPreview
                   api={api}
                   item={item}
-                  position={index + 1}
+                  alt={`미디어 미리보기, ${item.status === "active" ? "활성" : "보관됨"}, ${index + 1}번`}
                   onSessionExpired={onSessionExpired}
                 />
                 <div className={styles.cardBody}>

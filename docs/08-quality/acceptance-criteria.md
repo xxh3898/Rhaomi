@@ -3,7 +3,7 @@ title: "수용 기준"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "제품 기능 변경 시"
 ---
 
@@ -87,3 +87,27 @@ review_trigger: "제품 기능 변경 시"
 
 **Given** 전환 직후 스모크가 실패할 때  
 **Then** `previous`로 복귀할 수 있다.
+
+## AC-13 관리자 매장정보 편집
+
+**Given** 인증된 운영자가 row가 없는 `/admin/` 매장정보 화면을 열었을 때
+
+**Then** 장애 문구 대신 실제 값이 없는 빈 full form과 명시적 주차 선택을 확인할 수 있다.
+
+**When** 필수값을 입력하고 저장하면
+
+**Then** mutable field 26개와 nullable `null`만 포함한 PUT 한 번을 보내고 server canonical response를 form에 반영한다.
+
+**Given** 기존 Hero·미용사·OG relation이 active일 때
+
+**When** 운영자가 media picker를 사용하면
+
+**Then** active private media를 선택·해제하고 같은 media를 여러 slot에 재사용할 수 있다.
+
+**Given** 기존 relation이 archived이거나 목록에서 찾을 수 없을 때
+
+**Then** 관계를 숨기지 않고 제거 또는 active media 교체가 필요함을 표시하며 invalid 관계를 그대로 정상 저장하지 않는다.
+
+**Given** Hero 또는 미용사 이미지를 선택했을 때
+
+**Then** 300 code-point 이하의 공개 이미지 대체텍스트를 요구하고 OG에는 alt input을 만들지 않는다.

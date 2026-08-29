@@ -56,7 +56,8 @@ Static Export에서도 빌드 시 Server Component를 사용할 수 있다. 단,
 - 문의 channel bottom sheet
 - 제한적인 section reveal
 - `/admin/`의 session 확인·로그인·로그아웃 인증 셸
-- `/admin/`의 dashboard navigation과 private media manager
+- `/admin/`의 dashboard navigation, private media manager와 shop settings form
+- active private media를 선택하는 reusable single media picker
 
 Client boundary는 가장 작은 상호작용 단위에 둔다.
 
@@ -83,7 +84,11 @@ Client boundary는 가장 작은 상호작용 단위에 둔다.
 - admin API의 401은 in-memory 인증 상태를 비우고, 403 mutation은 자동 재시도하지 않는다.
 - 공통 admin transport는 authenticated JSON GET, CSRF-protected JSON·multipart mutation과 authenticated image Blob GET만 제공한다. media feature가 CSRF store나 인증 client를 별도로 만들지 않는다.
 - media preview는 authenticated GET의 JPEG/PNG content-type을 검증해 object URL을 만들고 item 교체·refresh·unmount에서 revoke한다. `IntersectionObserver`로 현재 viewport 근처 항목만 bounded fetch한다.
-- 현재 dashboard는 미디어만 enabled이고 매장정보·갤러리·공지·견종·서비스는 disabled placeholder다. 별도 route·query/hash authority나 fake data를 만들지 않는다.
+- 현재 dashboard는 매장정보와 미디어가 enabled이고 갤러리·공지·견종·서비스는 disabled placeholder다. 별도 route·query/hash authority나 fake data를 만들지 않는다.
+- shop settings는 404를 빈 미초기화 form으로 처리하고 26개 mutable key를 명시한 full PUT 한 번만 보낸다. nullable input은 `null`로 보내며 server audit key는 form/request에 포함하지 않는다.
+- Hero·미용사·OG가 한 inline media picker를 공유한다. active asset만 새 선택 option이며 archived/missing 기존 relation은 field에 남겨 clear/replace 필요 상태를 표시한다.
+- shop save 중 form과 picker를 잠그고 성공 response를 canonical state로 적용한다. ready form의 background refresh·auto-save·mutation retry는 없다.
+- 현재 관리 홈 이동에는 unsaved-change 확인을 두지 않으므로 저장하지 않은 shop form 변경은 화면 전환 시 폐기된다. router/blocker infrastructure 없이 유지하는 알려진 UX 제한이며 운영자는 저장 완료 feedback을 확인한 뒤 이동해야 한다.
 - upload `accept`와 20 MiB client check는 UX 보조이며 실제 type·size·decoder validation authority는 backend다.
 - mutation 403은 CSRF를 폐기하되 자동 재실행하지 않는다. 다음 명시적 사용자 action에서 fresh CSRF를 획득하고 mutation을 한 번만 보낸다.
 
@@ -129,7 +134,7 @@ Spring Boot read-only build API
 - client hydration 뒤에만 session을 확인
 - 공개 navigation과 sitemap에 링크하지 않음
 - backend session이 없으면 업무 API 접근 불가
-- 같은 Static Export route 안에서 관리 홈과 미디어 화면을 전환하며 refresh 후에는 session 확인을 거쳐 관리 홈에서 다시 시작할 수 있음
+- 같은 Static Export route 안에서 관리 홈·매장정보·미디어 화면을 전환하며 refresh 후에는 session 확인을 거쳐 관리 홈에서 다시 시작할 수 있음
 
 ## 데이터 검증
 
