@@ -1,6 +1,9 @@
 spring:
   application:
     name: rhaomi-backend
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}

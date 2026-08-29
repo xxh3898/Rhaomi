@@ -36,12 +36,14 @@ review_trigger: "기능 범위 변경 시"
 | FR-ADM-001 | 운영자는 이메일·비밀번호와 2단계 인증으로 로그인해야 한다. |
 | FR-ADM-002 | 운영자는 갤러리 항목을 생성·조회·수정·보관할 수 있어야 한다. |
 | FR-ADM-003 | 운영자는 공지를 생성·조회·수정·보관할 수 있어야 한다. |
-| FR-ADM-004 | 운영자는 견종과 서비스를 생성·수정·비활성화할 수 있어야 한다. |
+| FR-ADM-004 | 인증된 운영자는 견종과 서비스를 생성·조회·전체 수정하고 `archived`로 보관하거나 `draft`·`published`로 복구할 수 있어야 한다. |
 | FR-ADM-005 | 운영자는 상호, 문구, 영업정보, 외부 링크를 수정할 수 있어야 한다. |
 | FR-ADM-006 | 운영자는 시스템 컬렉션, 권한, Flow, 환경설정을 변경할 수 없어야 한다. |
-| FR-ADM-007 | 공개 상태 전환 필수값은 Spring application과 PostgreSQL constraint로 강제하고 partial update 후 최종 상태를 검증해야 한다. |
+| FR-ADM-007 | 공개 상태 전환은 `PUT`의 최종 entity 전체를 검증해야 하며 서비스 게시 필수값은 Spring application과 PostgreSQL constraint로 이중 강제해야 한다. |
 | FR-ADM-008 | 영구 삭제는 시스템 관리자만 수행할 수 있어야 한다. |
 | FR-ADM-009 | 변경 이력과 작업 사용자를 추적할 수 있어야 한다. |
+| FR-ADM-010 | 견종·서비스 생성은 항상 `draft`여야 하고 slug는 lowercase kebab-case이며 생성 후 변경할 수 없어야 한다. |
+| FR-ADM-011 | 견종·서비스 관리 API는 session 인증을 요구하고 `POST`·`PUT`에는 CSRF를 강제하며 `PATCH`·`DELETE`를 제공하지 않아야 한다. |
 
 ## 배포
 
