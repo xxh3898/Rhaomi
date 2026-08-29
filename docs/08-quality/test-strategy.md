@@ -18,16 +18,23 @@ review_trigger: "기술·기능 범위 변경 시"
 - 모바일 문의·검색 metadata 보호
 - 배포 실패 시 기존 사이트 보호
 
-## 현재 Phase 1C-6 자동 검증
+## 현재 Phase 1C-7 자동 검증
 
 ### Frontend
 
 - lint
 - TypeScript typecheck
-- Node contract test
+- Node contract test와 Vitest/jsdom component·API client test
 - Next Static Export
-- `out/index.html`·runtime server artifact 부재 검증
-- 공개 source의 관리자 API·DB 환경변수 비노출
+- `out/index.html`, `out/admin/index.html`, admin robots metadata와 runtime server artifact 부재 검증
+- 공개 홈의 admin link/API 비노출
+- Middleware·Route Handler·Server Action·request API 부재
+- admin API의 relative URL, same-origin credential, GET no-store와 JSON shape 검증
+- initial me 200/401/5xx/network/malformed 상태 분리
+- login 전·후 CSRF, fixed error mapping, password 제거와 UTF-8 72-byte client 안내
+- logout 204/401/403, mutation non-retry와 authenticated API 401 session-expired 처리
+- visible label/autocomplete, Enter, pending 중복 방지, live alert, password focus, retry, identity와 disabled 영역
+- browser storage·URL·log credential/token 비저장 정적 검사
 
 ### Backend unit
 
@@ -149,11 +156,16 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 ### Compose Smoke
 
 - exact service/image와 config validation
+- exact Nginx tag/digest와 `127.0.0.1:3000` gateway-only browser bind
+- frontend host port 부재와 gateway/PostgreSQL network 비공유
 - exact Temurin 25 image의 Java 25 `bootRun` 확인
-- backend/PostgreSQL health
+- gateway/frontend/backend/PostgreSQL health
 - backend loopback bind와 PostgreSQL host port 부재
 - explicit local/test bootstrap
-- 실제 HTTP CSRF login/me/logout
+- gateway `/admin/` HTML과 `/api/**` JSON routing·no-CORS·server version 비노출
+- backend 중단 중 API non-200과 frontend HTML fallback 부재
+- gateway를 통한 실제 HTTP CSRF login/me/post-login fresh CSRF/logout
+- 20 MiB multipart source가 gateway 413으로 차단되지 않음
 - backend/PostgreSQL restart 후 Flyway·account 지속성
 - 합성 HEIC upload→canonical JPEG signature·dimension·metadata strip
 - backend/PostgreSQL restart 후 같은 media id·byte size·SHA-256 유지
@@ -171,13 +183,13 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 - snapshot schema와 image manifest
 - content fixture → transformer → static snapshot
 
-## 후속 UI/E2E
+## 후속 콘텐츠 UI/E2E
 
 - 홈 → gallery filter → 상세 → 문의
 - 홈 → 공지 → 상세 → 홈
 - map/phone/external CTA
 - mobile sticky CTA, 404, keyboard only
-- `/admin` login/logout, validation, archive
+- `/admin` 콘텐츠 form/list/upload, validation, archive·restore
 - axe, heading/landmark/focus/dialog/contrast/reflow/reduced motion
 - 실제 iPhone Safari image upload와 session cookie 동작
 
@@ -206,7 +218,7 @@ PR:
 
 - Frontend
 - Backend PostgreSQL/auth/media contract를 exact Java 25·libheif image에서 실행
-- Compose Smoke의 HEIC 정규화·media volume restart persistence
+- Compose Smoke의 same-origin auth·HEIC 정규화·media volume restart persistence
 - diff·secret·문서 link 검사
 
 Release는 실제 build snapshot, image pipeline, E2E, SEO, Nginx preview, actual device와 rollback evidence를 추가한다.

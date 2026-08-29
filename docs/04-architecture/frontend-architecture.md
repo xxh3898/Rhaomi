@@ -55,8 +55,29 @@ Static Export에서도 빌드 시 Server Component를 사용할 수 있다. 단,
 - 서비스 아코디언
 - 문의 channel bottom sheet
 - 제한적인 section reveal
+- `/admin/`의 session 확인·로그인·로그아웃 인증 셸
 
 Client boundary는 가장 작은 상호작용 단위에 둔다.
+
+## 관리자 Static Client
+
+`/admin/`도 `out/admin/index.html`로 export한다. route HTML은 공개 정적 파일이므로 숨김 경로나 client-side redirect를 접근제어로 사용하지 않는다. 실제 업무 데이터와 mutation은 Spring Security session·CSRF가 최종 방어한다.
+
+```text
+/admin/ hydration
+→ GET /api/admin/auth/me
+→ anonymous이면 GET csrf → POST login
+→ session fixation 뒤 GET csrf 재호출
+→ dashboard shell
+→ fresh csrf로 POST logout
+```
+
+- API base는 상대경로 `/api/admin/**`만 사용하고 browser host·port env를 만들지 않는다.
+- 모든 request는 `credentials: "same-origin"`, read request는 `cache: "no-store"`다.
+- JSON shape와 status를 공통 client에서 검증하고 backend raw message를 UI에 전달하지 않는다.
+- password와 CSRF는 필요한 동안 memory에만 두며 localStorage, sessionStorage, IndexedDB, cookie 직접 쓰기, URL과 log에 저장하지 않는다.
+- admin API의 401은 in-memory 인증 상태를 비우고, 403 mutation은 자동 재시도하지 않는다.
+- 현재 dashboard 관리 영역은 disabled placeholder이며 CRUD route·fake data를 만들지 않는다.
 
 ## 금지
 
@@ -64,7 +85,7 @@ Client boundary는 가장 작은 상호작용 단위에 둔다.
 - Server Actions
 - Next API Routes 또는 Route Handler 기반 운영 API
 - 런타임 dynamic rendering
-- 브라우저에서 관리/build API credential 사용
+- 공개 고객 bundle에서 관리/build API credential 사용
 - 고객 페이지 최초 렌더 뒤 backend fetch로 핵심 콘텐츠 주입
 - 검색봇 user-agent에 따라 다른 콘텐츠 제공
 
@@ -93,6 +114,13 @@ Spring Boot read-only build API
 - 빌드에 없는 slug는 정적 404
 - canonical과 페이지별 Open Graph 생성
 - 공지가 보관되면 다음 빌드에서 URL이 사라지고 sitemap에서 제외
+
+### `/admin/`
+
+- Static Export와 `noindex, nofollow, noarchive`
+- client hydration 뒤에만 session을 확인
+- 공개 navigation과 sitemap에 링크하지 않음
+- backend session이 없으면 업무 API 접근 불가
 
 ## 데이터 검증
 

@@ -9,22 +9,25 @@ review_trigger: "서비스 배치·network·image 변경 시"
 
 # 컨테이너 구조
 
-## Phase 1C-4 local 개발 구성
+## Phase 1C-7 local 개발 구성
 
 `compose.dev.yaml`은 운영 구성과 분리된 `dev-rhaomi` project다.
 
 | 서비스 | 고정 image | local 공개 | 영속화 |
 |---|---|---|---|
-| `frontend` | `node:24.20.0-alpine3.23` | `127.0.0.1:3000` | `node_modules`, npm cache |
+| `frontend` | `node:24.20.0-alpine3.23` | 없음, gateway 전용 내부 3000 | `node_modules`, npm cache |
+| `gateway` | `nginx:1.31.4-alpine3.24` | `127.0.0.1:3000` | 없음 |
 | `backend` | exact Temurin 25 base + `libheif 1.23.0-r0` custom image | `127.0.0.1:8080` | Gradle cache, private media masters |
 | `postgres` | `postgres:18.6-alpine3.23` | 없음 | backend PostgreSQL data |
 | `smoke` | `node:24.20.0-alpine3.23` | 없음 | 없음 |
 
-- frontend·PostgreSQL·smoke는 검증한 multi-architecture manifest digest를 고정한다. backend Dockerfile은 exact Temurin manifest digest와 `libheif=1.23.0-r0`·`libheif-dev=1.23.0-r0`를 고정한다.
-- `frontend`와 `smoke`는 각각 profile에서만 실행한다.
-- backend와 PostgreSQL은 `dev-rhaomi-backend-internal`에서 통신한다.
+- frontend·gateway·PostgreSQL·smoke는 검증한 multi-architecture manifest digest를 고정한다. backend Dockerfile은 exact Temurin manifest digest와 `libheif=1.23.0-r0`·`libheif-dev=1.23.0-r0`를 고정한다.
+- `frontend`와 `gateway`는 frontend profile에서 함께 실행하고 `smoke`는 smoke profile에서만 실행한다.
+- browser는 gateway `127.0.0.1:3000`만 사용한다. `/api/**`는 backend, 그 밖의 path와 HMR WebSocket은 frontend로 전달한다.
+- frontend·gateway·smoke는 `frontend-local`, gateway·backend는 `backend-gateway-internal`, backend·PostgreSQL은 `backend-internal`에서 통신한다.
+- gateway와 PostgreSQL은 network를 공유하지 않는다.
 - backend만 별도 `dev-rhaomi-backend-local` network와 loopback port를 사용한다.
-- PostgreSQL과 backend healthcheck가 통과해야 stack을 정상으로 본다.
+- PostgreSQL, backend, frontend와 gateway healthcheck가 통과해야 frontend stack을 정상으로 본다.
 - 실제 값은 Git 제외 `.env.dev.local`과 process 환경에서 주입한다.
 - local/test 관리자 bootstrap은 기본 비활성이며 production profile에서 사용할 수 없다.
 - 일반 종료는 named volume을 보존하는 `docker compose ... down`을 사용한다.
@@ -65,7 +68,7 @@ flowchart TB
     Backup --> Offsite[(Mac mini 외부 backup)]
 ```
 
-local private media volume과 upload API만 구현됐다. 운영 Nginx·deploy·private media path provisioning과 backup 구현은 이번 Issue 범위가 아니다.
+local private media volume·upload API와 same-origin development gateway까지 구현됐다. 운영 Nginx·deploy·private media path provisioning과 backup 구현은 이번 Issue 범위가 아니다.
 
 ## 서비스 책임
 
@@ -120,12 +123,12 @@ ops-internal
 ## 공개 route — planned
 
 ```text
-https://<public-domain>/          → 정적 사이트와 후속 /admin UI
+https://<public-domain>/          → 정적 사이트와 /admin auth shell
 https://<public-domain>/api/**   → Spring Boot
 ```
 
 - 최종 domain은 미정이다.
-- 관리자 route는 검색 차단이 아니라 인증으로 보호한다.
+- 관리자 route의 noindex는 접근제어가 아니며 backend session·CSRF가 업무 요청을 보호한다.
 - production session cookie는 TLS와 `Secure=true`가 필수다.
 
 ## 버전 고정

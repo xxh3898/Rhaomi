@@ -29,6 +29,15 @@ review_trigger: "유입 채널·지원 범위 변경 시"
 
 ## 관리자
 
+현재 자동화 범위:
+
+- 320px 기준 layout contract와 safe area CSS
+- visible label, Enter submit, focus 복구와 keyboard login/logout DOM test
+- same-origin gateway의 session·CSRF login/me/logout HTTP smoke
+- password/CSRF browser persistence 금지 정적 검사
+
+출시 전 실제 기기 범위:
+
 - 은총쌤 실제 iPhone
 - Safari 또는 홈화면 바로가기
 - 사진 선택과 업로드
@@ -38,7 +47,7 @@ review_trigger: "유입 채널·지원 범위 변경 시"
 - HEIC 파일
 - 긴 본문과 키보드
 
-후속 `/admin` UI는 실제 iPhone에서 login, CSRF, form validation과 image upload를 검증한 뒤 운영에 사용한다.
+현재 `/admin/` 인증 셸은 실제 iPhone Safari·VoiceOver에서 아직 검증하지 않았다. 후속 CRUD UI의 form validation과 HEIC image upload까지 실제 기기에서 확인하고 2FA·TLS gate를 충족한 뒤 운영에 사용한다.
 
 ## 화면
 

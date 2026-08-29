@@ -51,8 +51,14 @@ test("요청 시점 서버 기능을 공개 app source에 포함하지 않는다
     assert.doesNotMatch(source, /from\s+["']next\/(?:headers|server)["']/);
     assert.doesNotMatch(source, /SPRING_DATASOURCE_/);
     assert.doesNotMatch(source, /RHAOMI_BOOTSTRAP_ADMIN_/);
-    assert.doesNotMatch(source, /\/api\/admin/);
   }
+});
+
+test("공개 홈은 관리자 runtime API나 진입 링크를 노출하지 않는다", async () => {
+  const page = await readFile(join(appRoot, "page.tsx"), "utf8");
+
+  assert.doesNotMatch(page, /\/api\/admin/);
+  assert.doesNotMatch(page, /href\s*=\s*["'][^"']*\/admin\/?/i);
 });
 
 test("최소 홈 화면에 한국어 프로젝트 식별자를 제공한다", async () => {

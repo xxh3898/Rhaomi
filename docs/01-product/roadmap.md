@@ -99,9 +99,20 @@ Phase 1C-5는 public/build gallery API, responsive 파생본, 공개 갤러리 U
 
 Phase 1C-6은 실제 이미지·운영값 입력, crop·responsive derivative, public/build API, Hero·프로필·SEO 렌더링, 관리자 UI나 운영 migration의 완료를 의미하지 않는다.
 
-### Phase 1C-7 이후 — 나머지 콘텐츠 기능
+### Phase 1C-7 — 관리자 웹 인증 셸과 local same-origin gateway
 
-- `/admin` 로그인·콘텐츠 관리 UI
+- `/admin/` Static Export route와 `noindex, nofollow, noarchive`
+- session 확인·로그인·장애 재시도·로그아웃과 disabled 관리 영역 dashboard
+- relative same-origin admin API client와 login 후 fresh CSRF 획득
+- credential·CSRF·session 정보의 browser 비영속
+- exact Nginx image/digest local gateway와 frontend/backend/PostgreSQL network 분리
+- gateway를 통한 auth·20 MiB request·HEIC·restart persistence Compose smoke
+
+Phase 1C-7은 실제 콘텐츠 CRUD 화면, 운영 Nginx/TLS·2FA, 공개 build API나 실제 iPhone Safari 검증의 완료를 의미하지 않는다.
+
+### Phase 1C-8 이후 — 나머지 콘텐츠 기능
+
+- `/admin` 콘텐츠 관리 UI
 - build-time read-only API와 credential 분리
 - 샘플 콘텐츠
 

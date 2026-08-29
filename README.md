@@ -23,7 +23,7 @@ review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 
 ## 현재 구현 범위
 
-Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~5의 콘텐츠·매장정보·private media·갤러리 API에 이어 Phase 1C-6에서는 Flyway V7로 `shop_settings`의 Hero·프로필·OG media relation을 추가했다. Hero·프로필은 사실 기반 대체텍스트와 함께 관리하고, 모든 non-null relation은 PUT 전에 active private media인지 검증한다. 공개 responsive 파생본·build API, 관리자 화면과 실제 랜딩·SEO 렌더링은 후속 Issue에서 구현한다.
+Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation에 이어 Phase 1C-7에서는 `/admin/` Static Export 인증 셸과 local same-origin Nginx gateway를 추가했다. 관리자 셸은 session 확인·로그인·로그아웃과 준비 중 관리 영역만 제공하며 CRUD 화면은 구현하지 않았다. 공개 responsive 파생본·build API와 실제 랜딩·SEO 렌더링은 후속 Issue에서 구현한다.
 
 ```text
 .
@@ -32,12 +32,15 @@ Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Bo
 │   ├── workflows/validate.yml
 │   ├── pull_request_template.md
 │   └── ISSUE_TEMPLATE/
-├── src/app/                 # 최소 App Router 화면
+├── src/
+│   ├── app/                 # 공개 홈과 /admin Static Export route
+│   └── features/admin-auth/ # relative same-origin 인증 API client
 ├── backend/                 # Spring Boot 인증·콘텐츠·private media API와 PostgreSQL contract test
-├── scripts/                 # 정적 산출물·HEIC fixture·Compose smoke 검증
-├── tests/                   # 공개 frontend contract test
+├── infra/nginx/dev.conf     # local same-origin gateway
+├── scripts/                 # 정적 산출물·gateway·HEIC·Compose smoke 검증
+├── tests/                   # frontend·runtime contract test
 ├── docs/                    # 제품·아키텍처·운영 기준 문서
-├── compose.dev.yaml         # 개발 전용 frontend/backend/PostgreSQL
+├── compose.dev.yaml         # 개발 전용 gateway/frontend/backend/PostgreSQL
 ├── next.config.ts
 ├── package.json
 ├── package-lock.json
@@ -71,11 +74,13 @@ docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend 
 docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend run --rm frontend npm run validate:export
 ```
 
-개발 서버는 `127.0.0.1:3000`에만 공개한다.
+브라우저 진입점은 gateway의 `http://127.0.0.1:3000` 하나다. frontend dev server는 host port를 열지 않으며 `/api/**`만 backend로 전달한다.
 
 ```bash
-docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend up frontend
+docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend up -d --wait frontend gateway
 ```
+
+`/`, `/admin/`, `/api/admin/auth/**`는 모두 위 same-origin으로 확인한다. backend의 `127.0.0.1:8080`은 local 진단용 loopback 경계다.
 
 ### Spring Boot와 PostgreSQL
 
@@ -105,7 +110,7 @@ docker compose --env-file .env.dev.local -f compose.dev.yaml down
 
 미디어는 `/api/admin/media`의 목록·단건·private content 조회, multipart upload와 status `PUT`만 제공한다. 20 MiB source, 30 MiB stored, 12,000px, 60MP 제한을 실제 byte signature와 decoder로 검증하며 client MIME·확장자·파일명을 신뢰하지 않는다. server-owned UUID storage key와 SHA-256 무결성 metadata를 사용하고 `active | archived` row와 master file을 유지한다. original filename·storage key·filesystem path·SHA-256은 API response에 노출하지 않으며 public/build media endpoint와 physical delete는 없다.
 
-health, local/test bootstrap, CSRF login/me/logout, 재기동 후 persistent volume을 한 번에 검증하려면 다음처럼 명시적 test credential을 process 환경으로 전달한다. 실제 운영 email/password를 사용하지 않는다.
+gateway routing, health, local/test bootstrap, CSRF login/me/logout, 20 MiB request 경계와 재기동 후 persistent volume을 한 번에 검증하려면 다음처럼 명시적 test credential을 process 환경으로 전달한다. 실제 운영 email/password를 사용하지 않는다.
 
 ```bash
 RHAOMI_BOOTSTRAP_ADMIN_ENABLED=true \
@@ -119,13 +124,15 @@ sh scripts/validate-backend-compose.sh .env.dev.local
 - 고객 페이지는 정적 HTML로 배포하며 SSR을 사용하지 않는다.
 - 공개 사이트는 런타임에 Spring Boot나 PostgreSQL에 의존하지 않는다.
 - 관리자 인증은 HttpOnly session cookie와 CSRF 보호를 사용하는 Spring Security 기반이다.
+- `/admin/`은 noindex인 Static Export client shell이며 backend session이 최종 보안 경계다. credential·CSRF를 browser storage나 URL에 저장하지 않고 login 직후 fresh CSRF를 다시 획득한다.
+- local browser 요청은 Nginx gateway의 same-origin `/api/**`를 사용한다. frontend는 host port를 열지 않고 gateway는 PostgreSQL network에 참여하지 않는다.
 - 견종·서비스 기준정보는 관리자 session·CSRF가 적용된 API로 생성·조회·수정·보관할 수 있다.
 - 공지는 같은 인증 경계에서 생성·조회·수정·보관하며 게시 필수값과 게시·만료 기간을 검증한다.
 - 매장정보 singleton은 같은 인증 경계에서 조회·전체 갱신하며 DB와 application이 한 행·필수값·영업시간·HTTPS URL·Hero/프로필 image-alt pair·active media relation을 검증한다.
 - private media master는 같은 인증 경계에서 업로드·조회·archive하며 HEIC/HEIF는 backend에서 canonical JPEG로 정규화한다.
 - 갤러리는 실제 견종·대표 서비스·private media를 FK로 참조하고 같은 인증 경계에서 생성·조회·전체 수정·보관·복구한다.
 - 관계 대상의 상태 변경은 갤러리나 매장정보에 cascade하지 않으며 후속 공개 snapshot이 published/relation/file 조건과 선택된 매장 이미지를 다시 검증한다.
-- 공개 responsive 파생본·Builder API와 `/admin` 화면은 후속 Issue에서 구현한다.
+- `/admin/`의 실제 콘텐츠 CRUD, 공개 responsive 파생본과 Builder API는 후속 Issue에서 구현한다.
 - 공개 콘텐츠 변경은 정적 사이트 재빌드·검증·원자적 교체를 유발한다.
 - 고객용 예약 시스템, 결제, 회원가입, 문의 폼은 만들지 않는다.
 - 전화, 인스타그램, 네이버톡톡 등 외부 문의 채널로 연결한다.

@@ -10,7 +10,7 @@ async function source(path) {
   return readFile(join(projectRoot, path), "utf8");
 }
 
-test("개발 Compose를 backend와 비공개 PostgreSQL로 제한한다", async () => {
+test("개발 Compose를 same-origin gateway, backend와 비공개 PostgreSQL로 제한한다", async () => {
   const [compose, backendDockerfile] = await Promise.all([
     source("compose.dev.yaml"),
     source("backend/Dockerfile.dev"),
@@ -20,7 +20,8 @@ test("개발 Compose를 backend와 비공개 PostgreSQL로 제한한다", async 
   assert.match(compose, /postgres:\n/);
   assert.match(compose, /127\.0\.0\.1:8080:8080/);
   assert.match(compose, /127\.0\.0\.1:3000:3000/);
-  assert.equal((compose.match(/@sha256:/g) ?? []).length, 3);
+  assert.equal((compose.match(/@sha256:/g) ?? []).length, 4);
+  assert.match(compose, /nginx:1\.31\.4-alpine3\.24@sha256:/);
   assert.match(
     backendDockerfile,
     /eclipse-temurin:25\.0\.4_7-jdk-alpine-3\.23@sha256:b7c88ce22d575642650ec83cbf4e470a0c183a46871467180238e4b27ad9e20a/,
@@ -206,7 +207,7 @@ test("미디어 V5와 private HEIC 정규화 계약을 고정한다", async () =
   assert.doesNotMatch(controller, /@(?:Patch|Delete)Mapping/);
   assert.doesNotMatch(response, /storageKey|originalFilename|sha256|fileExtension/);
 
-  const frontendBlock = compose.match(/\n  frontend:\n([\s\S]*?)\n  backend:/)?.[1] ?? "";
+  const frontendBlock = compose.match(/\n  frontend:\n([\s\S]*?)\n  gateway:/)?.[1] ?? "";
   const backendBlock = compose.match(/\n  backend:\n([\s\S]*?)\n  postgres:/)?.[1] ?? "";
   const smokeBlock = compose.match(/\n  smoke:\n([\s\S]*?)\nvolumes:/)?.[1] ?? "";
   assert.match(backendBlock, /backend-media-masters:\/var\/lib\/rhaomi\/media/);

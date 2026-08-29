@@ -3,7 +3,7 @@ title: "반응형 레이아웃"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "레이아웃 체계 변경 시"
 ---
 
@@ -74,6 +74,14 @@ review_trigger: "레이아웃 체계 변경 시"
 - 모바일에서만 기본 활성화한다.
 - 콘텐츠 끝의 CTA와 중복되더라도 접근성을 우선한다.
 - 화면 확대 200%와 가로 모드에서 본문을 과도하게 가리지 않아야 한다.
+
+### Admin auth shell
+
+- 320px부터 single centered panel로 표시하고 desktop 최대 폭은 34rem으로 제한한다.
+- panel padding은 viewport에 따라 줄어들며 네 방향 iOS safe area를 반영한다.
+- input과 로그인·재시도·로그아웃 button은 최소 48px 높이를 사용한다.
+- 관리 영역은 기본 2열이고 359px 이하에서는 1열로 내려가 text 잘림을 막는다.
+- virtual keyboard가 열려도 form submit과 오류가 문서 흐름 안에 남도록 fixed action을 사용하지 않는다.
 
 ## 검증 viewport
 
