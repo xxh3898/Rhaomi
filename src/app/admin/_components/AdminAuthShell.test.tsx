@@ -19,6 +19,7 @@ function createClient(
   return {
     getSession: vi.fn().mockResolvedValue(null),
     login: vi.fn().mockResolvedValue(ADMIN),
+    prepareSessionCsrf: vi.fn().mockResolvedValue(undefined),
     logout: vi.fn().mockResolvedValue("logged-out"),
     clearSession: vi.fn(),
     ...overrides,
@@ -79,6 +80,95 @@ describe("AdminAuthShell", () => {
     expect(screen.getByLabelText("비밀번호")).toHaveValue("");
   });
 
+  it("login POST 성공 직후 password를 제거한 다음 session용 fresh CSRF를 준비한다", async () => {
+    const user = userEvent.setup();
+    let resolveFreshCsrf: (() => void) | undefined;
+    const prepareSessionCsrf = vi.fn().mockImplementation(() => {
+      expect(screen.queryByLabelText("이메일")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("비밀번호")).not.toBeInTheDocument();
+      return new Promise<void>((resolve) => {
+        resolveFreshCsrf = resolve;
+      });
+    });
+    const client = createClient({ prepareSessionCsrf });
+
+    render(<AdminAuthShell client={client} />);
+
+    await user.type(await screen.findByLabelText("이메일"), ADMIN.email);
+    await user.type(screen.getByLabelText("비밀번호"), "test-password");
+    await user.click(screen.getByRole("button", { name: "로그인" }));
+
+    await waitFor(() => {
+      expect(prepareSessionCsrf).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByLabelText("이메일")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("비밀번호")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "로그인 보안을 준비하고 있습니다.",
+    );
+    expect(screen.queryByText(ADMIN.email)).not.toBeInTheDocument();
+
+    resolveFreshCsrf?.();
+    expect(await screen.findByText(ADMIN.email)).toBeInTheDocument();
+  });
+
+  it("post-login CSRF 실패를 anonymous로 위장하지 않고 기존 session으로 복구한다", async () => {
+    const user = userEvent.setup();
+    const getSession = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(ADMIN);
+    const prepareSessionCsrf = vi
+      .fn()
+      .mockRejectedValueOnce(new AdminAuthError("unavailable"))
+      .mockResolvedValueOnce(undefined);
+    const login = vi.fn().mockResolvedValue(ADMIN);
+    const client = createClient({ getSession, login, prepareSessionCsrf });
+
+    render(<AdminAuthShell client={client} />);
+
+    await user.type(await screen.findByLabelText("이메일"), ADMIN.email);
+    await user.type(screen.getByLabelText("비밀번호"), "test-password");
+    await user.click(screen.getByRole("button", { name: "로그인" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "관리자 서비스를 일시적으로 사용할 수 없습니다.",
+    );
+    expect(alert).not.toHaveTextContent("이메일 또는 비밀번호");
+    expect(screen.queryByRole("button", { name: "로그인" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "다시 시도" }));
+
+    expect(await screen.findByText(ADMIN.email)).toBeInTheDocument();
+    expect(login).toHaveBeenCalledTimes(1);
+    expect(getSession).toHaveBeenCalledTimes(2);
+    expect(prepareSessionCsrf).toHaveBeenCalledTimes(2);
+  });
+
+  it("기존 session도 fresh CSRF가 준비되기 전에는 authenticated로 표시하지 않는다", async () => {
+    let resolveFreshCsrf: (() => void) | undefined;
+    const prepareSessionCsrf = vi.fn().mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveFreshCsrf = resolve;
+      }),
+    );
+    const client = createClient({
+      getSession: vi.fn().mockResolvedValue(ADMIN),
+      prepareSessionCsrf,
+    });
+
+    render(<AdminAuthShell client={client} />);
+
+    expect(
+      await screen.findByText("로그인 보안을 준비하고 있습니다."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(ADMIN.email)).not.toBeInTheDocument();
+
+    resolveFreshCsrf?.();
+    expect(await screen.findByText(ADMIN.email)).toBeInTheDocument();
+  });
+
   it("로그인 실패 뒤 password를 제거하고 focus하며 raw 오류를 노출하지 않는다", async () => {
     const user = userEvent.setup();
     const client = createClient({
@@ -119,22 +209,28 @@ describe("AdminAuthShell", () => {
     expect(password).toHaveFocus();
   });
 
-  it("invalid credentials를 고정 문구로 표시한다", async () => {
+  it.each([
+    ["invalid-request", "입력 형식을 확인해 주세요."],
+    ["invalid-credentials", "이메일 또는 비밀번호를 확인해 주세요."],
+    ["forbidden", "로그인 요청을 확인할 수 없습니다."],
+    ["service-unavailable", "인증 서비스를 일시적으로 사용할 수 없습니다."],
+  ] as const)("login %s 실패를 고정 문구로 표시하고 password를 제거한다", async (kind, message) => {
     const user = userEvent.setup();
     const client = createClient({
       login: vi
         .fn()
-        .mockRejectedValue(new AdminAuthError("invalid-credentials")),
+        .mockRejectedValue(new AdminAuthError(kind)),
     });
 
     render(<AdminAuthShell client={client} />);
     await user.type(await screen.findByLabelText("이메일"), ADMIN.email);
-    await user.type(screen.getByLabelText("비밀번호"), "wrong-password");
+    const password = screen.getByLabelText("비밀번호");
+    await user.type(password, "wrong-password");
     await user.click(screen.getByRole("button", { name: "로그인" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "이메일 또는 비밀번호를 확인해 주세요.",
-    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(password).toHaveValue("");
+    expect(password).toHaveFocus();
   });
 
   it("session 장애 화면에서 명시적 재시도로 authenticated 상태를 복구한다", async () => {

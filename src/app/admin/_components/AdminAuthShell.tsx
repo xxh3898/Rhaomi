@@ -26,6 +26,11 @@ const MAX_PASSWORD_BYTES = 72;
 
 type AuthState =
   | Readonly<{ kind: "checking" }>
+  | Readonly<{
+      kind: "preparing";
+      admin: AdminIdentity;
+      requestSequence: number;
+    }>
   | Readonly<{ kind: "anonymous"; message?: string }>
   | Readonly<{ kind: "submitting"; operation: "login" }>
   | Readonly<{
@@ -100,10 +105,10 @@ export function AdminAuthShell({ client }: AdminAuthShellProps) {
         if (admin) {
           setEmail("");
           setPassword("");
+          setState({ kind: "preparing", admin, requestSequence });
+          return;
         }
-        setState(
-          admin ? { kind: "authenticated", admin } : { kind: "anonymous" },
-        );
+        setState({ kind: "anonymous" });
       } catch {
         if (requestSequence === requestSequenceRef.current) {
           setState({ kind: "unavailable" });
@@ -127,6 +132,32 @@ export function AdminAuthShell({ client }: AdminAuthShellProps) {
       authClient.clearSession();
     };
   }, [authClient, resolveSession]);
+
+  useEffect(() => {
+    if (state.kind !== "preparing") {
+      return;
+    }
+
+    const { admin, requestSequence } = state;
+    let active = true;
+
+    void authClient.prepareSessionCsrf().then(
+      () => {
+        if (active && requestSequence === requestSequenceRef.current) {
+          setState({ kind: "authenticated", admin });
+        }
+      },
+      () => {
+        if (active && requestSequence === requestSequenceRef.current) {
+          setState({ kind: "unavailable" });
+        }
+      },
+    );
+
+    return () => {
+      active = false;
+    };
+  }, [authClient, state]);
 
   useEffect(() => {
     if (state.kind === "anonymous" && state.message) {
@@ -154,8 +185,10 @@ export function AdminAuthShell({ client }: AdminAuthShellProps) {
 
     try {
       const admin = await authClient.login({ email, password });
+      const requestSequence = ++requestSequenceRef.current;
       setEmail("");
-      setState({ kind: "authenticated", admin });
+      setPassword("");
+      setState({ kind: "preparing", admin, requestSequence });
     } catch (error) {
       setState({ kind: "anonymous", message: loginErrorMessage(error) });
     } finally {
@@ -212,6 +245,13 @@ export function AdminAuthShell({ client }: AdminAuthShellProps) {
           <div className={styles.statePanel} role="status" aria-live="polite">
             <span className={styles.spinner} aria-hidden="true" />
             <p>관리자 세션을 확인하고 있습니다.</p>
+          </div>
+        ) : null}
+
+        {state.kind === "preparing" ? (
+          <div className={styles.statePanel} role="status" aria-live="polite">
+            <span className={styles.spinner} aria-hidden="true" />
+            <p>로그인 보안을 준비하고 있습니다.</p>
           </div>
         ) : null}
 

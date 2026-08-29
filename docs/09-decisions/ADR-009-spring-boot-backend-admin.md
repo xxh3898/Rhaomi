@@ -49,7 +49,8 @@ review_trigger: "관리자 인증·콘텐츠 API·DB·배포 구조 변경 시"
 - `/admin/`은 `out/admin/index.html`로 생성되는 noindex Static Export client shell이다.
 - 정적 HTML과 client auth check는 보안 경계가 아니며 backend session·CSRF가 업무 요청을 최종 방어한다.
 - client는 relative `/api/admin/**`, `credentials: same-origin`, read `cache: no-store`만 사용한다.
-- login 성공 뒤 session fixation을 고려해 fresh CSRF를 다시 획득한다.
+- login POST 성공 response의 identity를 검증한 직후 password·form email과 pre-login CSRF를 제거하고, credential 제거가 반영된 뒤 fresh CSRF를 별도 획득한다. fresh CSRF 성공 전에는 authenticated mutation-ready 상태로 전환하지 않는다.
+- post-login CSRF 준비 실패는 credential 실패·anonymous로 축소하지 않으며, 재시도는 `/me`로 기존 session을 확인한 뒤 fresh CSRF만 다시 획득한다.
 - password·CSRF·identity는 browser storage·URL·log에 저장하지 않고 logout 403 mutation을 자동 재시도하지 않는다.
 - local gateway만 구현했으며 CORS, cookie Domain rewrite, production TLS·domain 설정은 추가하지 않았다.
 

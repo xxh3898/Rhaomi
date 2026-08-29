@@ -66,9 +66,11 @@ Client boundary는 가장 작은 상호작용 단위에 둔다.
 ```text
 /admin/ hydration
 → GET /api/admin/auth/me
-→ anonymous이면 GET csrf → POST login
-→ session fixation 뒤 GET csrf 재호출
-→ dashboard shell
+→ 기존 session이면 fresh GET csrf
+→ anonymous이면 pre-login GET csrf → POST login → identity 검증
+→ password·form email 제거 + pre-login csrf 폐기
+→ React credential 제거 반영 뒤 fresh GET csrf
+→ fresh csrf 성공 뒤에만 dashboard shell
 → fresh csrf로 POST logout
 ```
 
@@ -76,6 +78,7 @@ Client boundary는 가장 작은 상호작용 단위에 둔다.
 - 모든 request는 `credentials: "same-origin"`, read request는 `cache: "no-store"`다.
 - JSON shape와 status를 공통 client에서 검증하고 backend raw message를 UI에 전달하지 않는다.
 - password와 CSRF는 필요한 동안 memory에만 두며 localStorage, sessionStorage, IndexedDB, cookie 직접 쓰기, URL과 log에 저장하지 않는다.
+- post-login fresh CSRF 실패는 invalid credential이나 anonymous로 바꾸지 않는다. 명시적 재시도에서 `/me`로 이미 생성된 session을 확인하고 fresh CSRF를 다시 준비한다.
 - admin API의 401은 in-memory 인증 상태를 비우고, 403 mutation은 자동 재시도하지 않는다.
 - 현재 dashboard 관리 영역은 disabled placeholder이며 CRUD route·fake data를 만들지 않는다.
 

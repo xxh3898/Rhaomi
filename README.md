@@ -124,7 +124,7 @@ sh scripts/validate-backend-compose.sh .env.dev.local
 - 고객 페이지는 정적 HTML로 배포하며 SSR을 사용하지 않는다.
 - 공개 사이트는 런타임에 Spring Boot나 PostgreSQL에 의존하지 않는다.
 - 관리자 인증은 HttpOnly session cookie와 CSRF 보호를 사용하는 Spring Security 기반이다.
-- `/admin/`은 noindex인 Static Export client shell이며 backend session이 최종 보안 경계다. credential·CSRF를 browser storage나 URL에 저장하지 않고 login 직후 fresh CSRF를 다시 획득한다.
+- `/admin/`은 noindex인 Static Export client shell이며 backend session이 최종 보안 경계다. login POST와 identity 검증이 끝나면 form credential과 pre-login CSRF를 먼저 제거하고, 별도 fresh CSRF 준비가 성공한 뒤에만 authenticated mutation-ready 상태가 된다. 준비 실패 재시도는 `/me`로 기존 session을 확인한 뒤 fresh CSRF만 다시 획득한다.
 - local browser 요청은 Nginx gateway의 same-origin `/api/**`를 사용한다. frontend는 host port를 열지 않고 gateway는 PostgreSQL network에 참여하지 않는다.
 - 견종·서비스 기준정보는 관리자 session·CSRF가 적용된 API로 생성·조회·수정·보관할 수 있다.
 - 공지는 같은 인증 경계에서 생성·조회·수정·보관하며 게시 필수값과 게시·만료 기간을 검증한다.

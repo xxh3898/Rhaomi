@@ -31,6 +31,7 @@ export type AdminAuthErrorKind =
 export interface AdminAuthClient {
   getSession(): Promise<AdminIdentity | null>;
   login(credentials: LoginCredentials): Promise<AdminIdentity>;
+  prepareSessionCsrf(): Promise<void>;
   logout(): Promise<LogoutResult>;
   clearSession(): void;
 }

@@ -31,7 +31,9 @@ review_trigger: "기술·기능 범위 변경 시"
 - Middleware·Route Handler·Server Action·request API 부재
 - admin API의 relative URL, same-origin credential, GET no-store와 JSON shape 검증
 - initial me 200/401/5xx/network/malformed 상태 분리
-- login 전·후 CSRF, fixed error mapping, password 제거와 UTF-8 72-byte client 안내
+- login POST와 post-login fresh CSRF 단계 분리, fresh CSRF pending 전 password·form email 제거, pre-login token 폐기
+- post-login CSRF 실패의 unavailable 분리와 `/me`+fresh CSRF recovery, 기존 session의 mutation-ready 전 fresh CSRF 준비
+- login 400/401/403/503 fixed error mapping, password 제거와 UTF-8 72-byte client 안내
 - logout 204/401/403, mutation non-retry와 authenticated API 401 session-expired 처리
 - visible label/autocomplete, Enter, pending 중복 방지, live alert, password focus, retry, identity와 disabled 영역
 - browser storage·URL·log credential/token 비저장 정적 검사

@@ -61,7 +61,7 @@ describe("DefaultAdminAuthClient", () => {
     await expect(client.getSession()).rejects.toMatchObject({ kind: "unavailable" });
   });
 
-  it("login 전후 CSRF를 획득하고 동적 headerName과 fresh token을 사용한다", async () => {
+  it("login POST와 session용 fresh CSRF 준비를 명확한 단계로 분리한다", async () => {
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(
@@ -77,6 +77,9 @@ describe("DefaultAdminAuthClient", () => {
     await expect(
       client.login({ email: ADMIN.email, password: "test-password" }),
     ).resolves.toEqual(ADMIN);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+
+    await expect(client.prepareSessionCsrf()).resolves.toBeUndefined();
     await expect(client.logout()).resolves.toBe("logged-out");
 
     expect(fetcher.mock.calls.map(([path]) => path)).toEqual([
@@ -101,9 +104,37 @@ describe("DefaultAdminAuthClient", () => {
     expect(logoutHeaders.get("X-CSRF-TOKEN")).toBe("after-login");
   });
 
+  it("login 성공 뒤 pre-login CSRF를 post-login mutation에 재사용하지 않는다", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ headerName: "X-CSRF-TOKEN", token: "pre-login" }),
+      )
+      .mockResolvedValueOnce(jsonResponse(ADMIN))
+      .mockResolvedValueOnce(
+        jsonResponse({ headerName: "X-CSRF-TOKEN", token: "post-login" }),
+      )
+      .mockResolvedValueOnce(emptyResponse(204));
+    const client = new DefaultAdminAuthClient({ fetcher });
+
+    await client.login({ email: ADMIN.email, password: "test-password" });
+    await expect(client.logout()).resolves.toBe("logged-out");
+
+    expect(fetcher.mock.calls.map(([path]) => path)).toEqual([
+      "/api/admin/auth/csrf",
+      "/api/admin/auth/login",
+      "/api/admin/auth/csrf",
+      "/api/admin/auth/logout",
+    ]);
+    const logoutHeaders = new Headers(fetcher.mock.calls[3]?.[1]?.headers);
+    expect(logoutHeaders.get("X-CSRF-TOKEN")).toBe("post-login");
+    expect(logoutHeaders.get("X-CSRF-TOKEN")).not.toBe("pre-login");
+  });
+
   it.each([
     [400, "invalid-request"],
     [401, "invalid-credentials"],
+    [403, "forbidden"],
     [503, "service-unavailable"],
     [500, "unavailable"],
   ])("login status %i를 %s로 매핑한다", async (status, kind) => {
@@ -133,7 +164,7 @@ describe("DefaultAdminAuthClient", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
-  it("post-login CSRF 재획득 실패 시 pre-login token을 메모리에 남기지 않는다", async () => {
+  it("session용 fresh CSRF 준비 실패 뒤에도 pre-login token을 남기지 않는다", async () => {
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(
@@ -149,7 +180,10 @@ describe("DefaultAdminAuthClient", () => {
 
     await expect(
       client.login({ email: ADMIN.email, password: "test-password" }),
-    ).rejects.toMatchObject({ kind: "unavailable" });
+    ).resolves.toEqual(ADMIN);
+    await expect(client.prepareSessionCsrf()).rejects.toMatchObject({
+      kind: "unavailable",
+    });
     await expect(client.logout()).resolves.toBe("logged-out");
 
     expect(fetcher.mock.calls.map(([path]) => path)).toEqual([

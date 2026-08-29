@@ -133,25 +133,33 @@ export class DefaultAdminAuthClient implements AdminAuthClient {
 
   async login(credentials: LoginCredentials): Promise<AdminIdentity> {
     const csrfToken = await this.#fetchCsrf();
-    const response = await this.#request(`${AUTH_PATH}/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        [csrfToken.headerName]: csrfToken.token,
-      },
-      body: JSON.stringify(credentials),
-    });
+    let response: Response;
+
+    try {
+      response = await this.#request(`${AUTH_PATH}/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [csrfToken.headerName]: csrfToken.token,
+        },
+        body: JSON.stringify(credentials),
+      });
+    } finally {
+      // login POST가 성공·실패한 뒤에는 pre-login token을 보존하지 않는다.
+      this.#csrfToken = null;
+    }
 
     if (!isSuccessStatus(response.status)) {
-      this.clearSession();
       throw mapLoginFailure(response.status);
     }
 
-    // Spring Security session fixation 뒤 pre-login token을 재사용하지 않는다.
+    return decodeJson(response, isAdminIdentity);
+  }
+
+  async prepareSessionCsrf(): Promise<void> {
+    // 기존 session 확인과 login 모두 mutation 전에 항상 fresh token을 준비한다.
     this.#csrfToken = null;
-    const admin = await decodeJson(response, isAdminIdentity);
-    this.#csrfToken = await this.#fetchCsrf();
-    return admin;
+    await this.#fetchCsrf();
   }
 
   async logout(): Promise<LogoutResult> {

@@ -84,7 +84,8 @@ build-time 공개 콘텐츠 조회는 후속 Issue에서 `/api/build/**` 같은 
 - session cookie는 `HttpOnly`와 `SameSite=Lax`를 명시한다.
 - 운영에서는 TLS와 함께 `Secure=true`를 강제하며 production profile이 false 설정으로 기동되지 않게 한다.
 - 로그인 성공 시 session fixation 방어로 session id를 교체한다.
-- static admin client는 session fixation 뒤 pre-login CSRF를 폐기하고 fresh CSRF를 다시 획득한다.
+- static admin client는 login POST 성공 response의 identity를 검증한 직후 password·form email과 pre-login CSRF를 제거한다. credential input이 제거된 뒤에만 fresh CSRF를 요청하고 성공 전에는 authenticated mutation을 노출하지 않는다.
+- post-login fresh CSRF 실패는 credential 실패나 anonymous로 축소하지 않는다. 재시도는 `/me`로 기존 session을 확인한 뒤 fresh CSRF를 다시 준비하며 login·logout을 자동 재전송하지 않는다.
 - `ProviderManager` 인증 완료 시 principal credential을 지우고 password hash가 없는 `SecurityContext`만 session에 저장한다.
 - CSRF 보호를 비활성화하지 않는다.
 - static admin client는 CSRF endpoint에서 받은 token을 state-changing request header에 보낸다.
