@@ -89,9 +89,18 @@ Phase 1C-4는 갤러리 relation, Hero·프로필·OG FK, public/build media API
 
 Phase 1C-5는 public/build gallery API, responsive 파생본, 공개 갤러리 UI, 관리자 UI, 실제 사진 seed나 운영 migration의 완료를 의미하지 않는다. 관계 대상의 후속 상태 변경은 갤러리에 cascade하지 않고 후속 public snapshot이 eligibility를 다시 검증한다.
 
-### Phase 1C-6 이후 — 나머지 콘텐츠 도메인
+### Phase 1C-6 — 매장정보 Hero·프로필·OG media relation
 
-- 매장정보 Hero·프로필·OG 이미지 relation
+- Flyway V7 `shop_settings` nullable Hero·프로필·OG media FK
+- Hero·프로필 image/alt pair의 application·PostgreSQL 검증
+- non-null relation의 `media_assets` 존재·`active` 상태 검증
+- scalar UUID response, actor/audit 불변성과 실제 PostgreSQL migration·DB·HTTP 계약 테스트
+- 관계 대상 후속 archive의 non-cascade와 후속 public build 재검증 계약
+
+Phase 1C-6은 실제 이미지·운영값 입력, crop·responsive derivative, public/build API, Hero·프로필·SEO 렌더링, 관리자 UI나 운영 migration의 완료를 의미하지 않는다.
+
+### Phase 1C-7 이후 — 나머지 콘텐츠 기능
+
 - `/admin` 로그인·콘텐츠 관리 UI
 - build-time read-only API와 credential 분리
 - 샘플 콘텐츠

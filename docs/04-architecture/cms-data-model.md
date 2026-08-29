@@ -11,8 +11,8 @@ review_trigger: "PostgreSQL table·field·API 변경 시"
 
 ## 구현 상태
 
-- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`, Flyway V4의 `shop_settings`, Flyway V5의 `media_assets`, Flyway V6의 `gallery_items`
-- 후속 구현: 매장정보 Hero·프로필·OG 이미지 relation과 public build snapshot
+- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`, Flyway V4·V7의 `shop_settings`, Flyway V5의 `media_assets`, Flyway V6의 `gallery_items`
+- 후속 구현: public build snapshot, 공개 이미지 파생본과 Hero·프로필·OG 렌더링
 
 `breeds`, `services`, `notices`, `shop_settings`, `media_assets`, `gallery_items`는 현재 schema와 관리 API 계약이고, public snapshot과 나머지 콘텐츠 모델은 제품 방향을 위한 proposed 계약이다.
 
@@ -42,11 +42,11 @@ schema source of truth는 `backend/src/main/resources/db/migration/V1__create_ad
 - 운영 삭제는 `archived`
 - id, audit timestamp와 내부 field는 관리자 update DTO에서 제외
 
-## 현재 갤러리 관계
+## 현재 콘텐츠 관계
 
 ```mermaid
 erDiagram
-    SHOP_SETTINGS { uuid id PK }
+    SHOP_SETTINGS { uuid id PK uuid hero_image_id FK uuid groomer_image_id FK uuid og_image_id FK }
     BREEDS { uuid id PK string name string slug }
     SERVICES { uuid id PK string name string slug }
     MEDIA_ASSETS { uuid id PK string status string content_type string storage_key }
@@ -56,6 +56,7 @@ erDiagram
     BREEDS ||--o{ GALLERY_ITEMS : classifies
     SERVICES ||--o{ GALLERY_ITEMS : describes
     MEDIA_ASSETS ||--o{ GALLERY_ITEMS : supplies
+    MEDIA_ASSETS ||--o{ SHOP_SETTINGS : supplies
 ```
 
 ## 현재 `shop_settings` singleton
@@ -79,6 +80,11 @@ erDiagram
 | `groomer_name` | varchar(100) | N | 운영자 표시명 |
 | `groomer_intro` | varchar(2000) | N | 운영자 소개 |
 | `reservation_notice` | varchar(4000) | N | 예약 전 안내 |
+| `hero_image_id` | UUID FK | N | Hero `media_assets(id)` |
+| `hero_image_alt_text` | varchar(300) | N | Hero image와 pair인 사실 기반 대체텍스트 |
+| `groomer_image_id` | UUID FK | N | 프로필 `media_assets(id)` |
+| `groomer_image_alt_text` | varchar(300) | N | 프로필 image와 pair인 사실 기반 대체텍스트 |
+| `og_image_id` | UUID FK | N | OG `media_assets(id)`, 별도 alt 없음 |
 | `instagram_url` | varchar(2048) | N | HTTPS 외부 링크 |
 | `naver_blog_url` | varchar(2048) | N | HTTPS 외부 링크 |
 | `naver_map_url` | varchar(2048) | N | HTTPS 외부 링크 |
@@ -94,8 +100,11 @@ erDiagram
 - 전화번호는 허용 문자와 숫자 개수를 application에서 검증한다.
 - 선택형 URL은 absolute HTTPS, host 필수, userinfo·control 문자 금지를 application에서 검증하고 DB column이 최대 길이를 제한한다.
 - 최초 PUT actor가 created/updated audit를 채우고 후속 PUT은 created audit를 보존한다. validation 실패는 모든 field와 audit를 보존한다.
-- Hero·프로필·OG 이미지 식별자나 임시 path는 저장하지 않으며 `media_assets` FK relation은 후속 migration에서 추가한다.
-- schema source of truth는 `backend/src/main/resources/db/migration/V4__create_shop_settings.sql`이다.
+- 세 image FK는 `media_assets(id) ON DELETE RESTRICT`이고 같은 asset의 다중 역할 재사용을 허용한다. 임시 path나 private storage metadata는 저장하지 않는다.
+- Hero·프로필은 image와 Unicode trim·nonblank·최대 300 code-point alt가 함께 있거나 모두 null이어야 하며 DB CHECK와 application이 이중 검증한다. OG에는 alt field가 없다.
+- PUT의 non-null image는 mutation 전에 존재와 `active` 상태를 확인한다. 후속 archive는 relation·audit에 cascade하지 않고 GET은 저장 UUID를 유지한다.
+- 후속 public build는 세 relation의 active status와 private master·공개 파생 file 유효성을 다시 검증한다.
+- schema source of truth는 `backend/src/main/resources/db/migration/V4__create_shop_settings.sql`과 `V7__add_shop_settings_media_relations.sql`이다.
 
 ## 현재 `media_assets`
 
@@ -197,4 +206,4 @@ notices: pinned DESC, published_at DESC NULLS LAST, updated_at DESC, id ASC
 - publish validation은 `PUT`으로 받은 전체 mutable representation을 적용할 최종 entity 상태를 기준으로 수행한다.
 - API request DTO allowlist로 id/audit/system field mass assignment를 차단한다.
 - 공개 build query와 transformer가 published/relation/file 조건을 각각 검증한다.
-- relation 대상의 후속 상태 변경을 gallery row에 cascade하지 않고 DB FK는 존재성과 hard delete 차단만 담당한다.
+- relation 대상의 후속 상태 변경을 gallery나 shop row에 cascade하지 않고 DB FK는 존재성과 hard delete 차단만 담당한다.

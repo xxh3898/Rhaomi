@@ -25,7 +25,7 @@ review_trigger: "역할·권한·인증 방식 변경 시"
 - 일반 고객 회원 기능 없음
 - 초기 단계에서 불필요한 다중 RBAC를 만들지 않음
 
-현재 `ADMIN` 업무 endpoint는 견종·서비스·공지·갤러리, text 기반 매장정보 singleton과 private media master에 한정한다. public/build gallery·media endpoint와 관리자 UI는 아직 없다.
+현재 `ADMIN` 업무 endpoint는 견종·서비스·공지·갤러리, private media relation을 포함한 매장정보 singleton과 private media master에 한정한다. public/build gallery·shop·media endpoint와 관리자 UI는 아직 없다.
 
 ### Public customer
 
@@ -59,7 +59,7 @@ build-time 공개 콘텐츠 조회는 후속 Issue에서 `/api/build/**` 같은 
 | `POST /api/admin/gallery-items` | 거부 | 허용 | 유효 CSRF 필요, 항상 draft 생성 |
 | `PUT /api/admin/gallery-items/<id>` | 거부 | 허용 | 유효 CSRF 필요, 전체 mutable field·관계·게시 상태 검증 |
 | `GET /api/admin/shop-settings` | 거부 | 허용 | 현재 singleton 조회, 미초기화 404 |
-| `PUT /api/admin/shop-settings` | 거부 | 허용 | 유효 CSRF 필요, 최초 201·이후 200 full update |
+| `PUT /api/admin/shop-settings` | 거부 | 허용 | 유효 CSRF 필요, 최초 201·이후 200 full update와 active media 검증 |
 | `GET /api/admin/media[/<id>]` | 거부 | 허용 | active·archived metadata 조회 |
 | `GET /api/admin/media/<id>/content` | 거부 | 허용 | private no-store canonical master |
 | `POST /api/admin/media` | 거부 | 허용 | 유효 CSRF 필요, 실제 byte 검증 후 active upload |
@@ -105,11 +105,12 @@ build-time 공개 콘텐츠 조회는 후속 Issue에서 `/api/build/**` 같은 
 - 운영자용 update DTO는 명시적 field allowlist를 사용한다.
 - 현재 견종·서비스·공지·갤러리 create/update DTO와 매장정보 PUT DTO는 unknown JSON field를 거부한다.
 - `id`, `slug` 수정값, actor, `password_hash`, audit timestamp와 내부/system field는 일반 update API에서 받지 않는다.
-- 매장정보 request는 `id`, `singletonKey`, actor, audit를 받지 않는다. response는 mutable field와 server-owned audit만 반환하고 DB id·singleton guard는 노출하지 않는다.
+- 매장정보 request는 명시된 scalar media UUID와 Hero·프로필 alt만 추가로 받고 `id`, `singletonKey`, actor, audit, storage metadata를 받지 않는다. response는 mutable field·scalar relation id·server-owned audit만 반환하고 DB id·singleton guard·media entity는 노출하지 않는다.
 - media upload는 multipart `file` 하나만 받고 filename을 path·DB·response에 사용하지 않는다. status update는 `active | archived` 하나만 허용한다.
 - media response는 storage key, filesystem path, extension과 SHA-256을 노출하지 않는다. archived content도 ADMIN만 조회할 수 있고 public/build route는 없다.
 - gallery request는 scalar breed/service/media id만 받고 response도 id만 반환한다. target 객체와 private media storage metadata를 embed하지 않는다.
 - gallery publish 전 breed/service `published`, 연결 media `active`를 검증한다. target의 후속 상태 변경은 cascade하지 않고 후속 build snapshot에서 다시 검증한다.
+- shop PUT은 Hero·프로필 image-alt pair와 모든 non-null media의 `active` 상태를 mutation 전에 검증한다. target의 후속 archive는 cascade하지 않고 후속 build snapshot에서 relation·file을 다시 검증한다.
 - 화면상 삭제는 `archived` 전환이며 영구 delete는 별도 관리·백업 승인 없이는 제공하지 않는다.
 - 현재 견종·서비스·공지·갤러리·매장정보·media controller/service에는 hard delete 경로와 `PATCH` endpoint가 없다. 매장정보에는 `POST`와 id 기반 endpoint도 없다.
 - schema, role, user, setting 변경 endpoint를 일반 콘텐츠 API에 포함하지 않는다.

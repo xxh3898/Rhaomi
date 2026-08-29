@@ -18,7 +18,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - 모바일 문의·검색 metadata 보호
 - 배포 실패 시 기존 사이트 보호
 
-## 현재 Phase 1C-5 자동 검증
+## 현재 Phase 1C-6 자동 검증
 
 ### Frontend
 
@@ -89,10 +89,10 @@ review_trigger: "기술·기능 범위 변경 시"
 - 미래 publishedAt 허용, 100ns collapse 422, 정확히 1µs 차이 성공과 create/update/재조회 microsecond round-trip
 - hard `DELETE`, `PATCH`, public endpoint와 scheduler 부재
 
-### 매장정보 singleton domain/API/DB
+### 매장정보 singleton·media relation domain/API/DB
 
-- 기존 Flyway V1·V2·V3 database에서 V4 upgrade와 clean V1→V2→V3→V4 순차 적용
-- `shop_settings` 전체 column, `TIME(0) WITHOUT TIME ZONE`, `TIMESTAMP(6) WITH TIME ZONE`와 명명된 singleton/nonblank/hours/weekday/actor constraint
+- 기존 Flyway V1→V6 database의 V7 upgrade·기존 row null 보존과 clean V1→V7 순차 적용
+- `shop_settings` 전체 column, `TIME(0) WITHOUT TIME ZONE`, `TIMESTAMP(6) WITH TIME ZONE`와 명명된 singleton/nonblank/hours/weekday/actor/media FK/image-alt pair constraint
 - application을 우회한 두 번째 TRUE row, FALSE guard, whitespace-only 필수 text, 같거나 역전된 영업시간, 잘못된 요일·actor FK의 DB 차단
 - anonymous GET/PUT, CSRF 없는 PUT, public endpoint 거부와 미초기화 `404 SHOP_SETTINGS_NOT_FOUND`
 - 최초 PUT `201`, 후속·반복 PUT `200`, 항상 row count 1과 full response/read round-trip
@@ -101,6 +101,11 @@ review_trigger: "기술·기능 범위 변경 시"
 - id/singletonKey/audit/actor/unknown field mass assignment, partial PUT, malformed time/weekday의 `400 INVALID_REQUEST`
 - opening >= closing의 `422 BUSINESS_HOURS_INVALID`와 실패 뒤 row·created/updated audit 전체 불변
 - 두 번째 관리자 update의 created audit 보존, updated actor 변경과 microsecond audit round-trip
+- active Hero·프로필·OG 최초 설정·교체·전체 제거, 같은 media의 세 역할 재사용과 scalar UUID/alt round-trip
+- Hero·프로필 Unicode alt trim·blank→null·300 code-point boundary와 image-alt pair DB/application 이중 검증
+- role별 missing·archived·malformed UUID, 301 code-point, storage metadata·system field 거부와 `422 SHOP_MEDIA_RELATION_INVALID` 계약
+- relation 실패 뒤 row·created/updated audit 불변, 후속 media archive의 non-cascade, archived relation 유지 거부와 clear·active 교체 성공
+- 세 media FK `ON DELETE RESTRICT`, 참조 asset hard delete 차단과 response의 storage key/path/hash/entity 비노출
 - `POST`, `PATCH`, `DELETE`, id 기반·public/build endpoint 부재와 generic DB 5xx detail 비노출
 
 ### private media domain/API/DB
@@ -161,6 +166,7 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 - URL, phone link, 공지 build-time 게시 도래·expiry filter
 - slug/canonical, JSON-LD, alt validation
 - published 관계와 file scope
+- 매장정보 Hero·프로필·OG relation의 active status·private master·파생 file 재검증
 - build API read-only와 모든 mutation deny
 - snapshot schema와 image manifest
 - content fixture → transformer → static snapshot

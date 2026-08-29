@@ -8,6 +8,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 record ShopSettingsValues(
@@ -26,6 +27,11 @@ record ShopSettingsValues(
         String groomerName,
         String groomerIntro,
         String reservationNotice,
+        UUID heroImageId,
+        String heroImageAltText,
+        UUID groomerImageId,
+        String groomerImageAltText,
+        UUID ogImageId,
         String instagramUrl,
         String naverBlogUrl,
         String naverMapUrl,
@@ -48,6 +54,10 @@ record ShopSettingsValues(
         if (!openingTime.isBefore(closingTime)) {
             throw new BusinessHoursInvalidException();
         }
+        var heroImageAltText = optional(request.heroImageAltText(), 300);
+        var groomerImageAltText = optional(request.groomerImageAltText(), 300);
+        validateImageAltPair(request.heroImageId(), heroImageAltText);
+        validateImageAltPair(request.groomerImageId(), groomerImageAltText);
 
         return new ShopSettingsValues(
                 required(request.shopName(), 100),
@@ -65,12 +75,23 @@ record ShopSettingsValues(
                 optional(request.groomerName(), 100),
                 optional(request.groomerIntro(), 2_000),
                 optional(request.reservationNotice(), 4_000),
+                request.heroImageId(),
+                heroImageAltText,
+                request.groomerImageId(),
+                groomerImageAltText,
+                request.ogImageId(),
                 url(request.instagramUrl()),
                 url(request.naverBlogUrl()),
                 url(request.naverMapUrl()),
                 url(request.kakaoMapUrl()),
                 url(request.naverTalktalkUrl()),
                 url(request.kakaoChannelUrl()));
+    }
+
+    private static void validateImageAltPair(UUID imageId, String altText) {
+        if ((imageId == null) != (altText == null)) {
+            throw new ShopMediaRelationInvalidException();
+        }
     }
 
     private static String required(String value, int maxLength) {

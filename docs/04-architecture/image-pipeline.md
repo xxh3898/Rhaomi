@@ -35,7 +35,7 @@ JPEG / PNG / HEIC / HEIF upload
 → static export
 ```
 
-현재 완료 범위는 upload에서 private canonical master까지다. 공개 파생본, Builder credential/API, gallery relation과 Static Export 반영은 완료로 보지 않는다.
+현재 완료 범위는 upload에서 private canonical master, 갤러리 relation과 매장정보 Hero·프로필·OG scalar relation까지다. 공개 파생본, Builder credential/API와 Static Export 반영은 완료로 보지 않는다.
 
 ## 저장 정책
 
@@ -49,6 +49,8 @@ JPEG / PNG / HEIC / HEIF upload
 - JPEG·PNG는 검증한 source byte를 유지하므로 private master에 source metadata가 남을 수 있음
 - HEIC·HEIF raw byte는 temp에서만 존재하고 canonical JPEG만 장기 보관
 - `active | archived` 모두 row와 master를 유지하며 physical delete 없음
+- 갤러리와 매장정보 Hero·프로필·OG relation은 private `media_assets` UUID만 저장하며 storage key·path·hash를 embed하지 않음
+- 매장정보 relation 대상의 후속 archive는 cascade하지 않으며 public build가 active status와 file을 다시 검증
 
 ### 공개 파생본
 
@@ -125,7 +127,8 @@ synthetic backend 검증은 physical-device와 Builder 검증을 대체하지 �
 
 ## 대체텍스트
 
-- 콘텐츠 API의 `alt_text`를 사용
+- 갤러리는 `altText`, 매장정보 Hero·프로필은 각각 소유한 `heroImageAltText`·`groomerImageAltText`를 사용
+- OG image relation에는 HTML alt field를 두지 않음
 - 비어 있는 경우 공개 빌드 실패
 - 파일명이나 키워드 목록으로 자동 대체하지 않음
 - 장식적 파생본은 빈 alt 가능하나 같은 이미지가 정보 역할이면 명시적 alt 사용

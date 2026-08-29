@@ -114,10 +114,14 @@ test("공지 V3와 게시·만료 관리자 API 계약을 고정한다", async (
   assert.match(repository, /updatedAt DESC[\s\S]*?id ASC/);
 });
 
-test("매장정보 V4와 singleton 관리자 API 계약을 고정한다", async () => {
-  const [migration, controller, response] = await Promise.all([
+test("매장정보 V4·V7과 private media relation 관리자 API 계약을 고정한다", async () => {
+  const [migration, relationMigration, controller, service, response] = await Promise.all([
     source("backend/src/main/resources/db/migration/V4__create_shop_settings.sql"),
+    source(
+      "backend/src/main/resources/db/migration/V7__add_shop_settings_media_relations.sql",
+    ),
     source("backend/src/main/java/kr/co/rhaomi/backend/shop/ShopSettingsAdminController.java"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/shop/ShopSettingsAdminService.java"),
     source("backend/src/main/java/kr/co/rhaomi/backend/shop/ShopSettingsResponse.java"),
   ]);
 
@@ -132,11 +136,29 @@ test("매장정보 V4와 singleton 관리자 API 계약을 고정한다", async 
   assert.match(migration, /shop_name ~ '\[\^\[:space:\]\]'/);
   assert.match(migration, /address ~ '\[\^\[:space:\]\]'/);
   assert.match(migration, /REFERENCES admin_users\(id\) ON DELETE RESTRICT/);
+  assert.match(relationMigration, /ADD COLUMN hero_image_id UUID/);
+  assert.match(relationMigration, /ADD COLUMN hero_image_alt_text VARCHAR\(300\)/);
+  assert.match(relationMigration, /ADD COLUMN groomer_image_id UUID/);
+  assert.match(relationMigration, /ADD COLUMN groomer_image_alt_text VARCHAR\(300\)/);
+  assert.match(relationMigration, /ADD COLUMN og_image_id UUID/);
+  assert.equal(
+    (relationMigration.match(/REFERENCES media_assets\(id\) ON DELETE RESTRICT/g) ?? [])
+      .length,
+    3,
+  );
+  assert.match(relationMigration, /CONSTRAINT ck_shop_settings_hero_image_alt_pair CHECK/);
+  assert.match(
+    relationMigration,
+    /CONSTRAINT ck_shop_settings_groomer_image_alt_pair CHECK/,
+  );
   assert.match(controller, /@RequestMapping\("\/api\/admin\/shop-settings"\)/);
   assert.match(controller, /@GetMapping/);
   assert.match(controller, /@PutMapping/);
   assert.doesNotMatch(controller, /@(?:Post|Patch|Delete)Mapping/);
+  assert.match(service, /MediaAssetRepository/);
+  assert.match(service, /MediaStatus\.ACTIVE/);
   assert.doesNotMatch(response, /\bUUID id\b|singletonKey|\bstatus\b/);
+  assert.doesNotMatch(response, /storageKey|fileExtension|sha256|originalFilename/);
 });
 
 test("미디어 V5와 private HEIC 정규화 계약을 고정한다", async () => {

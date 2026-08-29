@@ -11,6 +11,7 @@ import kr.co.rhaomi.backend.breed.BreedRepository;
 import kr.co.rhaomi.backend.notice.NoticeAdminService;
 import kr.co.rhaomi.backend.notice.NoticeCreateRequest;
 import kr.co.rhaomi.backend.notice.NoticeRepository;
+import kr.co.rhaomi.backend.media.MediaAssetRepository;
 import kr.co.rhaomi.backend.service.GroomingServiceRepository;
 import kr.co.rhaomi.backend.service.ServiceAdminService;
 import kr.co.rhaomi.backend.service.ServiceUpdateRequest;
@@ -58,7 +59,8 @@ class ContentApplicationServiceTests {
     @Test
     void should_rejectBeforeRepositoryAccess_when_shopSettingsActorIsMissing() {
         var repository = mock(ShopSettingsRepository.class);
-        var service = new ShopSettingsAdminService(repository);
+        var mediaAssetRepository = mock(MediaAssetRepository.class);
+        var service = new ShopSettingsAdminService(repository, mediaAssetRepository);
         var request = new ShopSettingsRequest(
                 "라오미펫",
                 "서울",
@@ -80,10 +82,16 @@ class ContentApplicationServiceTests {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null);
 
         assertThrows(NullPointerException.class, () -> service.put(request, null));
 
         verifyNoInteractions(repository);
+        verifyNoInteractions(mediaAssetRepository);
     }
 }

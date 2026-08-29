@@ -2,6 +2,7 @@ package kr.co.rhaomi.backend.content;
 
 import kr.co.rhaomi.backend.auth.ApiError;
 import kr.co.rhaomi.backend.shop.BusinessHoursInvalidException;
+import kr.co.rhaomi.backend.shop.ShopMediaRelationInvalidException;
 import kr.co.rhaomi.backend.shop.ShopSettingsInvalidRequestException;
 import kr.co.rhaomi.backend.shop.ShopSettingsNotFoundException;
 import org.springframework.dao.DataAccessException;
@@ -53,6 +54,12 @@ public class ContentExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     ApiError handleShopSettingsInvalidRequest() {
         return new ApiError("INVALID_REQUEST", "요청 형식을 확인해 주세요.");
+    }
+
+    @ExceptionHandler(ShopMediaRelationInvalidException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_CONTENT)
+    ApiError handleShopMediaRelationInvalid() {
+        return new ApiError("SHOP_MEDIA_RELATION_INVALID", "매장정보 이미지 관계를 확인해 주세요.");
     }
 
     @ExceptionHandler(DataAccessException.class)

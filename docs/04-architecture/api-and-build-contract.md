@@ -91,17 +91,20 @@ review_trigger: "관리 API·build 입력 변경 시"
 
 - `shop_settings`에는 status와 공개 id가 없으며 URL에도 DB id를 사용하지 않는다.
 - `GET`은 아직 row가 없으면 `404 SHOP_SETTINGS_NOT_FOUND`다.
-- `PUT`은 shopName, regionLabel, businessType, phone, address, openingTime, closingTime, closedWeekday, parkingAvailable, parkingNote, heroTitle, heroDescription, groomerName, groomerIntro, reservationNotice와 여섯 URL만 받는 full representation이다.
+- `PUT`은 shopName, regionLabel, businessType, phone, address, openingTime, closingTime, closedWeekday, parkingAvailable, parkingNote, heroTitle, heroDescription, groomerName, groomerIntro, reservationNotice, heroImageId, heroImageAltText, groomerImageId, groomerImageAltText, ogImageId와 여섯 URL만 받는 full representation이다.
 - id, singletonKey, createdAt, updatedAt, createdBy, updatedBy와 unknown field는 `400 INVALID_REQUEST`로 거부한다.
 - 필수 문자열은 Unicode whitespace를 제거한 뒤 nonblank와 각 길이를 검사하고, 선택 문자열은 같은 정규화 뒤 비면 null이다.
 - openingTime·closingTime은 정확한 `HH:mm`이며 opening이 closing보다 빠르지 않으면 `422 BUSINESS_HOURS_INVALID`다. malformed time과 weekday는 `400 INVALID_REQUEST`다.
 - phone은 7~32자이고 숫자·`+ - ( )`·일반 space만 허용하며 숫자를 최소 7개 포함해야 한다.
 - URL은 null 또는 2048자 이하의 absolute HTTPS URL이어야 하며 host가 필요하고 userinfo·control 문자를 허용하지 않는다.
+- Hero·프로필 image id와 alt는 함께 null이거나 함께 있어야 한다. alt는 Unicode 양끝 whitespace 제거, blank→null, 최대 300 code points이며 OG에는 alt field가 없다.
+- 세 image id는 nullable이고 같은 media를 재사용할 수 있다. non-null 값은 모두 mutation 전에 존재·`active`를 확인하며 response는 scalar UUID와 alt만 반환하고 media entity·storage metadata를 embed하지 않는다.
+- relation 대상이 나중에 archived돼도 저장값과 audit를 자동 변경하지 않는다. GET은 UUID를 그대로 반환하고 다음 PUT은 archived 관계 유지 시 422, null 제거나 active media 교체 시 성공한다.
 - 최초 PUT은 created/updated audit에 현재 actor와 microsecond 시각을 기록한다. 후속 PUT은 created audit를 보존하고 updated audit만 갱신하며, 응답과 재조회는 같은 정밀도를 사용한다.
 - 정상 재시도는 같은 row를 갱신하고 DB의 TRUE CHECK와 UNIQUE가 두 번째 singleton row를 최종 차단한다.
 - `POST`, `PATCH`, `DELETE`, id 기반 endpoint, anonymous/public read, build API는 제공하지 않는다.
 
-매장정보 오류는 invalid request `400 INVALID_REQUEST`, 미초기화 `404 SHOP_SETTINGS_NOT_FOUND`, 영업시간 순서 위반 `422 BUSINESS_HOURS_INVALID`를 사용한다. DB constraint·repository 장애는 schema나 exception detail을 노출하지 않는 generic `5xx`다. 모든 validation 실패는 기존 row와 actor/audit를 포함한 전체 상태를 보존한다.
+매장정보 오류는 invalid request `400 INVALID_REQUEST`, 미초기화 `404 SHOP_SETTINGS_NOT_FOUND`, 영업시간 순서 위반 `422 BUSINESS_HOURS_INVALID`, image/alt pair·missing/archived media `422 SHOP_MEDIA_RELATION_INVALID`를 사용한다. DB constraint·repository 장애는 schema나 exception detail을 노출하지 않는 generic `5xx`다. 모든 validation·relation 실패는 기존 row와 actor/audit를 포함한 전체 상태를 보존한다.
 
 ## 현재 private media 관리자 API
 
@@ -154,6 +157,7 @@ public media metadata
 조회와 transformer는 모두 다음을 검증한다.
 
 - `shop_settings` singleton 존재와 필수 매장정보 유효성
+- non-null Hero·프로필·OG media가 active이고 private master·공개 파생 대상이 유효함
 - collection은 `status = published`
 - 갤러리는 `published_at <= build_time`
 - 공지는 `published_at <= build_time`
