@@ -121,9 +121,20 @@ Phase 1C-7은 실제 콘텐츠 CRUD 화면, 운영 Nginx/TLS·2FA, 공개 build 
 
 Phase 1C-8a는 다른 콘텐츠 CRUD UI, media picker, public/build media API, 실제 iPhone Safari HEIC upload나 운영 배포의 완료를 의미하지 않는다.
 
-### Phase 1C-8b 이후 — 나머지 콘텐츠 기능
+### Phase 1C-8b — 관리자 매장정보 편집과 미디어 선택 UI
 
-- `/admin` 매장정보·갤러리·공지·견종·서비스 관리 UI
+- `/admin/` dashboard에서 매장정보·미디어가 enabled인 same-page navigation
+- `shop_settings` loading·미초기화·조회와 mutable field 26개의 full PUT 생성·수정 form
+- backend canonical response 적용, 401 session expiry·403 mutation non-retry와 frontend-owned 오류 문구
+- Hero·미용사·OG가 공유하는 active-only single private media picker
+- archived/missing 기존 relation 가시화, clear/replace와 Hero·미용사 image-alt pair 보조
+- private Blob lazy preview 재사용과 320px·keyboard·focus·44px·aria·reduced-motion component/contract 검증
+
+Phase 1C-8b는 실제 운영값·사진 seed, 공개 Hero·소개·OG 렌더링, build API/publisher, 나머지 콘텐츠 CRUD UI, 실제 iPhone Safari·VoiceOver나 운영 배포의 완료를 의미하지 않는다.
+
+### Phase 1C-8c 이후 — 나머지 콘텐츠 기능
+
+- `/admin` 갤러리·공지·견종·서비스 관리 UI
 - build-time read-only API와 credential 분리
 - 샘플 콘텐츠
 

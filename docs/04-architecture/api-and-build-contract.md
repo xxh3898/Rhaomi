@@ -106,6 +106,15 @@ review_trigger: "관리 API·build 입력 변경 시"
 
 매장정보 오류는 invalid request `400 INVALID_REQUEST`, 미초기화 `404 SHOP_SETTINGS_NOT_FOUND`, 영업시간 순서 위반 `422 BUSINESS_HOURS_INVALID`, image/alt pair·missing/archived media `422 SHOP_MEDIA_RELATION_INVALID`를 사용한다. DB constraint·repository 장애는 schema나 exception detail을 노출하지 않는 generic `5xx`다. 모든 validation·relation 실패는 기존 row와 actor/audit를 포함한 전체 상태를 보존한다.
 
+현재 `/admin/` shop settings client는 같은 계약을 다음처럼 소비한다.
+
+- GET 404는 장애가 아니라 실제 값이 없는 미초기화 상태로 해석하고 code seed 없는 빈 full form을 제공한다.
+- PUT body는 mutable key 26개를 모두 포함하고 nullable field는 `null`을 명시하며 createdAt·updatedAt·createdBy·updatedBy를 보내지 않는다.
+- 200/201 response의 exact field shape를 검증한 뒤 backend가 정규화한 값을 form canonical state로 다시 사용한다.
+- `INVALID_REQUEST`, `BUSINESS_HOURS_INVALID`, `SHOP_MEDIA_RELATION_INVALID`는 allowlisted frontend 문구로 표시하고 backend raw message를 출력하지 않는다.
+- Hero·미용사·OG picker는 기존 `/api/admin/media` ordering과 authenticated content GET을 재사용한다. active asset만 새 선택 대상으로 제공하고 archived/missing 현재 relation은 clear 또는 active 교체 전까지 invalid/stale로 표시한다.
+- save는 명시적 사용자 action마다 한 번만 수행하며 403/network/5xx에서 자동 재전송하지 않는다.
+
 ## 현재 private media 관리자 API
 
 모든 endpoint는 관리자 session이 필요하고 `POST`·`PUT`은 CSRF를 강제한다.

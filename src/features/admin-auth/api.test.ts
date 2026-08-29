@@ -414,6 +414,58 @@ describe("DefaultAdminAuthClient", () => {
     },
   );
 
+  it.each([
+    [404, "SHOP_SETTINGS_NOT_FOUND", "not-found"],
+    [422, "BUSINESS_HOURS_INVALID", "business-hours-invalid"],
+    [422, "SHOP_MEDIA_RELATION_INVALID", "shop-media-relation-invalid"],
+  ] as const)(
+    "shop status %i와 allowlisted code %s를 %s로 매핑한다",
+    async (status, code, kind) => {
+      const fetcher = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({ headerName: "X-CSRF-TOKEN", token: "session-csrf" }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ code, message: "backend raw message" }, status),
+        );
+      const client = new DefaultAdminAuthClient({ fetcher });
+
+      await expect(
+        client.requestJsonMutation(
+          "/api/admin/shop-settings",
+          "PUT",
+          { shopName: "테스트" },
+          acceptsRecord,
+        ),
+      ).rejects.toEqual(new AdminApiError(kind));
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each([200, 201])("JSON mutation의 %i success response를 검증한다", async (status) => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ headerName: "X-CSRF-TOKEN", token: "session-csrf" }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ shopName: "라오미펫" }, status));
+    const client = new DefaultAdminAuthClient({ fetcher });
+
+    await expect(
+      client.requestJsonMutation(
+        "/api/admin/shop-settings",
+        "PUT",
+        { shopName: "라오미펫" },
+        (value): value is { shopName: string } =>
+          typeof value === "object" &&
+          value !== null &&
+          "shopName" in value &&
+          typeof value.shopName === "string",
+      ),
+    ).resolves.toEqual({ shopName: "라오미펫" });
+  });
+
   it("authenticated image GET을 same-origin no-store로 읽고 JPEG/PNG만 허용한다", async () => {
     const fetcher = vi.fn().mockResolvedValue(
       new Response(new Uint8Array([1, 2, 3]), {

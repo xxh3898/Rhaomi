@@ -9,9 +9,9 @@ review_trigger: "관리 범위 변경 시"
 
 # 콘텐츠 소유권
 
-## 후속 `/admin`에서 운영자가 관리
+## `/admin`에서 운영자가 관리
 
-아래 관리자 API와 private media master는 구현됐다. `/admin/`의 media upload·목록·private preview·archive/restore UI는 Phase 1C-8a에서 구현됐고 나머지 콘텐츠 CRUD UI는 planned다.
+아래 관리자 API와 private media master는 구현됐다. `/admin/`의 media upload·목록·private preview·archive/restore UI는 Phase 1C-8a, 매장정보 전체 편집과 Hero·미용사·OG single media picker는 Phase 1C-8b에서 구현됐다. 갤러리·공지·견종·서비스 UI는 planned다.
 
 | 콘텐츠 | 컬렉션 | 운영자 권한 |
 |---|---|---|
@@ -22,7 +22,7 @@ review_trigger: "관리 범위 변경 시"
 | 공지 | `notices` | 생성·수정·보관 |
 | 업로드 파일 | `media_assets` | 라오미펫 원본 생성·조회·보관 |
 
-미디어 UI는 storage path·hash·원본 파일명을 노출하지 않고 backend의 validation·archive authority를 그대로 사용한다. 다른 콘텐츠에서 미디어를 선택하는 picker와 관계 편집은 아직 구현하지 않았다.
+미디어 UI와 picker는 storage path·hash·원본 파일명을 노출하지 않고 backend의 validation·archive authority를 그대로 사용한다. 매장정보 picker는 active asset만 새 관계로 선택하며 archived/missing 기존 UUID를 숨기지 않고 제거하거나 교체하도록 안내한다. 같은 asset을 Hero·미용사·OG에 재사용할 수 있고 Hero·미용사 alt는 선택한 공개 이미지 의미를 별도로 입력한다.
 
 ## 코드에서 개발자가 관리
 

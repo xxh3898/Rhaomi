@@ -3,13 +3,15 @@ title: "기준 매장정보"
 status: "draft"
 owner: "은총쌤"
 reviewers: "조치호"
-last_updated: "2026-08-28"
+last_updated: "2026-08-30"
 review_trigger: "매장정보 또는 외부 링크 변경 시"
 ---
 
 # 기준 매장정보
 
 아래 값은 2026-08-28 대화에서 제공된 초기값이다. 운영 배포 전 지도·매장 공식 정보와 일치 여부를 은총쌤이 최종 확인해야 한다.
+
+Phase 1C-8b의 `/admin/` 매장정보 form은 이 표의 값을 code seed나 fake default로 넣지 않는다. backend row가 없으면 빈 full form을 제공하며, 실제 값 입력·사진 선택·운영 반영은 별도 확인과 production 승인 뒤 수행한다.
 
 | 필드 | 현재 값 | 상태 |
 |---|---|---|
@@ -56,3 +58,12 @@ description:
 - 기타 향후 선택형 채널
 
 버튼을 비활성 상태로 보여주거나 `준비 중`으로 노출하지 않는다.
+
+## 관리 UI 입력 경계
+
+- 매장명·지역·업종·전화·주소·영업 시작·종료와 주차 가능 여부를 명시적으로 입력한다.
+- 선택 text와 외부 채널 input의 빈 값은 full PUT에서 `null`로 보낸다.
+- 외부 URL input은 UX 도움만 제공하고 absolute HTTPS·host·userinfo/control 검증은 backend가 최종 수행한다.
+- Hero·미용사·OG는 기존 active private media만 선택할 수 있으며 실제 파일 upload는 미디어 관리에서 먼저 수행한다.
+- archived/missing relation은 정상처럼 숨기지 않고 clear 또는 active media 교체가 필요한 상태로 표시한다.
+- Hero·미용사 이미지 선택 시 향후 공개 이미지 의미를 설명하는 alt가 필요하고 OG에는 alt field가 없다.
