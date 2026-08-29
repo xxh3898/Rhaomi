@@ -20,6 +20,33 @@ export type CsrfToken = Readonly<{
 
 export type LogoutResult = "logged-out" | "session-ended";
 
+export type JsonValidator<T> = (value: unknown) => value is T;
+
+export type AdminMutationMethod = "POST" | "PUT";
+
+export interface AdminApiTransport {
+  requestAuthenticatedJson<T>(
+    path: string,
+    validator: JsonValidator<T>,
+  ): Promise<T>;
+  requestJsonMutation<T>(
+    path: string,
+    method: AdminMutationMethod,
+    body: unknown,
+    validator: JsonValidator<T>,
+  ): Promise<T>;
+  requestMultipartMutation<T>(
+    path: string,
+    method: "POST",
+    body: FormData,
+    validator: JsonValidator<T>,
+  ): Promise<T>;
+  requestAuthenticatedBlob(
+    path: string,
+    allowedContentTypes: readonly string[],
+  ): Promise<Blob>;
+}
+
 export type AdminAuthErrorKind =
   | "invalid-credentials"
   | "invalid-request"
@@ -28,7 +55,7 @@ export type AdminAuthErrorKind =
   | "session-expired"
   | "unavailable";
 
-export interface AdminAuthClient {
+export interface AdminAuthClient extends AdminApiTransport {
   getSession(): Promise<AdminIdentity | null>;
   login(credentials: LoginCredentials): Promise<AdminIdentity>;
   prepareSessionCsrf(): Promise<void>;

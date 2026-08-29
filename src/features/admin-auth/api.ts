@@ -3,7 +3,9 @@ import {
   type AdminAuthClient,
   type AdminAuthErrorKind,
   type AdminIdentity,
+  type AdminMutationMethod,
   type CsrfToken,
+  type JsonValidator,
   type LoginCredentials,
   type LogoutResult,
 } from "./types";
@@ -15,12 +17,21 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type Fetcher = typeof fetch;
-type JsonValidator<T> = (value: unknown) => value is T;
-
 type AdminAuthClientOptions = Readonly<{
   fetcher?: Fetcher;
   onSessionExpired?: () => void;
 }>;
+
+export type AdminApiErrorKind =
+  | "invalid-request"
+  | "not-found"
+  | "too-large"
+  | "type-unsupported"
+  | "invalid-image"
+  | "processor-unavailable"
+  | "forbidden"
+  | "session-expired"
+  | "unavailable";
 
 export class AdminAuthError extends Error {
   readonly kind: AdminAuthErrorKind;
@@ -34,6 +45,20 @@ export class AdminAuthError extends Error {
 
 export function isAdminAuthError(error: unknown): error is AdminAuthError {
   return error instanceof AdminAuthError;
+}
+
+export class AdminApiError extends Error {
+  readonly kind: AdminApiErrorKind;
+
+  constructor(kind: AdminApiErrorKind) {
+    super(kind);
+    this.name = "AdminApiError";
+    this.kind = kind;
+  }
+}
+
+export function isAdminApiError(error: unknown): error is AdminApiError {
+  return error instanceof AdminApiError;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -68,6 +93,7 @@ function isSuccessStatus(status: number): boolean {
 async function decodeJson<T>(
   response: Response,
   validator: JsonValidator<T>,
+  invalidResponse: () => Error,
 ): Promise<T> {
   try {
     const value: unknown = await response.json();
@@ -78,13 +104,53 @@ async function decodeJson<T>(
     // UI에는 parser detail이나 원문 response를 전달하지 않는다.
   }
 
-  throw new AdminAuthError("unavailable");
+  throw invalidResponse();
 }
 
 function assertAdminPath(path: string): void {
-  if (!path.startsWith(ADMIN_PATH_PREFIX) || path.startsWith("//")) {
-    throw new AdminAuthError("unavailable");
+  if (
+    !path.startsWith(ADMIN_PATH_PREFIX) ||
+    !/^\/api\/admin\/[A-Za-z0-9/_-]*$/.test(path) ||
+    path.includes("..")
+  ) {
+    throw new AdminApiError("unavailable");
   }
+}
+
+async function readApiErrorCode(response: Response): Promise<string | null> {
+  try {
+    const value: unknown = await response.json();
+    if (isRecord(value) && typeof value.code === "string") {
+      return value.code;
+    }
+  } catch {
+    // status와 allowlist code 외 response detail은 사용하지 않는다.
+  }
+  return null;
+}
+
+async function mapApiFailure(response: Response): Promise<AdminApiError> {
+  const code = await readApiErrorCode(response);
+
+  if (response.status === 400 && code === "INVALID_REQUEST") {
+    return new AdminApiError("invalid-request");
+  }
+  if (response.status === 404 && code === "MEDIA_NOT_FOUND") {
+    return new AdminApiError("not-found");
+  }
+  if (response.status === 413 && code === "MEDIA_TOO_LARGE") {
+    return new AdminApiError("too-large");
+  }
+  if (response.status === 415 && code === "MEDIA_TYPE_UNSUPPORTED") {
+    return new AdminApiError("type-unsupported");
+  }
+  if (response.status === 422 && code === "MEDIA_INVALID_IMAGE") {
+    return new AdminApiError("invalid-image");
+  }
+  if (response.status === 503 && code === "MEDIA_PROCESSOR_UNAVAILABLE") {
+    return new AdminApiError("processor-unavailable");
+  }
+  return new AdminApiError("unavailable");
 }
 
 function mapLoginFailure(status: number): AdminAuthError {
@@ -128,7 +194,11 @@ export class DefaultAdminAuthClient implements AdminAuthClient {
       throw new AdminAuthError("unavailable");
     }
 
-    return decodeJson(response, isAdminIdentity);
+    return decodeJson(
+      response,
+      isAdminIdentity,
+      () => new AdminAuthError("unavailable"),
+    );
   }
 
   async login(credentials: LoginCredentials): Promise<AdminIdentity> {
@@ -153,7 +223,11 @@ export class DefaultAdminAuthClient implements AdminAuthClient {
       throw mapLoginFailure(response.status);
     }
 
-    return decodeJson(response, isAdminIdentity);
+    return decodeJson(
+      response,
+      isAdminIdentity,
+      () => new AdminAuthError("unavailable"),
+    );
   }
 
   async prepareSessionCsrf(): Promise<void> {
@@ -191,20 +265,87 @@ export class DefaultAdminAuthClient implements AdminAuthClient {
     validator: JsonValidator<T>,
   ): Promise<T> {
     const response = await this.#request(path, { method: "GET" });
+    await this.#assertAuthenticatedSuccess(response, false);
+    return decodeJson(
+      response,
+      validator,
+      () => new AdminApiError("unavailable"),
+    );
+  }
 
-    if (response.status === 401) {
-      this.clearSession();
-      this.#onSessionExpired();
-      throw new AdminAuthError("session-expired");
+  async requestJsonMutation<T>(
+    path: string,
+    method: AdminMutationMethod,
+    body: unknown,
+    validator: JsonValidator<T>,
+  ): Promise<T> {
+    const csrfToken = this.#csrfToken ?? (await this.#fetchCsrf());
+    const response = await this.#request(path, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        [csrfToken.headerName]: csrfToken.token,
+      },
+      body: JSON.stringify(body),
+    });
+    await this.#assertAuthenticatedSuccess(response, true);
+    return decodeJson(
+      response,
+      validator,
+      () => new AdminApiError("unavailable"),
+    );
+  }
+
+  async requestMultipartMutation<T>(
+    path: string,
+    method: "POST",
+    body: FormData,
+    validator: JsonValidator<T>,
+  ): Promise<T> {
+    const csrfToken = this.#csrfToken ?? (await this.#fetchCsrf());
+    const response = await this.#request(path, {
+      method,
+      headers: { [csrfToken.headerName]: csrfToken.token },
+      body,
+    });
+    await this.#assertAuthenticatedSuccess(response, true);
+    return decodeJson(
+      response,
+      validator,
+      () => new AdminApiError("unavailable"),
+    );
+  }
+
+  async requestAuthenticatedBlob(
+    path: string,
+    allowedContentTypes: readonly string[],
+  ): Promise<Blob> {
+    const normalizedContentTypes = allowedContentTypes.map((value) =>
+      value.toLowerCase(),
+    );
+    if (normalizedContentTypes.length === 0) {
+      throw new AdminApiError("unavailable");
     }
-    if (response.status === 403) {
-      throw new AdminAuthError("forbidden");
-    }
-    if (!isSuccessStatus(response.status)) {
-      throw new AdminAuthError("unavailable");
+    const response = await this.#request(path, {
+      method: "GET",
+      headers: { Accept: normalizedContentTypes.join(", ") },
+    });
+    await this.#assertAuthenticatedSuccess(response, false);
+
+    const contentType = response.headers
+      .get("Content-Type")
+      ?.split(";", 1)[0]
+      ?.trim()
+      .toLowerCase();
+    if (!contentType || !normalizedContentTypes.includes(contentType)) {
+      throw new AdminApiError("unavailable");
     }
 
-    return decodeJson(response, validator);
+    const blob = await response.blob();
+    if (blob.size === 0 || blob.type.toLowerCase() !== contentType) {
+      throw new AdminApiError("unavailable");
+    }
+    return blob;
   }
 
   async #fetchCsrf(): Promise<CsrfToken> {
@@ -215,16 +356,42 @@ export class DefaultAdminAuthClient implements AdminAuthClient {
       );
     }
 
-    const csrfToken = await decodeJson(response, isCsrfToken);
+    const csrfToken = await decodeJson(
+      response,
+      isCsrfToken,
+      () => new AdminAuthError("unavailable"),
+    );
     this.#csrfToken = csrfToken;
     return csrfToken;
+  }
+
+  async #assertAuthenticatedSuccess(
+    response: Response,
+    mutation: boolean,
+  ): Promise<void> {
+    if (response.status === 401) {
+      this.clearSession();
+      this.#onSessionExpired();
+      throw new AdminApiError("session-expired");
+    }
+    if (response.status === 403) {
+      if (mutation) {
+        this.#csrfToken = null;
+      }
+      throw new AdminApiError("forbidden");
+    }
+    if (!isSuccessStatus(response.status)) {
+      throw await mapApiFailure(response);
+    }
   }
 
   async #request(path: string, init: RequestInit): Promise<Response> {
     assertAdminPath(path);
     const method = (init.method ?? "GET").toUpperCase();
     const headers = new Headers(init.headers);
-    headers.set("Accept", "application/json");
+    if (!headers.has("Accept")) {
+      headers.set("Accept", "application/json");
+    }
 
     try {
       return await this.#fetcher(path, {

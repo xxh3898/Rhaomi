@@ -3,7 +3,7 @@ title: "로드맵"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "릴리스 범위 변경 시"
 ---
 
@@ -110,9 +110,20 @@ Phase 1C-6은 실제 이미지·운영값 입력, crop·responsive derivative, p
 
 Phase 1C-7은 실제 콘텐츠 CRUD 화면, 운영 Nginx/TLS·2FA, 공개 build API나 실제 iPhone Safari 검증의 완료를 의미하지 않는다.
 
-### Phase 1C-8 이후 — 나머지 콘텐츠 기능
+### Phase 1C-8a — 관리자 미디어 UI
 
-- `/admin` 콘텐츠 관리 UI
+- 기존 session·in-memory CSRF를 재사용하는 공통 JSON·multipart·binary admin transport
+- `/admin/` dashboard에서 미디어만 enabled인 same-page navigation
+- private media 목록·active/archived filter와 authenticated lazy Blob preview
+- 단일 파일 upload, 20 MiB client 안내와 backend-authoritative format validation
+- 복구 가능한 archive/restore와 401 session expiry·403 mutation non-retry
+- 320px·keyboard·focus·44px·aria·reduced-motion component/contract 검증
+
+Phase 1C-8a는 다른 콘텐츠 CRUD UI, media picker, public/build media API, 실제 iPhone Safari HEIC upload나 운영 배포의 완료를 의미하지 않는다.
+
+### Phase 1C-8b 이후 — 나머지 콘텐츠 기능
+
+- `/admin` 매장정보·갤러리·공지·견종·서비스 관리 UI
 - build-time read-only API와 credential 분리
 - 샘플 콘텐츠
 

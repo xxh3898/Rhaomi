@@ -3,7 +3,7 @@ title: "API·빌드 계약"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "관리 API·build 입력 변경 시"
 ---
 
@@ -129,6 +129,16 @@ review_trigger: "관리 API·build 입력 변경 시"
 - validation·normalization 실패 시 temp·final·DB orphan을 남기지 않고, DB rollback/commit 실패 시 이동한 final master를 transaction completion에서 제거한다.
 
 오류는 missing/empty/malformed/unknown field `400 INVALID_REQUEST`, source 초과 `413 MEDIA_TOO_LARGE`, unsupported byte·AVIF 또는 명시 MIME·extension 충돌 `415 MEDIA_TYPE_UNSUPPORTED`, 손상·decode 불가·APNG·multi-image/sequence·dimension/pixel/output limit `422 MEDIA_INVALID_IMAGE`, 없는 id `404 MEDIA_NOT_FOUND`, codec unavailable `503 MEDIA_PROCESSOR_UNAVAILABLE`를 사용한다. `heim | heis`는 format detector에서 HEIC still로 인식하며 현재 decoder가 처리하지 못하면 unsupported가 아니라 `422 MEDIA_INVALID_IMAGE`로 종료한다. filesystem·DB 장애는 내부 path·constraint detail 없는 generic `5xx`다.
+
+### 관리자 웹 소비 상태
+
+- `/admin/` media manager는 위 endpoint를 상대경로로만 사용하며 API semantics와 backend validation authority를 변경하지 않는다.
+- 목록은 query parameter 없이 전체 response의 server ordering을 유지하고 active/archived filter만 client-side view로 적용한다.
+- private content는 authenticated no-store fetch와 JPEG/PNG content-type 검증 뒤 Blob object URL로 표시한다. public URL이나 storage path로 취급하지 않는다.
+- upload는 `FormData`의 `file` part 하나를 사용하고 browser가 multipart boundary를 생성한다. 사용자 upload action 1회당 POST는 최대 1회다.
+- status mutation은 status-only PUT이며 403·network·5xx·malformed response에서 자동 retry하거나 낙관 성공으로 확정하지 않는다.
+- media request의 401은 in-memory CSRF와 dashboard state를 제거하고 login 화면으로 돌아간다. mutation 403은 CSRF를 폐기하고 다음 사용자 action에서만 fresh token을 준비한다.
+- UI 오류 문구는 allowlisted status/code로 소유하며 backend raw message·exception detail을 출력하지 않는다.
 
 ## publisher event — planned
 

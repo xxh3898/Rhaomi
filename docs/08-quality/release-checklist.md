@@ -3,7 +3,7 @@ title: "출시 체크리스트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "출시 기준 변경 시"
 ---
 
@@ -34,6 +34,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] 관리자 2FA
 - [ ] 상태 validation
 - [ ] archive 운영
+- [ ] `/admin/` media list·authenticated preview·single upload·archive/restore와 401/403 non-retry 계약
 - [ ] 공개 영향 transaction과 같은 PostgreSQL transaction의 immediate publishing event
 - [ ] future notice publishedAt·expiresAt의 `availableAt` durable scheduled event와 overdue recovery
 - [ ] scheduled event current-row/snapshot 재검증과 reschedule·draft/archive·window-change stale no-op/coalesce
@@ -43,7 +44,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] published·notice expiry·relation·media/file의 API/transformer 이중 검증
 - [ ] publisher 동일 generation 1분·5분·15분 최대 3회 retry, 승인된 manual rebuild/retry의 새 generation과 data 오류 중단
 - [ ] snapshot/release manifest의 `contentRevision`·`publishGeneration`·`generatedAt`과 generation 기준 stale switch 거부
-- [ ] 실제 iPhone CRUD
+- [ ] 실제 iPhone Safari HEIC 선택·upload·preview·archive/restore
 
 ## 공개 사이트
 

@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { AdminAuthError } from "@/features/admin-auth/api";
+import { AdminApiError, AdminAuthError } from "@/features/admin-auth/api";
 import type { AdminAuthClient } from "@/features/admin-auth/types";
 
 import { AdminAuthShell } from "./AdminAuthShell";
@@ -22,6 +22,10 @@ function createClient(
     prepareSessionCsrf: vi.fn().mockResolvedValue(undefined),
     logout: vi.fn().mockResolvedValue("logged-out"),
     clearSession: vi.fn(),
+    requestAuthenticatedJson: vi.fn().mockResolvedValue([]),
+    requestJsonMutation: vi.fn(),
+    requestMultipartMutation: vi.fn(),
+    requestAuthenticatedBlob: vi.fn(),
     ...overrides,
   };
 }
@@ -252,7 +256,8 @@ describe("AdminAuthShell", () => {
     expect(getSession).toHaveBeenCalledTimes(2);
   });
 
-  it("dashboard에 identity와 disabled 준비 중 영역만 표시한다", async () => {
+  it("dashboard에서 미디어만 열고 나머지 관리 영역은 준비 중으로 유지한다", async () => {
+    const user = userEvent.setup();
     const client = createClient({
       getSession: vi.fn().mockResolvedValue(ADMIN),
     });
@@ -261,11 +266,21 @@ describe("AdminAuthShell", () => {
 
     expect(await screen.findByText(ADMIN.email)).toBeInTheDocument();
     expect(screen.getByText("역할: ADMIN")).toBeInTheDocument();
-    expect(screen.getAllByText("준비 중")).toHaveLength(6);
-    for (const area of ["매장정보", "갤러리", "미디어", "공지", "견종", "서비스"]) {
+    expect(screen.getAllByText("준비 중")).toHaveLength(5);
+    for (const area of ["매장정보", "갤러리", "공지", "견종", "서비스"]) {
       expect(screen.getByRole("button", { name: `${area}, 준비 중` })).toBeDisabled();
     }
+    const mediaButton = screen.getByRole("button", { name: "미디어 관리 열기" });
+    expect(mediaButton).toBeEnabled();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
+
+    mediaButton.focus();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("heading", { name: "미디어 관리" })).toBeInTheDocument();
+    expect(screen.getByText(/업로드된 미디어가 없습니다/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "관리 홈으로" }));
+    expect(screen.getByRole("button", { name: "미디어 관리 열기" })).toBeEnabled();
   });
 
   it("keyboard로 logout하고 anonymous form으로 전환한다", async () => {
@@ -284,6 +299,23 @@ describe("AdminAuthShell", () => {
 
     expect(logout).toHaveBeenCalledTimes(1);
     expect(await screen.findByRole("button", { name: "로그인" })).toBeEnabled();
+  });
+
+  it("media request 401에서 dashboard를 비우고 로그인 form으로 복귀한다", async () => {
+    const user = userEvent.setup();
+    const client = createClient({
+      getSession: vi.fn().mockResolvedValue(ADMIN),
+      requestAuthenticatedJson: vi
+        .fn()
+        .mockRejectedValue(new AdminApiError("session-expired")),
+    });
+
+    render(<AdminAuthShell client={client} />);
+    await user.click(await screen.findByRole("button", { name: "미디어 관리 열기" }));
+
+    expect(await screen.findByRole("button", { name: "로그인" })).toBeEnabled();
+    expect(screen.getByRole("alert")).toHaveTextContent("관리자 세션이 만료됐습니다.");
+    expect(screen.queryByText(ADMIN.email)).not.toBeInTheDocument();
   });
 
   it("logout 403을 성공으로 위장하지 않고 dashboard에 고정 오류를 표시한다", async () => {
