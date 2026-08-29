@@ -26,6 +26,7 @@ review_trigger: "항목 확정 시"
 | 영업시간·정기휴무·주차 | 확인 필요 | 은총쌤 | 공개할 현재값과 지도 서비스 정보의 일치 확인 |
 | 백업 외부 목적지 | 미정 | 조치호 | Mac mini 외부의 복구 가능한 저장소 결정 |
 | 관리자 2FA | 미설정 | 조치호·은총쌤 | 운영 계정 2FA 등록 및 복구코드 보관 |
+| 실제 iPhone HEIC 업로드 | 미검증 | 조치호·은총쌤 | 후속 `/admin` UI에서 iPhone Safari 원본 선택·업로드·방향·색상 확인 |
 
 ## 구현 중 확정 가능
 
@@ -42,7 +43,8 @@ review_trigger: "항목 확정 시"
 
 - Flyway V4와 매장정보 관리자 API는 text·영업정보·외부 링크를 담을 구조와 검증만 제공한다.
 - 실제 라오미펫 상호·주소·전화·영업시간·소개·외부 URL은 migration, source constant, 기본 fixture로 seed하지 않는다.
-- Hero·프로필·OG 실제 이미지와 relation은 media table·storage 계약이 구현될 때까지 출시 차단 상태로 남긴다.
+- Flyway V5와 private media upload/master 계약은 구현됐지만 Hero·프로필·OG·gallery FK relation과 공개 responsive 파생본은 아직 없다.
+- 실제 사진 게시 동의, 실제 iPhone Safari UI 검증과 운영 private storage·backup이 완료될 때까지 사진 공개는 출시 차단 상태로 남긴다.
 - 이번 Issue에서는 운영 `shop_settings` provisioning과 production migration을 실행하지 않는다. 실제 값 확인과 별도 운영 승인을 거친 후속 작업으로 남긴다.
 
 ## 확인 전 실행 보류

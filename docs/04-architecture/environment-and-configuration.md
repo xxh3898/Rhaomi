@@ -19,7 +19,7 @@ production
 
 별도 staging을 장기간 운영하지 않더라도 local 또는 임시 환경에서 production과 같은 인증·DB 계약을 검증한다.
 
-## Phase 1B local 개발 계약
+## Phase 1C-4 local 개발 계약
 
 - Compose file: `compose.dev.yaml`
 - Compose project: `dev-rhaomi`
@@ -27,6 +27,8 @@ production
 - 공개 example: `.env.example`
 - Node.js: `24.20.0-alpine3.23`
 - Java: `eclipse-temurin:25.0.4_7-jdk-alpine-3.23`
+- HEIC ImageIO adapter: NightMonkeys `imageio-heif 1.1.0`
+- native codec: Alpine `libheif 1.23.0-r0`
 - Spring Boot: `4.1.1`
 - Gradle Wrapper: `9.7.1`
 - PostgreSQL: `18.6-alpine3.23`
@@ -49,6 +51,18 @@ production
 | `RHAOMI_SESSION_COOKIE_SECURE` | N | local HTTP는 `false`, production TLS는 `true` |
 
 Compose는 `POSTGRES_*`에서 backend의 `SPRING_DATASOURCE_*`를 내부 service hostname으로 구성한다. production에서는 운영 전용 Secret과 정확한 runtime contract를 별도 Compose에서 사용한다.
+
+## private media
+
+| 변수 | 비밀 | 기본값 | 설명 |
+|---|---:|---|---|
+| `RHAOMI_MEDIA_ROOT` | N, 내부 경로 | Compose `/var/lib/rhaomi/media` | backend 전용 temp·master의 동일 filesystem root |
+
+- root가 비었거나 temp/master directory를 만들고 쓸 수 없거나 두 directory가 다른 filesystem이면 backend 기동을 실패시킨다.
+- local Compose는 별도 persistent `dev-rhaomi-backend-media-masters` volume을 backend에만 mount한다.
+- source 20 MiB, stored 30 MiB, width·height 12,000px, total 60MP, JPEG quality 92는 현재 application contract로 고정하며 client request나 공개 env로 변경하지 않는다.
+- `JAVA_TOOL_OPTIONS=--enable-native-access=ALL-UNNAMED`는 pinned FFM 기반 HEIC adapter 실행에 필요하며 backend image와 Gradle test/bootRun에만 적용한다.
+- production root·volume·backup은 local 값을 재사용하지 않고 별도 운영 승인에서 exact path와 restore 절차를 정한다.
 
 ## local/test 관리자 bootstrap
 
@@ -96,7 +110,7 @@ build credential은 관리자 session과 분리하고 절대 `NEXT_PUBLIC_` 접�
 - 실제 key, password, 실사용 email 금지
 - 운영 `.env`와 credential source를 참조하지 않음
 
-현재 example에는 PostgreSQL, session cookie, 비활성 local/test bootstrap 변수만 둔다.
+현재 example에는 PostgreSQL, session cookie, 비활성 local/test bootstrap과 local-safe private media root만 둔다.
 
 ## domain — 후속
 

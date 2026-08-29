@@ -19,6 +19,10 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
 
 server:
   error:
@@ -49,3 +53,11 @@ rhaomi:
     enabled: ${RHAOMI_BOOTSTRAP_ADMIN_ENABLED:false}
     email: ${RHAOMI_BOOTSTRAP_ADMIN_EMAIL:}
     password: ${RHAOMI_BOOTSTRAP_ADMIN_PASSWORD:}
+  media:
+    root: ${RHAOMI_MEDIA_ROOT}
+    max-source-bytes: 20971520
+    max-stored-bytes: 31457280
+    max-width: 12000
+    max-height: 12000
+    max-pixels: 60000000
+    jpeg-quality: 92

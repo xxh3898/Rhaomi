@@ -68,13 +68,23 @@ Phase 1C-2는 공개 공지 UI·정적 route, build API, Markdown 렌더링·san
 
 Phase 1C-3은 실제 운영값 입력, Hero·프로필·OG 이미지 relation, 갤러리, 관리자 화면, 공개 build API나 정적 배포의 완료를 의미하지 않는다.
 
-### Phase 1C-4 이후 — 나머지 콘텐츠 도메인
+### Phase 1C-4 — private media upload 기반
 
-- 갤러리·원본 이미지 table과 Flyway migration
+- Flyway V5 `media_assets`와 backend 전용 private filesystem master
+- 실제 byte signature·decoder·용량·dimension·pixel 검증
+- JPEG/PNG 검증 원본 보존, HEIC/HEIF orientation·sRGB·metadata-free JPEG 정규화
+- 관리자 session·CSRF 기반 upload/list/detail/content/archive·restore API
+- DB/filesystem rollback cleanup과 restart persistence
+- Linux amd64 Hosted CI와 Mac mini/Linux arm64 실제 HEIC fixture 검증
+
+Phase 1C-4는 갤러리 relation, Hero·프로필·OG FK, public/build media API, responsive 파생본, 관리자 UI, 실제 iPhone Safari 검증이나 운영 storage 배포의 완료를 의미하지 않는다.
+
+### Phase 1C-5 이후 — 나머지 콘텐츠 도메인
+
+- 갤러리 table과 Flyway migration
 - 매장정보 Hero·프로필·OG 이미지 relation
 - 관리자 DTO field allowlist와 archive 정책
 - `/admin` 로그인·콘텐츠 관리 UI
-- 이미지 원본 storage와 upload validation
 - build-time read-only API와 credential 분리
 - 샘플 콘텐츠
 

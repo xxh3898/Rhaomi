@@ -21,6 +21,7 @@ review_trigger: "비밀관리·인증·저장소 변경 시"
 - 백업 암호화 키
 
 관리자 email과 password hash는 공개 정보가 아니며 최소 접근 데이터로 취급한다.
+private media master와 server-owned storage key도 공개 정보가 아니며 원본 사진은 민감 데이터로 취급한다.
 
 ## 저장 원칙
 
@@ -32,6 +33,8 @@ review_trigger: "비밀관리·인증·저장소 변경 시"
 - session과 CSRF token은 URL query에 넣지 않음
 - log, error response, test report, build artifact에 password/hash/session/token 출력 금지
 - 사람 비밀번호와 향후 서비스 credential 분리
+- `RHAOMI_MEDIA_ROOT`, storage key와 absolute path를 response·client field·일반 log에 노출하지 않음
+- raw multipart body·file byte를 logging하지 않음
 
 ## cookie
 
@@ -67,7 +70,7 @@ review_trigger: "비밀관리·인증·저장소 변경 시"
 |---|---|---|
 | 공개 | 매장명, 주소, 공개 공지, 공개 파생 이미지 | 정적 사이트 |
 | 내부 | draft 콘텐츠, 운영·빌드 로그 | 인증·제한된 보존 |
-| 민감 | 원본 사진, 관리자 email, IP log | 최소 접근·backup 보호 |
+| 민감 | JPEG·PNG 원본 master, HEIC/HEIF normalized master, 관리자 email, IP log | 최소 접근·backup 보호 |
 | 비밀 | password, session id, token, DB credential | 별도 Secret 관리 |
 
 ## 로그와 response
@@ -78,10 +81,13 @@ review_trigger: "비밀관리·인증·저장소 변경 시"
 - `/me`와 login response는 관리자 id, email, role만 반환
 - entity의 `passwordHash`는 API DTO에 포함하지 않음
 - 장애 분석에는 request id, endpoint, 결과 status 중심으로 기록
+- media cleanup 실패는 operation과 asset id만 structured log에 남기고 root·storage key·absolute path는 남기지 않음
 
 ## 백업
 
-- PostgreSQL과 향후 원본 파일 storage를 project 단위로 분리
+- PostgreSQL과 private media master storage를 서로 다른 project 전용 volume으로 분리
 - Mac mini 고장과 분리된 offsite copy
 - backup 접근권한 최소화와 restore test
 - backup 삭제는 승인과 보존 정책 적용
+
+현재 local Compose media volume은 persistence contract 검증용이며 운영 backup 구현 완료를 뜻하지 않는다. production media path·snapshot·offsite restore는 별도 승인 전까지 출시 차단이다.

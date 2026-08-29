@@ -15,10 +15,29 @@ review_trigger: "주요 의존성·라이선스 변경 시"
 - Spring Boot `4.1.1`
 - Gradle Wrapper `9.7.1`
 - PostgreSQL `18.6-alpine3.23`
+- NightMonkeys `imageio-heif 1.1.0` — MIT, Java 22+ FFM ImageIO adapter
+- Alpine `libheif 1.23.0-r0` — LGPL-3.0-or-later, amd64·arm64 native HEIC/HEIF decode/color transform
 - Next.js와 frontend dependency는 `package-lock.json` 기준
 - Docker image는 검증한 exact tag를 사용하고 운영에서는 가능하면 digest까지 고정
 
 Spring Boot 버전은 구현 시점의 Spring 공식 stable과 system requirements를 확인해 선택했다. major/minor 변경은 별도 Issue에서 Java·Gradle·plugin 호환성과 보안 변경을 함께 검토한다.
+
+## HEIC runtime 인벤토리
+
+backend Dockerfile은 exact Temurin 25 manifest와 Alpine 3.23의 `libheif=1.23.0-r0`, `libheif-dev=1.23.0-r0`를 고정한다. application runtime에서 codec이나 모델을 다운로드하지 않으며 client 문자열로 외부 process를 실행하지 않는다.
+
+Alpine package가 동적 link하는 현재 runtime package와 Alpine metadata의 license는 다음과 같다.
+
+| package | version | license | 현재 용도 |
+|---|---|---|---|
+| NightMonkeys `imageio-heif` | `1.1.0` | MIT | Java ImageIO adapter |
+| `libheif` | `1.23.0-r0` | LGPL-3.0-or-later | HEIF container·decode·color transform |
+| `libde265` | `1.0.16-r0` | LGPL-3.0-or-later | HEVC decode |
+| `x265-libs` | `4.1-r0` | GPL-2.0-or-later | Alpine `libheif`의 linked HEVC encoder dependency, application 미사용 |
+| `aom-libs` | `3.14.1-r0` | BSD-2-Clause AND custom | Alpine `libheif` transitive codec library |
+| `libsharpyuv` | `1.6.0-r0` | BSD-3-Clause | color conversion dependency |
+
+현재 workflow는 image를 test용으로 build할 뿐 registry에 publish하지 않는다. 후속 production image 배포 전에는 위 transitive package를 SBOM·notice에 포함하고 LGPL/GPL source·재연결 조건을 충족해야 한다. 제품 배포 정책과 GPL 구성의 양립이 어렵다면 x265 encoder를 제외한 decoder-only `libheif` build를 별도 ADR·CI로 교체한다. 이 license gate를 무시한 image publish는 허용하지 않는다.
 
 ## Directus 결정 기록
 

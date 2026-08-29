@@ -1,4 +1,4 @@
-name: dev-rhaomi
+name: ${RHAOMI_COMPOSE_PROJECT_NAME:-dev-rhaomi}
 
 services:
   frontend:
@@ -19,7 +19,10 @@ services:
       - frontend-local
 
   backend:
-    image: eclipse-temurin:25.0.4_7-jdk-alpine-3.23@sha256:b7c88ce22d575642650ec83cbf4e470a0c183a46871467180238e4b27ad9e20a
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.dev
+    image: dev-rhaomi-backend:java25-libheif-1.23.0
     init: true
     working_dir: /workspace/backend
     command: ["./gradlew", "bootRun", "--no-daemon"]
@@ -35,9 +38,11 @@ services:
       RHAOMI_BOOTSTRAP_ADMIN_ENABLED: ${RHAOMI_BOOTSTRAP_ADMIN_ENABLED:-false}
       RHAOMI_BOOTSTRAP_ADMIN_EMAIL: ${RHAOMI_BOOTSTRAP_ADMIN_EMAIL:-}
       RHAOMI_BOOTSTRAP_ADMIN_PASSWORD: ${RHAOMI_BOOTSTRAP_ADMIN_PASSWORD:-}
+      RHAOMI_MEDIA_ROOT: ${RHAOMI_MEDIA_ROOT:-/var/lib/rhaomi/media}
     volumes:
       - ./backend:/workspace/backend
       - backend-gradle-cache:/root/.gradle
+      - backend-media-masters:/var/lib/rhaomi/media
     ports:
       - "127.0.0.1:8080:8080"
     networks:
@@ -89,24 +94,27 @@ services:
       RHAOMI_BOOTSTRAP_ADMIN_PASSWORD: ${RHAOMI_BOOTSTRAP_ADMIN_PASSWORD:-}
     volumes:
       - ./scripts:/workspace/scripts:ro
+      - ./backend/src/test/resources/media:/workspace/media-fixtures:ro
     networks:
       - backend-internal
 
 volumes:
   frontend-node-modules:
-    name: dev-rhaomi-frontend-node-modules
+    name: ${RHAOMI_COMPOSE_VOLUME_PREFIX:-dev-rhaomi}-frontend-node-modules
   frontend-npm-cache:
-    name: dev-rhaomi-frontend-npm-cache
+    name: ${RHAOMI_COMPOSE_VOLUME_PREFIX:-dev-rhaomi}-frontend-npm-cache
   backend-gradle-cache:
-    name: dev-rhaomi-backend-gradle-cache
+    name: ${RHAOMI_COMPOSE_VOLUME_PREFIX:-dev-rhaomi}-backend-gradle-cache
+  backend-media-masters:
+    name: ${RHAOMI_COMPOSE_VOLUME_PREFIX:-dev-rhaomi}-backend-media-masters
   postgres-data:
-    name: dev-rhaomi-postgres-18-backend-data
+    name: ${RHAOMI_COMPOSE_VOLUME_PREFIX:-dev-rhaomi}-postgres-18-backend-data
 
 networks:
   frontend-local:
-    name: dev-rhaomi-frontend-local
+    name: ${RHAOMI_COMPOSE_NETWORK_PREFIX:-dev-rhaomi}-frontend-local
   backend-local:
-    name: dev-rhaomi-backend-local
+    name: ${RHAOMI_COMPOSE_NETWORK_PREFIX:-dev-rhaomi}-backend-local
   backend-internal:
-    name: dev-rhaomi-backend-internal
+    name: ${RHAOMI_COMPOSE_NETWORK_PREFIX:-dev-rhaomi}-backend-internal
     internal: true

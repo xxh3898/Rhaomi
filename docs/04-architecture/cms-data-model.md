@@ -11,10 +11,10 @@ review_trigger: "PostgreSQL table·field·API 변경 시"
 
 ## 구현 상태
 
-- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`, Flyway V4의 `shop_settings`
-- 후속 구현: 갤러리, 원본 이미지, 매장정보 이미지 relation
+- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`, Flyway V4의 `shop_settings`, Flyway V5의 `media_assets`
+- 후속 구현: 갤러리와 매장정보 이미지 relation
 
-`breeds`, `services`, `notices`, `shop_settings`는 현재 schema와 관리 API 계약이고, 나머지 콘텐츠 모델은 제품 방향을 위한 proposed 계약이다.
+`breeds`, `services`, `notices`, `shop_settings`, `media_assets`는 현재 schema와 관리 API 계약이고, 나머지 콘텐츠 모델은 제품 방향을 위한 proposed 계약이다.
 
 ## 현재 `admin_users`
 
@@ -49,11 +49,13 @@ erDiagram
     SHOP_SETTINGS { uuid id PK }
     BREEDS { uuid id PK string name string slug }
     SERVICES { uuid id PK string name string slug }
+    MEDIA_ASSETS { uuid id PK string status string content_type string storage_key }
     GALLERY_ITEMS { uuid id PK uuid breed_id FK uuid primary_service_id FK uuid cover_image_id FK }
     NOTICES { uuid id PK string slug }
 
     BREEDS ||--o{ GALLERY_ITEMS : classifies
     SERVICES ||--o{ GALLERY_ITEMS : describes
+    MEDIA_ASSETS ||--o{ GALLERY_ITEMS : supplies
 ```
 
 ## 현재 `shop_settings` singleton
@@ -92,8 +94,32 @@ erDiagram
 - 전화번호는 허용 문자와 숫자 개수를 application에서 검증한다.
 - 선택형 URL은 absolute HTTPS, host 필수, userinfo·control 문자 금지를 application에서 검증하고 DB column이 최대 길이를 제한한다.
 - 최초 PUT actor가 created/updated audit를 채우고 후속 PUT은 created audit를 보존한다. validation 실패는 모든 field와 audit를 보존한다.
-- Hero·프로필·OG 이미지 식별자나 임시 path는 저장하지 않으며 media table 이후 FK relation으로 추가한다.
+- Hero·프로필·OG 이미지 식별자나 임시 path는 저장하지 않으며 `media_assets` FK relation은 후속 migration에서 추가한다.
 - schema source of truth는 `backend/src/main/resources/db/migration/V4__create_shop_settings.sql`이다.
+
+## 현재 `media_assets`
+
+| field | type | 필수 | 설명 |
+|---|---|---:|---|
+| `id` | UUID | Y | application-generated primary key |
+| `status` | varchar(16) | Y | `active | archived`, upload 기본 active |
+| `source_content_type` | varchar(32) | Y | 실제 byte 기준 JPEG·PNG·HEIC·HEIF source type |
+| `content_type` | varchar(32) | Y | canonical master의 JPEG 또는 PNG type |
+| `file_extension` | varchar(8) | Y | server-owned `jpg | png` |
+| `storage_key` | varchar(255) | Y | unique canonical `masters/<prefix>/<uuid>.<ext>`, API 비노출 |
+| `source_byte_size` | bigint | Y | 변환 전 source byte, 최대 20 MiB |
+| `byte_size` | bigint | Y | 저장 master byte, 최대 30 MiB |
+| `width`·`height` | integer | Y | decode한 display dimension, 각 최대 12,000px·총 60MP |
+| `sha256` | char(64) | Y | 저장 master lowercase SHA-256, dedupe unique 아님, API 비노출 |
+| `created_at`·`updated_at` | timestamp(6) with time zone | Y | microsecond audit timestamp |
+| `created_by`·`updated_by` | UUID FK | Y | `admin_users(id)`, delete restrict |
+
+- JPEG·PNG source는 검증 뒤 같은 byte를 canonical private master로 이동한다.
+- HEIC·HEIF source는 orientation을 pixel에 적용하고 sRGB로 변환한 metadata-free quality 92 JPEG만 master로 남긴다. raw source temp는 성공·실패 모두 제거한다.
+- `storage_key`, type 조합, byte·dimension·pixel·hash와 actor FK를 명명된 PostgreSQL constraint로 최종 방어한다.
+- 동일 hash row를 여러 개 허용하며 자동 dedupe하지 않는다.
+- archive는 row와 master를 유지하고 status만 바꾸며 hard delete API는 없다.
+- schema source of truth는 `backend/src/main/resources/db/migration/V5__create_media_assets.sql`이다.
 
 ## 현재 `breeds`
 

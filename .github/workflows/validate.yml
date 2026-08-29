@@ -50,7 +50,7 @@ jobs:
   backend:
     name: Backend
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f
@@ -83,14 +83,32 @@ jobs:
       - name: Gradle 설정
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
-      - name: PostgreSQL·Flyway·인증 계약 검증
-        working-directory: backend
-        run: ./gradlew test --no-daemon
+      - name: Java 25·libheif backend image build
+        run: >-
+          docker build
+          --file backend/Dockerfile.dev
+          --tag rhaomi-backend-ci:${{ github.sha }}
+          .
+
+      - name: PostgreSQL·Flyway·인증·media 계약 검증
+        run: >-
+          docker run --rm
+          --network host
+          --workdir /workspace/backend
+          --volume "${{ github.workspace }}/backend:/workspace/backend"
+          --volume "$HOME/.gradle:/root/.gradle"
+          --env SPRING_DATASOURCE_URL
+          --env SPRING_DATASOURCE_USERNAME
+          --env SPRING_DATASOURCE_PASSWORD
+          --env RHAOMI_TEST_DATABASE_ALLOWED
+          --env RHAOMI_MEDIA_ROOT=/tmp/rhaomi-media-ci
+          rhaomi-backend-ci:${{ github.sha }}
+          ./gradlew test --no-daemon
 
   compose-smoke:
     name: Compose Smoke
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       RHAOMI_BOOTSTRAP_ADMIN_ENABLED: "true"
       RHAOMI_BOOTSTRAP_ADMIN_EMAIL: admin.smoke@example.com

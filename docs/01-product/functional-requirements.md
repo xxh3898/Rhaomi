@@ -49,6 +49,12 @@ review_trigger: "기능 범위 변경 시"
 | FR-ADM-014 | 매장정보는 상태·공개 id가 없는 단일 현재값이어야 하며, 최초 전체 `PUT`은 생성하고 이후 `PUT`은 같은 row를 갱신해야 한다. PostgreSQL은 우회 입력에도 TRUE singleton row를 최대 하나만 허용해야 한다. |
 | FR-ADM-015 | 매장정보의 필수 NAP text, `HH:mm` 영업시간, 선택 휴무 요일, 전화번호, absolute HTTPS URL을 저장 전에 검증하고 실패 시 row와 audit를 변경하지 않아야 한다. |
 | FR-ADM-016 | 매장정보 request는 mutable field만 허용하고 id·singleton guard·actor·audit·unknown field를 거부하며, response는 mutable field와 server-owned audit만 반환해야 한다. |
+| FR-ADM-017 | 인증된 운영자는 JPEG·PNG·HEIC·HEIF를 multipart로 업로드하고 모든 상태의 media metadata와 private master를 조회하며 `active | archived`로 보관·복구할 수 있어야 한다. |
+| FR-ADM-018 | media 입력은 client MIME·확장자·파일명이 아니라 실제 byte signature/container와 decoder를 기준으로 검증하고 20 MiB source, 30 MiB stored, 12,000px, 60MP 제한을 적용해야 한다. |
+| FR-ADM-019 | JPEG·PNG는 검증한 private 원본 byte를 보존하고 HEIC·HEIF는 orientation 적용, sRGB 변환, EXIF·GPS·XMP 제거 후 quality 92 JPEG master로 정규화해야 한다. |
+| FR-ADM-020 | media storage key는 server UUID로만 만들고 original filename·storage key·filesystem path·SHA-256을 API response에 노출하지 않아야 한다. |
+| FR-ADM-021 | media validation·정규화 실패에는 DB row와 final/temp orphan이 없어야 하고 DB transaction 실패에는 생성한 final master를 제거해야 한다. |
+| FR-ADM-022 | media API는 session·CSRF를 강제하고 status 외 field 수정, public/build read, `PATCH`와 physical `DELETE`를 제공하지 않아야 한다. |
 
 ## 배포
 
