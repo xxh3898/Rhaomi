@@ -197,6 +197,45 @@ test("미디어 V5와 private HEIC 정규화 계약을 고정한다", async () =
   assert.match(smoke, /cache-control/);
 });
 
+test("갤러리 V6와 관계 상태 검증 관리자 API 계약을 고정한다", async () => {
+  const [migration, controller, service, repository, response] = await Promise.all([
+    source("backend/src/main/resources/db/migration/V6__create_gallery_items.sql"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/gallery/GalleryAdminController.java"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/gallery/GalleryAdminService.java"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/gallery/GalleryRepository.java"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/gallery/GalleryResponse.java"),
+  ]);
+
+  assert.match(migration, /CREATE TABLE gallery_items/);
+  assert.match(migration, /CONSTRAINT ck_gallery_items_published_fields CHECK/);
+  assert.match(migration, /CONSTRAINT ck_gallery_items_before_after_distinct CHECK/);
+  assert.match(migration, /dog_name ~ '\[\^\[:space:\]\]'/);
+  assert.match(migration, /summary ~ '\[\^\[:space:\]\]'/);
+  assert.match(migration, /alt_text ~ '\[\^\[:space:\]\]'/);
+  assert.match(migration, /performed_at TIMESTAMP\(6\) WITH TIME ZONE/);
+  assert.match(migration, /published_at TIMESTAMP\(6\) WITH TIME ZONE/);
+  assert.equal((migration.match(/REFERENCES media_assets\(id\) ON DELETE RESTRICT/g) ?? []).length, 3);
+  assert.match(migration, /REFERENCES breeds\(id\) ON DELETE RESTRICT/);
+  assert.match(migration, /REFERENCES services\(id\) ON DELETE RESTRICT/);
+
+  assert.match(controller, /@RequestMapping\("\/api\/admin\/gallery-items"\)/);
+  assert.match(controller, /@GetMapping/);
+  assert.match(controller, /@PostMapping/);
+  assert.match(controller, /@PutMapping/);
+  assert.doesNotMatch(controller, /@(?:Patch|Delete)Mapping/);
+  assert.match(service, /ContentStatus\.PUBLISHED/);
+  assert.match(service, /MediaStatus\.ACTIVE/);
+  assert.match(service, /validateRelations\(values\)[\s\S]*?item\.update/);
+  assert.match(repository, /featured DESC/);
+  assert.match(repository, /sortOrder ASC/);
+  assert.match(repository, /publishedAt DESC NULLS LAST/);
+  assert.match(repository, /id ASC/);
+  assert.match(response, /UUID breedId/);
+  assert.match(response, /UUID primaryServiceId/);
+  assert.match(response, /UUID coverImageId/);
+  assert.doesNotMatch(response, /storageKey|sha256|MediaAsset|\bBreed\b|GroomingService/);
+});
+
 test("실행 경로에 Directus 설정을 남기지 않는다", async () => {
   const runtimeFiles = await Promise.all([
     source("compose.dev.yaml"),

@@ -49,6 +49,10 @@ review_trigger: "관리 API·build 입력 변경 시"
 | `GET` | `/api/admin/notices/{id}` | 공지 단건 | `200 OK` |
 | `POST` | `/api/admin/notices` | `draft` 공지 생성 | `201 Created` |
 | `PUT` | `/api/admin/notices/{id}` | 공지 전체 mutable field 수정·상태 전환 | `200 OK` |
+| `GET` | `/api/admin/gallery-items` | 모든 상태 갤러리 목록 | `200 OK` |
+| `GET` | `/api/admin/gallery-items/{id}` | 갤러리 단건 | `200 OK` |
+| `POST` | `/api/admin/gallery-items` | `draft` 갤러리 생성 | `201 Created` |
+| `PUT` | `/api/admin/gallery-items/{id}` | 갤러리 전체 mutable field 수정·상태 전환 | `200 OK` |
 | `GET` | `/api/admin/shop-settings` | 현재 매장정보 singleton 조회 | `200 OK` |
 | `PUT` | `/api/admin/shop-settings` | 전체 매장정보 최초 생성 또는 갱신 | 최초 `201`, 이후 `200` |
 
@@ -68,6 +72,20 @@ review_trigger: "관리 API·build 입력 변경 시"
 서비스가 `published`가 되려면 name·slug·description·priceText가 모두 유효해야 한다. 검증 실패는 기존 row를 부분 변경하지 않는다. `archived` row는 삭제하지 않고 유효한 전체 값으로 `draft`나 `published`로 복구할 수 있다.
 
 공지가 `published`가 되려면 title·immutable slug·bodyMarkdown·publishedAt이 유효해야 한다. expiresAt이 있으면 모든 상태에서 publishedAt이 존재하고 expiresAt이 그보다 늦어야 한다. 미래 publishedAt은 허용하고 만료만으로 status를 자동 변경하지 않는다. 검증 실패는 mutable field와 audit를 모두 보존한다.
+
+### 갤러리 collection
+
+- create allowlist는 dogName, breedId, primaryServiceId, coverImageId, beforeImageId, afterImageId, summary, altText, featured, sortOrder, performedAt, publishedAt이고 status를 받지 않는다. featured 누락·null은 false, sortOrder 누락·null은 100이다.
+- full PUT은 위 mutable field와 status를 모두 명시한다. nullable field도 key 생략을 허용하지 않으며 id·actor·audit·unknown/system field는 `400 INVALID_REQUEST`다.
+- 문자열은 Unicode 양끝 whitespace를 제거하고 비면 null로 저장한다. dogName·summary·altText 최대 길이는 100·1000·300이고 sortOrder는 0 이상이다.
+- performedAt·publishedAt은 ISO-8601 offset/UTC를 받고 application에서 microsecond로 절삭한 값으로 검증·저장·응답한다. 미래 값은 허용한다.
+- 목록은 `featured DESC, sort_order ASC, published_at DESC NULLS LAST, id ASC`이며 모든 상태를 포함한다.
+- draft·archived 최종 상태는 null이 아닌 breed·service·media row의 존재만 요구한다. published는 breed·primary service·cover·nonblank altText·publishedAt이 필수이고 breed/service `published`, cover와 선택한 before/after media `active`를 요구한다.
+- cover는 before 또는 after와 같을 수 있지만 before와 after가 같으면 상태와 무관하게 `422 GALLERY_PUBLISH_INVALID`다. 관계 대상이 없거나 published 관계 상태가 유효하지 않으면 `422 GALLERY_RELATION_INVALID`다.
+- response는 relation UUID만 반환하고 target 객체, storage key/path/hash와 raw media metadata를 embed하지 않는다.
+- 없는 id는 `404 GALLERY_ITEM_NOT_FOUND`다. `PATCH`, `DELETE`, publish action, public `/api/gallery-items/**`, `/api/build/gallery-items/**`는 제공하지 않는다.
+- 관계 대상의 후속 상태 변경은 gallery status·relation을 cascade하지 않는다. 후속 public snapshot이 publishedAt 도래, relation status와 master/파생 file 유효성을 다시 확인한다.
+- 모든 validation·relation 실패는 mutation 전에 종료해 기존 row와 created/updated audit 전체를 보존한다. DB/repository 장애는 내부 constraint·path·SQL detail 없는 generic `5xx`다.
 
 ### 매장정보 singleton
 
@@ -137,9 +155,10 @@ public media metadata
 
 - `shop_settings` singleton 존재와 필수 매장정보 유효성
 - collection은 `status = published`
+- 갤러리는 `published_at <= build_time`
 - 공지는 `published_at <= build_time`
 - 공지는 `expires_at IS NULL OR expires_at > build_time`
-- 관계 대상도 published
+- 갤러리 breed·service는 published이고 연결 media는 active
 - 파일이 라오미펫 공개 콘텐츠에 연결됐고 공개 파생 대상임
 - 정렬은 도메인 데이터 모델 기준
 

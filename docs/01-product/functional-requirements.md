@@ -55,6 +55,10 @@ review_trigger: "기능 범위 변경 시"
 | FR-ADM-020 | media storage key는 server UUID로만 만들고 original filename·storage key·filesystem path·SHA-256을 API response에 노출하지 않아야 한다. |
 | FR-ADM-021 | media validation·정규화 실패에는 DB row와 final/temp orphan이 없어야 하고 DB transaction 실패에는 생성한 final master를 제거해야 한다. |
 | FR-ADM-022 | media API는 session·CSRF를 강제하고 status 외 field 수정, public/build read, `PATCH`와 physical `DELETE`를 제공하지 않아야 한다. |
+| FR-ADM-023 | 갤러리 생성은 항상 `draft`여야 하고 목록·단건 조회와 full `PUT`만 제공해야 한다. request는 명시된 mutable field만 허용하고 slug·id·actor·audit·unknown field와 `PATCH`·`DELETE`를 거부해야 한다. |
+| FR-ADM-024 | 갤러리 게시에는 breed, primary service, cover media, 사실 기반 alt text와 published timestamp가 필요하며 breed/service는 `published`, 모든 연결 media는 `active`여야 한다. draft·archived에서는 null이 아닌 관계 대상의 존재만 요구해야 한다. |
+| FR-ADM-025 | cover media는 before 또는 after와 같을 수 있지만 before와 after는 서로 달라야 한다. 관계 대상의 후속 상태 변경은 갤러리에 cascade하지 않고 공개 snapshot이 gallery·relation·file eligibility를 다시 검증해야 한다. |
+| FR-ADM-026 | 갤러리 performedAt·publishedAt은 저장 전에 microsecond로 정규화해야 하고 관계·게시 검증 실패에는 mutable field와 actor/audit 전체를 보존해야 한다. |
 
 ## 배포
 

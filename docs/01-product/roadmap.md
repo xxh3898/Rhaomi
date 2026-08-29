@@ -79,11 +79,19 @@ Phase 1C-3은 실제 운영값 입력, Hero·프로필·OG 이미지 relation, �
 
 Phase 1C-4는 갤러리 relation, Hero·프로필·OG FK, public/build media API, responsive 파생본, 관리자 UI, 실제 iPhone Safari 검증이나 운영 storage 배포의 완료를 의미하지 않는다.
 
-### Phase 1C-5 이후 — 나머지 콘텐츠 도메인
+### Phase 1C-5 — 갤러리 관리자 CRUD와 media relation
 
-- 갤러리 table과 Flyway migration
+- Flyway V6 `gallery_items`와 breed·service·cover/before/after media FK
+- 관리자 session·CSRF 기반 `GET`·항상 draft인 `POST`·full `PUT`
+- published 필수값과 breed/service `published`, media `active` 관계 상태 검증
+- archive·restore, actor/audit 불변성, microsecond performed/published timestamp
+- actual PostgreSQL migration·DB·HTTP 관계 계약 테스트
+
+Phase 1C-5는 public/build gallery API, responsive 파생본, 공개 갤러리 UI, 관리자 UI, 실제 사진 seed나 운영 migration의 완료를 의미하지 않는다. 관계 대상의 후속 상태 변경은 갤러리에 cascade하지 않고 후속 public snapshot이 eligibility를 다시 검증한다.
+
+### Phase 1C-6 이후 — 나머지 콘텐츠 도메인
+
 - 매장정보 Hero·프로필·OG 이미지 relation
-- 관리자 DTO field allowlist와 archive 정책
 - `/admin` 로그인·콘텐츠 관리 UI
 - build-time read-only API와 credential 분리
 - 샘플 콘텐츠
