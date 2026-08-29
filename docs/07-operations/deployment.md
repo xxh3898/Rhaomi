@@ -44,7 +44,8 @@ feature → dev 검증
 
 ```text
 Spring Boot 콘텐츠 transaction
-→ 같은 transaction의 publishing outbox + monotonic revision
+→ 같은 transaction의 immediate·scheduled publishing event + contentRevision
+→ pending/due trigger의 publishGeneration
 → single internal publisher
 → 공통 build/validate/atomic switch pipeline
 ```
@@ -61,10 +62,13 @@ Spring Boot 콘텐츠 transaction
 - [ ] 운영 비밀값
 - [ ] 관리자 2FA
 - [ ] 암호화 외장 SSD·iCloud restic repository와 recovery key
-- [ ] isolated restore drill
+- [ ] local iCloud repository snapshot/check와 Apple remote sync 완료 증거 분리
+- [ ] second trusted device 또는 local cache를 authority로 쓰지 않는 clean retrieval path의 fresh retrieval·restic check·대표 restore
+- [ ] local RPO와 remotely verified offsite RPO를 분리한 최초 evidence
+- [ ] isolated full restore drill
 - [ ] Flyway migration 적용·검증
 - [ ] one-shot Flyway·schema validate·expand/contract 검증
-- [ ] publisher outbox·lock·retry·atomic switch 검증
+- [ ] publisher immediate/due event·overdue recovery·두 revision·lock·retry·atomic switch 검증
 - [ ] HomeOps health·event·alert와 bounded restart 경계 검증
 - [ ] decoder-only HEIC image와 x265 absence·SBOM 검증
 - [ ] 실제 매장정보 승인
@@ -75,7 +79,7 @@ Spring Boot 콘텐츠 transaction
 ## 코드 배포 단계
 
 1. global deploy lock 획득
-2. exact `main` SHA, image digest와 release manifest 확인
+2. exact `main` SHA, image digest와 `contentRevision`·`publishGeneration`·`generatedAt` release manifest 확인
 3. disk 여유와 `current`·`previous` 확인
 4. 최근 정상 backup set·restore drill 상태 확인
 5. migration·major update면 on-demand application-consistent backup 생성·검증
@@ -104,13 +108,17 @@ Spring Boot 콘텐츠 transaction
 ## 콘텐츠 배포 단계
 
 - 코드 checkout은 마지막 승인된 main commit을 사용한다.
-- content snapshot의 monotonic revision과 build timestamp를 기록한다.
+- publisher는 immediate pending event와 `availableAt <= now`인 scheduled notice event를 처리하고 restart 후 overdue event를 복구한다.
+- content snapshot과 release manifest에 `contentRevision`, `publishGeneration`, `generatedAt`을 기록한다.
+- `contentRevision`은 콘텐츠 mutation snapshot이고, mutation 없는 publish/expiry boundary, 승인된 code release와 manual rebuild/retry는 새 `publishGeneration`을 만든다.
+- scheduled event마다 current notice row와 전체 snapshot을 다시 검증해 reschedule, draft·archived 전환과 window 변경의 stale event를 no-op 또는 최신 generation에 coalesce한다.
 - build API와 transformer에서 published, notice 게시·만료, relation·media와 file을 이중 검증한다.
 - 초안, 보관·만료 콘텐츠는 산출물에 포함하지 않는다.
 - 선택된 image가 archived, missing, corrupt이거나 변환에 실패하면 전체 배포를 실패시킨다.
 - 현재 공개 사이트를 유지한다.
-- 동일 revision transient failure는 1분·5분·15분 최대 3회 retry하고 data 오류는 무한 retry하지 않는다.
-- 운영자에게 마지막 성공·실패와 명시적 수동 retry를 제공한다.
+- 동일 `publishGeneration` transient failure는 1분·5분·15분 최대 3회 retry하고 data 오류는 무한 retry하지 않는다.
+- atomic switch는 `publishGeneration`을 authority로 비교해 낮거나 같은 generation이 newer `current`를 덮지 못하게 한다.
+- 운영자에게 마지막 성공·실패 content revision·publish generation과 새 generation을 만드는 명시적 수동 retry를 제공한다.
 
 ## Nginx
 

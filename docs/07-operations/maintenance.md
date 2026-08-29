@@ -18,15 +18,17 @@ review_trigger: "운영 주기 변경 시"
 - HomeOps의 public HTTPS·핵심 문구와 internal healthcheck
 - Docker container·host CPU/memory/load·disk/inode 확인
 - 매일 03:30 `Asia/Seoul` application-consistent PostgreSQL·canonical media backup
-- 외장 SSD와 iCloud destination snapshot 확인
-- publisher pending outbox·lock·마지막 build/release 상태
+- 외장 SSD snapshot, local iCloud Drive repository snapshot/check와 별도 remote-sync evidence 상태 확인
+- local backup RPO와 remotely verified offsite RPO를 분리해 기록하고 remote evidence가 없으면 offsite `PASS` 금지
+- publisher immediate/due event·overdue backlog·lock·마지막 `contentRevision`·`publishGeneration` build/release 상태
 - 인증서 만료 단계 확인
 - HomeOps Activity·Discord·daily summary
 
 ## 매주
 
-- 최근 공지 만료 확인
-- 외장 SSD·iCloud restic structural check
+- 최근 공지 publish/expiry boundary와 public snapshot 일치 audit·reconciliation. 이 점검을 correctness trigger로 사용하지 않음
+- 외장 SSD와 local iCloud Drive repository의 restic structural check
+- Apple remote sync 완료 증거와 마지막 remotely verified backup-set 확인
 - 실패한 publisher·release·backup 로그 확인
 - 이미지 깨짐 검사
 - 외부 링크 스모크
@@ -43,12 +45,13 @@ review_trigger: "운영 주기 변경 시"
 - 관리자 사용자·세션 검토
 - 성공 release 최근 5개, 실패 artifact 7일과 build cache 정리 후보 검토
 - restic retention dry-run 뒤 daily 7 / weekly 4 / monthly 6 적용·prune·post-check
-- 두 repository full data read
+- 외장 SSD와 local iCloud Drive repository full data read. 이 성공을 Apple remote sync 증거로 해석하지 않음
 - service당 약 100 MiB·일반 14일 로그 보존과 incident hold 확인
 
 ## 분기
 
 - isolated Compose와 새 data directory의 실제 full restore test
+- iCloud offsite 표본은 second trusted device 또는 local cache를 authority로 사용하지 않는 clean retrieval path에서 fresh retrieval·restic check·대표 restore
 - Spring Boot·Java·PostgreSQL upgrade 필요성 검토
 - 계정·token rotation 검토
 - 개인정보·로그 보존 검토
@@ -75,7 +78,7 @@ review_trigger: "운영 주기 변경 시"
 아래는 자동 정리하지 않는다.
 
 - 최신 DB backup
-- 외장 SSD·iCloud의 정상 retention snapshot
+- 외장 SSD·local iCloud repository의 정상 retention snapshot과 remotely verified offsite backup set
 - backend 소유 원본 image storage
 - 현재·직전 정상 release
 - 사고 조사 중 로그

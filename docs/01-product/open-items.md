@@ -25,7 +25,7 @@ review_trigger: "항목 확정 시"
 | NAP 최종 확인 | 확인 필요 | 은총쌤 | 지도·전화·간판 정보와 일치 확인 |
 | 영업시간·정기휴무·주차 | 확인 필요 | 은총쌤 | 공개할 현재값과 지도 서비스 정보의 일치 확인 |
 | 외장 SSD backup provisioning | 출시 차단 | 조치호 | exact mount path·용량·host 접근보호와 encrypted restic repository 검증 |
-| iCloud offsite backup provisioning | 출시 차단 | 조치호 | exact iCloud folder·별도 encrypted restic repository·destination snapshot 조회와 복구 검증 |
+| iCloud offsite backup provisioning | 출시 차단 | 조치호 | exact iCloud folder·별도 encrypted restic repository, Apple remote sync 증거와 second trusted device 또는 clean retrieval path의 fresh retrieval·restic check·대표 restore |
 | backup recovery key | 출시 차단 | 조치호 | password manager와 별도 offline 사본의 복구 절차 확인 |
 | 관리자 2FA | 미설정 | 조치호·은총쌤 | 운영 계정 2FA 등록 및 복구코드 보관 |
 | 실제 iPhone HEIC 업로드 | 미검증 | 조치호·은총쌤 | 후속 `/admin` UI에서 iPhone Safari 원본 선택·업로드·방향·색상 확인 |
@@ -48,7 +48,8 @@ review_trigger: "항목 확정 시"
 - Flyway V5 private media upload/master, Flyway V6 갤러리 relation과 Flyway V7 매장정보 Hero·프로필·OG media FK는 구현됐다.
 - public/build gallery·shop·media API, 공개 responsive 파생본과 Hero·프로필·OG 렌더링은 아직 없다.
 - 실제 사진 게시 동의, 실제 iPhone Safari UI 검증과 운영 private storage·backup이 완료될 때까지 사진 공개는 출시 차단 상태로 남긴다.
-- [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)에서 외장 SSD와 iCloud Drive의 별도 encrypted restic repository를 backup 매체로 확정했다. exact mount path·용량·iCloud folder·repository key 보관 위치는 provisioning 전까지 출시 차단이다.
+- [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)에서 외장 SSD와 iCloud Drive의 별도 encrypted restic repository를 backup 매체로 확정했다. exact mount path·용량·iCloud folder·repository key 보관 위치, Apple remote sync 완료와 fresh retrieval restore 증거는 provisioning 전까지 출시 차단이다.
+- automated remote-sync verification은 아직 미구현이다. 구현 전에는 local backup RPO, local iCloud repository integrity와 remotely verified offsite RPO를 분리하고, 수동 증거가 없는 backup set을 offsite `PASS`로 표시하지 않는다.
 - [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)는 production 운영 계약을 확정했지만 Compose, GitHub Environment, publisher, backup, HomeOps와 decoder-only image는 아직 구현되지 않았다.
 - 이번 Issue에서는 실제 이미지·갤러리 seed, 운영 `shop_settings` provisioning과 production migration을 실행하지 않는다. 실제 값·게시 권한 확인과 별도 운영 승인을 거친 후속 작업으로 남긴다.
 

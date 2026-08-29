@@ -25,22 +25,31 @@ review_trigger: "배포 저장구조 변경 시"
 
 가장 우선하는 저위험 조치다.
 
+`previous`는 rollback 입력 후보이지 낮은 generation을 그대로 다시 활성화하는 우회 경로가 아니다. 시간 기반 notice eligibility를 다시 평가하기 위해 승인된 previous code image/digest와 current content snapshot으로 새 rollback release를 만든다.
+
 ```text
-/srv/rhaomi/public/current → /srv/rhaomi/public/previous target
+approved previous code image/digest
++ current content snapshot
+→ new rollback publishGeneration
+→ build·validate
+→ /srv/rhaomi/public/current atomic switch
 ```
 
 절차:
 
 1. 현재 release ID 기록
-2. previous가 정상 릴리스인지 확인
+2. `previous`의 exact code SHA/image digest와 정상 이력 확인
 3. global deploy/publisher lock과 maintenance 상태 확인
-4. symlink 원자적 전환
-5. 홈·CTA·이미지·공지와 public HTTPS 스모크
-6. HomeOps 상태 확인
-7. 원인 release 격리
-8. 사건 기록
+4. 승인된 manual rollback trigger로 current보다 높은 새 `publishGeneration` 할당
+5. current content snapshot을 previous code image/digest로 다시 build하고 현재 `contentRevision`·새 `publishGeneration`·새 `generatedAt` manifest 생성
+6. current notice status·게시/만료, relation·media/file과 artifact 검증
+7. symlink 원자적 전환
+8. 홈·CTA·이미지·공지와 public HTTPS 스모크
+9. HomeOps 상태 확인
+10. 원인 release 격리
+11. 사건 기록
 
-Nginx 설정이 바뀌지 않았다면 reload 없이 전환하는 구조를 우선한다.
+Nginx 설정이 바뀌지 않았다면 reload 없이 전환하는 구조를 우선한다. 과거 release symlink를 직접 가리켜 public ordering authority인 `publishGeneration`을 감소시키지 않는다.
 
 ## 콘텐츠 롤백
 
@@ -48,7 +57,7 @@ Nginx 설정이 바뀌지 않았다면 reload 없이 전환하는 구조를 우�
 
 - application audit/history 또는 backup 확인
 - 잘못된 내용을 draft/archive
-- 이전 값 복원과 새 publishing outbox revision commit
+- 이전 값 복원과 새 콘텐츠 mutation `contentRevision`·immediate publishing event commit
 - 단일 publisher의 새 정적 배포 결과 확인
 
 ### 다수 항목 또는 DB 손상
@@ -92,5 +101,5 @@ production backend 일반 기동으로 schema를 자동 되돌리지 않는다. 
 - 데이터 손실 범위 확인
 - 후속 수정 Issue 생성
 - 자동 배포가 문제 release를 다시 올리지 않게 차단
-- `current`·`previous`, exact SHA·digest와 content revision 기록
+- `current`·`previous`, exact SHA·digest, `contentRevision`·`publishGeneration`·`generatedAt` 기록
 - HomeOps incident·Activity 상태 갱신

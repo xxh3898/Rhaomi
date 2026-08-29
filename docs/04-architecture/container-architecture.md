@@ -58,7 +58,7 @@ flowchart TB
 
     Backend --> Postgres[(PostgreSQL)]
     Backend --> Media[(private canonical media)]
-    Backend --> Outbox[(publishing outbox)]
+    Backend --> Outbox[(immediate / scheduled publishing event)]
 
     Publisher[Single internal publisher] -->|internal read-only build API| Backend
     Publisher --> Releases[(public/releases)]
@@ -77,6 +77,8 @@ flowchart TB
 
 local private media volume·upload API와 same-origin development gateway까지 구현됐다. 위 production topology는 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)에서 승인한 목표지만 production Compose·Nginx·publisher·backup·HomeOps와 decoder-only image는 아직 구현되지 않았다.
 
+diagram의 iCloud repository는 Mac mini의 local iCloud Drive path다. [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)에 따라 Apple remote sync가 별도 검증되기 전에는 offsite 사본이나 offsite RPO `PASS`로 간주하지 않는다.
+
 ## 서비스 책임
 
 | 서비스 | 책임 | 외부 공개 |
@@ -85,8 +87,8 @@ local private media volume·upload API와 same-origin development gateway까지 
 | `rhaomi-web` | 정적 파일, same-origin `/api/admin/**` reverse proxy와 public deny rule | host loopback |
 | `backend` | 관리자 session/auth, 콘텐츠 API, private media 검증·정규화·master 소유 | Nginx를 통해서만 |
 | `postgres` | 관리자와 후속 콘텐츠 데이터 영속화 | 금지 |
-| `publisher` | outbox claim, 30초 debounce, lock, snapshot·derivative·Static Export·atomic switch | 금지 |
-| `backup` | application-consistent DB·private master restic backup | 금지 |
+| `publisher` | immediate pending·due scheduled event, overdue recovery, 두 revision, 30초 debounce, lock, snapshot·derivative·Static Export·atomic switch | 금지 |
+| `backup` | application-consistent DB·private master restic backup과 local/offsite evidence 분리 | 금지 |
 | HomeOps | 중앙 health·event·metric, incident·Activity·Discord와 제한된 자동 복구 | Tailscale 전용 |
 
 ## network 원칙

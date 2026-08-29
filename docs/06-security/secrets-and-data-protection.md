@@ -96,9 +96,10 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 - 외장 SSD의 encrypted restic repository와 iCloud Drive의 별도 encrypted restic repository 사용
 - 두 repository의 key를 분리하고 recovery key를 password manager와 offline 사본에 보관
 - 관리자 write maintenance 안에서 `pg_dump -Fc`와 media manifest를 같은 backup-set ID로 묶음
-- checksum·size·file count·snapshot ID를 기록하고 destination snapshot 조회와 restore test로 완료 확인
+- checksum·size·file count·snapshot ID를 기록하고 외장 SSD·local iCloud repository integrity와 Apple remote sync 완료를 별도 상태로 판정
+- remote sync가 검증된 backup set만 offsite RPO `PASS`로 인정하고 최초 production 전 second trusted device 또는 clean retrieval path의 fresh retrieval·restic check·대표 restore 수행
 - daily 7, weekly 4, monthly 6을 보존하고 prune는 월간 maintenance 승인 범위에서만 실행
 - production overwrite 없이 isolated restore를 분기마다 수행
 - backup 삭제·prune는 승인과 보존 정책, 기존 정상 snapshot 보호를 적용
 
-현재 local Compose media volume은 persistence contract 검증용이며 운영 backup 구현 완료를 뜻하지 않는다. production media path, 외장 SSD·iCloud repository, key, backup automation과 offsite restore는 별도 승인 전까지 출시 차단이다.
+현재 local Compose media volume은 persistence contract 검증용이며 운영 backup 구현 완료를 뜻하지 않는다. production media path, 외장 SSD·iCloud repository, key, backup automation, remote-sync evidence와 offsite restore는 별도 승인 전까지 출시 차단이다.

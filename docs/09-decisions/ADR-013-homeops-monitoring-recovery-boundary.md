@@ -47,8 +47,8 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. health/sta
 - Mac mini CPU, memory와 load
 - disk, inode와 volume capacity
 - PostgreSQL connection, lock과 rollback 등 최소 운영 지표
-- publisher pending outbox, lock, 마지막 성공·실패 release
-- local/offsite backup, destination snapshot과 restore drill 상태
+- publisher immediate pending·due/overdue scheduled event, lock, 마지막 `contentRevision`·`publishGeneration`·`generatedAt`과 성공·실패 release
+- local backup RPO, local iCloud repository integrity, remotely verified offsite RPO와 fresh retrieval·restore drill 상태
 - incident·Activity·Discord 알림과 daily summary
 
 ### 초기 임계값
@@ -57,9 +57,10 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. health/sta
 |---|---|---|
 | public HTTPS·keyword | 3회 연속 실패 | 즉시 alert |
 | container health | 2회 연속 unhealthy | 즉시 alert |
-| backup | 마지막 성공 36시간 초과 | critical |
+| local backup | 마지막 성공 36시간 초과 | critical |
+| offsite backup | 최초 remote 증거 없음 / 마지막 remotely verified success 36시간 초과 | `UNKNOWN`+critical alert / critical |
 | publisher lock | 15분 초과 | critical |
-| pending outbox | 10분 초과 | warning |
+| pending/due outbox | immediate pending 또는 `availableAt <= now` overdue 10분 초과 | warning |
 | build/release | 실패 | 즉시 alert |
 | disk | 80% / 90% | warning / critical |
 | memory | 85%가 10분 지속 | warning |

@@ -29,8 +29,8 @@ flowchart LR
     AdminUI -. same-origin /api/admin/** .-> Backend[Spring Boot 관리 API]
     Backend --> PostgreSQL[(PostgreSQL)]
     Backend --> Uploads[(private canonical media)]
-    Backend -. 후속 same-transaction .-> Outbox[(Publishing outbox)]
-    Publisher[Single internal publisher] -. 후속 poll/claim .-> Outbox
+    Backend -. 후속 same-transaction .-> Outbox[(Immediate / scheduled publishing event)]
+    Publisher[Single internal publisher] -. 후속 pending/due poll·claim .-> Outbox
     Publisher -. 후속 read-only build API .-> Backend
     Publisher -. 후속 .-> Releases[(정적 release)]
     Releases --> PublicSite
@@ -51,7 +51,7 @@ flowchart LR
 - local/test bootstrap과 `/admin/` 인증 셸
 - local same-origin gateway, 최소 health와 Hosted CI
 
-콘텐츠 CRUD 화면, build API, publishing outbox, publisher와 public content route는 아직 없다.
+콘텐츠 CRUD 화면, build API, immediate·scheduled publishing event, publisher와 public content route는 아직 없다.
 
 ## 신뢰 경계
 
@@ -75,7 +75,7 @@ login/csrf 외 관리 endpoint는 인증이 필요하고 state-changing request�
 
 - PostgreSQL
 - private canonical media storage
-- 향후 build API·publishing outbox·single publisher
+- 향후 build API·immediate/due publishing event·single publisher
 - 향후 encrypted restic backup과 HomeOps
 - Docker internal network
 
@@ -85,7 +85,7 @@ PostgreSQL과 내부 작업 서비스는 공용 인터넷에 직접 노출하지
 
 1. 고객 요청은 PostgreSQL query나 backend API 호출을 발생시키지 않는다.
 2. 고객 요청은 관리 backend 가용성에 의존하지 않는다.
-3. 콘텐츠는 향후 게시 후 static build가 성공해야 고객에게 반영된다.
+3. 콘텐츠 mutation 또는 notice 게시·만료 시간 경계는 향후 durable event와 `publishGeneration`을 거쳐 static build가 성공해야 고객에게 반영된다.
 4. build 실패는 기존 공개 사이트를 변경하지 않는다.
 5. 원본 이미지는 공개 web root에 두지 않는다.
 6. 외부 link가 없는 채널은 UI에 나타나지 않는다.

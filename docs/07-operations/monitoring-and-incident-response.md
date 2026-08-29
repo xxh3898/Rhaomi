@@ -45,7 +45,8 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. 실제 log
 
 - 마지막 성공 release
 - 마지막 실패 원인
-- pending publishing outbox와 마지막 처리 revision
+- pending immediate event, due/overdue scheduled event와 가장 오래된 `availableAt`
+- 마지막 처리 `contentRevision`·`publishGeneration`·`generatedAt`
 - publisher lock 점유 시간
 - 마지막 성공·실패 build/release
 - 디스크 여유
@@ -53,11 +54,14 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. 실제 log
 
 ### 백업
 
-- 마지막 성공 시각
+- 마지막 local backup 성공 시각과 local RPO
 - backup-set ID, dump·media size와 file count
-- 외장 SSD·iCloud destination snapshot
-- repository check 결과
+- 외장 SSD snapshot/check 결과
+- local iCloud Drive repository snapshot/check와 integrity 결과
+- Apple remote sync가 별도 검증된 마지막 backup-set ID·시각과 offsite RPO
+- remote sync 증거가 없을 때 offsite `UNKNOWN` 또는 실패 상태. local 성공으로 `PASS` 대체 금지
 - 마지막 isolated full restore 일시·RPO/RTO
+- 최초 production fresh retrieval·restic check·대표 restore evidence 상태
 
 ### host
 
@@ -72,9 +76,10 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. 실제 log
 |---|---|---|
 | public HTTPS·핵심 문구 | 3회 연속 실패 | 즉시 alert |
 | container health | 2회 연속 unhealthy | 즉시 alert |
-| backup | 마지막 성공 36시간 초과 | critical |
+| local backup | 마지막 성공 36시간 초과 | critical |
+| offsite backup | 최초 remote 증거 없음 / 마지막 remotely verified success 36시간 초과 | `UNKNOWN`+critical alert / critical |
 | publisher lock | 15분 초과 | critical |
-| pending outbox | 10분 초과 | warning |
+| pending/due outbox | immediate pending 또는 `availableAt <= now` overdue 10분 초과 | warning |
 | build/release | 실패 | 즉시 alert |
 | disk | 80% / 90% | warning / critical |
 | memory | 85%가 10분 지속 | warning |

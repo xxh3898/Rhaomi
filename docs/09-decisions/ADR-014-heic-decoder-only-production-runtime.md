@@ -36,12 +36,45 @@ review_trigger: "HEIC codec·native image·라이선스·지원 형식 변경 �
 구현 시 CMake configure summary와 final image를 검사해 최소한 다음 계약을 증명한다.
 
 ```text
-libde265 HEVC decoder: enabled
-x265 HEVC encoder: disabled
-plugin loading: disabled
-examples/CLI/dev tools/tests/fuzzers: not installed
-x265 package/library/link: absent
+WITH_LIBDE265=ON
+ENABLE_PLUGIN_LOADING=OFF
+WITH_X265=OFF
+WITH_KVAZAAR=OFF
+WITH_UVG266=OFF
+WITH_VVDEC=OFF
+WITH_VVENC=OFF
+WITH_X264=OFF
+WITH_OpenH264_DECODER=OFF
+WITH_OpenH264_ENCODER=OFF
+WITH_DAV1D=OFF
+WITH_AOM_DECODER=OFF
+WITH_AOM_ENCODER=OFF
+WITH_SvtEnc=OFF
+WITH_RAV1E=OFF
+WITH_JPEG_DECODER=OFF
+WITH_JPEG_ENCODER=OFF
+WITH_OpenJPEG_ENCODER=OFF
+WITH_OpenJPEG_DECODER=OFF
+WITH_FFMPEG_DECODER=OFF
+WITH_OPENJPH_ENCODER=OFF
+WITH_OPENJPH_DECODER=OFF
+WITH_UNCOMPRESSED_CODEC=OFF
+WITH_WEBCODECS=OFF
+WITH_HEADER_COMPRESSION=OFF
+WITH_EXAMPLES=OFF
+WITH_EXAMPLE_HEIF_THUMB=OFF
+WITH_EXAMPLE_HEIF_VIEW=OFF
+WITH_GDK_PIXBUF=OFF
+BUILD_DEVELOPMENT_TOOLS=OFF
+BUILD_DOCUMENTATION=OFF
+BUILD_TESTING=OFF
+ENABLE_COVERAGE=OFF
+WITH_FUZZERS=OFF
 ```
+
+- 위 codec별 `WITH_<codec>_PLUGIN`도 모두 `OFF`로 전달하고 configure summary에서 plugin target이 0개인지 검사한다.
+- production CMake preset은 위 allowlist 밖 codec·encoder·plugin·experimental option이 새로 생기거나 `ON`이면 configure 또는 image acceptance를 실패시킨다. upstream option rename·추가를 묵시적 default로 수용하지 않는다.
+- final image에서 x265 package, `libx265` shared-library link와 codec plugin file이 없음을 각각 검사한다.
 
 ### 기능·아키텍처 검증
 
@@ -96,7 +129,7 @@ browser·기기별 품질과 metadata 처리에 의존하고 현재 server-side 
 ## 실행 계획
 
 - [ ] pinned source를 사용하는 multi-stage production image 구현
-- [ ] decoder-only CMake option allowlist와 configure summary assertion
+- [ ] libde265만 `ON`인 fail-closed CMake codec allowlist와 모든 encoder·plugin·experimental path `OFF` configure summary assertion
 - [ ] final image x265 package·link·plugin absence 검사
 - [ ] SBOM, source·license notice와 scanner evidence 생성
 - [ ] Linux amd64 Hosted CI actual HEIC 검증

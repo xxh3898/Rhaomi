@@ -83,12 +83,12 @@ feature → dev
 - production job은 보호된 environment 승인 뒤에만 environment secret에 접근한다.
 - 임의 SSH command body 대신 exact SHA·digest와 제한된 매개변수만 받는 고정 entrypoint를 사용한다.
 - image에는 commit SHA tag를 붙이고 실제 배포는 digest로 고정한다. `latest`는 금지한다.
-- release evidence에 exact SHA, image digest, SBOM, dependency/image scan, migration과 smoke 결과를 기록한다.
+- release evidence에 exact SHA, image digest, SBOM, dependency/image scan, migration과 smoke 결과를 기록한다. public release manifest에는 [ADR-011](ADR-011-transactional-outbox-static-publisher.md)의 `contentRevision`, `publishGeneration`, `generatedAt`을 포함한다.
 
 ### 배포 순서
 
 1. global deploy lock 획득
-2. exact `main` SHA와 release manifest 확인
+2. exact `main` SHA와 `contentRevision`·`publishGeneration`·`generatedAt` release manifest 확인
 3. disk 여유와 `current`·`previous` 확인
 4. 최근 정상 backup 확인
 5. migration·major update면 on-demand backup 생성·검증
@@ -104,7 +104,7 @@ feature → dev
 15. 관리자 write maintenance 해제
 16. release evidence와 HomeOps 상태 기록
 
-검증 전에는 `current`를 바꾸지 않는다. 전환 후 smoke가 실패하면 `previous`로 즉시 복귀하고 maintenance 해제 여부를 명시적으로 판단한다. public static site는 maintenance 중에도 계속 제공한다.
+검증 전에는 `current`를 바꾸지 않는다. `current` 전환은 monotonic `publishGeneration`을 ordering authority로 사용하며 낮거나 같은 generation은 더 새로운 release를 덮지 못한다. 전환 후 smoke가 실패하면 낮은 generation의 `previous` symlink를 직접 재활성화하지 않고, [rollback 계약](../07-operations/rollback.md)에 따라 previous code image/digest와 current content snapshot으로 더 높은 rollback generation을 build·검증해 전환한다. maintenance 해제 여부는 명시적으로 판단하며 public static site는 maintenance 중에도 계속 제공한다.
 
 ### Flyway와 schema 호환성
 

@@ -34,12 +34,15 @@ review_trigger: "출시 기준 변경 시"
 - [ ] 관리자 2FA
 - [ ] 상태 validation
 - [ ] archive 운영
-- [ ] 공개 영향 transaction과 같은 PostgreSQL transaction의 publishing outbox
-- [ ] monotonic content revision과 draft-only 변경 trigger 분류
-- [ ] single publisher 30초 debounce·global lock·latest revision coalescing
+- [ ] 공개 영향 transaction과 같은 PostgreSQL transaction의 immediate publishing event
+- [ ] future notice publishedAt·expiresAt의 `availableAt` durable scheduled event와 overdue recovery
+- [ ] scheduled event current-row/snapshot 재검증과 reschedule·draft/archive·window-change stale no-op/coalesce
+- [ ] `contentRevision`·`publishGeneration` 분리와 draft-only 변경 trigger 분류
+- [ ] single publisher 30초 debounce·global lock·highest generation coalescing
 - [ ] build API read-only와 public `/api/build/**` deny
 - [ ] published·notice expiry·relation·media/file의 API/transformer 이중 검증
-- [ ] publisher 1분·5분·15분 최대 3회 retry와 data 오류 중단
+- [ ] publisher 동일 generation 1분·5분·15분 최대 3회 retry, 승인된 manual rebuild/retry의 새 generation과 data 오류 중단
+- [ ] snapshot/release manifest의 `contentRevision`·`publishGeneration`·`generatedAt`과 generation 기준 stale switch 거부
 - [ ] 실제 iPhone CRUD
 
 ## 공개 사이트
@@ -89,7 +92,8 @@ review_trigger: "출시 기준 변경 시"
 - [ ] EXIF 제거
 - [ ] HEIC 검증
 - [ ] decoder-only libheif `v1.23.1` exact commit과 libde265 decode
-- [ ] production image x265 package·link·plugin 부재
+- [ ] production CMake의 libde265-only fail-closed codec allowlist와 encoder·plugin·experimental path OFF
+- [ ] production image x265 package·library·link·plugin 부재
 - [ ] source·license notice·SBOM·image scan
 - [ ] Linux amd64와 Mac mini Linux arm64 actual HEIC fixture
 - [ ] asset budgets
@@ -114,8 +118,11 @@ review_trigger: "출시 기준 변경 시"
 - [ ] `/srv/rhaomi/public` web read-only와 private DB/media mount 분리
 - [ ] DB `pg_dump -Fc`와 canonical media의 동일 backup-set manifest
 - [ ] 외장 SSD·iCloud의 별도 encrypted restic repository
+- [ ] local iCloud Drive repository snapshot/check와 Apple remote sync 완료 증거 분리
+- [ ] remote sync 미증명 backup set의 offsite RPO `PASS` 금지와 local/offsite RPO 별도 표시
+- [ ] 최초 production gate의 second trusted device 또는 clean retrieval path fresh retrieval·restic check·대표 restore
 - [ ] daily 7 / weekly 4 / monthly 6와 post-prune check
-- [ ] quarterly isolated full restore, RPO 24h·RTO 8h evidence
+- [ ] quarterly isolated full restore, local/offsite RPO 24h 분리·RTO 8h evidence
 - [ ] `current`·`previous` atomic switch·rollback과 성공 release 5개 보존
 - [ ] HomeOps 단일 관제·incident·Activity·Discord authority
 - [ ] public/internal/container/host/DB/publisher/backup monitor와 임계값

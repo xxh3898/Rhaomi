@@ -95,7 +95,7 @@ Compose는 `POSTGRES_*`에서 backend의 `SPRING_DATASOURCE_*`를 내부 service
 | global lock | N | `/srv/rhaomi/state/locks` |
 | logs | Y 취급 | `/srv/rhaomi/logs` |
 
-production manifest에는 exact `main` SHA, image tag·digest, Flyway version, release ID와 SBOM reference를 기록한다. actual ownership, UID/GID와 Secret source는 provisioning에서 확정하며 Git에 실제 값을 기록하지 않는다.
+production release manifest에는 exact `main` SHA, image tag·digest, Flyway version, release ID, SBOM reference와 public build의 `contentRevision`, `publishGeneration`, `generatedAt`을 기록한다. actual ownership, UID/GID와 Secret source는 provisioning에서 확정하며 Git에 실제 값을 기록하지 않는다.
 
 ## 공개 frontend build — planned
 
@@ -108,8 +108,9 @@ production manifest에는 exact `main` SHA, image tag·digest, Flyway version, r
 | `CONTENT_SNAPSHOT_PATH` | N | 생성 파일 경로 |
 | `MEDIA_OUTPUT_PATH` | N | 공개 파생본 경로 |
 | `BUILD_RELEASE_ID` | N | release 식별자 |
-| `BUILD_CONTENT_REVISION` | N | monotonic content revision |
-| `BUILD_TIMESTAMP` | N | notice published·expiry 판정 기준 시각 |
+| `BUILD_CONTENT_REVISION` | N | 콘텐츠 mutation snapshot revision |
+| `BUILD_PUBLISH_GENERATION` | N | public trigger의 monotonic sequence와 stale switch authority |
+| `BUILD_TIMESTAMP` | N | snapshot `generatedAt`, notice published·expiry 판정 기준 시각 |
 
 build credential은 관리자 session과 분리하고 절대 `NEXT_PUBLIC_` 접두사를 사용하지 않는다. public Nginx가 build API를 차단하고 publisher만 internal read-only endpoint를 사용한다. 이 변수와 API는 아직 구현되지 않았다.
 
@@ -118,7 +119,7 @@ build credential은 관리자 session과 분리하고 절대 `NEXT_PUBLIC_` 접�
 | 변수 | 비밀 | 설명 |
 |---|---:|---|
 | `BUILD_API_CREDENTIAL` | Y | admin session과 분리된 read-only service credential |
-| `PUBLISHER_STATE_DIR` | Y 취급 | outbox claim·attempt/result 상태 |
+| `PUBLISHER_STATE_DIR` | Y 취급 | immediate·scheduled event claim, generation·attempt/result 상태 |
 | `PUBLISHER_LOCK_PATH` | N | global filesystem lock |
 | `RELEASES_DIR` | N | `/srv/rhaomi/public/releases` |
 | `CURRENT_LINK` | N | `/srv/rhaomi/public/current` |
@@ -126,7 +127,7 @@ build credential은 관리자 session과 분리하고 절대 `NEXT_PUBLIC_` 접�
 | `RELEASE_RETENTION` | N | 성공 release 5개, current·previous 항상 보존 |
 | `DEBOUNCE_SECONDS` | N | 고정 30초 |
 
-publisher는 public network·Docker socket을 사용하지 않으며 동일 revision transient failure를 1분·5분·15분 최대 3회 retry한다. actual service와 변수는 아직 구현되지 않았다.
+publisher는 public network·Docker socket을 사용하지 않으며 immediate pending event와 due scheduled event를 처리한다. 동일 `publishGeneration`의 transient failure를 1분·5분·15분 최대 3회 retry한다. actual service와 변수는 아직 구현되지 않았다.
 
 ## Production deploy·migration — planned
 
@@ -143,6 +144,8 @@ publisher는 public network·Docker socket을 사용하지 않으며 동일 revi
 
 - 외장 SSD exact mount path·용량과 iCloud Drive exact folder는 provisioning 전 출시 차단값이다.
 - 두 destination은 별도 encrypted restic repository와 독립 key를 사용한다.
+- local iCloud Drive repository snapshot/check와 Apple remote sync evidence를 분리하고 local/offsite RPO를 별도 상태로 제공한다.
+- 최초 production은 second trusted device 또는 local cache를 authority로 쓰지 않는 clean retrieval path의 fresh retrieval·restic check·대표 restore를 요구한다.
 - restic password는 root-owned 제한 파일 또는 macOS Keychain password command로 공급하고 값 자체를 env example·log에 넣지 않는다.
 - HomeOps endpoint·identity와 Discord 수신자는 Rhaomi public configuration에 넣지 않고 Tailscale·운영 Secret 경계에서 관리한다.
 - Rhaomi는 privacy-safe health/status/event/metric source만 제공한다.
