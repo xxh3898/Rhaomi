@@ -116,7 +116,7 @@ synthetic backend 검증은 physical-device와 Builder 검증을 대체하지 �
 ## 파일 검증
 
 - 실제 byte 기준 JPEG·PNG·HEIC·HEIF allowlist, 구체적 MIME·extension 충돌 거부
-- ISO BMFF brand는 HEIC still `heic | heix | heim | heis`, HEIC sequence `hevc | hevx | hevm | hevs`, generic HEIF sequence `msf1`, AVIF `avif | avis`로 분리
+- ISO BMFF brand는 HEIC still `heic | heix | heim | heis`, HEIC sequence `hevc | hevx | hevm | hevs`, generic HEIF sequence `msf1`, AVIF `avif | avis`로 분리한다. HEIC still은 major와 compatible brand 모두에서 인식하고, AVIF·sequence 거부를 먼저 적용한 뒤 나머지 major `mif1` 구조만 generic HEIF로 분류한다.
 - source 최대 20 MiB, stored 최대 30 MiB
 - width·height 각각 최대 12,000px, total 최대 60MP
 - GIF·WebP·AVIF·SVG는 `415 MEDIA_TYPE_UNSUPPORTED`, APNG·multi-image/sequence HEIF는 `422 MEDIA_INVALID_IMAGE`로 거부

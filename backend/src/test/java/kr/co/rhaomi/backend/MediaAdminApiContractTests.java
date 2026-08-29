@@ -9,6 +9,7 @@ import static kr.co.rhaomi.backend.media.MediaTestFixtures.resource;
 import static kr.co.rhaomi.backend.media.MediaTestFixtures.sha256;
 import static kr.co.rhaomi.backend.media.MediaTestFixtures.truncatedHeic;
 import static kr.co.rhaomi.backend.media.MediaTestFixtures.truncatedHeif;
+import static kr.co.rhaomi.backend.media.MediaTestFixtures.withIsoBmffMajorBrand;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -241,6 +242,39 @@ class MediaAdminApiContractTests {
     }
 
     @Test
+    void should_normalizeCompatibleBrandHeic_when_majorBrandIsMif1() throws Exception {
+        var session = login();
+        var source = withIsoBmffMajorBrand(
+                resource("synthetic-orientation-metadata.heic"), "mif1");
+        assertEquals("mif1", new String(source, 8, 4, StandardCharsets.US_ASCII));
+        assertEquals("heic", new String(source, 20, 4, StandardCharsets.US_ASCII));
+
+        var upload = upload(
+                session.client(),
+                session.csrfToken(),
+                new Part(
+                        "file",
+                        "iphone-compatible-brand.heic",
+                        "image/heic",
+                        source));
+
+        assertEquals(201, upload.statusCode());
+        assertTrue(upload.body().contains("\"sourceContentType\":\"image/heic\""));
+        assertTrue(upload.body().contains("\"contentType\":\"image/jpeg\""));
+        assertTrue(upload.body().contains("\"width\":48"));
+        assertTrue(upload.body().contains("\"height\":64"));
+
+        var id = extractId(upload.body());
+        var content = getBytes(session.client(), "/api/admin/media/" + id + "/content");
+        assertEquals(200, content.statusCode());
+        assertEquals("image/jpeg", content.headers().firstValue("content-type").orElseThrow());
+        assertCanonicalJpeg(content.body());
+        assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM media_assets", Integer.class));
+        assertEquals(1, masterFileCount());
+        assertEquals(0, tempFileCount());
+    }
+
+    @Test
     void should_archiveRestoreAndListDeterministically_when_statusIsOnlyMutableField()
             throws Exception {
         var session = login();
@@ -443,6 +477,15 @@ class MediaAdminApiContractTests {
         }
         assertBrandUploadError(
                 session, "msf1", "image/heif", "heif", 422, "MEDIA_INVALID_IMAGE");
+        var compatibleStill = upload(
+                session.client(),
+                session.csrfToken(),
+                new Part(
+                        "file",
+                        "compatible-brand.heic",
+                        "image/heic",
+                        isoBmffHeader("mif1", "mif1", "heic")));
+        assertError(compatibleStill, 422, "MEDIA_INVALID_IMAGE");
         for (var avifBrand : List.of("avif", "avis")) {
             assertBrandUploadError(
                     session,

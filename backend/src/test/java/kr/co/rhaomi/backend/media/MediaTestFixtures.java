@@ -113,6 +113,19 @@ public final class MediaTestFixtures {
         return buffer.array();
     }
 
+    public static byte[] withIsoBmffMajorBrand(byte[] source, String majorBrand) {
+        if (source.length < 16
+                || source[4] != 'f'
+                || source[5] != 't'
+                || source[6] != 'y'
+                || source[7] != 'p') {
+            throw new IllegalArgumentException("ISO BMFF ftyp box must be first");
+        }
+        var result = source.clone();
+        System.arraycopy(brandBytes(majorBrand), 0, result, 8, 4);
+        return result;
+    }
+
     public static byte[] truncatedHeic() {
         var source = resource("synthetic-orientation-metadata.heic");
         return java.util.Arrays.copyOf(source, 48);

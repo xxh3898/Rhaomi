@@ -99,7 +99,8 @@ review_trigger: "관리 API·build 입력 변경 시"
 
 - 목록은 `created_at DESC, id ASC`이며 archived도 관리자 조회·content 확인이 가능하다.
 - content는 저장 `Content-Type`·정확한 `Content-Length`, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`를 사용한다.
-- upload는 client MIME·확장자·파일명이 아닌 실제 signature/container와 decoder를 기준으로 JPEG·PNG·HEIC·HEIF를 판정한다. 빈 MIME·`application/octet-stream`·filename 없음은 실제 byte가 유효하면 허용하고 구체적 충돌은 거부한다. HEIC still brand는 `heic | heix | heim | heis`, HEIC sequence brand는 `hevc | hevx | hevm | hevs`, generic HEIF sequence brand는 `msf1`, AVIF brand는 `avif | avis`로 분류한다.
+- upload는 client MIME·확장자·파일명이 아닌 실제 signature/container와 decoder를 기준으로 JPEG·PNG·HEIC·HEIF를 판정한다. 빈 MIME·`application/octet-stream`·filename 없음은 실제 byte가 유효하면 허용하고 구체적 충돌은 거부한다. HEIC still brand `heic | heix | heim | heis`는 major 또는 compatible brand에 있으면 HEIC 후보로 분류한다. HEIC sequence brand는 `hevc | hevx | hevm | hevs`, generic HEIF sequence brand는 `msf1`, AVIF brand는 `avif | avis`다.
+- brand 우선순위는 AVIF 415 거부 → sequence 422 거부 → major/compatible HEIC still 인식 → 나머지 major `mif1` generic HEIF 인식 → unsupported 415 거부다.
 - JPEG·PNG는 검증 원본 byte, HEIC·HEIF는 orientation 적용·sRGB 변환·metadata 제거 뒤 quality 92 JPEG master로 저장한다.
 - source 20 MiB, stored 30 MiB, 폭·높이 12,000px, 총 60MP 제한을 application과 DB 역할에 맞게 강제한다.
 - response는 id, status, source/stored content type, source/stored byte size, display dimension과 actor/audit만 반환한다. original filename, storage key, filesystem path, extension, SHA-256은 반환하지 않는다.

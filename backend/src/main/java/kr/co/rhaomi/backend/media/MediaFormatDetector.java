@@ -115,7 +115,7 @@ class MediaFormatDetector {
                 || brands.stream().anyMatch(GENERIC_HEIF_SEQUENCE_BRANDS::contains)) {
             throw new MediaInvalidImageException();
         }
-        if (HEIC_STILL_BRANDS.contains(majorBrand)) {
+        if (brands.stream().anyMatch(HEIC_STILL_BRANDS::contains)) {
             return MediaSourceType.HEIC;
         }
         if (majorBrand.equals("mif1")) {

@@ -16,6 +16,7 @@ const displayP3Profile = Buffer.from(
 const width = 64;
 const height = 48;
 const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const heicStillBrands = new Set(["heic", "heix", "heim", "heis"]);
 
 function crc32(buffer) {
   let value = 0xffffffff;
@@ -130,7 +131,17 @@ function makeGenericHeif(source, target) {
   const bytes = readFileSync(source);
   const ftypOffset = bytes.indexOf(Buffer.from("ftyp", "ascii"));
   assert(ftypOffset >= 4, "HEIC fixture에 ftyp box가 필요합니다.");
+  const boxOffset = ftypOffset - 4;
+  const boxSize = bytes.readUInt32BE(boxOffset);
+  const boxEnd = boxOffset + boxSize;
+  assert(boxSize >= 16 && boxEnd <= bytes.length, "유효한 ftyp box가 필요합니다.");
   bytes.write("mif1", ftypOffset + 4, 4, "ascii");
+  for (let brandOffset = ftypOffset + 12; brandOffset + 4 <= boxEnd; brandOffset += 4) {
+    const brand = bytes.toString("ascii", brandOffset, brandOffset + 4);
+    if (heicStillBrands.has(brand)) {
+      bytes.write("mif1", brandOffset, 4, "ascii");
+    }
+  }
   writeFileSync(target, bytes);
 }
 

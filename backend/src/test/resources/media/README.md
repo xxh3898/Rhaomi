@@ -10,9 +10,14 @@
   - SHA-256: `cb51de38e482ee974c0c76b9689e16aad04bad16e226fed2f30c842d15ff3a3d`
   - license: CC0-1.0
 - encoder: `libheif-tools=1.23.0-r0`의 `heif-enc`
+- generic HEIF: major brand를 `mif1`로 바꾸고 compatible HEIC still brand도 `mif1`로
+  치환해 HEIC 후보가 없는 `image/heif` fixture 생성
 - multi-image: 서로 다른 두 합성 raster를 top-level image 두 개로 encoding
 - sequence brand: multi-image fixture의 HEIF `ftyp` major brand를 sequence용 `msf1`로
   바꿔 container 단계의 fail-closed 판정을 검증
+- compatible-brand HEIC: `synthetic-orientation-metadata.heic`의 `ftyp` major brand만
+  test에서 `mif1`로 바꾸고 compatible `heic`, raster와 metadata를 유지해 actual HTTP
+  분류·정규화 회귀를 검증
 
 재생성 예시:
 
