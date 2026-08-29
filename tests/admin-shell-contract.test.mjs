@@ -65,15 +65,64 @@ test("Middleware와 server runtime 인증 경계를 추가하지 않는다", asy
     await assertMissing(join(projectRoot, filename));
     await assertMissing(join(sourceRoot, filename));
   }
+
+  const files = (await collectFiles(sourceRoot)).filter((path) => {
+    const extension = extname(path);
+    return [".ts", ".tsx", ".js", ".jsx"].includes(extension) && !path.includes(".test.");
+  });
+  for (const file of files) {
+    const source = await readFile(file, "utf8");
+    const displayPath = relative(projectRoot, file);
+    assert.doesNotMatch(source, /^["']use server["'];/m, displayPath);
+    assert.doesNotMatch(source, /from\s+["']next\/(?:headers|server)["']/, displayPath);
+  }
 });
 
 test("admin API client 경계를 relative same-origin과 no-store로 고정한다", async () => {
   const source = await readFile(join(sourceRoot, "features", "admin-auth", "api.ts"), "utf8");
+  const mediaApi = await readFile(
+    join(sourceRoot, "features", "admin-media", "api.ts"),
+    "utf8",
+  );
+  const mediaManager = await readFile(
+    join(sourceRoot, "features", "admin-media", "AdminMediaManager.tsx"),
+    "utf8",
+  );
 
   assert.match(source, /["']\/api\/admin\//);
   assert.match(source, /credentials:\s*["']same-origin["']/);
   assert.match(source, /cache:\s*["']no-store["']/);
   assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB|document\.cookie/);
+  assert.match(mediaApi, /["']\/api\/admin\/media["']/);
+  assert.match(mediaApi, /requestMultipartMutation/);
+  assert.match(mediaApi, /requestAuthenticatedBlob/);
+  assert.doesNotMatch(mediaApi, /https?:\/\//);
+  assert.doesNotMatch(mediaManager, /src=[{]?["']\/api\/admin\/media/);
+});
+
+test("admin media UI의 320px, touch target, focus와 reduced-motion 계약을 고정한다", async () => {
+  const shellCss = await readFile(
+    join(sourceRoot, "app", "admin", "admin.module.css"),
+    "utf8",
+  );
+  const dashboardCss = await readFile(
+    join(sourceRoot, "features", "admin-dashboard", "AdminDashboard.module.css"),
+    "utf8",
+  );
+  const mediaCss = await readFile(
+    join(sourceRoot, "features", "admin-media", "AdminMediaManager.module.css"),
+    "utf8",
+  );
+
+  assert.match(shellCss, /env\(safe-area-inset-top\)/);
+  assert.match(shellCss, /env\(safe-area-inset-right\)/);
+  assert.match(shellCss, /env\(safe-area-inset-bottom\)/);
+  assert.match(shellCss, /env\(safe-area-inset-left\)/);
+  assert.match(dashboardCss, /@media \(max-width: 359px\)[\s\S]*grid-template-columns: 1fr/);
+  assert.match(mediaCss, /min-height: 2\.75rem/);
+  assert.match(mediaCss, /@media \(max-width: 560px\)[\s\S]*grid-template-columns: 1fr/);
+  assert.match(mediaCss, /:focus-visible|:focus-within/);
+  assert.match(mediaCss, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
 test("gateway image, routing, HMR, upload limit과 proxy header 계약을 고정한다", async () => {

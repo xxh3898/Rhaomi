@@ -3,7 +3,7 @@ title: "프론트엔드 아키텍처"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "Next.js 구조 또는 렌더링 방식 변경 시"
 ---
 
@@ -56,6 +56,7 @@ Static Export에서도 빌드 시 Server Component를 사용할 수 있다. 단,
 - 문의 channel bottom sheet
 - 제한적인 section reveal
 - `/admin/`의 session 확인·로그인·로그아웃 인증 셸
+- `/admin/`의 dashboard navigation과 private media manager
 
 Client boundary는 가장 작은 상호작용 단위에 둔다.
 
@@ -80,7 +81,11 @@ Client boundary는 가장 작은 상호작용 단위에 둔다.
 - password와 CSRF는 필요한 동안 memory에만 두며 localStorage, sessionStorage, IndexedDB, cookie 직접 쓰기, URL과 log에 저장하지 않는다.
 - post-login fresh CSRF 실패는 invalid credential이나 anonymous로 바꾸지 않는다. 명시적 재시도에서 `/me`로 이미 생성된 session을 확인하고 fresh CSRF를 다시 준비한다.
 - admin API의 401은 in-memory 인증 상태를 비우고, 403 mutation은 자동 재시도하지 않는다.
-- 현재 dashboard 관리 영역은 disabled placeholder이며 CRUD route·fake data를 만들지 않는다.
+- 공통 admin transport는 authenticated JSON GET, CSRF-protected JSON·multipart mutation과 authenticated image Blob GET만 제공한다. media feature가 CSRF store나 인증 client를 별도로 만들지 않는다.
+- media preview는 authenticated GET의 JPEG/PNG content-type을 검증해 object URL을 만들고 item 교체·refresh·unmount에서 revoke한다. `IntersectionObserver`로 현재 viewport 근처 항목만 bounded fetch한다.
+- 현재 dashboard는 미디어만 enabled이고 매장정보·갤러리·공지·견종·서비스는 disabled placeholder다. 별도 route·query/hash authority나 fake data를 만들지 않는다.
+- upload `accept`와 20 MiB client check는 UX 보조이며 실제 type·size·decoder validation authority는 backend다.
+- mutation 403은 CSRF를 폐기하되 자동 재실행하지 않는다. 다음 명시적 사용자 action에서 fresh CSRF를 획득하고 mutation을 한 번만 보낸다.
 
 ## 금지
 
@@ -124,6 +129,7 @@ Spring Boot read-only build API
 - client hydration 뒤에만 session을 확인
 - 공개 navigation과 sitemap에 링크하지 않음
 - backend session이 없으면 업무 API 접근 불가
+- 같은 Static Export route 안에서 관리 홈과 미디어 화면을 전환하며 refresh 후에는 session 확인을 거쳐 관리 홈에서 다시 시작할 수 있음
 
 ## 데이터 검증
 

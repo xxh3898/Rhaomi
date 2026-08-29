@@ -10,17 +10,9 @@ import type {
   AdminAuthClient,
   AdminIdentity,
 } from "@/features/admin-auth/types";
+import { AdminDashboard } from "@/features/admin-dashboard/AdminDashboard";
 
 import styles from "../admin.module.css";
-
-const MANAGEMENT_AREAS = [
-  "매장정보",
-  "갤러리",
-  "미디어",
-  "공지",
-  "견종",
-  "서비스",
-] as const;
 
 const MAX_PASSWORD_BYTES = 72;
 
@@ -84,14 +76,18 @@ export function AdminAuthShell({ client }: AdminAuthShellProps) {
   const passwordInputRef = useRef<HTMLInputElement>(null);
   const busyRef = useRef(false);
   const requestSequenceRef = useRef(0);
+  const handleSessionExpired = useCallback(() => {
+    setEmail("");
+    setPassword("");
+    setState({
+      kind: "anonymous",
+      message: "관리자 세션이 만료됐습니다. 다시 로그인해 주세요.",
+    });
+  }, []);
   const [authClient] = useState<AdminAuthClient>(() =>
     client ??
     createAdminAuthClient({
-      onSessionExpired: () => {
-        setEmail("");
-        setPassword("");
-        setState({ kind: "anonymous" });
-      },
+      onSessionExpired: handleSessionExpired,
     }),
   );
 
@@ -230,7 +226,10 @@ export function AdminAuthShell({ client }: AdminAuthShellProps) {
 
   return (
     <main className={styles.main}>
-      <section className={styles.panel} aria-labelledby="admin-title">
+      <section
+        className={`${styles.panel} ${authenticatedState ? styles.authenticatedPanel : ""}`}
+        aria-labelledby="admin-title"
+      >
         <header className={styles.header}>
           <p className={styles.eyebrow}>Rhaomi Pet · Secure Admin</p>
           <h1 id="admin-title" className={styles.title}>
@@ -330,22 +329,10 @@ export function AdminAuthShell({ client }: AdminAuthShellProps) {
               <span>역할: {authenticatedState.admin.role}</span>
             </div>
 
-            <section aria-labelledby="management-title">
-              <div className={styles.sectionHeading}>
-                <h2 id="management-title">관리 영역</h2>
-                <span>Phase 1C-7</span>
-              </div>
-              <ul className={styles.areaList}>
-                {MANAGEMENT_AREAS.map((area) => (
-                  <li key={area}>
-                    <button type="button" disabled aria-label={`${area}, 준비 중`}>
-                      <span>{area}</span>
-                      <small>준비 중</small>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <AdminDashboard
+              transport={authClient}
+              onSessionExpired={handleSessionExpired}
+            />
 
             <button
               className={styles.secondaryButton}

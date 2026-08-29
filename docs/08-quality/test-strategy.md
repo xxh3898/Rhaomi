@@ -3,7 +3,7 @@ title: "테스트 전략"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "기술·기능 범위 변경 시"
 ---
 
@@ -18,7 +18,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - 모바일 문의·검색 metadata 보호
 - 배포 실패 시 기존 사이트 보호
 
-## 현재 Phase 1C-7 자동 검증
+## 현재 Phase 1C-8a 자동 검증
 
 ### Frontend
 
@@ -35,8 +35,15 @@ review_trigger: "기술·기능 범위 변경 시"
 - post-login CSRF 실패의 unavailable 분리와 `/me`+fresh CSRF recovery, 기존 session의 mutation-ready 전 fresh CSRF 준비
 - login 400/401/403/503 fixed error mapping, password 제거와 UTF-8 72-byte client 안내
 - logout 204/401/403, mutation non-retry와 authenticated API 401 session-expired 처리
-- visible label/autocomplete, Enter, pending 중복 방지, live alert, password focus, retry, identity와 disabled 영역
+- visible label/autocomplete, Enter, pending 중복 방지, live alert, password focus, retry와 identity
 - browser storage·URL·log credential/token 비저장 정적 검사
+- 미디어만 enabled인 dashboard navigation과 same-page 관리 홈 복귀
+- media list loading/ready/empty/error/refreshing, server ordering 유지와 active/archived client filter
+- private image Blob GET의 JPEG/PNG 검증, bounded lazy fetch와 object URL refresh/unmount revoke
+- 단일 multipart `file`, 20 MiB client 차단, pending double-submit 차단과 success file state clear
+- 400/413/415/422/503/403/network의 frontend-owned upload 문구와 raw detail 비노출
+- active/archive status-only PUT, item pending isolation, 403 non-retry·no optimistic success와 401 login 복귀
+- 320px CSS, 44px control, keyboard native control, aria status/alert/pressed와 archived text state
 
 ### Backend unit
 
@@ -222,9 +229,9 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 - 홈 → 공지 → 상세 → 홈
 - map/phone/external CTA
 - mobile sticky CTA, 404, keyboard only
-- `/admin` 콘텐츠 form/list/upload, validation, archive·restore
+- `/admin` 매장정보·갤러리·공지·견종·서비스 form/list와 media picker
 - axe, heading/landmark/focus/dialog/contrast/reflow/reduced motion
-- 실제 iPhone Safari image upload와 session cookie 동작
+- 실제 iPhone Safari HEIC photo-library upload와 session cookie·object URL 동작
 
 ## 후속 배포 테스트
 

@@ -3,7 +3,7 @@ title: "브라우저·기기 매트릭스"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "유입 채널·지원 범위 변경 시"
 ---
 
@@ -35,6 +35,8 @@ review_trigger: "유입 채널·지원 범위 변경 시"
 - visible label, Enter submit, focus 복구와 keyboard login/logout DOM test
 - same-origin gateway의 session·CSRF login/me/logout HTTP smoke
 - password/CSRF browser persistence 금지 정적 검사
+- 미디어 dashboard navigation, filter·upload·archive/restore native control과 aria state component test
+- 20 MiB client 차단, multipart boundary, private Blob preview lazy load·object URL revoke와 401/403 test
 
 출시 전 실제 기기 범위:
 
@@ -47,7 +49,7 @@ review_trigger: "유입 채널·지원 범위 변경 시"
 - HEIC 파일
 - 긴 본문과 키보드
 
-현재 `/admin/` 인증 셸은 실제 iPhone Safari·VoiceOver에서 아직 검증하지 않았다. 후속 CRUD UI의 form validation과 HEIC image upload까지 실제 기기에서 확인하고 2FA·TLS gate를 충족한 뒤 운영에 사용한다.
+현재 `/admin/` 인증 셸과 미디어 관리 UI는 실제 iPhone Safari·VoiceOver에서 아직 검증하지 않았다. 사진 보관함의 HEIC 선택·upload·preview, form validation, session cookie와 archive/restore를 실제 기기에서 확인하고 2FA·TLS gate를 충족한 뒤 운영에 사용한다.
 
 ## 화면
 

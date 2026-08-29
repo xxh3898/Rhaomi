@@ -23,7 +23,7 @@ review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 
 ## 현재 구현 범위
 
-Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation에 이어 Phase 1C-7에서는 `/admin/` Static Export 인증 셸과 local same-origin Nginx gateway를 추가했다. 관리자 셸은 session 확인·로그인·로그아웃과 준비 중 관리 영역만 제공하며 CRUD 화면은 구현하지 않았다. 공개 responsive 파생본·build API와 실제 랜딩·SEO 렌더링은 후속 Issue에서 구현한다.
+Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway에 이어 Phase 1C-8a에서 첫 실제 관리 화면인 미디어 UI를 추가했다. 미디어 목록·private preview·단일 upload·archive/restore만 제공하며 다른 콘텐츠 CRUD, 공개 responsive 파생본·build API와 실제 랜딩·SEO 렌더링은 후속 Issue에서 구현한다.
 
 ```text
 .
@@ -34,7 +34,7 @@ Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Bo
 │   └── ISSUE_TEMPLATE/
 ├── src/
 │   ├── app/                 # 공개 홈과 /admin Static Export route
-│   └── features/admin-auth/ # relative same-origin 인증 API client
+│   └── features/            # admin auth/transport, dashboard와 private media manager
 ├── backend/                 # Spring Boot 인증·콘텐츠·private media API와 PostgreSQL contract test
 ├── infra/nginx/dev.conf     # local same-origin gateway
 ├── scripts/                 # 정적 산출물·gateway·HEIC·Compose smoke 검증
@@ -130,9 +130,10 @@ sh scripts/validate-backend-compose.sh .env.dev.local
 - 공지는 같은 인증 경계에서 생성·조회·수정·보관하며 게시 필수값과 게시·만료 기간을 검증한다.
 - 매장정보 singleton은 같은 인증 경계에서 조회·전체 갱신하며 DB와 application이 한 행·필수값·영업시간·HTTPS URL·Hero/프로필 image-alt pair·active media relation을 검증한다.
 - private media master는 같은 인증 경계에서 업로드·조회·archive하며 HEIC/HEIF는 backend에서 canonical JPEG로 정규화한다.
+- `/admin/`은 미디어 목록·authenticated Blob preview·단일 upload·active/archive filter와 복구 가능한 archive/restore UI를 제공한다. 나머지 관리 영역은 준비 중으로 비활성화한다.
 - 갤러리는 실제 견종·대표 서비스·private media를 FK로 참조하고 같은 인증 경계에서 생성·조회·전체 수정·보관·복구한다.
 - 관계 대상의 상태 변경은 갤러리나 매장정보에 cascade하지 않으며 후속 공개 snapshot이 published/relation/file 조건과 선택된 매장 이미지를 다시 검증한다.
-- `/admin/`의 실제 콘텐츠 CRUD, 공개 responsive 파생본과 Builder API는 후속 Issue에서 구현한다.
+- `/admin/`의 매장정보·갤러리·공지·견종·서비스 UI와 media picker, 공개 responsive 파생본과 Builder API는 후속 Issue에서 구현한다.
 - 공개 콘텐츠 변경은 정적 사이트 재빌드·검증·원자적 교체를 유발한다.
 - 고객용 예약 시스템, 결제, 회원가입, 문의 폼은 만들지 않는다.
 - 전화, 인스타그램, 네이버톡톡 등 외부 문의 채널로 연결한다.
