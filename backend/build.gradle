@@ -26,6 +26,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.flywaydb:flyway-database-postgresql'
+	runtimeOnly 'com.github.gotson.nightmonkeys:imageio-heif:1.1.0'
 	runtimeOnly 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
@@ -37,6 +38,7 @@ dependencies {
 }
 
 tasks.named('test') {
+	jvmArgs '--enable-native-access=ALL-UNNAMED'
 	doFirst {
 		if (System.getenv('RHAOMI_TEST_DATABASE_ALLOWED') != 'true') {
 			throw new GradleException('PostgreSQL test는 RHAOMI_TEST_DATABASE_ALLOWED=true가 필요합니다.')
@@ -45,6 +47,10 @@ tasks.named('test') {
 	useJUnitPlatform()
 	testLogging {
 		events 'failed', 'skipped'
-		exceptionFormat 'full'
+		exceptionFormat = 'full'
 	}
+}
+
+tasks.named('bootRun') {
+	jvmArgs '--enable-native-access=ALL-UNNAMED'
 }

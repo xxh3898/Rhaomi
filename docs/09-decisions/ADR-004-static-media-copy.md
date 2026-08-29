@@ -10,6 +10,7 @@ review_trigger: "이미지 저장·제공 방식 변경 시"
 # ADR-004: 원본 미디어와 정적 파생본 분리
 
 - 결정일: 2026-08-28
+- 개정일: 2026-08-29 — Issue #11 private upload/master 구간 구현 반영
 - 상태: Accepted
 
 ## 맥락
@@ -18,18 +19,27 @@ review_trigger: "이미지 저장·제공 방식 변경 시"
 
 ## 결정
 
-- 원본은 후속 backend 소유 storage에 비공개 보관
-- Builder가 인증된 내부 접근으로 원본을 다운로드
-- orientation, crop, resize, format, metadata strip
+- backend가 private filesystem master와 PostgreSQL metadata를 소유하고 공개 Nginx root와 분리
+- JPEG·PNG upload는 actual-byte·decoder·size/pixel 검증 뒤 source byte를 private canonical master로 보존
+- HEIC·HEIF upload는 client 변환에 의존하지 않고 backend에서 orientation 적용·sRGB 변환·metadata 제거 후 quality 92 JPEG master로 정규화
+- HEIC·HEIF raw source는 temp에서만 사용하고 장기 보관하지 않음
+- server-owned UUID storage key와 SHA-256 무결성 metadata를 사용하고 filename/path를 client가 지정하지 못하게 함
+- `active | archived`는 row와 master를 유지하고 physical delete는 후속 retention/backup gate로 분리
+- Builder가 후속 별도 credential의 인증된 내부 접근으로 canonical master를 다운로드
+- 공개 파생 단계에서 JPEG·PNG source metadata 제거, crop, resize와 format 변환 수행
 - content hash 파일명
 - 공개 release에 responsive variants 포함
 - 공개 HTML은 backend 원본 asset URL을 사용하지 않음
+
+Issue #11에서 upload→private canonical master까지만 구현한다. Builder download, gallery relation, responsive 파생본과 Static Export 연결은 planned 상태를 유지한다.
 
 ## 결과
 
 ### 장점
 
 - 원본 개인정보 보호
+- iPhone HEIC를 browser 변환 없이 안정적인 JPEG master로 정규화
+- DB rollback과 filesystem orphan cleanup 경계 명확화
 - 관리 backend 장애와 공개 이미지 분리
 - 정적 캐시
 - 예측 가능한 크기
@@ -39,8 +49,9 @@ review_trigger: "이미지 저장·제공 방식 변경 시"
 
 - build 시간과 디스크 사용 증가
 - image codec 유지보수
+- private master volume의 backup·retention 필요
 - 원본과 파생본 manifest 필요
-- HEIC 등 형식 호환성 검증 필요
+- amd64·arm64 codec 호환성과 실제 iPhone Safari 검증 필요
 
 ## 거부한 대안
 

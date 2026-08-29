@@ -9,18 +9,18 @@ review_trigger: "서비스 배치·network·image 변경 시"
 
 # 컨테이너 구조
 
-## Phase 1B local 개발 구성
+## Phase 1C-4 local 개발 구성
 
 `compose.dev.yaml`은 운영 구성과 분리된 `dev-rhaomi` project다.
 
 | 서비스 | 고정 image | local 공개 | 영속화 |
 |---|---|---|---|
 | `frontend` | `node:24.20.0-alpine3.23` | `127.0.0.1:3000` | `node_modules`, npm cache |
-| `backend` | `eclipse-temurin:25.0.4_7-jdk-alpine-3.23` | `127.0.0.1:8080` | Gradle cache |
+| `backend` | exact Temurin 25 base + `libheif 1.23.0-r0` custom image | `127.0.0.1:8080` | Gradle cache, private media masters |
 | `postgres` | `postgres:18.6-alpine3.23` | 없음 | backend PostgreSQL data |
 | `smoke` | `node:24.20.0-alpine3.23` | 없음 | 없음 |
 
-- Compose는 위 tag와 검증한 multi-architecture manifest digest를 함께 고정한다.
+- frontend·PostgreSQL·smoke는 검증한 multi-architecture manifest digest를 고정한다. backend Dockerfile은 exact Temurin manifest digest와 `libheif=1.23.0-r0`·`libheif-dev=1.23.0-r0`를 고정한다.
 - `frontend`와 `smoke`는 각각 profile에서만 실행한다.
 - backend와 PostgreSQL은 `dev-rhaomi-backend-internal`에서 통신한다.
 - backend만 별도 `dev-rhaomi-backend-local` network와 loopback port를 사용한다.
@@ -28,6 +28,7 @@ review_trigger: "서비스 배치·network·image 변경 시"
 - 실제 값은 Git 제외 `.env.dev.local`과 process 환경에서 주입한다.
 - local/test 관리자 bootstrap은 기본 비활성이며 production profile에서 사용할 수 없다.
 - 일반 종료는 named volume을 보존하는 `docker compose ... down`을 사용한다.
+- `backend-media-masters` volume은 backend만 `/var/lib/rhaomi/media`에 mount하고 frontend·smoke에는 mount하지 않는다.
 
 ## 개발 volume 경계
 
@@ -35,6 +36,7 @@ review_trigger: "서비스 배치·network·image 변경 시"
 dev-rhaomi-frontend-node-modules
 dev-rhaomi-frontend-npm-cache
 dev-rhaomi-backend-gradle-cache
+dev-rhaomi-backend-media-masters
 dev-rhaomi-postgres-18-backend-data
 ```
 
@@ -50,7 +52,7 @@ flowchart TB
     Nginx -->|same-origin /api| Backend[Spring Boot]
 
     Backend --> Postgres[(PostgreSQL)]
-    Backend -. 후속 .-> Uploads[(원본 이미지 storage)]
+    Backend --> Uploads[(private canonical media masters)]
     Backend -. 후속 internal event .-> Deployer[Deploy Hook / Queue]
 
     Deployer -. 후속 .-> Builder[Builder Container]
@@ -63,18 +65,18 @@ flowchart TB
     Backup --> Offsite[(Mac mini 외부 backup)]
 ```
 
-운영 Nginx, deploy, image storage와 backup 구현은 이번 Issue 범위가 아니다.
+local private media volume과 upload API만 구현됐다. 운영 Nginx·deploy·private media path provisioning과 backup 구현은 이번 Issue 범위가 아니다.
 
 ## 서비스 책임
 
 | 서비스 | 책임 | 외부 공개 |
 |---|---|---|
 | `nginx` | TLS, 정적 파일, same-origin `/api/**` reverse proxy | 80/443 |
-| `backend` | 관리자 session/auth, 후속 콘텐츠 API | Nginx를 통해서만 |
+| `backend` | 관리자 session/auth, 콘텐츠 API, private media 검증·정규화·master 소유 | Nginx를 통해서만 |
 | `postgres` | 관리자와 후속 콘텐츠 데이터 영속화 | 금지 |
 | `deploy-hook` | 후속 인증·debounce·build lock | 금지 |
 | `builder` | 후속 콘텐츠·이미지 동기화와 Static Export | 금지 |
-| `backup` | DB와 후속 원본 storage backup | 금지 |
+| `backup` | DB와 후속 private master storage backup | 금지 |
 
 ## network 원칙
 

@@ -20,12 +20,14 @@ review_trigger: "미디어 형식·저장소 변경 시"
 ## 흐름
 
 ```text
-휴대전화 원본
-→ backend 소유 원본 storage
-→ 빌더 인증 다운로드
-→ 형식·크기 검증
-→ EXIF orientation 적용
-→ 메타데이터 제거
+JPEG / PNG / HEIC / HEIF upload
+→ backend private temp
+→ 실제 signature/container + decoder + 크기/pixel 검증
+→ JPEG/PNG: 검증 원본 byte
+→ HEIC/HEIF: orientation + sRGB + metadata-free quality 92 JPEG
+→ backend private canonical master                         [implemented]
+→ 빌더 인증 다운로드                                      [planned]
+→ JPEG/PNG source metadata 제거·재검증                     [planned]
 → crop/focal point 적용
 → responsive variants
 → content-hashed filename
@@ -33,15 +35,20 @@ review_trigger: "미디어 형식·저장소 변경 시"
 → static export
 ```
 
+현재 완료 범위는 upload에서 private canonical master까지다. 공개 파생본, Builder credential/API, gallery relation과 Static Export 반영은 완료로 보지 않는다.
+
 ## 저장 정책
 
-### 원본
+### private canonical master
 
-- backend 소유 원본 image storage
+- backend 소유 filesystem storage와 PostgreSQL metadata 분리
 - 공개 Nginx root 밖
 - 백업 대상
-- 운영자와 빌더만 접근
+- 현재는 session 인증 ADMIN만 API 조회, 후속 Builder는 별도 read-only credential
 - 수정 시 새 파일 생성 권장
+- JPEG·PNG는 검증한 source byte를 유지하므로 private master에 source metadata가 남을 수 있음
+- HEIC·HEIF raw byte는 temp에서만 존재하고 canonical JPEG만 장기 보관
+- `active | archived` 모두 row와 master를 유지하며 physical delete 없음
 
 ### 공개 파생본
 
@@ -71,23 +78,32 @@ review_trigger: "미디어 형식·저장소 변경 시"
 
 ## 처리 도구
 
+### 현재 upload normalization
+
+- Java ImageIO adapter: NightMonkeys `imageio-heif 1.1.0`
+- native decoder/color transform: Alpine `libheif 1.23.0-r0`
+- Java 25 FFM native access를 backend image·test·bootRun에 고정
+- Linux amd64 Hosted CI와 Linux arm64 container에서 같은 fixture를 실제 decode
+- runtime download·client filename 기반 shell command 없음
+- codec 누락·link 실패는 backend startup에서 fail-fast
+
+### 후속 public derivative
+
 - Node.js 기반 `sharp` 또는 동등한 검증된 도구
-- 버전 고정
-- 빌드 컨테이너에 필요한 codec 포함
-- 실패를 무시하지 않음
+- 버전·codec 고정, 실패를 무시하지 않음
 
 ## HEIC 출시 게이트
 
-은총쌤이 iPhone을 사용할 가능성이 높으므로 실제 iPhone HEIC 업로드를 반드시 시험한다.
+합성 HEIC의 backend 업로드·orientation·sRGB·metadata 제거는 amd64 CI와 arm64 container에서 자동 검증한다. 다만 은총쌤이 iPhone을 사용할 가능성이 높으므로 후속 `/admin` UI 통합에서 실제 iPhone Safari 원본 선택·전송을 반드시 시험한다.
 
-- 관리자 API 업로드 성공 여부
-- 빌더 decode 여부
+- 실제 Safari multipart 업로드 성공 여부
+- 후속 빌더 download·decode 여부
 - orientation
 - 색상 프로파일
 - 변환 결과
 - 실패 메시지
 
-HEIC 처리가 검증되지 않으면 운영자에게 지원 형식을 안내하거나 업로드 시 변환 기능을 추가하기 전 출시하지 않는다.
+synthetic backend 검증은 physical-device와 Builder 검증을 대체하지 않는다. 둘 중 하나라도 검증되지 않으면 사진 기능을 출시하지 않는다.
 
 ## 개인정보
 
@@ -99,13 +115,12 @@ HEIC 처리가 검증되지 않으면 운영자에게 지원 형식을 안내하
 
 ## 파일 검증
 
-- 허용 MIME allowlist
-- 확장자와 실제 signature 비교
-- 업로드 최대 크기
-- 최소·최대 pixel 수
-- 애니메이션 이미지 제한
-- 손상 파일 decode test
-- 압축 폭탄과 과도한 이미지 크기 방어
+- 실제 byte 기준 JPEG·PNG·HEIC·HEIF allowlist, 구체적 MIME·extension 충돌 거부
+- source 최대 20 MiB, stored 최대 30 MiB
+- width·height 각각 최대 12,000px, total 최대 60MP
+- APNG·GIF·WebP·AVIF·SVG·multi-image/sequence HEIF 거부
+- 손상·truncated·decode 불가 source와 canonical output 재검증
+- 실패 시 temp/final/DB orphan cleanup
 
 ## 대체텍스트
 

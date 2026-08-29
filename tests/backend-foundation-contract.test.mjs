@@ -11,17 +11,21 @@ async function source(path) {
 }
 
 test("개발 Compose를 backend와 비공개 PostgreSQL로 제한한다", async () => {
-  const compose = await source("compose.dev.yaml");
+  const [compose, backendDockerfile] = await Promise.all([
+    source("compose.dev.yaml"),
+    source("backend/Dockerfile.dev"),
+  ]);
 
   assert.match(compose, /backend:\n/);
   assert.match(compose, /postgres:\n/);
   assert.match(compose, /127\.0\.0\.1:8080:8080/);
   assert.match(compose, /127\.0\.0\.1:3000:3000/);
-  assert.equal((compose.match(/@sha256:/g) ?? []).length, 4);
+  assert.equal((compose.match(/@sha256:/g) ?? []).length, 3);
   assert.match(
-    compose,
+    backendDockerfile,
     /eclipse-temurin:25\.0\.4_7-jdk-alpine-3\.23@sha256:b7c88ce22d575642650ec83cbf4e470a0c183a46871467180238e4b27ad9e20a/,
   );
+  assert.match(backendDockerfile, /libheif=\$\{LIBHEIF_VERSION\}/);
   assert.doesNotMatch(compose, /8055|DIRECTUS_|directus/i);
 
   const postgresBlock = compose.match(/\n  postgres:\n([\s\S]*?)\n  smoke:/)?.[1] ?? "";
@@ -133,6 +137,64 @@ test("매장정보 V4와 singleton 관리자 API 계약을 고정한다", async 
   assert.match(controller, /@PutMapping/);
   assert.doesNotMatch(controller, /@(?:Post|Patch|Delete)Mapping/);
   assert.doesNotMatch(response, /\bUUID id\b|singletonKey|\bstatus\b/);
+});
+
+test("미디어 V5와 private HEIC 정규화 계약을 고정한다", async () => {
+  const [
+    application,
+    build,
+    migration,
+    controller,
+    response,
+    compose,
+    workflow,
+    smoke,
+  ] = await Promise.all([
+    source("backend/src/main/resources/application.yml"),
+    source("backend/build.gradle"),
+    source("backend/src/main/resources/db/migration/V5__create_media_assets.sql"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/media/MediaAdminController.java"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/media/MediaResponse.java"),
+    source("compose.dev.yaml"),
+    source(".github/workflows/validate.yml"),
+    source("scripts/validate-backend-media.mjs"),
+  ]);
+
+  assert.match(application, /max-file-size: 20MB/);
+  assert.match(application, /max-source-bytes: 20971520/);
+  assert.match(application, /max-stored-bytes: 31457280/);
+  assert.match(application, /max-pixels: 60000000/);
+  assert.match(application, /jpeg-quality: 92/);
+  assert.match(build, /imageio-heif:1\.1\.0/);
+  assert.match(build, /--enable-native-access=ALL-UNNAMED/);
+
+  assert.match(migration, /CREATE TABLE media_assets/);
+  assert.match(migration, /source_content_type IN \('image\/jpeg', 'image\/png', 'image\/heic', 'image\/heif'\)/);
+  assert.match(migration, /source_byte_size > 0 AND source_byte_size <= 20971520/);
+  assert.match(migration, /byte_size > 0 AND byte_size <= 31457280/);
+  assert.match(migration, /width::BIGINT \* height::BIGINT <= 60000000/);
+  assert.match(migration, /created_at TIMESTAMP\(6\) WITH TIME ZONE/);
+  assert.match(migration, /updated_at TIMESTAMP\(6\) WITH TIME ZONE/);
+  assert.match(migration, /ON DELETE RESTRICT/);
+
+  assert.match(controller, /@RequestMapping\("\/api\/admin\/media"\)/);
+  assert.match(controller, /@GetMapping/);
+  assert.match(controller, /@PostMapping/);
+  assert.match(controller, /@PutMapping/);
+  assert.doesNotMatch(controller, /@(?:Patch|Delete)Mapping/);
+  assert.doesNotMatch(response, /storageKey|originalFilename|sha256|fileExtension/);
+
+  const frontendBlock = compose.match(/\n  frontend:\n([\s\S]*?)\n  backend:/)?.[1] ?? "";
+  const backendBlock = compose.match(/\n  backend:\n([\s\S]*?)\n  postgres:/)?.[1] ?? "";
+  const smokeBlock = compose.match(/\n  smoke:\n([\s\S]*?)\nvolumes:/)?.[1] ?? "";
+  assert.match(backendBlock, /backend-media-masters:\/var\/lib\/rhaomi\/media/);
+  assert.doesNotMatch(frontendBlock, /backend-media-masters|\/var\/lib\/rhaomi\/media/);
+  assert.doesNotMatch(smokeBlock, /backend-media-masters|\/var\/lib\/rhaomi\/media/);
+  assert.match(workflow, /docker build[\s\S]*?backend\/Dockerfile\.dev/);
+  assert.match(workflow, /RHAOMI_MEDIA_ROOT=\/tmp\/rhaomi-media-ci/);
+  assert.match(smoke, /synthetic-orientation-metadata\.heic/);
+  assert.match(smoke, /sourceContentType, "image\/heic"/);
+  assert.match(smoke, /cache-control/);
 });
 
 test("실행 경로에 Directus 설정을 남기지 않는다", async () => {

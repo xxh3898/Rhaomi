@@ -1,0 +1,3 @@
+rhaomi:
+  media:
+    root: ${RHAOMI_MEDIA_ROOT:${java.io.tmpdir}/rhaomi-media-tests}

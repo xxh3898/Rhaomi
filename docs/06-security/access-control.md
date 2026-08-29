@@ -20,10 +20,11 @@ review_trigger: "역할·권한·인증 방식 변경 시"
 - 관리자 인증 API 사용
 - 견종·서비스·공지 관리 API에서 생성·조회·전체 수정·archive와 복구 수행
 - 매장정보 singleton 조회와 전체 갱신 수행
+- private media upload·metadata/content 조회와 archive·restore 수행
 - 일반 고객 회원 기능 없음
 - 초기 단계에서 불필요한 다중 RBAC를 만들지 않음
 
-현재 `ADMIN` 업무 endpoint는 견종·서비스·공지와 text 기반 매장정보 singleton에 한정한다. 갤러리·이미지 relation과 관리자 UI는 아직 없다.
+현재 `ADMIN` 업무 endpoint는 견종·서비스·공지, text 기반 매장정보 singleton과 private media master에 한정한다. 갤러리·이미지 relation, public/build media endpoint와 관리자 UI는 아직 없다.
 
 ### Public customer
 
@@ -55,6 +56,10 @@ build-time 공개 콘텐츠 조회는 후속 Issue에서 `/api/build/**` 같은 
 | `PUT /api/admin/notices/<id>` | 거부 | 허용 | 유효 CSRF 필요, immutable slug·전체 mutable field 수정 |
 | `GET /api/admin/shop-settings` | 거부 | 허용 | 현재 singleton 조회, 미초기화 404 |
 | `PUT /api/admin/shop-settings` | 거부 | 허용 | 유효 CSRF 필요, 최초 201·이후 200 full update |
+| `GET /api/admin/media[/<id>]` | 거부 | 허용 | active·archived metadata 조회 |
+| `GET /api/admin/media/<id>/content` | 거부 | 허용 | private no-store canonical master |
+| `POST /api/admin/media` | 거부 | 허용 | 유효 CSRF 필요, 실제 byte 검증 후 active upload |
+| `PUT /api/admin/media/<id>` | 거부 | 허용 | 유효 CSRF 필요, status만 archive·restore |
 | `/api/admin/**` 나머지 | 거부 | 기본 인증 필요 | 명시 controller가 없으면 업무 수행 불가 |
 | `/api/**` 나머지 | 거부 | 거부 | 명시 설계 전 fail closed |
 | `GET /actuator/health` | 허용 | 허용 | health만 노출 |
@@ -97,7 +102,9 @@ build-time 공개 콘텐츠 조회는 후속 Issue에서 `/api/build/**` 같은 
 - 현재 견종·서비스·공지 create/update DTO와 매장정보 PUT DTO는 unknown JSON field를 거부한다.
 - `id`, `slug` 수정값, actor, `password_hash`, audit timestamp와 내부/system field는 일반 update API에서 받지 않는다.
 - 매장정보 request는 `id`, `singletonKey`, actor, audit를 받지 않는다. response는 mutable field와 server-owned audit만 반환하고 DB id·singleton guard는 노출하지 않는다.
+- media upload는 multipart `file` 하나만 받고 filename을 path·DB·response에 사용하지 않는다. status update는 `active | archived` 하나만 허용한다.
+- media response는 storage key, filesystem path, extension과 SHA-256을 노출하지 않는다. archived content도 ADMIN만 조회할 수 있고 public/build route는 없다.
 - 화면상 삭제는 `archived` 전환이며 영구 delete는 별도 관리·백업 승인 없이는 제공하지 않는다.
-- 현재 견종·서비스·공지·매장정보 controller/service에는 hard delete 경로와 `PATCH` endpoint가 없다. 매장정보에는 `POST`와 id 기반 endpoint도 없다.
+- 현재 견종·서비스·공지·매장정보·media controller/service에는 hard delete 경로와 `PATCH` endpoint가 없다. 매장정보에는 `POST`와 id 기반 endpoint도 없다.
 - schema, role, user, setting 변경 endpoint를 일반 콘텐츠 API에 포함하지 않는다.
 - 공개 build API와 관리자 write API의 credential·DTO·감사 경계를 분리한다.

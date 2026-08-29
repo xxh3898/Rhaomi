@@ -85,6 +85,29 @@ review_trigger: "관리 API·build 입력 변경 시"
 
 매장정보 오류는 invalid request `400 INVALID_REQUEST`, 미초기화 `404 SHOP_SETTINGS_NOT_FOUND`, 영업시간 순서 위반 `422 BUSINESS_HOURS_INVALID`를 사용한다. DB constraint·repository 장애는 schema나 exception detail을 노출하지 않는 generic `5xx`다. 모든 validation 실패는 기존 row와 actor/audit를 포함한 전체 상태를 보존한다.
 
+## 현재 private media 관리자 API
+
+모든 endpoint는 관리자 session이 필요하고 `POST`·`PUT`은 CSRF를 강제한다.
+
+| method | path | 용도 | 성공 응답 |
+|---|---|---|---|
+| `GET` | `/api/admin/media` | active·archived metadata 목록 | `200 OK` |
+| `GET` | `/api/admin/media/{id}` | metadata 단건 | `200 OK` |
+| `GET` | `/api/admin/media/{id}/content` | private canonical master | `200 OK` |
+| `POST` | `/api/admin/media` | multipart `file` upload, 항상 active | `201 Created` |
+| `PUT` | `/api/admin/media/{id}` | `active | archived` status 변경 | `200 OK` |
+
+- 목록은 `created_at DESC, id ASC`이며 archived도 관리자 조회·content 확인이 가능하다.
+- content는 저장 `Content-Type`·정확한 `Content-Length`, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`를 사용한다.
+- upload는 client MIME·확장자·파일명이 아닌 실제 signature/container와 decoder를 기준으로 JPEG·PNG·HEIC·HEIF를 판정한다. 빈 MIME·`application/octet-stream`·filename 없음은 실제 byte가 유효하면 허용하고 구체적 충돌은 거부한다.
+- JPEG·PNG는 검증 원본 byte, HEIC·HEIF는 orientation 적용·sRGB 변환·metadata 제거 뒤 quality 92 JPEG master로 저장한다.
+- source 20 MiB, stored 30 MiB, 폭·높이 12,000px, 총 60MP 제한을 application과 DB 역할에 맞게 강제한다.
+- response는 id, status, source/stored content type, source/stored byte size, display dimension과 actor/audit만 반환한다. original filename, storage key, filesystem path, extension, SHA-256은 반환하지 않는다.
+- update DTO는 status 하나만 허용한다. `PATCH`, `DELETE`, public read와 `/api/build/**` media endpoint는 없다.
+- validation·normalization 실패 시 temp·final·DB orphan을 남기지 않고, DB rollback/commit 실패 시 이동한 final master를 transaction completion에서 제거한다.
+
+오류는 missing/empty/malformed/unknown field `400 INVALID_REQUEST`, source 초과 `413 MEDIA_TOO_LARGE`, unsupported byte 또는 명시 MIME·extension 충돌 `415 MEDIA_TYPE_UNSUPPORTED`, 손상·decode 불가·APNG·multi-image/sequence·dimension/pixel/output limit `422 MEDIA_INVALID_IMAGE`, 없는 id `404 MEDIA_NOT_FOUND`, codec unavailable `503 MEDIA_PROCESSOR_UNAVAILABLE`를 사용한다. filesystem·DB 장애는 내부 path·constraint detail 없는 generic `5xx`다.
+
 ## build API — planned
 
 후속 Issue에서 관리자 session과 분리된 namespace·credential을 설계한다.
@@ -142,10 +165,10 @@ public media metadata
 - raw persistence/API response를 component에 직접 전달하지 않는다.
 - runtime schema와 published/relation/file 조건을 transformer에서 다시 검증한다.
 
-## media 변환 — planned
+## 공개 media 파생 — planned
 
 ```text
-backend-owned original
+backend-owned private canonical master
 → authenticated build-time download
 → MIME/signature/pixel 검증
 → metadata 제거와 최적화

@@ -18,7 +18,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - 모바일 문의·검색 metadata 보호
 - 배포 실패 시 기존 사이트 보호
 
-## 현재 Phase 1C-3 자동 검증
+## 현재 Phase 1C-4 자동 검증
 
 ### Frontend
 
@@ -103,6 +103,22 @@ review_trigger: "기술·기능 범위 변경 시"
 - 두 번째 관리자 update의 created audit 보존, updated actor 변경과 microsecond audit round-trip
 - `POST`, `PATCH`, `DELETE`, id 기반·public/build endpoint 부재와 generic DB 5xx detail 비노출
 
+### private media domain/API/DB
+
+- 기존 Flyway V1→V4 database의 V5 upgrade와 clean V1→V2→V3→V4→V5 migration
+- `media_assets` 전체 column, `TIMESTAMP(6) WITH TIME ZONE`, 명명된 status/type/extension/조합/size/dimension/pixel/hash/storage-key/actor constraint와 JPA validate
+- 두 번째 row·동일 SHA-256 허용, storage key unique와 DB 우회 invalid 값 차단
+- anonymous list/detail/content/upload/update, CSRF 없는 upload/update, public/build route 거부
+- JPEG·PNG passthrough byte round-trip, generic/빈 MIME, filename 없음·extension 없음과 traversal filename 무해성
+- 실제 합성 HEIC·HEIF를 orientation 적용·sRGB·metadata-free JPEG로 정규화하고 display dimension·pixel 방향·stored hash/byte를 확인
+- duplicate upload의 별도 row/master, deterministic `created_at DESC, id ASC`, archived content 조회와 restore
+- missing/empty/unknown multipart, source/output limit, width/height/pixel limit, GIF/WebP/AVIF/SVG/APNG/multi-image/sequence와 corrupt source 거부
+- MIME·extension 위장 415, malformed UUID/JSON/status injection 400과 고정 ApiError code
+- validation·normalization 실패의 temp/final/DB orphan 부재, 실제 FK persistence failure의 DB rollback·final cleanup
+- missing/corrupt master의 generic 500과 private path·constraint detail 비노출
+- codec reader·native link 누락 fail-fast, root 생성·쓰기 실패 fail-fast
+- 개인 사진이 아닌 합성 기하 도형, Display P3 ICC, 합성 EXIF/GPS/XMP fixture와 생성 근거
+
 H2 전용 통과는 DB contract 증거로 인정하지 않는다. Hosted CI Backend job은 실제 PostgreSQL service를 사용한다.
 Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 application context를 시작하기 전에 중단한다. fixture 정리는 지정된 test email에만 한정한다.
 
@@ -115,6 +131,9 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 - explicit local/test bootstrap
 - 실제 HTTP CSRF login/me/logout
 - backend/PostgreSQL restart 후 Flyway·account 지속성
+- 합성 HEIC upload→canonical JPEG signature·dimension·metadata strip
+- backend/PostgreSQL restart 후 같은 media id·byte size·SHA-256 유지
+- private media named volume의 backend-only mount와 PostgreSQL volume 분리
 - Directus service 부재
 - 종료 시 named volume 보존
 
@@ -135,7 +154,7 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 - mobile sticky CTA, 404, keyboard only
 - `/admin` login/logout, validation, archive
 - axe, heading/landmark/focus/dialog/contrast/reflow/reduced motion
-- 실제 iPhone image upload와 session cookie 동작
+- 실제 iPhone Safari image upload와 session cookie 동작
 
 ## 후속 배포 테스트
 
@@ -152,7 +171,7 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 - active/inactive admin
 - 공개/초안/보관 콘텐츠와 만료 공지
 - 긴 title·견종명·매장 text, 선택형 URL 빈 값과 HTTPS/비HTTPS URL
-- portrait/landscape/손상/HEIC image
+- 합성 portrait/landscape/손상/HEIC·HEIF·metadata image
 
 실사용 email, 실제 운영 password, token과 운영 DB/API는 test에 사용하지 않는다.
 
@@ -161,8 +180,8 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 PR:
 
 - Frontend
-- Backend PostgreSQL/auth contract
-- Compose Smoke
+- Backend PostgreSQL/auth/media contract를 exact Java 25·libheif image에서 실행
+- Compose Smoke의 HEIC 정규화·media volume restart persistence
 - diff·secret·문서 link 검사
 
 Release는 실제 build snapshot, image pipeline, E2E, SEO, Nginx preview, actual device와 rollback evidence를 추가한다.
