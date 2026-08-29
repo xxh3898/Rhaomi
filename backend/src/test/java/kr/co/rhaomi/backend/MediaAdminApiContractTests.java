@@ -3,6 +3,7 @@ package kr.co.rhaomi.backend;
 import static kr.co.rhaomi.backend.media.MediaTestFixtures.apng;
 import static kr.co.rhaomi.backend.media.MediaTestFixtures.avifHeader;
 import static kr.co.rhaomi.backend.media.MediaTestFixtures.jpeg;
+import static kr.co.rhaomi.backend.media.MediaTestFixtures.isoBmffHeader;
 import static kr.co.rhaomi.backend.media.MediaTestFixtures.oversizedPngHeader;
 import static kr.co.rhaomi.backend.media.MediaTestFixtures.resource;
 import static kr.co.rhaomi.backend.media.MediaTestFixtures.sha256;
@@ -418,6 +419,46 @@ class MediaAdminApiContractTests {
     }
 
     @Test
+    void should_mapHeifBrandTaxonomyToFixedErrors_when_containerHasNoDecodableImage()
+            throws Exception {
+        var session = login();
+
+        for (var stillBrand : List.of("heic", "heix", "heim", "heis")) {
+            assertBrandUploadError(
+                    session,
+                    stillBrand,
+                    "image/heic",
+                    "heic",
+                    422,
+                    "MEDIA_INVALID_IMAGE");
+        }
+        for (var sequenceBrand : List.of("hevc", "hevx", "hevm", "hevs")) {
+            assertBrandUploadError(
+                    session,
+                    sequenceBrand,
+                    "image/heic",
+                    "heic",
+                    422,
+                    "MEDIA_INVALID_IMAGE");
+        }
+        assertBrandUploadError(
+                session, "msf1", "image/heif", "heif", 422, "MEDIA_INVALID_IMAGE");
+        for (var avifBrand : List.of("avif", "avis")) {
+            assertBrandUploadError(
+                    session,
+                    avifBrand,
+                    "image/avif",
+                    "avif",
+                    415,
+                    "MEDIA_TYPE_UNSUPPORTED");
+        }
+
+        assertEquals(0, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM media_assets", Integer.class));
+        assertEquals(0, masterFileCount());
+        assertEquals(0, tempFileCount());
+    }
+
+    @Test
     void should_removeFinalMasterAndHideDatabaseDetails_when_persistenceFails() throws Exception {
         var session = login();
         adminUserRepository.deleteById(admin.getId());
@@ -482,6 +523,26 @@ class MediaAdminApiContractTests {
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, response.statusCode());
         return new AuthenticatedSession(client, csrf);
+    }
+
+    private void assertBrandUploadError(
+            AuthenticatedSession session,
+            String brand,
+            String contentType,
+            String extension,
+            int expectedStatus,
+            String expectedCode)
+            throws Exception {
+        var response = upload(
+                session.client(),
+                session.csrfToken(),
+                new Part(
+                        "file",
+                        "brand." + extension,
+                        contentType,
+                        isoBmffHeader(brand, "mif1", brand)));
+
+        assertError(response, expectedStatus, expectedCode);
     }
 
     private String fetchCsrf(HttpClient client) throws Exception {

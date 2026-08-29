@@ -20,8 +20,9 @@ class MediaFormatDetector {
         (byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a
     };
     private static final int MAX_BOX_HEADER_BYTES = 64 * 1024;
-    private static final Set<String> HEIC_BRANDS = Set.of("heic", "heix", "hevc", "hevx");
-    private static final Set<String> HEIF_SEQUENCE_BRANDS = Set.of("msf1", "hevs", "hevm");
+    private static final Set<String> HEIC_STILL_BRANDS = Set.of("heic", "heix", "heim", "heis");
+    private static final Set<String> HEIC_SEQUENCE_BRANDS = Set.of("hevc", "hevx", "hevm", "hevs");
+    private static final Set<String> GENERIC_HEIF_SEQUENCE_BRANDS = Set.of("msf1");
     private static final Set<String> AVIF_BRANDS = Set.of("avif", "avis");
 
     MediaSourceType detect(Path path) {
@@ -110,10 +111,11 @@ class MediaFormatDetector {
         if (brands.stream().anyMatch(AVIF_BRANDS::contains)) {
             throw new MediaTypeUnsupportedException();
         }
-        if (brands.stream().anyMatch(HEIF_SEQUENCE_BRANDS::contains)) {
+        if (brands.stream().anyMatch(HEIC_SEQUENCE_BRANDS::contains)
+                || brands.stream().anyMatch(GENERIC_HEIF_SEQUENCE_BRANDS::contains)) {
             throw new MediaInvalidImageException();
         }
-        if (HEIC_BRANDS.contains(majorBrand)) {
+        if (HEIC_STILL_BRANDS.contains(majorBrand)) {
             return MediaSourceType.HEIC;
         }
         if (majorBrand.equals("mif1")) {

@@ -111,6 +111,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - anonymous list/detail/content/upload/update, CSRF 없는 upload/update, public/build route 거부
 - JPEG·PNG passthrough byte round-trip, generic/빈 MIME, filename 없음·extension 없음과 traversal filename 무해성
 - 실제 합성 HEIC·HEIF를 orientation 적용·sRGB·metadata-free JPEG로 정규화하고 display dimension·pixel 방향·stored hash/byte를 확인
+- HEIC still `heic | heix | heim | heis` 인식, HEIC sequence `hevc | hevx | hevm | hevs`와 `msf1`의 422, AVIF `avif | avis`의 415를 detector·실제 API에서 직접 확인
 - duplicate upload의 별도 row/master, deterministic `created_at DESC, id ASC`, archived content 조회와 restore
 - missing/empty/unknown multipart, source/output limit, width/height/pixel limit, GIF/WebP/AVIF/SVG/APNG/multi-image/sequence와 corrupt source 거부
 - MIME·extension 위장 415, malformed UUID/JSON/status injection 400과 고정 ApiError code

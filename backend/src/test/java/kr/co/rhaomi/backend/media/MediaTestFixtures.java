@@ -96,15 +96,21 @@ public final class MediaTestFixtures {
     }
 
     public static byte[] avifHeader() {
-        return ByteBuffer.allocate(24)
+        return isoBmffHeader("avif", "mif1", "avif");
+    }
+
+    public static byte[] isoBmffHeader(String majorBrand, String... compatibleBrands) {
+        var size = 16 + compatibleBrands.length * 4;
+        var buffer = ByteBuffer.allocate(size)
                 .order(ByteOrder.BIG_ENDIAN)
-                .putInt(24)
+                .putInt(size)
                 .put("ftyp".getBytes(StandardCharsets.US_ASCII))
-                .put("avif".getBytes(StandardCharsets.US_ASCII))
-                .putInt(0)
-                .put("mif1".getBytes(StandardCharsets.US_ASCII))
-                .put("avif".getBytes(StandardCharsets.US_ASCII))
-                .array();
+                .put(brandBytes(majorBrand))
+                .putInt(0);
+        for (var compatibleBrand : compatibleBrands) {
+            buffer.put(brandBytes(compatibleBrand));
+        }
+        return buffer.array();
     }
 
     public static byte[] truncatedHeic() {
@@ -148,5 +154,13 @@ public final class MediaTestFixtures {
             offset += value.length;
         }
         return result;
+    }
+
+    private static byte[] brandBytes(String brand) {
+        var bytes = brand.getBytes(StandardCharsets.US_ASCII);
+        if (bytes.length != 4) {
+            throw new IllegalArgumentException("ISO BMFF brand must be exactly four ASCII bytes");
+        }
+        return bytes;
     }
 }
