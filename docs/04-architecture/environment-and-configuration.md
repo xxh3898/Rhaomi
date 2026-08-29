@@ -66,7 +66,7 @@ Compose는 `POSTGRES_*`에서 backend의 `SPRING_DATASOURCE_*`를 내부 service
 - local Compose는 별도 persistent `dev-rhaomi-backend-media-masters` volume을 backend에만 mount한다.
 - source 20 MiB, stored 30 MiB, width·height 12,000px, total 60MP, JPEG quality 92는 현재 application contract로 고정하며 client request나 공개 env로 변경하지 않는다.
 - `JAVA_TOOL_OPTIONS=--enable-native-access=ALL-UNNAMED`는 pinned FFM 기반 HEIC adapter 실행에 필요하며 backend image와 Gradle test/bootRun에만 적용한다.
-- production root·volume·backup은 local 값을 재사용하지 않고 별도 운영 승인에서 exact path와 restore 절차를 정한다.
+- production canonical media path는 `/srv/rhaomi/data/media`이며 web에는 mount하지 않는다. exact ownership·permission, backup과 restore는 별도 provisioning·운영 승인에서 검증한다.
 
 ## local/test 관리자 bootstrap
 
@@ -82,30 +82,72 @@ Compose는 `POSTGRES_*`에서 backend의 `SPRING_DATASOURCE_*`를 내부 service
 - production profile에서 flag가 true면 기동을 실패시킨다.
 - 실제 은총쌤 credential을 `.env.example`, CI, 문서에 사용하지 않는다.
 
-## 공개 frontend build — 후속
+## production filesystem·release inventory — planned
+
+| 항목 | 비밀 | 계약 |
+|---|---:|---|
+| application root | N | `/srv/rhaomi/app` |
+| release root | N | `/srv/rhaomi/public/releases` |
+| current/previous | N | `/srv/rhaomi/public/current`, `/srv/rhaomi/public/previous` |
+| PostgreSQL data | Y 취급 | `/srv/rhaomi/data/postgres` |
+| canonical media | Y 취급 | `/srv/rhaomi/data/media` |
+| publisher state | Y 취급 | `/srv/rhaomi/state/publisher` |
+| global lock | N | `/srv/rhaomi/state/locks` |
+| logs | Y 취급 | `/srv/rhaomi/logs` |
+
+production manifest에는 exact `main` SHA, image tag·digest, Flyway version, release ID와 SBOM reference를 기록한다. actual ownership, UID/GID와 Secret source는 provisioning에서 확정하며 Git에 실제 값을 기록하지 않는다.
+
+## 공개 frontend build — planned
 
 | 변수 | 비밀 | 설명 |
 |---|---:|---|
 | `PUBLIC_SITE_URL` | N | canonical 기준 absolute URL |
 | `SITE_ENV` | N | local/development/production |
 | `BUILD_API_INTERNAL_URL` | N | Docker 내부 read-only build API URL |
-| `BUILD_API_CREDENTIAL` | Y | 후속 builder 전용 credential |
+| `BUILD_API_CREDENTIAL` | Y | 후속 publisher 전용 read-only service credential |
 | `CONTENT_SNAPSHOT_PATH` | N | 생성 파일 경로 |
 | `MEDIA_OUTPUT_PATH` | N | 공개 파생본 경로 |
 | `BUILD_RELEASE_ID` | N | release 식별자 |
+| `BUILD_CONTENT_REVISION` | N | monotonic content revision |
+| `BUILD_TIMESTAMP` | N | notice published·expiry 판정 기준 시각 |
 
-build credential은 관리자 session과 분리하고 절대 `NEXT_PUBLIC_` 접두사를 사용하지 않는다. 이 변수와 API는 아직 구현되지 않았다.
+build credential은 관리자 session과 분리하고 절대 `NEXT_PUBLIC_` 접두사를 사용하지 않는다. public Nginx가 build API를 차단하고 publisher만 internal read-only endpoint를 사용한다. 이 변수와 API는 아직 구현되지 않았다.
 
-## Deploy hook — 후속
+## Static publisher — planned
 
 | 변수 | 비밀 | 설명 |
 |---|---:|---|
-| `DEPLOY_HOOK_SECRET` | Y | backend event 요청 인증 |
-| `DEPLOY_LOCK_PATH` | N | global lock |
-| `RELEASES_DIR` | N | 정적 release |
-| `CURRENT_LINK` | N | 활성 symlink |
-| `RELEASE_RETENTION` | N | 보존 개수 |
-| `DEBOUNCE_SECONDS` | N | 연속 변경 합치기 |
+| `BUILD_API_CREDENTIAL` | Y | admin session과 분리된 read-only service credential |
+| `PUBLISHER_STATE_DIR` | Y 취급 | outbox claim·attempt/result 상태 |
+| `PUBLISHER_LOCK_PATH` | N | global filesystem lock |
+| `RELEASES_DIR` | N | `/srv/rhaomi/public/releases` |
+| `CURRENT_LINK` | N | `/srv/rhaomi/public/current` |
+| `PREVIOUS_LINK` | N | `/srv/rhaomi/public/previous` |
+| `RELEASE_RETENTION` | N | 성공 release 5개, current·previous 항상 보존 |
+| `DEBOUNCE_SECONDS` | N | 고정 30초 |
+
+publisher는 public network·Docker socket을 사용하지 않으며 동일 revision transient failure를 1분·5분·15분 최대 3회 retry한다. actual service와 변수는 아직 구현되지 않았다.
+
+## Production deploy·migration — planned
+
+- protected GitHub `production` environment의 수동 승인 뒤에만 environment secret을 사용한다.
+- exact `main` SHA tag와 image digest를 모두 확인하고 digest 기준으로 배포한다.
+- Tailscale SSH와 고정·versioned deploy entrypoint를 사용하며 임의 shell body를 전달하지 않는다.
+- production backend 일반 기동은 Flyway mutation을 수행하지 않고 schema validate만 한다.
+- Flyway는 global deploy lock·write maintenance 안의 one-shot service로만 실행한다.
+- production session cookie는 TLS에서 `Secure=true`가 아니면 기동을 실패시킨다.
+
+이 environment, secret, entrypoint와 one-shot service는 아직 생성하지 않았다.
+
+## Backup·HomeOps inventory — planned
+
+- 외장 SSD exact mount path·용량과 iCloud Drive exact folder는 provisioning 전 출시 차단값이다.
+- 두 destination은 별도 encrypted restic repository와 독립 key를 사용한다.
+- restic password는 root-owned 제한 파일 또는 macOS Keychain password command로 공급하고 값 자체를 env example·log에 넣지 않는다.
+- HomeOps endpoint·identity와 Discord 수신자는 Rhaomi public configuration에 넣지 않고 Tailscale·운영 Secret 경계에서 관리한다.
+- Rhaomi는 privacy-safe health/status/event/metric source만 제공한다.
+
+backup repository, key와 HomeOps 설정은 아직 생성·변경하지 않았다.
 
 ## `.env.example`
 
@@ -114,7 +156,7 @@ build credential은 관리자 session과 분리하고 절대 `NEXT_PUBLIC_` 접�
 - 실제 key, password, 실사용 email 금지
 - 운영 `.env`와 credential source를 참조하지 않음
 
-현재 example에는 PostgreSQL, session cookie, 비활성 local/test bootstrap과 local-safe private media root만 둔다.
+현재 example에는 PostgreSQL, session cookie, 비활성 local/test bootstrap과 local-safe private media root만 둔다. planned production deploy, publisher, backup와 HomeOps secret은 implementation Issue 전까지 추가하지 않는다.
 
 ## domain — 후속
 

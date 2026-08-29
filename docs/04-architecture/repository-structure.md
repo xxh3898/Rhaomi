@@ -97,7 +97,7 @@ Rhaomi/
 ├── infra/
 │   ├── compose/
 │   ├── nginx/
-│   ├── deploy-hook/
+│   ├── publisher/
 │   └── backup/
 ├── scripts/
 ├── tests/
@@ -139,7 +139,7 @@ planned 경로는 관련 Issue가 구현할 때만 추가한다.
 ### `infra`
 
 - `infra/nginx/dev.conf`는 local same-origin gateway만 정의
-- 운영 Docker Compose, production Nginx, deploy hook과 backup job은 후속
+- 운영 Docker Compose, production Nginx, single publisher와 backup job은 후속
 - local 개발 Compose와 운영 credential·volume을 공유하지 않음
 
 ### `scripts`

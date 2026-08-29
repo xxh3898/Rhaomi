@@ -25,18 +25,20 @@ flowchart LR
     PublicSite --> Maps[네이버지도 / 카카오맵]
     PublicSite --> Talk[네이버톡톡 / 카카오 채널]
 
-    Owner[은총쌤] -. 후속 /admin UI .-> AdminUI[정적 관리자 UI]
-    AdminUI -. same-origin /api/admin .-> Backend[Spring Boot 관리 API]
+    Owner[은총쌤] --> AdminUI[정적 /admin auth shell<br/>후속 콘텐츠 UI]
+    AdminUI -. same-origin /api/admin/** .-> Backend[Spring Boot 관리 API]
     Backend --> PostgreSQL[(PostgreSQL)]
-    Backend -. 후속 .-> Uploads[(원본 이미지 storage)]
-    Backend -. 후속 내부 event .-> BuildHook[Deploy Hook]
-    BuildHook -. 후속 .-> Builder[정적 Builder]
-    Builder -. read-only build API .-> Backend
-    Builder --> Releases[(정적 release)]
+    Backend --> Uploads[(private canonical media)]
+    Backend -. 후속 same-transaction .-> Outbox[(Publishing outbox)]
+    Publisher[Single internal publisher] -. 후속 poll/claim .-> Outbox
+    Publisher -. 후속 read-only build API .-> Backend
+    Publisher -. 후속 .-> Releases[(정적 release)]
     Releases --> PublicSite
 
     Developer[조치호] --> GitHub[GitHub]
-    GitHub --> Builder
+    GitHub -. 후속 exact main image/digest .-> Publisher
+    HomeOps[HomeOps] -. 후속 health/event/metric .-> Backend
+    HomeOps -. 후속 상태 .-> Publisher
 ```
 
 실선은 현재 기반 또는 공개 외부 연결이고, 점선은 후속 Issue에서 구현할 관리·게시 경로다.
@@ -44,12 +46,12 @@ flowchart LR
 ## 현재 구현 경계
 
 - Next.js Static Export 공개 frontend
-- Spring Boot `admin_users`와 session auth API
-- PostgreSQL과 Flyway V1
-- local/test bootstrap
-- 최소 health와 Hosted CI
+- Spring Boot session auth와 견종·서비스·공지·갤러리·매장정보·private media 관리자 API
+- PostgreSQL과 Flyway V1~V7
+- local/test bootstrap과 `/admin/` 인증 셸
+- local same-origin gateway, 최소 health와 Hosted CI
 
-콘텐츠 CRUD, `/admin` UI, 파일 storage, build API와 deploy hook은 아직 없다.
+콘텐츠 CRUD 화면, build API, publishing outbox, publisher와 public content route는 아직 없다.
 
 ## 신뢰 경계
 
@@ -72,9 +74,9 @@ login/csrf 외 관리 endpoint는 인증이 필요하고 state-changing request�
 ### 내부 운영 경계
 
 - PostgreSQL
-- 향후 원본 이미지 storage
-- 향후 build API·deploy hook·builder
-- backup
+- private canonical media storage
+- 향후 build API·publishing outbox·single publisher
+- 향후 encrypted restic backup과 HomeOps
 - Docker internal network
 
 PostgreSQL과 내부 작업 서비스는 공용 인터넷에 직접 노출하지 않는다.
@@ -87,3 +89,4 @@ PostgreSQL과 내부 작업 서비스는 공용 인터넷에 직접 노출하지
 4. build 실패는 기존 공개 사이트를 변경하지 않는다.
 5. 원본 이미지는 공개 web root에 두지 않는다.
 6. 외부 link가 없는 채널은 UI에 나타나지 않는다.
+7. HomeOps는 privacy-safe health/status/event만 읽고 관리자 콘텐츠 권한을 갖지 않는다.

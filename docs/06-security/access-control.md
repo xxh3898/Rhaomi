@@ -36,7 +36,15 @@ review_trigger: "역할·권한·인증 방식 변경 시"
 
 ### Build service
 
-build-time 공개 콘텐츠 조회는 후속 Issue에서 `/api/build/**` 같은 별도 namespace와 별도 credential로 설계한다. 관리자 session을 재사용하거나 이번 Issue에서 미리 endpoint·token을 만들지 않는다.
+build-time 공개 콘텐츠 조회는 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에 따라 internal `/api/build/**` namespace와 관리자 session과 분리된 service credential을 사용한다.
+
+- snapshot·media read만 허용하고 create/update/delete/share를 모두 금지한다.
+- public Nginx에서 `/api/build/**`를 명시적으로 거부한다.
+- query 단계에서 published 상태, notice 게시·만료, relation target, media active와 file scope를 제한한다.
+- publisher transformer가 같은 status·relation·file 조건을 다시 검증한다.
+- raw storage path, DB credential, admin session과 private metadata를 노출하지 않는다.
+
+build API, credential과 publisher는 아직 구현되지 않았다. 관리자 session을 재사용하거나 실제 token을 이 문서·저장소에 만들지 않는다.
 
 ### Static admin client
 
@@ -74,7 +82,7 @@ build-time 공개 콘텐츠 조회는 후속 Issue에서 `/api/build/**` 같은 
 | `PUT /api/admin/media/<id>` | 거부 | 허용 | 유효 CSRF 필요, status만 archive·restore |
 | `/api/admin/**` 나머지 | 거부 | 기본 인증 필요 | 명시 controller가 없으면 업무 수행 불가 |
 | `/api/**` 나머지 | 거부 | 거부 | 명시 설계 전 fail closed |
-| `GET /actuator/health` | 허용 | 허용 | health만 노출 |
+| `GET /actuator/health` | 허용 | 허용 | application-level 최소 health, production public Nginx는 차단하고 HomeOps internal probe만 사용 |
 | `/actuator/**` 나머지 | 거부 | 거부 | health 외 노출 금지 |
 | 그 밖의 모든 path | 거부 | 거부 | 명시 정책 전 `denyAll` |
 
@@ -126,3 +134,5 @@ build-time 공개 콘텐츠 조회는 후속 Issue에서 `/api/build/**` 같은 
 - 현재 견종·서비스·공지·갤러리·매장정보·media controller/service에는 hard delete 경로와 `PATCH` endpoint가 없다. 매장정보에는 `POST`와 id 기반 endpoint도 없다.
 - schema, role, user, setting 변경 endpoint를 일반 콘텐츠 API에 포함하지 않는다.
 - 공개 build API와 관리자 write API의 credential·DTO·감사 경계를 분리한다.
+- build service는 snapshot·media read 외 권한을 받지 않고 `POST`, `PUT`, `PATCH`, `DELETE`와 share 동작을 사용할 수 없다.
+- HomeOps는 CSRF endpoint를 probe하지 않고 privacy-safe internal health/status만 읽는다. HomeOps identity에 관리자 콘텐츠 write 권한을 주지 않는다.

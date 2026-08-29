@@ -111,6 +111,11 @@ review_trigger: "문서 추가·이동 시"
 - [ADR-007: 자체 예약·문의 폼 제외](09-decisions/ADR-007-external-contact-only.md)
 - [ADR-008: 공개 사이트의 관리 backend 런타임 독립](09-decisions/ADR-008-runtime-independent-public-site.md)
 - [ADR-009: Spring Boot 관리자 백엔드와 서버 세션 인증](09-decisions/ADR-009-spring-boot-backend-admin.md)
+- [ADR-010: Production topology와 코드 릴리스](09-decisions/ADR-010-production-topology-and-code-release.md)
+- [ADR-011: Transactional outbox와 정적 publisher](09-decisions/ADR-011-transactional-outbox-static-publisher.md)
+- [ADR-012: Application-consistent backup과 restore](09-decisions/ADR-012-application-consistent-backup-restore.md)
+- [ADR-013: HomeOps 통합 관제·알림·자동 복구 경계](09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md)
+- [ADR-014: HEIC decoder-only production runtime](09-decisions/ADR-014-heic-decoder-only-production-runtime.md)
 
 ## 10. 템플릿
 

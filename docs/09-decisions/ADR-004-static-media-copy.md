@@ -25,13 +25,13 @@ review_trigger: "이미지 저장·제공 방식 변경 시"
 - HEIC·HEIF raw source는 temp에서만 사용하고 장기 보관하지 않음
 - server-owned UUID storage key와 SHA-256 무결성 metadata를 사용하고 filename/path를 client가 지정하지 못하게 함
 - `active | archived`는 row와 master를 유지하고 physical delete는 후속 retention/backup gate로 분리
-- Builder가 후속 별도 credential의 인증된 내부 접근으로 canonical master를 다운로드
+- [ADR-011](ADR-011-transactional-outbox-static-publisher.md)의 publisher가 별도 read-only credential의 인증된 내부 접근으로 canonical master를 다운로드
 - 공개 파생 단계에서 JPEG·PNG source metadata 제거, crop, resize와 format 변환 수행
 - content hash 파일명
 - 공개 release에 responsive variants 포함
 - 공개 HTML은 backend 원본 asset URL을 사용하지 않음
 
-Issue #11에서 upload→private canonical master까지만 구현한다. Builder download, gallery relation, responsive 파생본과 Static Export 연결은 planned 상태를 유지한다.
+Issue #11에서 upload→private canonical master까지만 구현했다. Gallery·매장정보 relation까지 후속 Issue에서 구현됐고 publisher download, responsive 파생본과 Static Export 연결은 planned 상태를 유지한다.
 
 ## 결과
 

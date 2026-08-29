@@ -42,6 +42,47 @@ review_trigger: "기술·정책 문서 변경 또는 업그레이드 시"
   https://docs.gradle.org/current/userguide/compatibility.html
 - PostgreSQL documentation
   https://www.postgresql.org/docs/
+- PostgreSQL 18 `pg_dump`
+  https://www.postgresql.org/docs/18/app-pgdump.html
+
+## Production ingress·release
+
+- Cloudflare Tunnel
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/
+- Cloudflare Tunnel firewall model
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/
+- GitHub Actions deployments and environments
+  https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments
+- GitHub deployment environment 관리
+  https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments
+- Tailscale SSH
+  https://tailscale.com/kb/1193/tailscale-ssh
+
+## Backup·restore
+
+- restic backup
+  https://restic.readthedocs.io/en/stable/040_backup.html
+- restic repository copy·check
+  https://restic.readthedocs.io/en/stable/045_working_with_repos.html
+- restic restore
+  https://restic.readthedocs.io/en/stable/050_restore.html
+- restic retention·forget·prune
+  https://restic.readthedocs.io/en/stable/060_forget.html
+- restic password 자동화 주의사항
+  https://restic.readthedocs.io/en/stable/faq.html#how-can-i-specify-encryption-passwords-automatically
+
+## HEIC production runtime
+
+- libheif source와 build options
+  https://github.com/strukturag/libheif
+- libheif `v1.23.1` release
+  https://github.com/strukturag/libheif/releases/tag/v1.23.1
+- libheif `v1.23.1` CMake options
+  https://github.com/strukturag/libheif/blob/v1.23.1/CMakeLists.txt
+- libheif license
+  https://github.com/strukturag/libheif/blob/v1.23.1/COPYING
+- libde265 source와 license
+  https://github.com/strukturag/libde265
 
 ## Directus — superseded 결정 조사 기록
 

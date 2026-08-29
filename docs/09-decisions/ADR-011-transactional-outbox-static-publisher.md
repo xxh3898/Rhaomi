@@ -1,0 +1,128 @@
+---
+title: "ADR-011: Transactional outbox와 정적 publisher"
+status: "approved"
+owner: "조치호"
+reviewers: "조치호"
+last_updated: "2026-08-29"
+review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 방식 변경 시"
+---
+
+# ADR-011: Transactional outbox와 정적 publisher
+
+- 결정일: 2026-08-29
+- 상태: Accepted
+- 관련 결정: [ADR-003](ADR-003-static-publish-on-content-change.md), [ADR-004](ADR-004-static-media-copy.md), [ADR-008](ADR-008-runtime-independent-public-site.md), [ADR-010](ADR-010-production-topology-and-code-release.md)
+
+## 맥락
+
+관리 API의 저장 성공과 정적 공개 반영 성공은 서로 다른 transaction이다. DB commit 뒤 best-effort hook만 호출하면 event를 잃을 수 있고, deploy hook과 builder를 별도 상시 서비스로 나누면 현재 규모에 비해 lock·retry·상태 경계가 늘어난다.
+
+공개 build는 draft, 만료 공지, 보관된 relation과 private file을 누출하지 않아야 하고 실패한 build가 현재 정상 사이트를 덮어쓰지 않아야 한다. 이 결정은 [ADR-003](ADR-003-static-publish-on-content-change.md)의 재빌드 방향을 구체화하며 이를 대체하지 않는다.
+
+## 결정
+
+### trigger와 revision
+
+```text
+관리 API transaction
+→ 같은 PostgreSQL transaction에서 publishing outbox 기록
+→ commit
+→ internal publisher 처리
+```
+
+- `shop_settings`, notice, breed/service, gallery와 media relation 가운데 공개 결과 또는 eligibility에 영향을 주는 변경만 outbox를 기록한다.
+- 공개 eligibility에 영향을 주지 않는 draft-only 수정은 불필요한 build를 만들지 않도록 application에서 분류한다.
+- 공개 상태 진입·이탈, published relation 변경, 만료·게시 window 변경과 공개 선택 media 변경은 항상 trigger 대상이다.
+- outbox와 콘텐츠 변경은 같은 PostgreSQL transaction에서 commit되거나 함께 rollback된다.
+- 각 공개 영향 transaction에는 단조 증가하는 content revision을 부여한다.
+- 관리 API 저장 성공, publisher 처리 중, 공개 성공·실패 상태를 구분한다.
+
+### 단일 internal publisher
+
+초기 규모에서는 deploy hook과 builder를 분리하지 않고 internal publisher 하나가 다음을 담당한다.
+
+1. outbox poll·claim과 attempt 기록
+2. 첫 변경 뒤 30초 debounce
+3. `/srv/rhaomi/state/locks`의 global filesystem lock
+4. 대기 revision을 최신 revision으로 coalesce
+5. 일관된 read-only 콘텐츠·media snapshot 획득
+6. responsive derivative 생성
+7. 현재 승인된 production `main` image/digest로 Next Static Export
+8. HTML, internal link, SEO, asset, route 검증
+9. 새 release 설치와 `current` atomic switch
+10. attempt/result, revision, release ID 기록
+
+- publisher는 public network와 Docker socket을 사용하지 않는다.
+- publisher의 filesystem 접근은 필요한 read-only media와 release/state write 경로로 제한한다.
+- code release와 content release는 같은 build·validate·switch 구현을 사용한다.
+- content release는 임의 branch가 아니라 현재 승인된 production `main` image/digest만 사용한다.
+
+### build API
+
+- 관리자 session과 분리된 service credential을 사용한다.
+- endpoint는 internal network에만 두고 public Nginx가 `/api/build/**`를 거부한다.
+- snapshot과 media 조회만 허용하며 create/update/delete/share 권한을 주지 않는다.
+- response는 일관된 revision과 build timestamp를 포함한다.
+- build API와 transformer는 published status, notice `published_at`·`expires_at`, relation target status, media active status, 허용 file과 실제 byte를 각각 재검증한다.
+- 명시적으로 선택된 media가 archived, missing 또는 corrupt면 silent omission하지 않고 전체 build를 실패시킨다.
+- raw storage path, DB credential, 관리자 session과 private metadata를 노출하지 않는다.
+
+### retry·순서·실패
+
+- 동일 revision의 일시적 실패는 1분, 5분, 15분 간격으로 최대 3회 retry한다.
+- validation·data 오류는 무한 retry하지 않고 운영자가 확인할 실패 상태로 종료한다.
+- 더 새 revision이 도착하면 최신 상태를 우선하며 오래된 build가 최신 release를 덮지 못한다.
+- build·validation 실패 시 `current`를 변경하지 않고 기존 공개 사이트를 유지한다.
+- 후속 `/admin/`은 마지막 성공·실패, 대상 revision과 명시적 수동 retry를 제공한다.
+- state-changing 관리 요청과 code deploy 자체는 publisher가 자동 재전송하지 않는다.
+
+## 이유
+
+- transactional outbox는 콘텐츠 commit과 publish 요청 기록의 유실 구간을 없앤다.
+- 단일 publisher는 작은 운영 규모에서 debounce, lock, build와 결과 상태를 한 ownership으로 유지한다.
+- build API와 transformer의 이중 검증은 permission drift와 snapshot 오류가 공개 산출물로 전파되는 것을 줄인다.
+- 원자적 전환은 실패를 현재 공개 사이트와 격리한다.
+
+## 결과
+
+### 장점
+
+- 저장과 공개 반영의 상태를 정확히 구분하고 재처리할 수 있다.
+- 변경 burst를 합치고 build를 직렬화한다.
+- 공개 사이트의 runtime backend 독립을 유지한다.
+
+### 비용·위험
+
+- outbox schema, claim 복구, revision과 publisher 상태 관리가 필요하다.
+- 30초 debounce와 build 시간만큼 공개 반영이 지연된다.
+- publisher가 단일 처리 지점이지만 실패 시 기존 사이트는 계속 제공된다.
+
+## 거부한 대안
+
+### transaction commit 뒤 best-effort HTTP hook
+
+commit과 hook 사이 장애에서 publish 요청을 잃을 수 있어 거부한다.
+
+### deploy hook·queue·builder 상시 서비스 분리
+
+현재 규모에서는 인증·network·재시도·관제 경계만 늘어나므로 거부한다.
+
+### 공개 브라우저 runtime fetch
+
+backend 장애를 공개 사이트로 전파하고 정적 HTML·SEO 계약을 약화하므로 거부한다.
+
+## 실행 계획
+
+- [ ] outbox·monotonic revision Flyway와 transaction 분류 구현
+- [ ] internal read-only build API와 service credential 구현
+- [ ] single publisher, debounce, lock, retry와 상태 기록 구현
+- [ ] snapshot·media transformer 이중 검증 구현
+- [ ] code/content 공통 build·validate·atomic switch 검증
+- [ ] `/admin/` publish status와 수동 retry UI 구현
+
+## 재검토 조건
+
+- 콘텐츠 변경량이나 build 시간이 단일 publisher 처리량을 초과함
+- preview·승인 workflow 또는 예약 게시가 별도 queue를 요구함
+- multi-host publisher와 분산 lock이 필요해짐
+- static build 대신 다른 공개 delivery 방식이 승인됨

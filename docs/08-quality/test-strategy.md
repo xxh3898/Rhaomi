@@ -175,6 +175,26 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 - Directus service 부재
 - 종료 시 named volume 보존
 
+## 현재 Phase 1D 운영 아키텍처 문서 검증
+
+Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 다음 계약을 검증한다.
+
+- ADR-010~014 frontmatter `approved`, 본문 `Accepted`와 decision log 승인 상태 일치
+- Markdown 상대 link와 문서 작성 규칙
+- Cloudflare Tunnel → host edge Nginx → loopback project Nginx와 `/api/admin/**` public route
+- `/api/build/**`, `/internal/**`, `/actuator/**` public deny와 backend/PostgreSQL direct exposure 금지
+- canonical `/srv/rhaomi/public`, `/srv/rhaomi/data`, `/srv/rhaomi/state`, `/srv/rhaomi/logs` 경로 일치
+- main merge와 manual production apply 분리, exact SHA·digest와 one-shot Flyway
+- same-transaction outbox, monotonic revision, single publisher, 30초 debounce, retry·atomic switch
+- external SSD·iCloud 별도 encrypted restic repository, 03:30 KST, daily 7 / weekly 4 / monthly 6
+- weekly structural check, monthly full data read, quarterly isolated restore, RPO 24h·RTO 8h
+- HomeOps 단일 authority, exact 임계값, stateless single restart allowlist·lock·30분 cooldown·금지 범위
+- libheif `v1.23.1` exact commit, libde265 decoder-only와 x265 absence·SBOM·amd64/arm64 gate
+- application source, Flyway, Dockerfile, Compose, Nginx, workflow와 script diff 0
+- 기존 exact-head Hosted CI Frontend·Backend·Compose Smoke 3/3 성공
+
+문서 PASS는 production Compose, publisher, backup, HomeOps 또는 decoder-only image의 runtime acceptance 증거가 아니다.
+
 ## 후속 build·콘텐츠 단위·통합 테스트
 
 - URL, phone link, 공지 build-time 게시 도래·expiry filter
@@ -182,6 +202,9 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 - published 관계와 file scope
 - 매장정보 Hero·프로필·OG relation의 active status·private master·파생 file 재검증
 - build API read-only와 모든 mutation deny
+- same-transaction outbox·monotonic revision과 draft-only trigger 분류
+- 30초 debounce·global lock·latest revision coalescing
+- 동일 revision 1분·5분·15분 최대 3회 retry와 data error non-retry
 - snapshot schema와 image manifest
 - content fixture → transformer → static snapshot
 
@@ -198,11 +221,20 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 ## 후속 배포 테스트
 
 - content publish/archive
-- build event auth, debounce, lock
+- exact main SHA·image digest·manual environment approval와 고정 deploy entrypoint
+- write maintenance·one-shot Flyway·schema validate와 expand/contract compatibility
+- publishing outbox·service auth·debounce·lock
 - failed build does not switch
 - atomic switch와 rollback
 - stale build ordering
 - backend/PostgreSQL 중단 중 공개 site 유지
+- `/api/build/**`, `/internal/**`, `/actuator/**` public deny
+- successful release 5개와 current/previous retention, failed artifact 7일
+- 외장 SSD·iCloud backup set과 destination snapshot, retention·prune post-check
+- isolated restore의 manifest·DB·media·static build와 RPO/RTO
+- HomeOps synthetic/internal/container/host/DB/publisher/backup threshold·alert
+- stateless web/backend single restart와 deploy/backup lock·30분 cooldown·audit
+- decoder-only image x265 absence와 Linux amd64·Mac mini Linux arm64 actual HEIC
 
 ## test data
 

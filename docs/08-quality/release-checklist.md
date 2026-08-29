@@ -34,7 +34,12 @@ review_trigger: "출시 기준 변경 시"
 - [ ] 관리자 2FA
 - [ ] 상태 validation
 - [ ] archive 운영
-- [ ] domain event/outbox와 deploy hook
+- [ ] 공개 영향 transaction과 같은 PostgreSQL transaction의 publishing outbox
+- [ ] monotonic content revision과 draft-only 변경 trigger 분류
+- [ ] single publisher 30초 debounce·global lock·latest revision coalescing
+- [ ] build API read-only와 public `/api/build/**` deny
+- [ ] published·notice expiry·relation·media/file의 API/transformer 이중 검증
+- [ ] publisher 1분·5분·15분 최대 3회 retry와 data 오류 중단
 - [ ] 실제 iPhone CRUD
 
 ## 공개 사이트
@@ -83,6 +88,10 @@ review_trigger: "출시 기준 변경 시"
 - [ ] 이미지 파생본
 - [ ] EXIF 제거
 - [ ] HEIC 검증
+- [ ] decoder-only libheif `v1.23.1` exact commit과 libde265 decode
+- [ ] production image x265 package·link·plugin 부재
+- [ ] source·license notice·SBOM·image scan
+- [ ] Linux amd64와 Mac mini Linux arm64 actual HEIC fixture
 - [ ] asset budgets
 - [ ] Lighthouse
 - [ ] 저속 모바일 표본
@@ -92,19 +101,27 @@ review_trigger: "출시 기준 변경 시"
 ## 보안·운영
 
 - [ ] HTTPS
-- [ ] same-origin `/admin`, `/api` route
+- [ ] Cloudflare Tunnel → host edge Nginx → loopback project Nginx
+- [ ] same-origin `/admin`, `/api/admin/**` route
+- [ ] public `/api/build/**`, `/internal/**`, `/actuator/**` deny
 - [ ] DB 외부 비공개
-- [ ] deploy hook 내부·인증
+- [ ] publisher public network·Docker socket 부재
 - [ ] secrets scan
 - [ ] production session `Secure`, TLS와 관리자 2FA 확인
-- [ ] DB backup
-- [ ] 원본 image storage backup
-- [ ] offsite backup
-- [ ] restore test
-- [ ] rollback
-- [ ] monitoring
-- [ ] disk alert
-- [ ] certificate alert
+- [ ] exact main SHA·immutable image·digest와 `latest` 부재
+- [ ] GitHub production environment 수동 승인과 고정 Tailscale deploy entrypoint
+- [ ] write maintenance·one-shot Flyway·schema validate·expand/contract
+- [ ] `/srv/rhaomi/public` web read-only와 private DB/media mount 분리
+- [ ] DB `pg_dump -Fc`와 canonical media의 동일 backup-set manifest
+- [ ] 외장 SSD·iCloud의 별도 encrypted restic repository
+- [ ] daily 7 / weekly 4 / monthly 6와 post-prune check
+- [ ] quarterly isolated full restore, RPO 24h·RTO 8h evidence
+- [ ] `current`·`previous` atomic switch·rollback과 성공 release 5개 보존
+- [ ] HomeOps 단일 관제·incident·Activity·Discord authority
+- [ ] public/internal/container/host/DB/publisher/backup monitor와 임계값
+- [ ] stateless single restart의 lock·30분 cooldown·audit와 금지 범위
+- [ ] same-host blind spot 수용 기록
+- [ ] service당 약 100 MiB bounded log와 일반 14일·incident hold
 
 ## 승인
 

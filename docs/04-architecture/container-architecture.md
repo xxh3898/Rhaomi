@@ -49,90 +49,109 @@ dev-rhaomi-postgres-18-backend-data
 
 ```mermaid
 flowchart TB
-    Internet[Internet] --> Nginx[Nginx]
+    Internet[Internet] --> Cloudflare[Cloudflare DNS / HTTPS / Tunnel]
+    Cloudflare --> Edge[기존 host edge Nginx]
+    Edge --> Web[Rhaomi project web Nginx<br/>host loopback]
 
-    Nginx -->|public path| Static[/정적 current release/]
-    Nginx -->|same-origin /api| Backend[Spring Boot]
+    Web -->|/, /admin/, assets| Static[/srv/rhaomi/public/current]
+    Web -->|/api/admin/**| Backend[Spring Boot]
 
     Backend --> Postgres[(PostgreSQL)]
-    Backend --> Uploads[(private canonical media masters)]
-    Backend -. 후속 internal event .-> Deployer[Deploy Hook / Queue]
+    Backend --> Media[(private canonical media)]
+    Backend --> Outbox[(publishing outbox)]
 
-    Deployer -. 후속 .-> Builder[Builder Container]
-    Builder -. read-only build API .-> Backend
-    Builder --> Releases[(Release directories)]
+    Publisher[Single internal publisher] -->|internal read-only build API| Backend
+    Publisher --> Releases[(public/releases)]
     Releases --> Static
 
-    Backup[Backup Job] --> Postgres
-    Backup -. 후속 .-> Uploads
-    Backup --> Offsite[(Mac mini 외부 backup)]
+    Backup[Backup job] --> Postgres
+    Backup --> Media
+    Backup --> SSD[(encrypted external SSD restic)]
+    SSD --> ICloud[(separate encrypted iCloud restic)]
+
+    HomeOps[HomeOps] -. health / event / metric .-> Web
+    HomeOps -. internal health .-> Backend
+    HomeOps -. 상태 .-> Publisher
+    HomeOps -. 상태 .-> Backup
 ```
 
-local private media volume·upload API와 same-origin development gateway까지 구현됐다. 운영 Nginx·deploy·private media path provisioning과 backup 구현은 이번 Issue 범위가 아니다.
+local private media volume·upload API와 same-origin development gateway까지 구현됐다. 위 production topology는 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)에서 승인한 목표지만 production Compose·Nginx·publisher·backup·HomeOps와 decoder-only image는 아직 구현되지 않았다.
 
 ## 서비스 책임
 
 | 서비스 | 책임 | 외부 공개 |
 |---|---|---|
-| `nginx` | TLS, 정적 파일, same-origin `/api/**` reverse proxy | 80/443 |
+| host edge Nginx | Cloudflare Tunnel의 기존 host 진입점과 project loopback route | Tunnel을 통해서만 |
+| `rhaomi-web` | 정적 파일, same-origin `/api/admin/**` reverse proxy와 public deny rule | host loopback |
 | `backend` | 관리자 session/auth, 콘텐츠 API, private media 검증·정규화·master 소유 | Nginx를 통해서만 |
 | `postgres` | 관리자와 후속 콘텐츠 데이터 영속화 | 금지 |
-| `deploy-hook` | 후속 인증·debounce·build lock | 금지 |
-| `builder` | 후속 콘텐츠·이미지 동기화와 Static Export | 금지 |
-| `backup` | DB와 후속 private master storage backup | 금지 |
+| `publisher` | outbox claim, 30초 debounce, lock, snapshot·derivative·Static Export·atomic switch | 금지 |
+| `backup` | application-consistent DB·private master restic backup | 금지 |
+| HomeOps | 중앙 health·event·metric, incident·Activity·Discord와 제한된 자동 복구 | Tailscale 전용 |
 
 ## network 원칙
 
 ```text
-edge
-- nginx
-- backend
+host ingress
+- cloudflared → host edge Nginx → loopback rhaomi-web
 
-backend-internal
-- backend
-- postgres
-- deploy-hook
-- builder
+project application
+- rhaomi-web → backend
 
-ops-internal
-- backup
-- postgres
-- image storage
+data internal
+- backend → PostgreSQL
+- backend → private media
+
+publisher internal
+- publisher → read-only build API
+- publisher → public releases/state/locks
+
+ops internal
+- backup → PostgreSQL/private media/restic repositories
+- HomeOps → privacy-safe health/status/event/metric
 ```
 
-- PostgreSQL은 host port를 공개하지 않는다.
-- builder와 deploy hook은 명시된 내부 route만 사용한다.
-- Nginx만 공용 network 진입점을 가진다.
+- public path에서는 Rhaomi project web만 진입점이 되고 backend direct port와 PostgreSQL은 공개하지 않는다.
+- public Nginx는 `/api/build/**`, `/internal/**`와 `/actuator/**`를 명시적으로 거부한다.
+- publisher는 public network와 Docker socket을 사용하지 않는다.
+- backup과 HomeOps는 project public network에 join하지 않는다.
+- HomeOps UI·운영 endpoint와 Tailscale SSH는 public site와 분리한다.
 
 ## 운영 영속 경로 — planned
 
 ```text
 /srv/rhaomi/
-├── postgres/
-├── uploads/
-├── releases/
-├── current -> releases/<active-release>/
-├── previous -> releases/<previous-release>/
-├── build-cache/
-├── logs/
-└── backups/
+├── app/
+├── public/
+│   ├── releases/<release-id>/
+│   ├── current -> releases/...
+│   └── previous -> releases/...
+├── data/
+│   ├── postgres/
+│   └── media/
+├── state/
+│   ├── publisher/
+│   └── locks/
+└── logs/
 ```
 
-실제 경로는 운영 계획에서 확정한다. 컨테이너 삭제가 data 삭제로 이어지지 않아야 한다.
+위 경로를 production canonical contract로 사용한다. exact host ownership·permission과 volume mount는 provisioning Issue에서 검증하며 컨테이너 삭제가 data 삭제로 이어지지 않아야 한다.
 
 ## 공개 route — planned
 
 ```text
 https://<public-domain>/          → 정적 사이트와 /admin auth shell
-https://<public-domain>/api/**   → Spring Boot
+https://<public-domain>/api/admin/** → Spring Boot
 ```
 
 - 최종 domain은 미정이다.
 - 관리자 route의 noindex는 접근제어가 아니며 backend session·CSRF가 업무 요청을 보호한다.
 - production session cookie는 TLS와 `Secure=true`가 필수다.
+- `/api/build/**`, `/internal/**`, `/actuator/**`는 public Nginx에서 거부한다.
 
 ## 버전 고정
 
 - `latest` tag 금지
 - Node.js, Java image, Spring Boot, Gradle Wrapper, PostgreSQL, Nginx를 검증한 명시 버전으로 고정
 - 운영 update는 backup, staging 검증과 rollback 계획이 있는 별도 PR로 수행
+- production backend native image는 pinned source의 decoder-only libheif·libde265를 사용하고 x265 package·link 부재를 검증

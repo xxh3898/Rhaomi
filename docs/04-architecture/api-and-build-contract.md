@@ -132,14 +132,16 @@ review_trigger: "관리 API·build 입력 변경 시"
 
 ## build API — planned
 
-후속 Issue에서 관리자 session과 분리된 namespace·credential을 설계한다.
+후속 Issue에서 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에 따른 관리자 session과 분리된 internal namespace·service credential을 구현한다.
 
 - 예: `/api/build/**`
 - API-only service credential
 - published 콘텐츠와 연결된 공개용 file metadata만 read
 - create/update/delete/share 금지
 - 관리자 cookie/session 재사용 금지
-- credential은 build container에만 주입하고 `NEXT_PUBLIC_*` 금지
+- credential은 single publisher에만 주입하고 `NEXT_PUBLIC_*` 금지
+- public Nginx에서 `/api/build/**` 명시적 거부
+- response에 monotonic content revision과 build timestamp 포함
 
 현재 repository에는 build API나 build credential이 없다.
 
@@ -172,10 +174,8 @@ public media metadata
 {
   "schemaVersion": 1,
   "generatedAt": "2026-08-29T00:00:00Z",
-  "sourceRevision": {
-    "shopUpdatedAt": "...",
-    "maxContentUpdatedAt": "..."
-  },
+  "contentRevision": 123,
+  "codeImageDigest": "sha256:<digest>",
   "shop": {},
   "services": [],
   "breeds": [],
@@ -185,6 +185,8 @@ public media metadata
 ```
 
 - 모든 조회가 성공한 뒤 임시 file과 atomic rename으로 기록한다.
+- `generatedAt`을 notice 게시·만료 eligibility의 build timestamp로 사용한다.
+- `contentRevision`은 outbox와 같은 monotonic revision이며 오래된 build의 switch를 거부하는 기준이다.
 - 일부 collection만 과거 data로 fallback하지 않는다.
 - raw persistence/API response를 component에 직접 전달하지 않는다.
 - runtime schema와 published/relation/file 조건을 transformer에서 다시 검증한다.

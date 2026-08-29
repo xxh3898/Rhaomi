@@ -13,10 +13,15 @@ review_trigger: "호스트·파이프라인 변경 시"
 
 - Host: Mac mini
 - Runtime: Docker Compose
-- Public web: Nginx static files
-- Admin API: Spring Boot, same-origin `/api/**` 목표
+- Public ingress: Cloudflare Tunnel → 기존 host edge Nginx → loopback Rhaomi project Nginx
+- Public web: `/srv/rhaomi/public/current`의 Nginx static files
+- Admin API: Spring Boot, same-origin `/api/admin/**`
 - DB: PostgreSQL
 - Source: GitHub `xxh3898/Rhaomi`
+
+## 구현 상태
+
+[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)의 topology와 release 절차는 승인됐지만 production Compose·Nginx, GHCR image, GitHub `production` environment, deploy entrypoint와 one-shot Flyway는 아직 구현되지 않았다. 이 문서는 실행 가능한 목표 계약이며 현재 운영 배포 완료를 뜻하지 않는다.
 
 ## 배포 유형
 
@@ -25,33 +30,43 @@ review_trigger: "호스트·파이프라인 변경 시"
 ```text
 feature → dev 검증
 → dev → main Release PR
-→ main commit
-→ self-hosted runner 또는 승인된 배포 명령
-→ 공통 build/release pipeline
+→ exact main SHA GitHub-hosted 검증
+→ immutable multi-architecture image + SBOM + private GHCR
+→ GitHub production environment 수동 승인
+→ Tailscale SSH
+→ 고정·versioned deploy entrypoint
+→ digest 기준 production apply
 ```
+
+`main` merge와 production apply는 독립 gate다. public repository PR source를 production Mac mini runner에서 실행하지 않고 `latest`를 사용하지 않는다.
 
 ### 콘텐츠 배포
 
 ```text
 Spring Boot 콘텐츠 transaction
-→ domain event 또는 outbox
-→ internal deploy hook
-→ 공통 build/release pipeline
+→ 같은 transaction의 publishing outbox + monotonic revision
+→ single internal publisher
+→ 공통 build/validate/atomic switch pipeline
 ```
 
-두 경로는 최종 검증과 원자적 전환을 공유한다.
+두 경로는 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)의 build·검증·원자적 전환 구현을 공유한다. outbox·publisher는 아직 구현되지 않았다.
 
 ## 최초 배포 사전 조건
 
-- [ ] 최종 도메인과 same-origin `/admin`, `/api` route
-- [ ] DNS
-- [ ] HTTPS
+- [ ] 최종 도메인과 same-origin `/admin`, `/api/admin/**` route
+- [ ] Cloudflare DNS·HTTPS·Tunnel과 host edge route
+- [ ] project web loopback bind와 public deny rule
 - [ ] PostgreSQL 영속 볼륨
-- [ ] 후속 원본 이미지 storage 영속화
+- [ ] canonical media `/srv/rhaomi/data/media` 영속화
 - [ ] 운영 비밀값
 - [ ] 관리자 2FA
-- [ ] offsite backup 목적지
+- [ ] 암호화 외장 SSD·iCloud restic repository와 recovery key
+- [ ] isolated restore drill
 - [ ] Flyway migration 적용·검증
+- [ ] one-shot Flyway·schema validate·expand/contract 검증
+- [ ] publisher outbox·lock·retry·atomic switch 검증
+- [ ] HomeOps health·event·alert와 bounded restart 경계 검증
+- [ ] decoder-only HEIC image와 x265 absence·SBOM 검증
 - [ ] 실제 매장정보 승인
 - [ ] 사진 사용 기준
 - [ ] Nginx 404와 security headers
@@ -59,45 +74,69 @@ Spring Boot 콘텐츠 transaction
 
 ## 코드 배포 단계
 
-1. 대상 commit SHA 기록
-2. working tree와 runner 상태 확인
-3. 운영 DB와 후속 원본 storage 최근 backup 확인
-4. 의존성 설치
-5. 타입·린트·테스트
-6. Flyway/JPA schema compatibility 확인
-7. 콘텐츠 스냅샷
-8. 이미지 파생본
-9. Next static export
-10. 산출물 검증
-11. 새 release 디렉터리 설치
-12. symlink 전환
-13. 공개 URL 스모크
-14. 실패 시 previous 복귀
-15. release evidence 저장
+1. global deploy lock 획득
+2. exact `main` SHA, image digest와 release manifest 확인
+3. disk 여유와 `current`·`previous` 확인
+4. 최근 정상 backup set·restore drill 상태 확인
+5. migration·major update면 on-demand application-consistent backup 생성·검증
+6. immutable image pull과 digest 검증
+7. 관리자 write maintenance 활성화
+8. one-shot Flyway migration 실행
+9. 새 backend의 schema validation과 internal health 확인
+10. 승인된 image/digest의 동일 publisher pipeline으로 static release 생성
+11. 새 release directory의 HTML·link·SEO·asset·route smoke
+12. 기존 `current`를 `previous`로 기록
+13. `current` symlink 원자적 전환
+14. public HTTPS·핵심 문구·asset·관리자 API smoke
+15. 관리자 write maintenance 해제
+16. release evidence와 HomeOps status/event 기록
+
+검증 전에는 `current`를 바꾸지 않는다. public static site는 write maintenance 중에도 계속 제공한다.
+
+## Flyway
+
+- production backend 일반 기동은 migration을 실행하지 않고 schema validate만 한다.
+- migration은 deploy lock과 write maintenance 안의 one-shot service만 수행한다.
+- additive expand/contract를 우선한다.
+- column/table 삭제·대량 변환은 별도 승인, on-demand backup과 isolated restore가 필요하다.
+- destructive rollback은 검증 전 실행하지 않는다.
 
 ## 콘텐츠 배포 단계
 
 - 코드 checkout은 마지막 승인된 main commit을 사용한다.
-- content snapshot revision을 기록한다.
-- 초안 데이터는 산출물에 포함하지 않는다.
-- 게시된 콘텐츠의 이미지 변환 실패 시 전체 배포를 실패시킨다.
+- content snapshot의 monotonic revision과 build timestamp를 기록한다.
+- build API와 transformer에서 published, notice 게시·만료, relation·media와 file을 이중 검증한다.
+- 초안, 보관·만료 콘텐츠는 산출물에 포함하지 않는다.
+- 선택된 image가 archived, missing, corrupt이거나 변환에 실패하면 전체 배포를 실패시킨다.
 - 현재 공개 사이트를 유지한다.
-- 운영자에게 실패 대응 절차를 제공한다.
+- 동일 revision transient failure는 1분·5분·15분 최대 3회 retry하고 data 오류는 무한 retry하지 않는다.
+- 운영자에게 마지막 성공·실패와 명시적 수동 retry를 제공한다.
 
 ## Nginx
 
 공개 site root 개념:
 
 ```text
-root /srv/rhaomi/current;
+root /srv/rhaomi/public/current;
 ```
 
 - HTML은 짧은 cache 또는 재검증
 - content-hashed CSS/JS/image는 장기 immutable cache
 - 404는 실제 404 상태
-- same-origin `/api/**`는 Spring Boot reverse proxy
-- PostgreSQL과 deploy hook route는 없음
+- same-origin `/api/admin/**`만 Spring Boot reverse proxy
+- `/api/build/**`, `/internal/**`, `/actuator/**`는 public route에서 거부
+- PostgreSQL, publisher, backup과 HomeOps public route 없음
 - 관리자 응답에 `X-Robots-Tag: noindex, nofollow`
+
+## release evidence·보존
+
+- exact Git SHA, image tag·digest, SBOM과 scan 결과
+- Flyway version·migration 여부와 backup-set ID
+- publisher content revision, release ID와 smoke 결과
+- `current`·`previous` 전후 target
+- 성공 release 최근 5개
+- `current`·`previous` target은 개수와 무관하게 보존
+- 실패 release/evidence 7일
 
 ## 배포 실패 조건
 
@@ -111,6 +150,9 @@ root /srv/rhaomi/current;
 - 핵심 URL 누락
 - Nginx 전환 후 healthcheck 실패
 - 디스크 여유 부족
+- image tag·digest 불일치 또는 SBOM·scan 증거 누락
+- 최근 정상 backup·on-demand backup 검증 실패
+- publisher lock·revision 순서 오류
 
 ## 수행 금지
 
@@ -119,4 +161,9 @@ root /srv/rhaomi/current;
 - 백업 확인 없는 major upgrade
 - `latest` 이미지 pull 후 즉시 운영 재시작
 - feature branch를 운영 배포
+- `main` merge를 production apply 승인으로 간주
+- production Mac mini에서 public PR source build
+- 임의 SSH shell body 실행
+- production backend 일반 기동의 자동 Flyway mutation
+- public `/api/build/**`, `/internal/**` 또는 actuator 노출
 - 관리자 password·session·bootstrap credential을 CI log에 출력

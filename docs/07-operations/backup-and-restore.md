@@ -13,13 +13,12 @@ review_trigger: "저장소·보존 정책 변경 시"
 
 ### 필수
 
-- PostgreSQL logical dump
-- 후속 backend 소유 원본 이미지
-- Flyway migration과 application config가 있는 Git commit
-- 후속 build event·deploy hook 재현 정보
-- Nginx·Compose·scripts가 있는 Git commit
-- 운영 환경변수의 별도 안전한 복구 사본
-- 도메인·DNS·인증서 운영 정보
+- PostgreSQL `pg_dump -Fc` custom archive
+- backend 소유 private canonical media
+- checksum·size·file count와 source·destination snapshot ID가 있는 backup manifest
+- Git SHA, image digest와 Flyway version
+- Secret 값이 아닌 Compose·Nginx·publisher·backup inventory와 복구 위치
+- 운영 Secret과 domain·DNS·인증서의 별도 승인된 복구 절차
 
 ### 재생성 가능
 
@@ -27,59 +26,86 @@ review_trigger: "저장소·보존 정책 변경 시"
 - Next `out/`
 - node_modules
 - build cache
+- publisher 재처리 가능한 임시 artifact
 
-## 3-2-1 목표
+## 3-2-1 계약
 
-- 3개 이상의 사본
-- 2종류 이상의 저장 매체
-- 1개는 Mac mini와 분리된 위치
+```text
+Copy 1: Mac mini production data
+Copy 2: 암호화 외장 SSD volume의 encrypted restic repository
+Copy 3: iCloud Drive의 별도 encrypted restic repository
+```
 
-정확한 offsite 목적지는 [미확정 항목](../01-product/open-items.md)에 남아 있다.
+- 외장 SSD는 production release gate다.
+- iCloud는 offsite transport/storage이고 restic이 encryption과 snapshot integrity를 담당한다.
+- 두 repository와 encryption key를 분리하고 한 host automation만 writer가 된다.
+- filesystem mirror와 mirror delete를 backup으로 사용하지 않는다.
+- 정확한 SSD mount path·용량, iCloud folder와 recovery key 보관 위치는 [미확정 항목](../01-product/open-items.md)의 출시 차단값이다.
+
+## secret 경계
+
+- repository password를 Git, shell history, command argument, process output, log와 알림에 넣지 않는다.
+- automation은 root-owned `0600` password file 또는 제한된 macOS Keychain password command를 사용한다.
+- recovery key는 password manager와 별도 offline 사본에 보관한다.
+- password 값과 Secret inventory를 backup manifest에 기록하지 않는다.
 
 ## 권장 주기
 
-| 대상 | 주기 | 최소 보존 |
+| 작업 | 주기 | 계약 |
 |---|---|---|
-| PostgreSQL dump | 매일 | 일간 7, 주간 4, 월간 6 |
-| 후속 원본 image storage 증분/동기화 | 매일 | 동일 |
-| Flyway migration | schema 변경 PR | Git 이력 |
-| 운영 config | 변경 시 | Git + 비밀 백업 |
-| 수동 출시 전 백업 | major upgrade/migration 전 | 검증 완료까지 |
+| application-consistent backup | 매일 03:30 `Asia/Seoul` | daily 7 / weekly 4 / monthly 6 |
+| on-demand backup | migration·major upgrade 전 | 변경 검증과 rollback 종료까지 보존 |
+| repository structural check | 매주 | 외장 SSD와 iCloud destination 확인 |
+| full data read | 매월 | repository pack 전체 무결성 확인 |
+| isolated full restore | 분기 | 새 data directory·media root에서 전체 복구 |
+| retention prune | 월간 maintenance window | dry-run·검토 후 실행, 완료 뒤 check |
 
 소규모 데이터 기준의 초기 정책이며 실제 용량과 백업 매체에 맞춰 조정한다.
 
 ## 백업 일관성
 
-- DB dump 시각과 원본 image storage snapshot 시각을 같은 manifest에 기록한다.
-- 파일 업로드 중 백업이 수행될 수 있음을 고려한다.
-- 중요 migration 전에는 콘텐츠 변경을 잠시 멈추고 일관된 백업을 만든다.
-- checksum과 파일 개수를 기록한다.
-- 백업 성공 로그만 믿지 않고 산출물 존재와 크기를 확인한다.
+```text
+관리자 write maintenance
+→ pg_dump -Fc
+→ canonical media snapshot·manifest 확정
+→ write maintenance 해제
+→ 외장 SSD restic snapshot·structural check
+→ iCloud 별도 restic repository로 snapshot copy
+→ destination snapshot 조회·manifest 기록
+```
+
+- public static site는 write maintenance 중에도 계속 제공한다.
+- DB dump와 media는 같은 backup-set ID로 묶는다.
+- manifest에 checksum, byte size, file count, Git SHA, image digest, Flyway version과 두 repository snapshot ID를 기록한다.
+- command exit code나 iCloud 동기화 표시만으로 성공 처리하지 않고 artifact와 destination snapshot을 조회한다.
+- backup 실패 시 기존 정상 snapshot·retention 대상과 recovery key를 삭제하지 않는다.
 
 ## 복구 순서
 
 1. 장애 범위 확인
-2. 관리자 쓰기 중지 또는 backend maintenance
-3. 복구 대상 시점 선택
-4. 새 임시 PostgreSQL에 dump 복원
-5. schema와 row count 검증
-6. 후속 원본 storage 복원
-7. Spring Boot를 임시 DB에 연결
-8. 핵심 table, API와 원본 접근 확인
-9. 정적 빌드 수행
-10. 공개 스모크
-11. 운영 전환
-12. 사건 기록
+2. source repository와 backup-set manifest 선택
+3. isolated Compose project와 새 PostgreSQL data directory·media root 준비
+4. 외장 SSD 또는 iCloud snapshot을 새 target에 restore
+5. custom dump를 새 PostgreSQL에 `pg_restore`
+6. media checksum·file count와 manifest 검증
+7. Flyway schema, 핵심 table·row count와 actor/audit 확인
+8. Spring Boot를 임시 DB·media root에 연결
+9. 핵심 API와 대표 canonical media 확인
+10. 동일 publisher pipeline으로 정적 build·validation
+11. 복구 시간, RPO와 문제 기록
+12. 운영 전환이 필요하면 별도 명시 승인 요청
+
+운영 DB·media를 직접 overwrite하지 않는다.
 
 ## 복구 테스트
 
-최소 분기 1회:
+분기 1회:
 
-- 임시 DB로 실제 restore
+- isolated Compose project와 새 data directory로 실제 full restore
 - `shop_settings`, `gallery_items`, `notices` 조회
-- 대표 이미지 접근
+- 대표 private canonical media checksum·decode
 - 정적 사이트 build
-- 복구 시간과 문제 기록
+- source·destination snapshot, 복구 시간·RPO/RTO와 문제 기록
 - 운영 DB를 덮어쓰지 않음
 
 ## 삭제 사고
@@ -95,6 +121,10 @@ review_trigger: "저장소·보존 정책 변경 시"
 초기 목표:
 
 - RPO: 최대 24시간
-- RTO: 당일 수동 복구 가능한 수준
+- RTO: 8시간 이내 목표
 
-사업 영향이 커지면 실제 복구 훈련 결과를 근거로 강화한다.
+첫 restore drill 결과로 목표를 조정하고 사업 영향이 커지면 실제 증거를 근거로 강화한다.
+
+## 구현 상태
+
+[ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)의 계약만 승인됐다. 외장 SSD·iCloud repository, password source, backup automation과 restore environment는 아직 생성·실행하지 않았다.
