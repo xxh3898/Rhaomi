@@ -13,10 +13,45 @@ services:
       - .:/workspace
       - frontend-node-modules:/workspace/node_modules
       - frontend-npm-cache:/root/.npm
+    networks:
+      - frontend-local
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:3000/ >/dev/null",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+
+  gateway:
+    image: nginx:1.31.4-alpine3.24@sha256:db35bfc6b2951e7f8a72db5db120288c127ffaeeb4a6d4b95a26fead017d5913
+    profiles: ["frontend"]
+    init: true
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./infra/nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
       - "127.0.0.1:3000:3000"
     networks:
       - frontend-local
+      - backend-gateway-internal
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:3000/ >/dev/null",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
 
   backend:
     build:
@@ -47,6 +82,7 @@ services:
       - "127.0.0.1:8080:8080"
     networks:
       - backend-internal
+      - backend-gateway-internal
       - backend-local
     healthcheck:
       test:
@@ -85,9 +121,9 @@ services:
     profiles: ["smoke"]
     init: true
     working_dir: /workspace
-    command: ["node", "scripts/validate-backend-auth.mjs", "http://backend:8080"]
+    command: ["node", "scripts/validate-backend-auth.mjs", "http://gateway:3000"]
     depends_on:
-      backend:
+      gateway:
         condition: service_healthy
     environment:
       RHAOMI_BOOTSTRAP_ADMIN_EMAIL: ${RHAOMI_BOOTSTRAP_ADMIN_EMAIL:-}
@@ -96,7 +132,7 @@ services:
       - ./scripts:/workspace/scripts:ro
       - ./backend/src/test/resources/media:/workspace/media-fixtures:ro
     networks:
-      - backend-internal
+      - frontend-local
 
 volumes:
   frontend-node-modules:
@@ -117,4 +153,7 @@ networks:
     name: ${RHAOMI_COMPOSE_NETWORK_PREFIX:-dev-rhaomi}-backend-local
   backend-internal:
     name: ${RHAOMI_COMPOSE_NETWORK_PREFIX:-dev-rhaomi}-backend-internal
+    internal: true
+  backend-gateway-internal:
+    name: ${RHAOMI_COMPOSE_NETWORK_PREFIX:-dev-rhaomi}-backend-gateway-internal
     internal: true

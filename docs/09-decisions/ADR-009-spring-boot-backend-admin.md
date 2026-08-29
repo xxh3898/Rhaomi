@@ -29,7 +29,7 @@ review_trigger: "관리자 인증·콘텐츠 API·DB·배포 구조 변경 시"
 - 세션 fixation 방어와 CSRF 보호를 유지한다.
 - 1차 role은 `ADMIN` 하나로 제한하고 일반 고객 회원과 JWT를 만들지 않는다.
 - 공개 Next.js 사이트는 Static Export를 유지하고 고객 브라우저에서 backend나 PostgreSQL을 호출하지 않는다.
-- 운영에서는 같은 origin의 `/api/**`로 backend를 연결할 계획이지만 Nginx·배포 구현은 후속 Issue다.
+- 관리자 browser는 같은 origin의 `/api/**`로 backend를 사용한다. Phase 1C-7에서 exact image/digest의 local Nginx gateway로 이 경계를 검증하고 production Nginx·TLS·배포는 후속 운영 승인으로 남긴다.
 
 ## 이번 단계의 구현 경계
 
@@ -42,7 +42,17 @@ review_trigger: "관리자 인증·콘텐츠 API·DB·배포 구조 변경 시"
 - 최소 Actuator health
 - PostgreSQL을 사용하는 인증 contract test와 개발 Compose·Hosted CI
 
-공지·견종·서비스·갤러리·매장정보 CRUD, 관리자 UI, build API, 콘텐츠 snapshot, 이미지 storage·변환, 자동 재빌드 hook은 이 ADR의 방향을 따르는 후속 Issue에서 구현한다.
+공지·견종·서비스·갤러리·매장정보 CRUD API, private 이미지 storage·변환과 `/admin/` 인증 셸은 이 ADR의 방향을 따라 후속 Phase에서 구현했다. 콘텐츠 CRUD UI, build API, 콘텐츠 snapshot과 자동 재빌드 hook은 아직 구현하지 않았다.
+
+### Phase 1C-7 same-origin client 경계
+
+- `/admin/`은 `out/admin/index.html`로 생성되는 noindex Static Export client shell이다.
+- 정적 HTML과 client auth check는 보안 경계가 아니며 backend session·CSRF가 업무 요청을 최종 방어한다.
+- client는 relative `/api/admin/**`, `credentials: same-origin`, read `cache: no-store`만 사용한다.
+- login POST 성공 response의 identity를 검증한 직후 password·form email과 pre-login CSRF를 제거하고, credential 제거가 반영된 뒤 fresh CSRF를 별도 획득한다. fresh CSRF 성공 전에는 authenticated mutation-ready 상태로 전환하지 않는다.
+- post-login CSRF 준비 실패는 credential 실패·anonymous로 축소하지 않으며, 재시도는 `/me`로 기존 session을 확인한 뒤 fresh CSRF만 다시 획득한다.
+- password·CSRF·identity는 browser storage·URL·log에 저장하지 않고 logout 403 mutation을 자동 재시도하지 않는다.
+- local gateway만 구현했으며 CORS, cookie Domain rewrite, production TLS·domain 설정은 추가하지 않았다.
 
 ## 보안 계약
 
@@ -67,7 +77,7 @@ review_trigger: "관리자 인증·콘텐츠 API·DB·배포 구조 변경 시"
 
 ### 비용과 위험
 
-- 관리자 UI, CRUD, 업로드, 변경 이력과 콘텐츠 게시 기능을 직접 구현해야 한다.
+- 관리자 콘텐츠 UI, 변경 이력과 게시 UX를 직접 구현해야 한다. 현재 `/admin/`은 인증 셸과 준비 중 영역만 제공한다.
 - Spring Boot 보안 업데이트, Flyway migration과 세션 운영을 관리해야 한다.
 - 현재 in-memory session은 backend 재시작 시 로그인을 다시 요구한다.
 - 콘텐츠 backend와 정적 빌드 연동이 구현되기 전에는 운영자가 콘텐츠를 관리할 수 없다.

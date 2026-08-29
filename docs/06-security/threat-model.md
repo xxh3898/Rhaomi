@@ -26,7 +26,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - session cookie와 CSRF token 전달
 - local/test 관리자 bootstrap
 - Actuator health
-- Nginx와 향후 same-origin `/api/**` proxy
+- local Nginx same-origin `/api/**` proxy와 향후 production edge
 - PostgreSQL 연결
 - 향후 파일 upload·image decoder·build hook
 - GitHub Actions/self-hosted runner
@@ -46,6 +46,10 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | password hash 노출 | offline cracking | entity 직접 반환 금지, DTO allowlist, 인증 완료 credential erase, session principal·log·body 검사 |
 | 인증 service 장애 오분류 | 장애 은폐, 진단 지연 | credential 401 allowlist, service/repository 장애 generic 503 |
 | BCrypt 입력 경계 불일치 | 예외 기반 5xx, bootstrap 기동 실패 | login·bootstrap 공통 UTF-8 72-byte validation을 encoder 전에 적용 |
+| client credential/token 잔존 | 공유 기기·XSS에서 관리자 정보 재사용 | login identity 검증 직후 credential 제거, React 반영 뒤 fresh CSRF 준비, CSRF memory-only, browser storage·URL·log 저장 금지 |
+| post-login CSRF 준비 실패 오분류 | 생성된 session 방치, 불필요한 credential 재입력 | unavailable 분리, 재시도 시 `/me` 확인 후 fresh CSRF만 재획득, mutation-ready 전환 보류 |
+| gateway route 혼합 | API 오류를 HTML 성공으로 오인, 보호 경계 우회 | `/api/**` 전용 backend location, upstream 실패 non-200, frontend fallback 분리 |
+| CORS·cookie rewrite 완화 | 의도하지 않은 origin의 session 사용 | same-origin relative URL, CORS header와 cookie Domain rewrite 금지 |
 | DB 포트 노출 | 데이터 탈취 | host port 금지, 개발 전용 내부 network |
 | 공급망 취약점 | 코드 실행 | exact version, Wrapper/lockfile, scanner, 별도 upgrade 검증 |
 | backend 장애 | 관리자 작업 중단 | 공개 Static Export와 runtime 분리 |
@@ -64,7 +68,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - 미설계 `/api/**` anonymous 허용
 - backup 없음
 
-이번 Issue의 local backend는 운영 배포 대상이 아니므로 2FA·TLS·운영 account provisioning을 구현하지 않는다. 이 미구현 상태를 운영 준비 완료로 간주하지 않는다.
+현재 local backend·gateway와 `/admin/` 인증 셸은 운영 배포 대상이 아니므로 2FA·TLS·운영 account provisioning을 구현하지 않는다. noindex와 client session 확인도 보안 통제로 간주하지 않으며 이 미구현 상태를 운영 준비 완료로 표현하지 않는다.
 
 ## 출시 후 개선
 

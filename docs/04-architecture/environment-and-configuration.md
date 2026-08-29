@@ -19,7 +19,7 @@ production
 
 별도 staging을 장기간 운영하지 않더라도 local 또는 임시 환경에서 production과 같은 인증·DB 계약을 검증한다.
 
-## Phase 1C-4 local 개발 계약
+## Phase 1C-7 local 개발 계약
 
 - Compose file: `compose.dev.yaml`
 - Compose project: `dev-rhaomi`
@@ -32,11 +32,15 @@ production
 - Spring Boot: `4.1.1`
 - Gradle Wrapper: `9.7.1`
 - PostgreSQL: `18.6-alpine3.23`
-- frontend port: `127.0.0.1:3000`
+- gateway: `nginx:1.31.4-alpine3.24` exact manifest digest
+- gateway port: `127.0.0.1:3000`
+- frontend host port: 없음, gateway 전용 service port 3000
 - backend port: `127.0.0.1:8080`
 - PostgreSQL host port: 없음
 
 재현 가능한 frontend/backend test와 stack 명령은 [프로젝트 README](../../README.md#로컬-개발)를 따른다.
+
+관리자 browser API base 환경변수는 만들지 않는다. `/admin/` client는 현재 origin의 상대경로 `/api/admin/**`만 사용하며 `NEXT_PUBLIC_` credential·backend host·port를 주입하지 않는다.
 
 ## backend·PostgreSQL
 
@@ -120,7 +124,7 @@ ADMIN_PATH=https://<domain>/admin
 API_BASE_URL=https://<domain>/api
 ```
 
-domain을 바꾸면 canonical, sitemap, robots, Open Graph, 검색엔진 등록, CORS/CSP, TLS와 session cookie Secure 설정을 함께 갱신한다.
+domain을 바꾸면 canonical, sitemap, robots, Open Graph, 검색엔진 등록, same-origin proxy/CSP, TLS와 session cookie Secure 설정을 함께 갱신한다. 관리자 browser에 CORS allowlist를 추가하는 방식으로 우회하지 않는다.
 
 ## 버전 정책
 

@@ -25,7 +25,7 @@ review_trigger: "역할·권한·인증 방식 변경 시"
 - 일반 고객 회원 기능 없음
 - 초기 단계에서 불필요한 다중 RBAC를 만들지 않음
 
-현재 `ADMIN` 업무 endpoint는 견종·서비스·공지·갤러리, private media relation을 포함한 매장정보 singleton과 private media master에 한정한다. public/build gallery·shop·media endpoint와 관리자 UI는 아직 없다.
+현재 `ADMIN` 업무 endpoint는 견종·서비스·공지·갤러리, private media relation을 포함한 매장정보 singleton과 private media master에 한정한다. `/admin/` 인증 셸은 있지만 콘텐츠 CRUD 화면과 public/build gallery·shop·media endpoint는 아직 없다.
 
 ### Public customer
 
@@ -37,6 +37,14 @@ review_trigger: "역할·권한·인증 방식 변경 시"
 ### Build service
 
 build-time 공개 콘텐츠 조회는 후속 Issue에서 `/api/build/**` 같은 별도 namespace와 별도 credential로 설계한다. 관리자 session을 재사용하거나 이번 Issue에서 미리 endpoint·token을 만들지 않는다.
+
+### Static admin client
+
+- `/admin/` HTML은 누구나 받을 수 있는 Static Export이며 그 존재나 client-side session check를 접근제어로 보지 않는다.
+- 업무 API의 최종 경계는 backend session·CSRF이고 anonymous `/me`와 업무 endpoint는 계속 거부한다.
+- browser는 same-origin relative `/api/admin/**`만 사용하며 CORS를 열거나 backend host를 bundle에 넣지 않는다.
+- password·CSRF·session id·관리자 identity를 localStorage, sessionStorage, IndexedDB, cookie 직접 쓰기, URL query/hash에 저장하지 않는다.
+- backend의 알 수 없는 `message`, exception, path, SQL detail은 UI에 표시하지 않는다.
 
 ## endpoint 정책
 
@@ -76,9 +84,12 @@ build-time 공개 콘텐츠 조회는 후속 Issue에서 `/api/build/**` 같은 
 - session cookie는 `HttpOnly`와 `SameSite=Lax`를 명시한다.
 - 운영에서는 TLS와 함께 `Secure=true`를 강제하며 production profile이 false 설정으로 기동되지 않게 한다.
 - 로그인 성공 시 session fixation 방어로 session id를 교체한다.
+- static admin client는 login POST 성공 response의 identity를 검증한 직후 password·form email과 pre-login CSRF를 제거한다. credential input이 제거된 뒤에만 fresh CSRF를 요청하고 성공 전에는 authenticated mutation을 노출하지 않는다.
+- post-login fresh CSRF 실패는 credential 실패나 anonymous로 축소하지 않는다. 재시도는 `/me`로 기존 session을 확인한 뒤 fresh CSRF를 다시 준비하며 login·logout을 자동 재전송하지 않는다.
 - `ProviderManager` 인증 완료 시 principal credential을 지우고 password hash가 없는 `SecurityContext`만 session에 저장한다.
 - CSRF 보호를 비활성화하지 않는다.
 - static admin client는 CSRF endpoint에서 받은 token을 state-changing request header에 보낸다.
+- admin API 401은 client의 in-memory 인증 상태를 제거하고 403 mutation은 권한/CSRF 오류로 구분하며 자동 반복하지 않는다.
 - password, password hash, session id, CSRF token을 application log에 남기지 않는다.
 
 ## 관리자 bootstrap

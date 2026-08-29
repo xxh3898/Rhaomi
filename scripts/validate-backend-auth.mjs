@@ -47,9 +47,13 @@ async function request(path, options = {}) {
 
 const anonymousMe = await request("/api/admin/auth/me");
 assert.equal(anonymousMe.status, 401);
+assert.match(anonymousMe.headers.get("content-type") ?? "", /^application\/json/i);
+assert.equal(anonymousMe.headers.get("access-control-allow-origin"), null);
 
 const csrfResponse = await request("/api/admin/auth/csrf");
 assert.equal(csrfResponse.status, 200);
+assert.match(csrfResponse.headers.get("content-type") ?? "", /^application\/json/i);
+assert.equal(csrfResponse.headers.get("access-control-allow-origin"), null);
 const csrf = await csrfResponse.json();
 assert.equal(csrf.headerName, "X-CSRF-TOKEN");
 assert(csrf.token);
@@ -80,9 +84,15 @@ assert.equal(me.status, 200);
 const meBody = await me.text();
 assert(!/password|hash/i.test(meBody));
 
+const freshCsrfResponse = await request("/api/admin/auth/csrf");
+assert.equal(freshCsrfResponse.status, 200);
+const freshCsrf = await freshCsrfResponse.json();
+assert.equal(freshCsrf.headerName, "X-CSRF-TOKEN");
+assert(freshCsrf.token);
+
 const logout = await request("/api/admin/auth/logout", {
   method: "POST",
-  headers: { [csrf.headerName]: csrf.token },
+  headers: { [freshCsrf.headerName]: freshCsrf.token },
 });
 assert.equal(logout.status, 204);
 

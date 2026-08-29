@@ -3,7 +3,7 @@ title: "접근성"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "UI 컴포넌트 또는 WCAG 기준 변경 시"
 ---
 
@@ -73,6 +73,17 @@ review_trigger: "UI 컴포넌트 또는 WCAG 기준 변경 시"
 - 외부 사이트 이동을 필요한 경우 안내
 - 에러나 빈 상태는 원인과 다음 행동을 함께 제시
 
+## 관리자 인증 셸
+
+- `/admin/`은 의미 있는 H1 하나와 email·password의 visible label을 제공한다.
+- email은 `autocomplete="username"`, password는 `autocomplete="current-password"`를 사용한다.
+- session 확인과 로그인·로그아웃 pending 상태를 텍스트와 `aria-live`/`aria-busy`로 전달한다.
+- 로그인·validation 실패는 `role="alert"`로 알리고 password를 지운 뒤 password input으로 focus를 이동한다.
+- 재시도·로그인·로그아웃은 native button/form으로 Enter와 키보드만으로 동작한다.
+- 준비 중 관리 영역은 disabled button과 텍스트를 함께 사용해 실제 동작으로 오인시키지 않는다.
+- touch target은 최소 44 CSS px, layout은 320px과 iOS safe area를 기준으로 한다.
+- spinner animation은 `prefers-reduced-motion`에서 제거한다.
+
 ## 검증
 
 - axe 자동 검사
@@ -83,3 +94,5 @@ review_trigger: "UI 컴포넌트 또는 WCAG 기준 변경 시"
 - 320px reflow
 - reduced motion
 - 고대비 또는 색각 시뮬레이션
+
+DOM component test는 label, live alert, focus 복구, pending 중복 제출, keyboard login/logout과 disabled 영역을 검증한다. 실제 iOS VoiceOver·iPhone Safari와 contrast 수동 검증은 출시 gate로 남긴다.

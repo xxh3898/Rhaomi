@@ -3,11 +3,27 @@ title: "사용자 여정"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "페이지 흐름 변경 시"
 ---
 
 # 사용자 여정
+
+## Phase 1C-7 현재 관리자 진입 여정
+
+```text
+/admin/ 정적 화면 진입
+→ same-origin /api/admin/auth/me로 session 확인
+→ 미인증이면 CSRF 획득 후 로그인
+→ session fixation 뒤 fresh CSRF 재획득
+→ 관리자 identity와 준비 중 관리 영역 확인
+→ fresh CSRF로 로그아웃
+```
+
+- network·5xx·잘못된 response는 credential 실패로 위장하지 않고 재시도 화면을 표시한다.
+- 로그인 실패 뒤 password를 지우고 해당 입력으로 focus를 되돌린다.
+- 현재 dashboard의 관리 영역은 disabled이며 존재하지 않는 CRUD route나 fake data를 제공하지 않는다.
+- `/admin/` HTML의 존재나 client session 확인은 보안 경계가 아니며 backend session·CSRF가 요청을 최종 방어한다.
 
 ## 여정 A: 검색 유입 후 신규 문의
 
@@ -63,6 +79,8 @@ Instagram 프로필 링크
 
 ## 여정 D: 운영자의 사진 게시
 
+Phase 1C-7 이후 구현할 목표 여정이다. 현재 인증 셸에서 갤러리 생성·upload 화면으로 이동할 수 없다.
+
 ```text
 관리자 로그인
 → 갤러리 항목 생성
@@ -82,6 +100,8 @@ Instagram 프로필 링크
 - 빌드 실패 시 기존 사이트가 유지된다.
 
 ## 여정 E: 운영자의 공지 수정·삭제
+
+Phase 1C-7 이후 구현할 목표 여정이다. 현재 인증 셸은 공지 수정·보관 화면을 제공하지 않는다.
 
 ```text
 공지 선택

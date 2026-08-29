@@ -11,7 +11,7 @@ review_trigger: "module·배포 구조 변경 시"
 
 기존 Next.js source를 이동하지 않고 repository root에 `backend/`를 추가한다.
 
-## Phase 1C-6 현재 구조
+## Phase 1C-7 현재 구조
 
 ```text
 Rhaomi/
@@ -19,7 +19,11 @@ Rhaomi/
 │   └── workflows/
 │       └── validate.yml
 ├── src/
-│   └── app/                       # Next.js Static Export
+│   ├── app/
+│   │   ├── page.tsx               # 공개 Static Export 홈
+│   │   └── admin/                 # Static Export auth shell·DOM test
+│   ├── features/admin-auth/       # relative API client·shape/error test
+│   └── test/                      # Vitest DOM setup
 ├── backend/
 │   ├── gradle/wrapper/            # Gradle 9.7.1 Wrapper
 │   ├── src/main/java/kr/co/rhaomi/backend/
@@ -38,10 +42,12 @@ Rhaomi/
 │   │   └── application.yml
 │   ├── src/test/                  # PostgreSQL auth·콘텐츠·media·gallery·shop relation 계약
 │   └── Dockerfile.dev             # exact Java 25 + libheif runtime
+├── infra/nginx/dev.conf           # local same-origin reverse proxy
 ├── scripts/
 │   ├── generate-synthetic-media-fixtures.mjs
 │   ├── validate-backend-auth.mjs
 │   ├── validate-backend-media.mjs
+│   ├── validate-gateway.mjs
 │   ├── validate-backend-compose.sh
 │   └── validate-export.mjs
 ├── tests/                         # frontend·runtime contract
@@ -58,6 +64,9 @@ Rhaomi/
 - `backend/build`, `.gradle`, `.next`, `out`, `node_modules`는 생성 파일이므로 Git에 포함하지 않는다.
 - Directus runtime, schema snapshot, permission artifact와 provisioning script는 현재 구조에 없다.
 - 관리자 collection controller는 견종·서비스·공지·갤러리의 `GET`, `POST`, `PUT`을 제공한다. 매장정보 singleton은 `GET`, `PUT`, private media는 list/detail/content `GET`, upload `POST`, status `PUT`만 제공하며 모든 domain에서 `PATCH`·`DELETE`를 제공하지 않는다.
+- `/admin/`은 인증 상태·로그인·로그아웃과 disabled 관리 영역만 제공한다. 실제 콘텐츠 CRUD component와 route는 아직 없다.
+- `src/features/admin-auth`는 relative `/api/admin/**`, same-origin credential, GET no-store, response shape와 고정 오류 mapping을 한 경계에서 처리한다.
+- `infra/nginx/dev.conf`는 local 개발 전용이며 production Nginx·TLS 설정이 아니다.
 
 ## 전체 제품 목표 구조 — planned
 
@@ -66,7 +75,7 @@ Rhaomi/
 ├── src/
 │   ├── app/
 │   │   ├── page.tsx
-│   │   ├── admin/                 # 후속 static 관리자 UI
+│   │   ├── admin/                 # 현재 auth shell, 후속 콘텐츠 UI
 │   │   └── notice/[slug]/
 │   ├── components/
 │   ├── generated/
@@ -127,9 +136,10 @@ planned 경로는 관련 Issue가 구현할 때만 추가한다.
 - 내용 hash 기반 파일명
 - metadata 제거 후 export에 포함
 
-### `infra` — 후속
+### `infra`
 
-- 운영 Docker Compose, Nginx, deploy hook과 backup job
+- `infra/nginx/dev.conf`는 local same-origin gateway만 정의
+- 운영 Docker Compose, production Nginx, deploy hook과 backup job은 후속
 - local 개발 Compose와 운영 credential·volume을 공유하지 않음
 
 ### `scripts`
