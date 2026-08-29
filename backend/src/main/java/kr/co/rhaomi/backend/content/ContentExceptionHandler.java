@@ -28,6 +28,12 @@ public class ContentExceptionHandler {
         return new ApiError("PUBLISH_VALIDATION_FAILED", "게시 필수값을 확인해 주세요.");
     }
 
+    @ExceptionHandler(NoticeWindowInvalidException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_CONTENT)
+    ApiError handleNoticeWindowInvalid() {
+        return new ApiError("NOTICE_WINDOW_INVALID", "공지 게시 기간을 확인해 주세요.");
+    }
+
     @ExceptionHandler(DataAccessException.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     ApiError handleDataAccessFailure() {

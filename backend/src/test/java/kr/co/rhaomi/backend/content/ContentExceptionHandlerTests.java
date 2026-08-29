@@ -34,12 +34,24 @@ class ContentExceptionHandlerTests {
                 .andExpect(content().string(not(containsString("database connection detail"))));
     }
 
+    @Test
+    void should_returnNoticeWindowCode_when_noticeWindowIsInvalid() throws Exception {
+        mockMvc.perform(get("/notice-window-invalid"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("NOTICE_WINDOW_INVALID"));
+    }
+
     @RestController
     static class FailingController {
 
         @GetMapping("/database-failure")
         void fail() {
             throw new DataAccessResourceFailureException("database connection detail");
+        }
+
+        @GetMapping("/notice-window-invalid")
+        void invalidWindow() {
+            throw new NoticeWindowInvalidException();
         }
     }
 }

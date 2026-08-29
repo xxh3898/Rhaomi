@@ -11,10 +11,10 @@ review_trigger: "PostgreSQL table·field·API 변경 시"
 
 ## 구현 상태
 
-- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`와 `services`
-- 후속 구현: 매장정보, 갤러리, 공지, 원본 이미지
+- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`
+- 후속 구현: 매장정보, 갤러리, 원본 이미지
 
-`breeds`와 `services`는 현재 schema와 관리 API 계약이고, 나머지 콘텐츠 모델은 제품 방향을 위한 proposed 계약이다.
+`breeds`, `services`, `notices`는 현재 schema와 관리 API 계약이고, 나머지 콘텐츠 모델은 제품 방향을 위한 proposed 계약이다.
 
 ## 현재 `admin_users`
 
@@ -38,7 +38,7 @@ schema source of truth는 `backend/src/main/resources/db/migration/V1__create_ad
 - 시간: DB에는 timezone-aware timestamp, 화면은 Asia/Seoul
 - slug: lowercase ASCII kebab-case, unique, 생성 후 관리 API에서 변경 불가
 - raw HTML 입력 금지
-- 공지 본문은 후속 구현에서 Markdown 또는 제한된 rich text를 사용하고 build 시 sanitize
+- 공지 본문은 현재 Markdown source로 저장하고 후속 공개 build에서 sanitize
 - 운영 삭제는 `archived`
 - id, audit timestamp와 내부 field는 관리자 update DTO에서 제외
 
@@ -93,20 +93,27 @@ erDiagram
 - publish 시 breed, service, cover image, 사실 기반 alt text와 published timestamp가 필수다.
 - 관계 대상이 published가 아니면 공개 snapshot에서 제외한다.
 
-## `notices` — planned
+## 현재 `notices`
 
 필드: id, status, title, unique slug, summary, body Markdown, pinned, published/expires timestamps, audit timestamps.
 
-- publish 시 title, slug, body와 published timestamp가 필수다.
-- `expires_at`은 없거나 `published_at`보다 늦어야 한다.
-- build time이 `expires_at` 이상이면 공개 snapshot에서 제외한다.
+- 생성 상태는 항상 `draft`이고 생성 요청에서 status를 받지 않는다. pinned 누락·null은 false다.
+- title 200자, slug 160자, summary 300자, body Markdown 50,000자까지 관리 API에서 허용한다.
+- title과 published body는 whitespace가 아닌 문자를 최소 하나 포함해야 하며 application과 `ck_notices_title_not_blank`·`ck_notices_published_fields`가 이중 검증한다.
+- publish 시 title, immutable slug, non-blank body와 `published_at`이 필수다.
+- `expires_at`은 없거나 상태와 무관하게 `published_at`이 존재하고 그보다 늦어야 하며 `ck_notices_window`가 최종 차단한다.
+- 시간 API는 ISO-8601 offset/UTC를 받고 `published_at`, `expires_at`을 application에서 microsecond로 절삭한 뒤 최종 값으로 기간을 검증·반영한다. DB의 게시·만료·audit 시간 column은 `TIMESTAMP(6) WITH TIME ZONE`이다.
+- 정규화 후 게시·만료가 같은 시각이면 거부하고 정확히 1µs 차이는 허용한다. 미래 `published_at`을 허용하고 만료만으로 status를 자동 변경하지 않는다.
+- created_by·updated_by는 `admin_users(id)`를 참조하고 `ON DELETE RESTRICT`다.
+- schema source of truth는 `backend/src/main/resources/db/migration/V3__create_notices.sql`이다.
+- 공개 build 후보는 `status = published AND published_at <= build_time AND (expires_at IS NULL OR expires_at > build_time)`를 모두 만족해야 한다.
 
 ## 정렬
 
 ```text
-services/breeds: sort ASC, name ASC
+services/breeds: sort_order ASC, name ASC, id ASC
 gallery: featured DESC, sort ASC, published_at DESC, id ASC (planned)
-notices: pinned DESC, published_at DESC, id ASC
+notices: pinned DESC, published_at DESC NULLS LAST, updated_at DESC, id ASC
 ```
 
 ## 무결성 구현 원칙

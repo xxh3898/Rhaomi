@@ -18,7 +18,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - 모바일 문의·검색 metadata 보호
 - 배포 실패 시 기존 사이트 보호
 
-## 현재 Phase 1C-1 자동 검증
+## 현재 Phase 1C-2 자동 검증
 
 ### Frontend
 
@@ -73,6 +73,22 @@ review_trigger: "기술·기능 범위 변경 시"
 - hard `DELETE`와 `PATCH` endpoint 부재
 - actor 없는 application service 호출 거부와 generic DB 5xx detail 비노출
 
+### 공지 domain/API/DB
+
+- Flyway V1·V2에서 V3 upgrade와 clean database V1·V2·V3 순차 적용
+- `notices` table, `TIMESTAMP(6) WITH TIME ZONE` 시간 field와 명명된 status/title/slug/published/window/actor FK constraint
+- DB default draft·pinned false와 duplicate slug·tab/newline-only title·published body·게시 필수값·모든 상태의 기간 무결성 최종 차단
+- anonymous·public read와 CSRF 없는 create/update 거부
+- create의 항상 draft, pinned 누락·null false, 문자열 정규화와 AdminPrincipal actor 기록
+- `pinned DESC, published_at DESC NULLS LAST, updated_at DESC, id ASC`의 모든 tie-breaker 정렬
+- 단건 조회, immutable slug, full update, archive row 보존과 draft/published 복구
+- 두 번째 관리자 update의 created audit 불변과 updated_by 변경
+- invalid slug, duplicate, malformed timestamp·UUID, 길이 경계, unknown/id/audit field의 400/409 계약과 exception detail 비노출
+- 게시 필수값과 draft/published/archived 기간 오류의 422 코드 분리
+- partial `PUT`, 게시·기간 validation 실패 뒤 row·audit 전체 불변
+- 미래 publishedAt 허용, 100ns collapse 422, 정확히 1µs 차이 성공과 create/update/재조회 microsecond round-trip
+- hard `DELETE`, `PATCH`, public endpoint와 scheduler 부재
+
 H2 전용 통과는 DB contract 증거로 인정하지 않는다. Hosted CI Backend job은 실제 PostgreSQL service를 사용한다.
 Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 application context를 시작하기 전에 중단한다. fixture 정리는 지정된 test email에만 한정한다.
 
@@ -88,9 +104,9 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 - Directus service 부재
 - 종료 시 named volume 보존
 
-## 후속 콘텐츠 단위·통합 테스트
+## 후속 build·콘텐츠 단위·통합 테스트
 
-- URL, phone link, 공지 status·expiry filter
+- URL, phone link, 공지 build-time 게시 도래·expiry filter
 - slug/canonical, JSON-LD, alt validation
 - published 관계와 file scope
 - build API read-only와 모든 mutation deny

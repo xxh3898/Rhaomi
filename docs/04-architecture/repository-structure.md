@@ -11,7 +11,7 @@ review_trigger: "module·배포 구조 변경 시"
 
 기존 Next.js source를 이동하지 않고 repository root에 `backend/`를 추가한다.
 
-## Phase 1C-1 현재 구조
+## Phase 1C-2 현재 구조
 
 ```text
 Rhaomi/
@@ -28,9 +28,10 @@ Rhaomi/
 │   │   ├── breed/                 # 견종 관리 domain/API
 │   │   ├── content/               # 상태·audit·공통 오류 계약
 │   │   ├── config/                # security와 bootstrap
+│   │   ├── notice/                # 공지 관리 domain/API와 게시·기간 검증
 │   │   └── service/               # 미용 서비스 관리 domain/API
 │   ├── src/main/resources/
-│   │   ├── db/migration/          # Flyway V1 admin_users, V2 breeds/services
+│   │   ├── db/migration/          # Flyway V1 admin, V2 breeds/services, V3 notices
 │   │   └── application.yml
 │   └── src/test/                  # PostgreSQL auth·콘텐츠 API/DB contract
 ├── scripts/
@@ -50,7 +51,7 @@ Rhaomi/
 - `compose.dev.yaml`은 `dev-rhaomi` project와 개발 전용 network/volume만 사용한다.
 - `backend/build`, `.gradle`, `.next`, `out`, `node_modules`는 생성 파일이므로 Git에 포함하지 않는다.
 - Directus runtime, schema snapshot, permission artifact와 provisioning script는 현재 구조에 없다.
-- 관리자 콘텐츠 controller는 현재 견종·서비스의 `GET`, `POST`, `PUT`만 제공하고 `PATCH`·`DELETE`를 제공하지 않는다.
+- 관리자 콘텐츠 controller는 현재 견종·서비스·공지의 `GET`, `POST`, `PUT`만 제공하고 `PATCH`·`DELETE`를 제공하지 않는다.
 
 ## 전체 제품 목표 구조 — planned
 

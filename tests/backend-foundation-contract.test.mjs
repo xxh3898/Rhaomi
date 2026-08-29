@@ -84,6 +84,32 @@ test("견종·서비스 V2와 제한된 관리자 API 계약을 고정한다", a
   }
 });
 
+test("공지 V3와 게시·만료 관리자 API 계약을 고정한다", async () => {
+  const [migration, controller, repository] = await Promise.all([
+    source("backend/src/main/resources/db/migration/V3__create_notices.sql"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/notice/NoticeAdminController.java"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/notice/NoticeRepository.java"),
+  ]);
+
+  assert.match(migration, /CREATE TABLE notices/);
+  assert.match(migration, /CONSTRAINT uk_notices_slug UNIQUE/);
+  assert.match(migration, /CONSTRAINT ck_notices_published_fields CHECK/);
+  assert.match(migration, /CONSTRAINT ck_notices_window CHECK/);
+  assert.match(migration, /published_at TIMESTAMP\(6\) WITH TIME ZONE/);
+  assert.match(migration, /expires_at TIMESTAMP\(6\) WITH TIME ZONE/);
+  assert.match(migration, /created_at TIMESTAMP\(6\) WITH TIME ZONE/);
+  assert.match(migration, /updated_at TIMESTAMP\(6\) WITH TIME ZONE/);
+  assert.match(migration, /title ~ '\[\^\[:space:\]\]'/);
+  assert.match(migration, /body_markdown ~ '\[\^\[:space:\]\]'/);
+  assert.match(migration, /REFERENCES admin_users\(id\) ON DELETE RESTRICT/);
+  assert.match(controller, /@GetMapping/);
+  assert.match(controller, /@PostMapping/);
+  assert.match(controller, /@PutMapping/);
+  assert.doesNotMatch(controller, /@(?:Patch|Delete)Mapping/);
+  assert.match(repository, /publishedAt DESC NULLS LAST/);
+  assert.match(repository, /updatedAt DESC[\s\S]*?id ASC/);
+});
+
 test("실행 경로에 Directus 설정을 남기지 않는다", async () => {
   const runtimeFiles = await Promise.all([
     source("compose.dev.yaml"),
