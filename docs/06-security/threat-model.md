@@ -58,6 +58,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | self-hosted runner 악용 | Mac mini 장악 | 전용 runner scope, untrusted PR 실행 금지, 최소 권한 |
 | publisher credential 탈취 | private snapshot·media 노출 | internal network, read-only endpoint, admin session 분리, public Nginx deny |
 | backup key 탈취·분실 | 민감 원본 노출 또는 복구 불가 | 별도 encrypted repository, 제한된 password source, password manager+offline recovery key |
+| PostgreSQL volume 오삭제 | 전체 운영 DB 손실 | project-scoped named volume, 일반 `down` 보존, production `down -v`·prune·direct delete 금지, logical backup·isolated `pg_restore` |
 | 자동 복구 오작동 | 장애 확대·data mutation | stateless web/backend 단일 restart allowlist, deploy/backup lock, 30분 cooldown, audit |
 | native codec 공급망 | image 처리 RCE·license 위반 | pinned source commit, decoder-only, x265 absence, SBOM·scan·actual fixture |
 
@@ -74,6 +75,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - backup 없음
 - public build/internal/actuator route 노출
 - one-shot Flyway·manual digest deploy·restore drill 부재
+- Mac `/private/var/lib/rhaomi` ownership·bind smoke, PostgreSQL named-volume restart/일반 `down` persistence와 isolated `pg_restore` 증거 부재
 - HomeOps 자동 복구가 DB·volume·migration·backup을 변경할 수 있음
 
 현재 local backend·gateway와 `/admin/` 인증 셸은 운영 배포 대상이 아니므로 2FA·TLS·운영 account provisioning을 구현하지 않는다. noindex와 client session 확인도 보안 통제로 간주하지 않으며 이 미구현 상태를 운영 준비 완료로 표현하지 않는다.

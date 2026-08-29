@@ -36,7 +36,8 @@ review_trigger: "모니터링 도구·장애 등급 변경 시"
 - Spring Boot internal 최소 health endpoint
 - Docker container state·health
 - PostgreSQL connection·lock·rollback 최소 지표
-- private canonical media storage 상태
+- production project-scoped PostgreSQL named volume identity·capacity·mount 상태
+- `/private/var/lib/rhaomi/data/media` private canonical media storage 상태
 - 로그인 실패 급증
 
 CSRF 발급 endpoint를 availability probe로 호출하지 않는다. 실제 login mutation을 자동 probe로 반복하지 않는다.
@@ -67,6 +68,7 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. 실제 log
 
 - Mac mini CPU, memory와 load
 - disk·inode·project volume capacity
+- `/private/var/lib/rhaomi` bind source와 Docker-managed PostgreSQL named volume capacity를 분리한 상태
 - Docker daemon과 container health
 - TLS certificate 만료
 
@@ -104,6 +106,7 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. 실제 log
 - Compose `down`·`up`
 - PostgreSQL restart
 - volume·filesystem data mutation
+- `docker compose down -v`, `docker volume prune`, named volume direct delete
 - migration·restore·backup 삭제
 - `cloudflared`·HomeOps 자체 제어
 - allowlist 밖 service의 임의 start·stop

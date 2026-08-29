@@ -56,7 +56,7 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 
 1. immediate pending event와 due scheduled event poll·claim, generation·attempt 기록
 2. 첫 변경 뒤 30초 debounce
-3. `/srv/rhaomi/state/locks`의 global filesystem lock
+3. Mac `/private/var/lib/rhaomi/state/locks`를 bind한 publisher container `/var/lib/rhaomi/locks`의 global filesystem lock
 4. 대기 trigger를 가장 높은 `publishGeneration`으로 coalesce
 5. 일관된 read-only 콘텐츠·media snapshot 획득
 6. responsive derivative 생성
@@ -66,7 +66,9 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 10. attempt/result, `contentRevision`, `publishGeneration`, `generatedAt`, release ID 기록
 
 - publisher는 public network와 Docker socket을 사용하지 않는다.
-- publisher의 filesystem 접근은 필요한 read-only media와 release/state write 경로로 제한한다.
+- publisher의 filesystem 접근은 필요한 read-only media와 release/state/lock write 경로로 제한한다.
+- release host source는 `/private/var/lib/rhaomi/public`이고 publisher container target은 `/srv/rhaomi/public`이다. `releases`, `current`, `previous` 조작은 container target에서 수행되지만 Mac host authority는 `/private/var/lib/rhaomi/public`이다.
+- publisher state host source는 `/private/var/lib/rhaomi/state/publisher`, lock source는 `/private/var/lib/rhaomi/state/locks`다. 둘을 각각 publisher container `/var/lib/rhaomi/publisher`, `/var/lib/rhaomi/locks`로 read-write mount한다.
 - code release와 content release는 같은 build·validate·switch 구현을 사용한다.
 - content release는 임의 branch가 아니라 현재 승인된 production `main` image/digest만 사용한다.
 
@@ -134,6 +136,7 @@ backend 장애를 공개 사이트로 전파하고 정적 HTML·SEO 계약을 �
 - [ ] single publisher의 pending/due poll, overdue recovery, debounce, lock, retry와 stale no-op 상태 기록 구현
 - [ ] snapshot·media transformer 이중 검증 구현
 - [ ] release manifest 3개 필드와 `publishGeneration` 기준 code/content 공통 build·validate·atomic switch 검증
+- [ ] 실제 Mac mini의 public/state/lock bind source ownership·permission과 publisher container mount·atomic symlink smoke 검증
 - [ ] future publish·expiry, reschedule/archive stale event, publisher downtime과 close-boundary coalesce 통합 테스트
 - [ ] `/admin/` publish status와 수동 retry UI 구현
 

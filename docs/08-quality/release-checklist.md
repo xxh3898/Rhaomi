@@ -115,9 +115,16 @@ review_trigger: "출시 기준 변경 시"
 - [ ] exact main SHA·immutable image·digest와 `latest` 부재
 - [ ] GitHub production environment 수동 승인과 고정 Tailscale deploy entrypoint
 - [ ] write maintenance·one-shot Flyway·schema validate·expand/contract
-- [ ] `/srv/rhaomi/public` web read-only와 private DB/media mount 분리
+- [ ] 실제 Mac `/private/var/lib/rhaomi/{app,public,data/media,state,logs}` 생성·ownership·permission
+- [ ] Mac public/media/state source의 Docker Desktop bind smoke와 web RO·backend/publisher 최소 write mode
+- [ ] `/srv/rhaomi/public`이 web/publisher Linux container target일 뿐 Mac host source가 아님
+- [ ] PostgreSQL host PGDATA bind 부재, production project-scoped named volume exact identity·mount
+- [ ] PostgreSQL container restart와 일반 Compose `down`·`up` 뒤 DB persistence
+- [ ] production `docker compose down -v`, `docker volume prune`, named volume direct delete 금지
 - [ ] DB `pg_dump -Fc`와 canonical media의 동일 backup-set manifest
+- [ ] raw PostgreSQL volume required restic input 부재와 새 isolated named volume `pg_restore` 검증
 - [ ] 외장 SSD·iCloud의 별도 encrypted restic repository
+- [ ] 외장 SSD `/Volumes/<provisioned-volume>/...` exact repository path·volume identity·ownership
 - [ ] local iCloud Drive repository snapshot/check와 Apple remote sync 완료 증거 분리
 - [ ] remote sync 미증명 backup set의 offsite RPO `PASS` 금지와 local/offsite RPO 별도 표시
 - [ ] 최초 production gate의 second trusted device 또는 clean retrieval path fresh retrieval·restic check·대표 restore

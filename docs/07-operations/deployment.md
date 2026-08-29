@@ -14,7 +14,7 @@ review_trigger: "호스트·파이프라인 변경 시"
 - Host: Mac mini
 - Runtime: Docker Compose
 - Public ingress: Cloudflare Tunnel → 기존 host edge Nginx → loopback Rhaomi project Nginx
-- Public web: `/srv/rhaomi/public/current`의 Nginx static files
+- Public web: Mac `/private/var/lib/rhaomi/public`을 read-only mount한 web container `/srv/rhaomi/public/current`의 Nginx static files
 - Admin API: Spring Boot, same-origin `/api/admin/**`
 - DB: PostgreSQL
 - Source: GitHub `xxh3898/Rhaomi`
@@ -57,8 +57,12 @@ Spring Boot 콘텐츠 transaction
 - [ ] 최종 도메인과 same-origin `/admin`, `/api/admin/**` route
 - [ ] Cloudflare DNS·HTTPS·Tunnel과 host edge route
 - [ ] project web loopback bind와 public deny rule
-- [ ] PostgreSQL 영속 볼륨
-- [ ] canonical media `/srv/rhaomi/data/media` 영속화
+- [ ] Mac `/private/var/lib/rhaomi/{app,public,data/media,state,logs}` canonical directory 생성·ownership·permission
+- [ ] public/media/state의 Docker Desktop bind mount smoke와 web read-only·backend/publisher 최소 write 경계
+- [ ] PostgreSQL host bind source가 없는 production project-scoped Docker named volume과 exact rendered identity
+- [ ] PostgreSQL container restart와 일반 Compose `down`·`up` 뒤 data persistence
+- [ ] production entrypoint·runbook의 `docker compose down -v`, `docker volume prune`, named volume direct delete 금지
+- [ ] canonical media `/private/var/lib/rhaomi/data/media` 영속화
 - [ ] 운영 비밀값
 - [ ] 관리자 2FA
 - [ ] 암호화 외장 SSD·iCloud restic repository와 recovery key
@@ -66,6 +70,7 @@ Spring Boot 콘텐츠 transaction
 - [ ] second trusted device 또는 local cache를 authority로 쓰지 않는 clean retrieval path의 fresh retrieval·restic check·대표 restore
 - [ ] local RPO와 remotely verified offsite RPO를 분리한 최초 evidence
 - [ ] isolated full restore drill
+- [ ] `pg_dump -Fc` backup을 새 isolated PostgreSQL named volume에 `pg_restore`하고 row/schema 검증
 - [ ] Flyway migration 적용·검증
 - [ ] one-shot Flyway·schema validate·expand/contract 검증
 - [ ] publisher immediate/due event·overdue recovery·두 revision·lock·retry·atomic switch 검증
@@ -80,20 +85,22 @@ Spring Boot 콘텐츠 transaction
 
 1. global deploy lock 획득
 2. exact `main` SHA, image digest와 `contentRevision`·`publishGeneration`·`generatedAt` release manifest 확인
-3. disk 여유와 `current`·`previous` 확인
-4. 최근 정상 backup set·restore drill 상태 확인
-5. migration·major update면 on-demand application-consistent backup 생성·검증
-6. immutable image pull과 digest 검증
-7. 관리자 write maintenance 활성화
-8. one-shot Flyway migration 실행
-9. 새 backend의 schema validation과 internal health 확인
-10. 승인된 image/digest의 동일 publisher pipeline으로 static release 생성
-11. 새 release directory의 HTML·link·SEO·asset·route smoke
-12. 기존 `current`를 `previous`로 기록
-13. `current` symlink 원자적 전환
-14. public HTTPS·핵심 문구·asset·관리자 API smoke
-15. 관리자 write maintenance 해제
-16. release evidence와 HomeOps status/event 기록
+3. Mac canonical directory ownership·permission, public/media/state bind source와 access mode 확인
+4. PostgreSQL named volume exact identity·mount와 보존 정책 확인
+5. disk 여유와 `current`·`previous` 확인
+6. 최근 정상 backup set·restore drill 상태 확인
+7. migration·major update면 on-demand application-consistent backup 생성·검증
+8. immutable image pull과 digest 검증
+9. 관리자 write maintenance 활성화
+10. one-shot Flyway migration 실행
+11. 새 backend의 schema validation과 internal health 확인
+12. 승인된 image/digest의 동일 publisher pipeline으로 static release 생성
+13. 새 release directory의 HTML·link·SEO·asset·route smoke
+14. 기존 `current`를 `previous`로 기록
+15. `current` symlink 원자적 전환
+16. public HTTPS·핵심 문구·asset·관리자 API smoke
+17. 관리자 write maintenance 해제
+18. release evidence와 HomeOps status/event 기록
 
 검증 전에는 `current`를 바꾸지 않는다. public static site는 write maintenance 중에도 계속 제공한다.
 
@@ -122,11 +129,13 @@ Spring Boot 콘텐츠 transaction
 
 ## Nginx
 
-공개 site root 개념:
+공개 site root 개념은 web container 내부 경로다.
 
 ```text
 root /srv/rhaomi/public/current;
 ```
+
+Mac host source는 `/private/var/lib/rhaomi/public`이며 web container `/srv/rhaomi/public`에 read-only로 mount한다. 위 Nginx path를 Mac host `/srv/rhaomi` 생성 요구로 해석하지 않는다.
 
 - HTML은 짧은 cache 또는 재검증
 - content-hashed CSS/JS/image는 장기 immutable cache
@@ -142,6 +151,8 @@ root /srv/rhaomi/public/current;
 - Flyway version·migration 여부와 backup-set ID
 - publisher content revision, release ID와 smoke 결과
 - `current`·`previous` 전후 target
+- Mac canonical root·ownership/permission 확인과 public/media/state bind mapping
+- PostgreSQL production project-scoped named volume exact identity, 일반 `down` persistence와 destructive volume command 부재
 - 성공 release 최근 5개
 - `current`·`previous` target은 개수와 무관하게 보존
 - 실패 release/evidence 7일
@@ -161,6 +172,8 @@ root /srv/rhaomi/public/current;
 - image tag·digest 불일치 또는 SBOM·scan 증거 누락
 - 최근 정상 backup·on-demand backup 검증 실패
 - publisher lock·revision 순서 오류
+- Mac canonical path·permission 또는 bind mount smoke 실패
+- PostgreSQL host bind PGDATA 발견, named volume identity 불일치 또는 restart/일반 `down` persistence 실패
 
 ## 수행 금지
 
@@ -175,3 +188,6 @@ root /srv/rhaomi/public/current;
 - production backend 일반 기동의 자동 Flyway mutation
 - public `/api/build/**`, `/internal/**` 또는 actuator 노출
 - 관리자 password·session·bootstrap credential을 CI log에 출력
+- Mac host `/srv/rhaomi` 생성, `synthetic.conf` 또는 Docker Desktop custom File Sharing을 필수 전제로 추가
+- production `docker compose down -v`, `docker volume prune` 또는 PostgreSQL named volume 직접 삭제
+- PostgreSQL raw named volume을 required restic backup이나 restore authority로 사용

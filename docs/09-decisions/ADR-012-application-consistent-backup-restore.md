@@ -17,19 +17,20 @@ review_trigger: "운영 데이터·백업 매체·보존·복구 목표 변경 �
 
 Rhaomi의 복구 가능한 원본은 PostgreSQL 콘텐츠와 private canonical media다. DB dump와 파일 복사 시점이 어긋나면 media relation이 가리키는 파일이 없거나 다른 시점의 파일이 복구될 수 있다. Mac mini와 같은 host·disk에만 둔 사본은 host 고장에 취약하다. local iCloud Drive path에서 restic snapshot을 조회하거나 `check`가 성공해도 해당 Mac의 local repository integrity만 증명하며 Apple remote iCloud sync 완료는 증명하지 않는다.
 
-실제 외장 SSD, iCloud 폴더와 restic repository는 아직 초기화하지 않았다. exact mount path·용량·폴더와 key 보관 위치는 provisioning 전에 확인한다.
+PostgreSQL primary PGDATA는 production Compose project-scoped Docker named volume에 두되 raw volume 자체를 portable backup으로 간주하지 않는다. 실제 외장 SSD, iCloud 폴더와 restic repository는 아직 초기화하지 않았다. 외장 SSD exact repository path는 `/Volumes/<provisioned-volume>/...` 아래에서, iCloud folder와 key 보관 위치는 provisioning 전에 확인한다.
 
 ## 결정
 
 ### 3-2-1 사본
 
 ```text
-Copy 1: Mac mini production data
+Copy 1: Mac mini production data — PostgreSQL named volume + `/private/var/lib/rhaomi/data/media`
 Copy 2: 외장 SSD의 encrypted restic repository
 Copy 3: iCloud Drive의 별도 encrypted restic repository
 ```
 
 - 외장 SSD는 production release gate이며 초기 단계에서 NAS를 필수로 두지 않는다.
+- 외장 SSD repository는 `/Volumes/<provisioned-volume>/...` 아래 exact path·volume identity·용량·ownership을 provisioning gate에서 확정한다.
 - 두 backup destination은 서로 다른 restic repository와 암호화 key를 사용한다.
 - iCloud Drive는 intended offsite transport/storage이고 restic이 encryption과 repository integrity를 담당한다. 특정 backup set은 Apple remote sync 완료가 별도 검증된 뒤에만 offsite 사본으로 인정한다.
 - 한 host automation만 repository writer가 된다.
@@ -46,12 +47,14 @@ Copy 3: iCloud Drive의 별도 encrypted restic repository
 ### 보호 대상
 
 - PostgreSQL `pg_dump -Fc` custom archive
-- `/srv/rhaomi/data/media`의 private canonical media
+- `/private/var/lib/rhaomi/data/media`의 private canonical media
 - backup manifest
 - exact Git SHA, image digest와 Flyway version
 - secret 값이 아닌 운영 inventory와 복구 위치 식별자
 
 `public/releases`, static derivative, `out`, dependency cache와 build cache는 재생성 가능하므로 필수 backup에서 제외한다.
+
+production project-scoped PostgreSQL named volume과 raw PGDATA file은 required restic input이 아니다. primary persistence에는 필요하지만 backup/restore authority는 같은 backup-set의 `pg_dump -Fc` custom archive와 isolated target의 `pg_restore`다.
 
 ### application-consistent backup set
 
@@ -100,7 +103,7 @@ Copy 3: iCloud Drive의 별도 encrypted restic repository
 
 - 초기 목표는 local RPO와 remotely verified offsite RPO 각각 `<= 24h`, RTO `<= 8h`다. offsite evidence가 없으면 offsite RPO는 `PASS`가 아니다.
 - 첫 restore drill의 실제 소요 시간과 데이터량으로 목표를 조정한다.
-- isolated Compose project, 새 PostgreSQL data directory와 새 media root에 restore한다.
+- isolated Compose project, 새 project-scoped PostgreSQL named volume과 새 media root에 restore한다.
 - manifest, checksum·file count, Flyway schema, 핵심 row/API, 대표 canonical media와 static build를 검증한다.
 - 운영 DB·media를 직접 overwrite하지 않는다. 운영 전환은 exact target, backup과 rollback을 확인한 별도 명시 승인 후 수행한다.
 
@@ -142,6 +145,7 @@ host·전원·storage 장애와 분리되지 않아 3-2-1 목표를 충족하지
 ## 실행 계획
 
 - [ ] 외장 SSD mount path·용량과 host 접근보호 확인
+- [ ] `/Volumes/<provisioned-volume>/...` 아래 exact external repository path와 volume identity 확인
 - [ ] 외장 SSD·iCloud restic repository와 독립 key provisioning
 - [ ] maintenance·dump·media manifest·copy 자동화 구현
 - [ ] local iCloud repository integrity와 Apple remote-sync evidence·local/offsite RPO 분리 구현
@@ -150,6 +154,7 @@ host·전원·storage 장애와 분리되지 않아 3-2-1 목표를 충족하지
 - [ ] HomeOps backup status event 연동
 - [ ] retention dry-run·prune·check runbook 구현
 - [ ] quarterly isolated full restore 첫 증거 확보
+- [ ] 새 PostgreSQL named volume의 `pg_restore`와 일반 Compose `down` 뒤 persistence 검증
 
 ## 재검토 조건
 

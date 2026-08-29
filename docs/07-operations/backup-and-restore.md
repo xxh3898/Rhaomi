@@ -14,7 +14,7 @@ review_trigger: "저장소·보존 정책 변경 시"
 ### 필수
 
 - PostgreSQL `pg_dump -Fc` custom archive
-- backend 소유 private canonical media
+- `/private/var/lib/rhaomi/data/media`의 backend 소유 private canonical media
 - checksum·size·file count와 source·destination snapshot ID가 있는 backup manifest
 - Git SHA, image digest와 Flyway version
 - Secret 값이 아닌 Compose·Nginx·publisher·backup inventory와 복구 위치
@@ -28,10 +28,12 @@ review_trigger: "저장소·보존 정책 변경 시"
 - build cache
 - publisher 재처리 가능한 임시 artifact
 
+production project-scoped PostgreSQL named volume과 raw PGDATA file은 required restic backup input이 아니다. primary persistence는 named volume이 담당하지만 portable backup/restore authority는 `pg_dump -Fc`와 `pg_restore`다.
+
 ## 3-2-1 계약
 
 ```text
-Copy 1: Mac mini production data
+Copy 1: Mac mini production data — PostgreSQL named volume + `/private/var/lib/rhaomi/data/media`
 Copy 2: 암호화 외장 SSD volume의 encrypted restic repository
 Copy 3: iCloud Drive의 별도 encrypted restic repository
 ```
@@ -40,7 +42,7 @@ Copy 3: iCloud Drive의 별도 encrypted restic repository
 - iCloud는 intended offsite transport/storage이고 restic이 encryption과 repository integrity를 담당한다. Apple remote sync 완료가 별도 검증된 backup set만 offsite 사본으로 인정한다.
 - 두 repository와 encryption key를 분리하고 한 host automation만 writer가 된다.
 - filesystem mirror와 mirror delete를 backup으로 사용하지 않는다.
-- 정확한 SSD mount path·용량, iCloud folder와 recovery key 보관 위치는 [미확정 항목](../01-product/open-items.md)의 출시 차단값이다.
+- 외장 SSD repository exact path는 `/Volumes/<provisioned-volume>/...` 아래에서 volume identity·용량·ownership과 함께 확정한다. iCloud folder와 recovery key 보관 위치도 [미확정 항목](../01-product/open-items.md)의 출시 차단값이다.
 
 ## secret 경계
 
@@ -103,7 +105,7 @@ Copy 3: iCloud Drive의 별도 encrypted restic repository
 
 1. 장애 범위 확인
 2. source repository와 backup-set manifest 선택
-3. isolated Compose project와 새 PostgreSQL data directory·media root 준비
+3. isolated Compose project와 새 project-scoped PostgreSQL named volume·media root 준비
 4. 외장 SSD snapshot 또는 clean retrieval한 remotely verified iCloud snapshot을 새 target에 restore
 5. custom dump를 새 PostgreSQL에 `pg_restore`
 6. media checksum·file count와 manifest 검증
@@ -120,7 +122,8 @@ Copy 3: iCloud Drive의 별도 encrypted restic repository
 
 분기 1회:
 
-- isolated Compose project와 새 data directory로 실제 full restore
+- isolated Compose project와 새 project-scoped PostgreSQL named volume·media root로 실제 full restore
+- 새 PostgreSQL named volume에 `pg_restore`하고 container restart·일반 Compose `down`·`up` 뒤 row/schema persistence 확인
 - `shop_settings`, `gallery_items`, `notices` 조회
 - 대표 private canonical media checksum·decode
 - 정적 사이트 build
@@ -128,6 +131,8 @@ Copy 3: iCloud Drive의 별도 encrypted restic repository
 - 운영 DB를 덮어쓰지 않음
 
 최초 production 전에는 분기 restore와 별개로 remotely synced iCloud backup set의 fresh retrieval·restic check·대표 restore를 통과해야 한다. 이후 자동 remote-sync 검증이 없으면 수동 evidence 주기와 마지막 검증 시각을 HomeOps에 별도로 노출한다.
+
+production implementation gate는 `docker compose down -v`, `docker volume prune`과 named volume direct delete가 deploy·backup·restore runbook에 없음을 확인한다. 해당 명령은 backup 검증 여부와 무관하게 production에서 실행하지 않는다.
 
 ## 삭제 사고
 

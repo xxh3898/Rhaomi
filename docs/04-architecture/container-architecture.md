@@ -53,15 +53,16 @@ flowchart TB
     Cloudflare --> Edge[기존 host edge Nginx]
     Edge --> Web[Rhaomi project web Nginx<br/>host loopback]
 
-    Web -->|/, /admin/, assets| Static[/srv/rhaomi/public/current]
+    Web -->|/, /admin/, assets| Static[container /srv/rhaomi/public/current]
     Web -->|/api/admin/**| Backend[Spring Boot]
 
     Backend --> Postgres[(PostgreSQL)]
-    Backend --> Media[(private canonical media)]
+    Postgres --> PgVolume[(project-scoped Docker named volume)]
+    Backend --> Media[(Mac /private/var/lib/rhaomi/data/media)]
     Backend --> Outbox[(immediate / scheduled publishing event)]
 
     Publisher[Single internal publisher] -->|internal read-only build API| Backend
-    Publisher --> Releases[(public/releases)]
+    Publisher --> Releases[(Mac /private/var/lib/rhaomi/public/releases)]
     Releases --> Static
 
     Backup[Backup job] --> Postgres
@@ -122,14 +123,13 @@ ops internal
 ## 운영 영속 경로 — planned
 
 ```text
-/srv/rhaomi/
+/private/var/lib/rhaomi/
 ├── app/
 ├── public/
 │   ├── releases/<release-id>/
 │   ├── current -> releases/...
 │   └── previous -> releases/...
 ├── data/
-│   ├── postgres/
 │   └── media/
 ├── state/
 │   ├── publisher/
@@ -137,7 +137,17 @@ ops internal
 └── logs/
 ```
 
-위 경로를 production canonical contract로 사용한다. exact host ownership·permission과 volume mount는 provisioning Issue에서 검증하며 컨테이너 삭제가 data 삭제로 이어지지 않아야 한다.
+위 경로가 macOS host canonical contract다. `/srv/rhaomi`는 host bind source가 아니며 `synthetic.conf`나 Docker Desktop custom File Sharing을 production dependency로 두지 않는다.
+
+| data | Mac host source | container target | lifecycle |
+|---|---|---|---|
+| public release | `/private/var/lib/rhaomi/public` | web·publisher `/srv/rhaomi/public` | host bind, web RO·publisher RW |
+| canonical media | `/private/var/lib/rhaomi/data/media` | backend·publisher·backup `/var/lib/rhaomi/media` | host bind, backend RW·그 외 RO |
+| publisher state | `/private/var/lib/rhaomi/state/publisher` | publisher `/var/lib/rhaomi/publisher` | host bind RW |
+| global lock | `/private/var/lib/rhaomi/state/locks` | publisher `/var/lib/rhaomi/locks` | host bind RW |
+| PostgreSQL PGDATA | production project-scoped named volume | PostgreSQL image PGDATA target | Docker-managed persistent volume |
+
+exact host ownership·permission, rendered mount와 named-volume identity는 provisioning Issue에서 검증한다. container 삭제와 일반 Compose `down`은 PostgreSQL data를 삭제하지 않아야 하며 production `down -v`, volume prune/delete를 금지한다. DB backup/restore는 raw volume copy가 아니라 `pg_dump -Fc`·`pg_restore`를 authority로 사용한다.
 
 ## 공개 route — planned
 

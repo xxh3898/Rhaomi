@@ -58,6 +58,19 @@ review_trigger: "기술·정책 문서 변경 또는 업그레이드 시"
 - Tailscale SSH
   https://tailscale.com/kb/1193/tailscale-ssh
 
+## macOS·Docker storage
+
+- Apple Platform Security — signed system volume
+  https://support.apple.com/guide/security/signed-system-volume-security-secd698747c9/web
+- Apple Platform Security — APFS system/Data volume 역할
+  https://support.apple.com/guide/security/role-of-apple-file-system-seca6147599e/web
+- Docker Desktop settings — Mac file sharing 기본 경로
+  https://docs.docker.com/desktop/settings-and-maintenance/settings/#file-sharing
+- Docker volumes와 lifecycle
+  https://docs.docker.com/engine/storage/volumes/
+- `docker compose down`과 `--volumes`
+  https://docs.docker.com/reference/cli/docker/compose/down/
+
 ## Backup·restore
 
 - restic backup

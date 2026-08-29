@@ -118,13 +118,13 @@ Phase 1C-7은 실제 콘텐츠 CRUD 화면, 운영 Nginx/TLS·2FA, 공개 build 
 
 ### Phase 1D — Production 운영 아키텍처 계약
 
-- ADR-010 Cloudflare Tunnel·계층형 Nginx topology와 수동 digest code release
+- ADR-010 Cloudflare Tunnel·계층형 Nginx topology, macOS `/private/var/lib/rhaomi` host root, PostgreSQL project-scoped named volume과 수동 digest code release
 - ADR-011 immediate·scheduled transactional event, 두 revision·single publisher·atomic switch
 - ADR-012 외장 SSD·iCloud encrypted restic backup, remote-sync evidence와 isolated restore
 - ADR-013 HomeOps 단일 관제·제한된 stateless restart
 - ADR-014 pinned source HEIC decoder-only production runtime
 
-Phase 1D는 문서·계약 확정만 의미한다. production Compose/Nginx, GitHub Environment, publisher/outbox/build API, backup repository, HomeOps 설정과 production image는 후속 Issue에서 구현·검증한다.
+Phase 1D는 문서·계약 확정만 의미한다. 실제 Mac directory ownership·bind smoke, PostgreSQL restart·일반 Compose `down` persistence·isolated `pg_restore`, production Compose/Nginx, GitHub Environment, publisher/outbox/build API, backup repository, HomeOps 설정과 production image는 후속 Issue에서 구현·검증한다.
 
 ## Phase 2 — 공개 랜딩 MVP
 

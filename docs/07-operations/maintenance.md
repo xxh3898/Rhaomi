@@ -17,6 +17,7 @@ review_trigger: "운영 주기 변경 시"
 
 - HomeOps의 public HTTPS·핵심 문구와 internal healthcheck
 - Docker container·host CPU/memory/load·disk/inode 확인
+- Mac `/private/var/lib/rhaomi` filesystem과 production PostgreSQL named volume capacity·mount identity 확인
 - 매일 03:30 `Asia/Seoul` application-consistent PostgreSQL·canonical media backup
 - 외장 SSD snapshot, local iCloud Drive repository snapshot/check와 별도 remote-sync evidence 상태 확인
 - local backup RPO와 remotely verified offsite RPO를 분리해 기록하고 remote evidence가 없으면 offsite `PASS` 금지
@@ -33,6 +34,7 @@ review_trigger: "운영 주기 변경 시"
 - 이미지 깨짐 검사
 - 외부 링크 스모크
 - 보관 대상 임시 파일 확인
+- public/media/state bind mount access mode와 PostgreSQL named volume의 container restart persistence 표본 확인
 - 관리자 로그인 이상 확인
 - incident hold와 bounded log rotation 상태 확인
 
@@ -80,6 +82,7 @@ review_trigger: "운영 주기 변경 시"
 - 최신 DB backup
 - 외장 SSD·local iCloud repository의 정상 retention snapshot과 remotely verified offsite backup set
 - backend 소유 원본 image storage
+- production project-scoped PostgreSQL named volume과 raw PGDATA
 - 현재·직전 정상 release
 - 사고 조사 중 로그
 - 라이선스 또는 도메인 복구 정보
@@ -88,6 +91,9 @@ review_trigger: "운영 주기 변경 시"
 
 - backup·deploy lock이 있을 때 stateless service restart
 - Compose `down`·`up`, PostgreSQL restart와 volume mutation
+- `docker compose down -v`, `docker volume prune`, PostgreSQL named volume direct delete
 - migration·restore·backup 삭제
 - `cloudflared`·HomeOps 자체 제어
 - `current`·`previous` target 정리
+
+일반 maintenance 종료가 Compose `down`을 필요로 하면 `-v` 없이 실행하고 재기동 뒤 PostgreSQL data persistence를 확인한다. volume 정리 후보라는 이유로 production named volume을 prune/delete하지 않는다.

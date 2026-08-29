@@ -32,7 +32,8 @@ approved previous code image/digest
 + current content snapshot
 → new rollback publishGeneration
 → build·validate
-→ /srv/rhaomi/public/current atomic switch
+→ Mac /private/var/lib/rhaomi/public/current atomic switch
+  (publisher container /srv/rhaomi/public/current)
 ```
 
 절차:
@@ -63,11 +64,12 @@ Nginx 설정이 바뀌지 않았다면 reload 없이 전환하는 구조를 우�
 ### 다수 항목 또는 DB 손상
 
 - 쓰기 중지
-- 백업을 임시 환경에 복구
+- `pg_dump -Fc` backup을 새 isolated Compose project의 새 PostgreSQL named volume에 `pg_restore`
 - DB data와 후속 원본 image storage 일치 확인
 - backup-set manifest와 canonical media checksum·file count 확인
 - 운영 전환 전 동일 publisher pipeline의 정적 build
 - 직접 운영 DB 덮어쓰기는 승인 후 수행
+- production named volume raw file copy·volume swap을 rollback authority로 사용하지 않음
 
 ## 코드 롤백
 
@@ -102,4 +104,5 @@ production backend 일반 기동으로 schema를 자동 되돌리지 않는다. 
 - 후속 수정 Issue 생성
 - 자동 배포가 문제 release를 다시 올리지 않게 차단
 - `current`·`previous`, exact SHA·digest, `contentRevision`·`publishGeneration`·`generatedAt` 기록
+- Mac `/private/var/lib/rhaomi` source와 container mount mapping, PostgreSQL named volume identity·보존 상태 기록
 - HomeOps incident·Activity 상태 갱신

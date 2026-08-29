@@ -17,6 +17,14 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 
 은총쌤이 관리 backend에 저장한 공개 콘텐츠를 검색 가능한 정적 HTML에 반영하면서 실패 시 기존 영업 사이트를 보호한다.
 
+## planned filesystem 경계
+
+- Mac host release authority는 `/private/var/lib/rhaomi/public`이고 publisher container에는 `/srv/rhaomi/public`으로 read-write mount한다.
+- Mac host publisher state와 lock은 각각 `/private/var/lib/rhaomi/state/publisher`, `/private/var/lib/rhaomi/state/locks`이고 container에는 `/var/lib/rhaomi/publisher`, `/var/lib/rhaomi/locks`로 mount한다.
+- `/srv/rhaomi`는 Linux container target일 뿐 Mac host bind source가 아니다.
+- web container는 같은 Mac public source를 `/srv/rhaomi/public`에 read-only mount한다. publisher만 새 release 설치와 `current`·`previous` atomic switch를 수행한다.
+- actual Mac ownership·permission과 public/state bind·symlink atomicity는 production implementation gate에서 검증한다.
+
 ## planned trigger
 
 - 공개 결과·eligibility에 영향을 주는 콘텐츠 변경과 publishing outbox를 같은 PostgreSQL transaction에 기록한다.
@@ -89,7 +97,7 @@ sequenceDiagram
 
 ## 원자성·일관성
 
-- 활성 `current` 안에서 build하지 않는다.
+- publisher container의 활성 `current` 안에서 build하지 않는다.
 - 모든 입력 조회가 성공하기 전 snapshot을 확정하지 않는다.
 - 일부 최신/일부 과거 콘텐츠를 혼합하지 않는다.
 - release manifest와 content snapshot에 `contentRevision`, `publishGeneration`, `generatedAt`을 함께 기록한다.

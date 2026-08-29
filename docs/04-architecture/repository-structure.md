@@ -141,6 +141,9 @@ planned 경로는 관련 Issue가 구현할 때만 추가한다.
 - `infra/nginx/dev.conf`는 local same-origin gateway만 정의
 - 운영 Docker Compose, production Nginx, single publisher와 backup job은 후속
 - local 개발 Compose와 운영 credential·volume을 공유하지 않음
+- future production Compose는 repository 밖 Mac host `/private/var/lib/rhaomi`의 public/media/state bind source와 production project-scoped PostgreSQL named volume을 명시적으로 구분
+- Linux container `/srv/rhaomi/public` target을 Mac host `/srv/rhaomi` source로 해석하거나 `synthetic.conf`·custom File Sharing 전제로 사용하지 않음
+- production data, named volume과 `/Volumes/<provisioned-volume>/...` backup repository를 Git worktree·`infra/` 아래에 생성하지 않음
 
 ### `scripts`
 

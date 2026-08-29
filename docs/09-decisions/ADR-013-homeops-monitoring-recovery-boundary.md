@@ -45,7 +45,7 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. health/sta
 - internal application health
 - Docker container state·health
 - Mac mini CPU, memory와 load
-- disk, inode와 volume capacity
+- Mac `/private/var/lib/rhaomi` bind source의 disk·inode와 production project-scoped PostgreSQL named volume capacity·identity
 - PostgreSQL connection, lock과 rollback 등 최소 운영 지표
 - publisher immediate pending·due/overdue scheduled event, lock, 마지막 `contentRevision`·`publishGeneration`·`generatedAt`과 성공·실패 release
 - local backup RPO, local iCloud repository integrity, remotely verified offsite RPO와 fresh retrieval·restore drill 상태
@@ -83,6 +83,7 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. health/sta
 - Compose `down`·`up`
 - PostgreSQL restart
 - volume·filesystem data mutation
+- `docker compose down -v`, `docker volume prune`, named volume direct delete
 - migration·restore·backup 삭제
 - `cloudflared` 또는 HomeOps 자체 제어
 - allowlist 밖 service의 임의 start·stop

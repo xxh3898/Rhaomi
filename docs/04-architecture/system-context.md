@@ -27,12 +27,12 @@ flowchart LR
 
     Owner[은총쌤] --> AdminUI[정적 /admin auth shell<br/>후속 콘텐츠 UI]
     AdminUI -. same-origin /api/admin/** .-> Backend[Spring Boot 관리 API]
-    Backend --> PostgreSQL[(PostgreSQL)]
-    Backend --> Uploads[(private canonical media)]
+    Backend --> PostgreSQL[(PostgreSQL<br/>project-scoped named volume)]
+    Backend --> Uploads[(Mac host bind<br/>/private/var/lib/rhaomi/data/media)]
     Backend -. 후속 same-transaction .-> Outbox[(Immediate / scheduled publishing event)]
     Publisher[Single internal publisher] -. 후속 pending/due poll·claim .-> Outbox
     Publisher -. 후속 read-only build API .-> Backend
-    Publisher -. 후속 .-> Releases[(정적 release)]
+    Publisher -. 후속 .-> Releases[(Mac host bind<br/>/private/var/lib/rhaomi/public)]
     Releases --> PublicSite
 
     Developer[조치호] --> GitHub[GitHub]
@@ -74,12 +74,15 @@ login/csrf 외 관리 endpoint는 인증이 필요하고 state-changing request�
 ### 내부 운영 경계
 
 - PostgreSQL
-- private canonical media storage
+- production project-scoped Docker named volume의 PostgreSQL PGDATA
+- `/private/var/lib/rhaomi` 아래 private canonical media·public release·publisher state/lock
 - 향후 build API·immediate/due publishing event·single publisher
 - 향후 encrypted restic backup과 HomeOps
 - Docker internal network
 
 PostgreSQL과 내부 작업 서비스는 공용 인터넷에 직접 노출하지 않는다.
+
+Mac host source와 Linux container target을 분리한다. `/private/var/lib/rhaomi`가 host filesystem authority이고 `/srv/rhaomi`는 명시된 web·publisher container 내부 target에만 사용할 수 있다. PostgreSQL raw named volume은 public/media bind source나 required restic backup input이 아니다.
 
 ## 핵심 속성
 

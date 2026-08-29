@@ -183,7 +183,10 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 - Markdown 상대 link와 문서 작성 규칙
 - Cloudflare Tunnel → host edge Nginx → loopback project Nginx와 `/api/admin/**` public route
 - `/api/build/**`, `/internal/**`, `/actuator/**` public deny와 backend/PostgreSQL direct exposure 금지
-- canonical `/srv/rhaomi/public`, `/srv/rhaomi/data`, `/srv/rhaomi/state`, `/srv/rhaomi/logs` 경로 일치
+- macOS host canonical `/private/var/lib/rhaomi/{app,public,data/media,state,logs}` 경로 일치와 `/data/postgres` bind source 부재
+- Mac public/media/state source와 Linux web/publisher/backend target의 mount mapping·RO/RW 경계 일치
+- `/srv/rhaomi`가 container target으로만 쓰이고 Mac host authority·`synthetic.conf`·custom File Sharing prerequisite가 아님
+- PostgreSQL production project-scoped named volume, 일반 Compose `down` 보존과 `down -v`·prune·direct delete 금지 일치
 - main merge와 manual production apply 분리, exact SHA·digest와 one-shot Flyway
 - same-transaction immediate·scheduled event, `contentRevision`·`publishGeneration`, single publisher, overdue recovery·30초 debounce·retry·atomic switch
 - external SSD·iCloud 별도 encrypted restic repository, local integrity와 remote sync evidence 분리, 03:30 KST, daily 7 / weekly 4 / monthly 6
@@ -231,6 +234,8 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 - immediate/due publishing event·overdue recovery·service auth·debounce·lock
 - failed build does not switch
 - atomic switch와 rollback
+- 실제 Mac canonical directory 생성·ownership·permission과 public/media/state bind mount smoke
+- PostgreSQL named volume의 container restart·일반 Compose `down`·`up` persistence, destructive volume command 부재
 - `publishGeneration` stale build ordering과 manifest의 `contentRevision`·`publishGeneration`·`generatedAt`
 - backend/PostgreSQL 중단 중 공개 site 유지
 - `/api/build/**`, `/internal/**`, `/actuator/**` public deny
@@ -238,6 +243,8 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 - 외장 SSD·iCloud backup set, local repository snapshot/check와 Apple remote sync evidence 분리, retention·prune post-check
 - second trusted device 또는 local cache를 배제한 clean path의 fresh retrieval·restic check·대표 restore
 - isolated restore의 manifest·DB·media·static build와 local/offsite RPO·RTO
+- raw PGDATA volume을 required restic input으로 사용하지 않고 `pg_dump -Fc`를 새 isolated named volume에 `pg_restore`
+- 외장 SSD `/Volumes/<provisioned-volume>/...` exact path·volume identity와 encrypted repository 검증
 - HomeOps synthetic/internal/container/host/DB/publisher/backup threshold·alert
 - stateless web/backend single restart와 deploy/backup lock·30분 cooldown·audit
 - decoder-only image x265 absence와 Linux amd64·Mac mini Linux arm64 actual HEIC

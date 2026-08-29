@@ -15,7 +15,7 @@ review_trigger: "운영 진입 경로·배포·마이그레이션·릴리스 보
 
 ## 맥락
 
-Rhaomi는 Mac mini에서 다른 홈서버 서비스와 함께 운영될 예정이며 공개 정적 사이트, same-origin 관리자 API, PostgreSQL과 private media를 서로 다른 신뢰 경계로 분리해야 한다. `main` merge, image 생성, 운영 반영과 Flyway migration도 하나의 암묵적 자동 단계로 묶지 않아야 한다.
+Rhaomi는 macOS Mac mini에서 다른 홈서버 서비스와 함께 운영될 예정이며 공개 정적 사이트, same-origin 관리자 API, PostgreSQL과 private media를 서로 다른 신뢰 경계로 분리해야 한다. macOS의 root system volume은 일반 Linux host와 같은 writable `/srv` 계약을 제공하지 않고 Docker Desktop의 기본 host file sharing에도 `/srv`가 포함되지 않는다. `main` merge, image 생성, 운영 반영과 Flyway migration도 하나의 암묵적 자동 단계로 묶지 않아야 한다.
 
 이 결정은 목표 운영 계약만 확정한다. production Compose, Nginx, Cloudflare Tunnel, GHCR image, GitHub Environment와 Mac mini deploy entrypoint는 아직 구현·provisioning되지 않았다.
 
@@ -29,7 +29,8 @@ Internet
 → Cloudflare Tunnel
 → 기존 host edge Nginx
 → Rhaomi project web Nginx
-   ├─ /, /admin/, static assets → /srv/rhaomi/public/current
+   ├─ /, /admin/, static assets → container `/srv/rhaomi/public/current`
+   │                                  ← Mac `/private/var/lib/rhaomi/public`
    └─ /api/admin/**             → Spring Boot backend
 ```
 
@@ -41,17 +42,16 @@ Internet
 - Tailscale은 SSH, HomeOps UI와 운영 장애 대응에만 사용한다.
 - public Nginx는 `/api/build/**`, `/internal/**`와 `/actuator/**`를 거부한다. HomeOps의 최소 health 조회는 내부 경로를 사용한다.
 
-### production 디렉터리
+### macOS production 디렉터리
 
 ```text
-/srv/rhaomi/
+/private/var/lib/rhaomi/
 ├── app/
 ├── public/
 │   ├── releases/<release-id>/
 │   ├── current -> releases/...
 │   └── previous -> releases/...
 ├── data/
-│   ├── postgres/
 │   └── media/
 ├── state/
 │   ├── publisher/
@@ -59,11 +59,31 @@ Internet
 └── logs/
 ```
 
-- public web에는 `/srv/rhaomi/public`만 read-only로 mount한다.
+- 위 경로는 Mac host의 canonical filesystem root다. `/srv/rhaomi`를 Mac host bind source로 만들거나 `synthetic.conf`, Docker Desktop custom File Sharing에 의존하지 않는다.
+- public web에는 Mac `/private/var/lib/rhaomi/public`만 read-only로 mount한다.
 - private DB·media를 web에 mount하지 않는다.
 - backend만 canonical media를 read-write한다.
-- PostgreSQL과 media는 container lifecycle과 분리된 host bind mount를 사용한다.
+- PostgreSQL primary PGDATA는 host bind mount가 아니라 production Compose project-scoped Docker named volume을 사용한다. exact rendered volume name은 provisioning evidence에 기록하고 다른 project와 공유하지 않는다.
+- named volume은 container lifecycle과 일반 `docker compose down`에서 보존한다. production에서 `docker compose down -v`, `docker volume prune`과 named volume 직접 삭제를 금지한다.
+- PostgreSQL backup/restore authority는 `pg_dump -Fc`와 `pg_restore`다. raw named volume은 required restic backup input이 아니다.
+- media는 Mac canonical root의 host bind mount로 container lifecycle과 분리한다.
 - publisher 상태와 전역 lock은 `state`에 두고 release 산출물과 구분한다.
+- `app`에는 versioned production Compose inventory와 고정 deploy entrypoint를 두되 production source build worktree로 사용하지 않는다.
+- `logs`에는 host-side deploy·publisher·backup evidence를 bounded·redacted 형태로 두고 service stdout/stderr의 Docker `local` driver rotation과 구분한다.
+
+### host source와 container target
+
+| 사용 주체 | Mac host source | Linux container target | mode |
+|---|---|---|---|
+| `rhaomi-web` | `/private/var/lib/rhaomi/public` | `/srv/rhaomi/public` | read-only |
+| `publisher` release | `/private/var/lib/rhaomi/public` | `/srv/rhaomi/public` | read-write |
+| `backend` media | `/private/var/lib/rhaomi/data/media` | `/var/lib/rhaomi/media` | read-write |
+| `publisher`·`backup` media | `/private/var/lib/rhaomi/data/media` | `/var/lib/rhaomi/media` | read-only |
+| `publisher` state | `/private/var/lib/rhaomi/state/publisher` | `/var/lib/rhaomi/publisher` | read-write |
+| `publisher` lock | `/private/var/lib/rhaomi/state/locks` | `/var/lib/rhaomi/locks` | read-write |
+| `postgres` PGDATA | production project-scoped Docker named volume | image가 요구하는 PGDATA target | read-write |
+
+container target은 Linux container 내부 경로일 뿐 Mac host filesystem authority가 아니다. actual UID/GID, ownership과 permission은 production provisioning에서 fail-closed로 검증한다.
 
 ### 코드 릴리스
 
@@ -89,20 +109,22 @@ feature → dev
 
 1. global deploy lock 획득
 2. exact `main` SHA와 `contentRevision`·`publishGeneration`·`generatedAt` release manifest 확인
-3. disk 여유와 `current`·`previous` 확인
-4. 최근 정상 backup 확인
-5. migration·major update면 on-demand backup 생성·검증
-6. image pull과 digest 검증
-7. 관리자 write maintenance 활성화
-8. one-shot Flyway migration 실행
-9. 새 backend의 schema validation과 internal health 확인
-10. [ADR-011](ADR-011-transactional-outbox-static-publisher.md)의 동일 publisher pipeline으로 static release 생성
-11. 새 release directory smoke
-12. 기존 `current`를 `previous`로 기록
-13. `current` symlink 원자적 전환
-14. public HTTPS smoke
-15. 관리자 write maintenance 해제
-16. release evidence와 HomeOps 상태 기록
+3. Mac canonical directory ownership·permission과 public/media/state bind source 확인
+4. production project-scoped PostgreSQL named volume identity·mount와 보존 정책 확인
+5. disk 여유와 `current`·`previous` 확인
+6. 최근 정상 backup 확인
+7. migration·major update면 on-demand backup 생성·검증
+8. image pull과 digest 검증
+9. 관리자 write maintenance 활성화
+10. one-shot Flyway migration 실행
+11. 새 backend의 schema validation과 internal health 확인
+12. [ADR-011](ADR-011-transactional-outbox-static-publisher.md)의 동일 publisher pipeline으로 static release 생성
+13. 새 release directory smoke
+14. 기존 `current`를 `previous`로 기록
+15. `current` symlink 원자적 전환
+16. public HTTPS smoke
+17. 관리자 write maintenance 해제
+18. release evidence와 HomeOps 상태 기록
 
 검증 전에는 `current`를 바꾸지 않는다. `current` 전환은 monotonic `publishGeneration`을 ordering authority로 사용하며 낮거나 같은 generation은 더 새로운 release를 덮지 못한다. 전환 후 smoke가 실패하면 낮은 generation의 `previous` symlink를 직접 재활성화하지 않고, [rollback 계약](../07-operations/rollback.md)에 따라 previous code image/digest와 current content snapshot으로 더 높은 rollback generation을 build·검증해 전환한다. maintenance 해제 여부는 명시적으로 판단하며 public static site는 maintenance 중에도 계속 제공한다.
 
@@ -124,6 +146,7 @@ feature → dev
 ## 이유
 
 - 공개 사이트를 backend·DB 장애와 분리하면서 같은 origin 관리자 API를 유지한다.
+- `/private` 아래 host source는 macOS writable Data volume과 Docker Desktop 기본 file sharing 경계에 맞고, DB named volume은 host path·file-sharing coupling을 제거한다.
 - merge와 production apply를 분리해 검증·수동 승인·rollback 근거를 확보한다.
 - digest와 고정 entrypoint는 mutable tag와 임의 원격 shell의 범위를 줄인다.
 - one-shot migration과 expand/contract는 code rollback을 schema 변경과 분리한다.
@@ -139,6 +162,7 @@ feature → dev
 ### 비용·위험
 
 - GitHub environment, GHCR, Tailscale deploy identity와 제한된 entrypoint를 별도로 구현해야 한다.
+- Mac canonical directory permission과 Docker named volume identity를 provisioning evidence로 관리해야 한다.
 - Mac mini, host edge Nginx와 Cloudflare Tunnel은 공통 장애 지점이다.
 - schema가 비호환이면 image rollback만으로 복구할 수 없다.
 
@@ -156,6 +180,14 @@ feature → dev
 
 실행 중인 code와 rollback 대상을 exact하게 증명할 수 없어 거부한다.
 
+### Mac host `/srv/rhaomi`와 custom File Sharing
+
+macOS root에 Linux식 writable directory를 합성하거나 Docker Desktop custom File Sharing을 production prerequisite로 만들므로 거부한다. host authority는 `/private/var/lib/rhaomi`를 사용하고 `/srv/rhaomi`는 명시된 container target에만 허용한다.
+
+### PostgreSQL host bind PGDATA와 raw-volume backup
+
+Docker Desktop host sharing·path와 DB internal layout에 결합되고 portable restore authority가 불명확해 거부한다. project-scoped named volume과 `pg_dump -Fc`·`pg_restore`를 사용한다.
+
 ## 실행 계획
 
 - [ ] production Compose와 project Nginx 구현
@@ -163,6 +195,9 @@ feature → dev
 - [ ] GitHub production environment·required reviewer·branch policy 설정
 - [ ] Tailscale 전용 고정 deploy entrypoint 구현
 - [ ] one-shot Flyway와 write maintenance 구현
+- [ ] 실제 Mac mini에서 `/private/var/lib/rhaomi` directory ownership·permission과 public/media/state bind mount 검증
+- [ ] PostgreSQL project-scoped named volume restart·일반 Compose `down` persistence와 destructive volume command 금지 검증
+- [ ] application-consistent backup에서 isolated named volume로 `pg_restore` 검증
 - [ ] release·rollback evidence를 격리 환경에서 검증
 
 ## 재검토 조건
