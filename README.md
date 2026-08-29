@@ -23,7 +23,7 @@ review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 
 ## 현재 구현 범위
 
-Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~3의 견종·서비스·공지·매장정보 API에 이어 Phase 1C-4에서는 Flyway V5 `media_assets`, backend 전용 private master volume과 관리자 미디어 업로드·조회·archive API를 추가했다. JPEG/PNG는 검증한 원본 byte를 보존하고 HEIC/HEIF는 업로드 시 방향을 적용한 metadata-free sRGB JPEG로 정규화한다. 갤러리·이미지 relation, 공개 파생본·build API, 관리자 화면과 실제 랜딩 디자인은 후속 Issue에서 구현한다.
+Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~4의 견종·서비스·공지·매장정보·private media API에 이어 Phase 1C-5에서는 Flyway V6 `gallery_items`와 관리자 갤러리 생성·조회·전체 수정 API를 추가했다. 갤러리는 실제 breed·service·cover/before/after media FK를 사용하며 게시 시 관계 대상의 `published | active` 상태를 검증한다. 공개 responsive 파생본·build API, 관리자 화면과 실제 랜딩 디자인은 후속 Issue에서 구현한다.
 
 ```text
 .
@@ -99,7 +99,7 @@ docker compose --env-file .env.dev.local -f compose.dev.yaml run --rm --no-deps 
 docker compose --env-file .env.dev.local -f compose.dev.yaml down
 ```
 
-현재 collection 관리 API는 `/api/admin/breeds`, `/api/admin/services`, `/api/admin/notices`에 `GET`, `POST`, `PUT`만 제공한다. 생성은 항상 `draft`이며 수정 요청은 slug를 제외한 전체 mutable representation을 보낸다. 공지는 게시·만료 시각을 microsecond로 정규화한 뒤 게시 본문·유효 기간을 application과 PostgreSQL에서 이중 검증한다.
+현재 collection 관리 API는 `/api/admin/breeds`, `/api/admin/services`, `/api/admin/notices`, `/api/admin/gallery-items`에 `GET`, `POST`, `PUT`만 제공한다. 생성은 항상 `draft`이며 수정 요청은 전체 mutable representation을 보낸다. 공지는 게시·만료 시각을 microsecond로 정규화한 뒤 게시 본문·유효 기간을 application과 PostgreSQL에서 이중 검증한다. 갤러리는 slug 없이 scalar relation id만 반환하고 게시 필수값·관계 존재성·관계 대상 상태를 mutation 전에 검증한다.
 
 매장정보는 상태나 공개 id가 없는 단일 현재값이다. `/api/admin/shop-settings`의 `GET`과 전체 `PUT`만 제공하며 최초 PUT은 `201`, 이후 PUT은 `200`이다. PostgreSQL UNIQUE/CHECK가 row를 하나로 제한하고, API는 핵심 NAP·영업시간·전화번호·HTTPS 외부 링크와 server-owned audit를 검증한다. 모든 state-changing 요청에는 관리자 session과 CSRF token이 필요하며 `PATCH`와 영구 `DELETE` endpoint는 제공하지 않는다. 실제 운영값 seed와 Hero·프로필·OG 이미지 relation은 포함하지 않는다.
 
@@ -123,7 +123,9 @@ sh scripts/validate-backend-compose.sh .env.dev.local
 - 공지는 같은 인증 경계에서 생성·조회·수정·보관하며 게시 필수값과 게시·만료 기간을 검증한다.
 - 매장정보 singleton은 같은 인증 경계에서 조회·전체 갱신하며 DB와 application이 한 행·필수값·영업시간·HTTPS URL을 검증한다.
 - private media master는 같은 인증 경계에서 업로드·조회·archive하며 HEIC/HEIF는 backend에서 canonical JPEG로 정규화한다.
-- 갤러리·이미지 relation, 공개 responsive 파생본·Builder API와 `/admin` 화면은 후속 Issue에서 구현한다.
+- 갤러리는 실제 견종·대표 서비스·private media를 FK로 참조하고 같은 인증 경계에서 생성·조회·전체 수정·보관·복구한다.
+- 관계 대상의 상태 변경은 갤러리에 cascade하지 않으며 후속 공개 snapshot이 published/relation/file 조건을 다시 검증한다.
+- 공개 responsive 파생본·Builder API와 `/admin` 화면은 후속 Issue에서 구현한다.
 - 공개 콘텐츠 변경은 정적 사이트 재빌드·검증·원자적 교체를 유발한다.
 - 고객용 예약 시스템, 결제, 회원가입, 문의 폼은 만들지 않는다.
 - 전화, 인스타그램, 네이버톡톡 등 외부 문의 채널로 연결한다.

@@ -11,10 +11,10 @@ review_trigger: "PostgreSQL table·field·API 변경 시"
 
 ## 구현 상태
 
-- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`, Flyway V4의 `shop_settings`, Flyway V5의 `media_assets`
-- 후속 구현: 갤러리와 매장정보 이미지 relation
+- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`, Flyway V4의 `shop_settings`, Flyway V5의 `media_assets`, Flyway V6의 `gallery_items`
+- 후속 구현: 매장정보 Hero·프로필·OG 이미지 relation과 public build snapshot
 
-`breeds`, `services`, `notices`, `shop_settings`, `media_assets`는 현재 schema와 관리 API 계약이고, 나머지 콘텐츠 모델은 제품 방향을 위한 proposed 계약이다.
+`breeds`, `services`, `notices`, `shop_settings`, `media_assets`, `gallery_items`는 현재 schema와 관리 API 계약이고, public snapshot과 나머지 콘텐츠 모델은 제품 방향을 위한 proposed 계약이다.
 
 ## 현재 `admin_users`
 
@@ -42,7 +42,7 @@ schema source of truth는 `backend/src/main/resources/db/migration/V1__create_ad
 - 운영 삭제는 `archived`
 - id, audit timestamp와 내부 field는 관리자 update DTO에서 제외
 
-## 후속 관계
+## 현재 갤러리 관계
 
 ```mermaid
 erDiagram
@@ -143,12 +143,30 @@ erDiagram
 
 두 table의 schema source of truth는 `backend/src/main/resources/db/migration/V2__create_breeds_and_services.sql`이다. status·slug 형식·slug unique·name non-blank·sort_order와 actor FK constraint에는 식별 가능한 이름을 부여한다.
 
-## `gallery_items` — planned
+## 현재 `gallery_items`
 
-필드: id, status, dog name, breed relation, primary service relation, cover/before/after image relation, summary, alt text, featured, sort, performed/published timestamps, audit timestamps.
+| field | type | 필수 | 설명 |
+|---|---|---:|---|
+| `id` | UUID | Y | application-generated primary key |
+| `status` | varchar(16) | Y | `draft | published | archived`, 생성 기본 draft |
+| `dog_name` | varchar(100) | N | Unicode trim, blank→null |
+| `breed_id` | UUID FK | N | `breeds(id)`, publish 시 필수 |
+| `primary_service_id` | UUID FK | N | `services(id)`, publish 시 필수 |
+| `cover_image_id` | UUID FK | N | `media_assets(id)`, publish 시 필수 |
+| `before_image_id`·`after_image_id` | UUID FK | N | 둘 다 있으면 서로 달라야 함 |
+| `summary` | varchar(1000) | N | raw HTML 아님, Unicode trim, blank→null |
+| `alt_text` | varchar(300) | N | 사실 기반 사진 설명, publish 시 nonblank 필수 |
+| `featured` | boolean | Y | 기본 false |
+| `sort_order` | integer | Y | 기본 100, 0 이상 |
+| `performed_at`·`published_at` | timestamp(6) with time zone | N | application에서 microsecond로 절삭 |
+| `created_at`·`updated_at` | timestamp(6) with time zone | Y | microsecond audit timestamp |
+| `created_by`·`updated_by` | UUID FK | Y | `admin_users(id)`, delete restrict |
 
-- publish 시 breed, service, cover image, 사실 기반 alt text와 published timestamp가 필수다.
-- 관계 대상이 published가 아니면 공개 snapshot에서 제외한다.
+- 모든 breed·service·media FK는 `ON DELETE RESTRICT`이며 같은 media를 여러 항목이 참조할 수 있다. cover는 before 또는 after와 같아도 된다.
+- `draft`·`archived`는 null이 아닌 relation row의 존재만 요구한다. `published`는 breed/service가 `published`, cover와 선택한 before/after media가 `active`여야 한다.
+- relation 검증과 published 필수값 검증을 완료한 뒤 entity와 updated audit를 한 번에 반영한다. 실패 시 기존 row와 audit를 보존한다.
+- 관계 대상이 나중에 draft·archived가 되어도 gallery status와 relation을 cascade 변경하지 않는다. 후속 public snapshot이 gallery status, relation status, master/파생 file 유효성을 다시 검증한다.
+- schema source of truth는 `backend/src/main/resources/db/migration/V6__create_gallery_items.sql`이다.
 
 ## 현재 `notices`
 
@@ -169,7 +187,7 @@ erDiagram
 
 ```text
 services/breeds: sort_order ASC, name ASC, id ASC
-gallery: featured DESC, sort ASC, published_at DESC, id ASC (planned)
+gallery: featured DESC, sort_order ASC, published_at DESC NULLS LAST, id ASC
 notices: pinned DESC, published_at DESC NULLS LAST, updated_at DESC, id ASC
 ```
 
@@ -179,3 +197,4 @@ notices: pinned DESC, published_at DESC NULLS LAST, updated_at DESC, id ASC
 - publish validation은 `PUT`으로 받은 전체 mutable representation을 적용할 최종 entity 상태를 기준으로 수행한다.
 - API request DTO allowlist로 id/audit/system field mass assignment를 차단한다.
 - 공개 build query와 transformer가 published/relation/file 조건을 각각 검증한다.
+- relation 대상의 후속 상태 변경을 gallery row에 cascade하지 않고 DB FK는 존재성과 hard delete 차단만 담당한다.

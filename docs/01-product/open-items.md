@@ -43,9 +43,10 @@ review_trigger: "항목 확정 시"
 
 - Flyway V4와 매장정보 관리자 API는 text·영업정보·외부 링크를 담을 구조와 검증만 제공한다.
 - 실제 라오미펫 상호·주소·전화·영업시간·소개·외부 URL은 migration, source constant, 기본 fixture로 seed하지 않는다.
-- Flyway V5와 private media upload/master 계약은 구현됐지만 Hero·프로필·OG·gallery FK relation과 공개 responsive 파생본은 아직 없다.
+- Flyway V5 private media upload/master와 Flyway V6 갤러리의 breed·service·cover/before/after media FK relation은 구현됐다.
+- Hero·프로필·OG image FK, public/build gallery·media API와 공개 responsive 파생본은 아직 없다.
 - 실제 사진 게시 동의, 실제 iPhone Safari UI 검증과 운영 private storage·backup이 완료될 때까지 사진 공개는 출시 차단 상태로 남긴다.
-- 이번 Issue에서는 운영 `shop_settings` provisioning과 production migration을 실행하지 않는다. 실제 값 확인과 별도 운영 승인을 거친 후속 작업으로 남긴다.
+- 이번 Issue에서는 실제 갤러리 seed, 운영 `shop_settings` provisioning과 production migration을 실행하지 않는다. 실제 값 확인과 별도 운영 승인을 거친 후속 작업으로 남긴다.
 
 ## 확인 전 실행 보류
 

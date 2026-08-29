@@ -18,7 +18,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - 모바일 문의·검색 metadata 보호
 - 배포 실패 시 기존 사이트 보호
 
-## 현재 Phase 1C-4 자동 검증
+## 현재 Phase 1C-5 자동 검증
 
 ### Frontend
 
@@ -121,6 +121,23 @@ review_trigger: "기술·기능 범위 변경 시"
 - codec reader·native link 누락 fail-fast, root 생성·쓰기 실패 fail-fast
 - 개인 사진이 아닌 합성 기하 도형, Display P3 ICC, 합성 EXIF/GPS/XMP fixture와 생성 근거
 
+### 갤러리 domain/API/DB
+
+- 기존 Flyway V1→V5 database의 V6 upgrade와 clean V1→V2→V3→V4→V5→V6 migration, JPA validate
+- `gallery_items` exact column, `TIMESTAMP(6) WITH TIME ZONE`, 명명된 status/nonblank/sort/published/before-after/FK/actor constraint와 deterministic index
+- application 우회 invalid status·음수 sort·whitespace-only optional text·published 필수값·before=after·잘못된 relation/actor FK 차단
+- 참조 breed·service·cover/before/after media와 actor hard delete의 `ON DELETE RESTRICT`
+- anonymous, CSRF 없는 create/update, public/build route 거부와 minimal draft 201·Location·기본값·server audit
+- Unicode trim·blank→null·문자열 길이·malformed UUID/JSON/timestamp·unknown/system field·partial full PUT의 400 계약
+- 모든 relation 존재성, draft/archived의 non-public target 유지와 published의 breed/service `published`·media `active` 검증
+- published 필수 breed/service/cover/altText/publishedAt, cover=before/after 허용, before=after 422
+- relation·게시 validation 실패 뒤 row와 created/updated audit 전체 불변, 두 번째 관리자 updated audit 전환
+- archive→draft/published 복구와 relation target 후속 상태 변경의 non-cascade
+- `featured DESC, sort_order ASC, published_at DESC NULLS LAST, id ASC`의 모든 tie-breaker와 단건 round-trip
+- performedAt·publishedAt nanosecond 입력의 microsecond 절삭·DB/response/재조회 round-trip과 future publishedAt 허용
+- response의 scalar relation id만 노출하고 media storage key/path/hash와 relation 객체를 embed하지 않음
+- `PATCH`, `DELETE`, publish action, public/build endpoint 부재와 domain별 고정 404/422/generic 5xx 계약
+
 H2 전용 통과는 DB contract 증거로 인정하지 않는다. Hosted CI Backend job은 실제 PostgreSQL service를 사용한다.
 Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 application context를 시작하기 전에 중단한다. fixture 정리는 지정된 test email에만 한정한다.
 
@@ -171,7 +188,7 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 
 - test-only 관리자 email/password
 - active/inactive admin
-- 공개/초안/보관 콘텐츠와 만료 공지
+- 공개/초안/보관 콘텐츠와 만료 공지, active/archived media relation
 - 긴 title·견종명·매장 text, 선택형 URL 빈 값과 HTTPS/비HTTPS URL
 - 합성 portrait/landscape/손상/HEIC·HEIF·metadata image
 

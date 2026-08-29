@@ -11,7 +11,7 @@ review_trigger: "관리 API field·운영 절차 변경 시"
 
 ## 상태
 
-아래 상태는 견종·서비스·공지와 후속 gallery 같은 collection에 적용한다. 단일 현재값인 `shop_settings`에는 상태를 두지 않는다.
+아래 상태는 견종·서비스·공지·갤러리 collection에 적용한다. 단일 현재값인 `shop_settings`에는 상태를 두지 않는다.
 
 | 상태 | 고객 노출 | 용도 |
 |---|---|---|
@@ -26,7 +26,7 @@ review_trigger: "관리 API field·운영 절차 변경 시"
 - 견종은 이름과 slug가 유효해야 게시할 수 있다.
 - 서비스는 이름·slug·설명·가격 문구가 모두 있어야 게시할 수 있다.
 - 게시 중인 서비스의 설명이나 가격 문구를 비우는 수정도 거부한다.
-- 시술사진은 견종·대표 이미지·대체 텍스트가 없으면 게시할 수 없다.
+- 시술사진은 게시된 견종·대표 서비스, active 대표 이미지, 사실 기반 대체 텍스트와 게시 시각이 없으면 게시할 수 없다. 선택한 before/after 이미지도 active여야 한다.
 - 공지는 제목·slug·본문·게시일이 없으면 게시할 수 없다.
 - 외부 링크는 실제로 열어 본 후 저장한다.
 
@@ -69,11 +69,19 @@ review_trigger: "관리 API field·운영 절차 변경 시"
 
 ## 갤러리
 
+- 생성은 status를 받지 않고 항상 `draft`이며 수정·상태 전환은 모든 mutable field를 포함한 `PUT`으로 수행한다. slug와 hard delete API는 없다.
 - 필터 정확도를 위해 자유 입력 대신 견종 관계 필드를 사용한다.
 - `기타`와 `믹스견`을 구분해 운영 기준을 통일한다.
 - 대표 서비스는 한 개만 선택한다.
-- 공개 순서는 `sort`와 게시일을 함께 사용한다.
-- 동일 사진을 여러 항목에 중복 업로드하지 않는다. 현재 backend는 SHA-256을 무결성 metadata로만 기록하며 자동 dedupe나 409를 수행하지 않는다.
+- 대표 이미지는 before 또는 after와 같은 기존 media를 재사용할 수 있지만 before와 after는 서로 달라야 한다. 같은 media를 여러 갤러리 항목이 참조하는 것도 허용한다.
+- `draft`·`archived`는 null이 아닌 breed·service·media 관계의 존재만 요구하고 대상 상태와 관계없이 편집·보관할 수 있다.
+- `published`는 breed·service가 `published`, cover와 선택한 before/after media가 `active`인 최종 상태만 허용한다.
+- dogName·summary·altText는 앞뒤 Unicode whitespace를 제거하고 비면 null로 저장한다. altText는 게시 상태에서 필수이고 filename·키워드 나열로 자동 생성하지 않는다.
+- performedAt·publishedAt은 microsecond로 절삭하며 미래 시각도 저장할 수 있다. 공개 build는 publishedAt이 도래한 항목만 포함한다.
+- 관리자 목록은 `featured DESC`, `sort_order ASC`, `published_at DESC NULLS LAST`, `id ASC` 순으로 정렬한다.
+- 관계 대상이 나중에 draft·archived가 되어도 gallery status·relation을 자동 변경하지 않는다. 후속 public snapshot이 gallery status, 관계 상태와 공개 파생 file 유효성을 다시 검사해 제외한다.
+- 동일 사진을 다시 업로드하기보다 기존 media relation을 재사용한다. backend는 SHA-256을 무결성 metadata로만 기록하며 자동 dedupe나 409를 수행하지 않는다.
+- id, actor, audit timestamp와 unknown/system field는 요청에서 받지 않으며 검증 실패 시 row와 audit 전체를 바꾸지 않는다.
 
 ## 미디어
 

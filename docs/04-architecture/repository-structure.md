@@ -11,7 +11,7 @@ review_trigger: "module·배포 구조 변경 시"
 
 기존 Next.js source를 이동하지 않고 repository root에 `backend/`를 추가한다.
 
-## Phase 1C-4 현재 구조
+## Phase 1C-5 현재 구조
 
 ```text
 Rhaomi/
@@ -28,14 +28,15 @@ Rhaomi/
 │   │   ├── breed/                 # 견종 관리 domain/API
 │   │   ├── content/               # 상태·audit·공통 오류 계약
 │   │   ├── config/                # security와 bootstrap
+│   │   ├── gallery/               # 갤러리 CRUD·관계·게시 검증 domain/API
 │   │   ├── notice/                # 공지 관리 domain/API와 게시·기간 검증
 │   │   ├── media/                 # private upload·HEIC 정규화·storage domain/API
 │   │   ├── service/               # 미용 서비스 관리 domain/API
 │   │   └── shop/                  # 매장정보 singleton domain/API와 입력 검증
 │   ├── src/main/resources/
-│   │   ├── db/migration/          # Flyway V1~V5, V5 media_assets
+│   │   ├── db/migration/          # Flyway V1~V6, V6 gallery_items
 │   │   └── application.yml
-│   ├── src/test/                  # PostgreSQL auth·콘텐츠·media API/DB/fixture contract
+│   ├── src/test/                  # PostgreSQL auth·콘텐츠·media·gallery 계약
 │   └── Dockerfile.dev             # exact Java 25 + libheif runtime
 ├── scripts/
 │   ├── generate-synthetic-media-fixtures.mjs
@@ -56,7 +57,7 @@ Rhaomi/
 - `compose.dev.yaml`은 `dev-rhaomi` project와 개발 전용 network/volume만 사용한다.
 - `backend/build`, `.gradle`, `.next`, `out`, `node_modules`는 생성 파일이므로 Git에 포함하지 않는다.
 - Directus runtime, schema snapshot, permission artifact와 provisioning script는 현재 구조에 없다.
-- 관리자 collection controller는 견종·서비스·공지의 `GET`, `POST`, `PUT`을 제공한다. 매장정보 singleton은 `GET`, `PUT`, private media는 list/detail/content `GET`, upload `POST`, status `PUT`만 제공하며 모든 domain에서 `PATCH`·`DELETE`를 제공하지 않는다.
+- 관리자 collection controller는 견종·서비스·공지·갤러리의 `GET`, `POST`, `PUT`을 제공한다. 매장정보 singleton은 `GET`, `PUT`, private media는 list/detail/content `GET`, upload `POST`, status `PUT`만 제공하며 모든 domain에서 `PATCH`·`DELETE`를 제공하지 않는다.
 
 ## 전체 제품 목표 구조 — planned
 
