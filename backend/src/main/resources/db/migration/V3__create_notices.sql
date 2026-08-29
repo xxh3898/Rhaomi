@@ -6,22 +6,22 @@ CREATE TABLE notices (
     summary VARCHAR(300),
     body_markdown TEXT,
     pinned BOOLEAN NOT NULL DEFAULT FALSE,
-    published_at TIMESTAMP WITH TIME ZONE,
-    expires_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    published_at TIMESTAMP(6) WITH TIME ZONE,
+    expires_at TIMESTAMP(6) WITH TIME ZONE,
+    created_at TIMESTAMP(6) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP(6) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_by UUID NOT NULL,
     updated_by UUID NOT NULL,
     CONSTRAINT pk_notices PRIMARY KEY (id),
     CONSTRAINT uk_notices_slug UNIQUE (slug),
     CONSTRAINT ck_notices_status CHECK (status IN ('draft', 'published', 'archived')),
-    CONSTRAINT ck_notices_title_not_blank CHECK (LENGTH(BTRIM(title)) > 0),
+    CONSTRAINT ck_notices_title_not_blank CHECK (title ~ '[^[:space:]]'),
     CONSTRAINT ck_notices_slug_format CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
     CONSTRAINT ck_notices_published_fields CHECK (
         status <> 'published'
         OR (
             body_markdown IS NOT NULL
-            AND LENGTH(BTRIM(body_markdown)) > 0
+            AND body_markdown ~ '[^[:space:]]'
             AND published_at IS NOT NULL
         )
     ),

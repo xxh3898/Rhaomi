@@ -147,6 +147,94 @@ class NoticeAdminApiContractTests {
     }
 
     @Test
+    void should_normalizeTimestampPrecisionAndRoundTrip_when_createAndUpdateUseSubMicrosecondInput()
+            throws Exception {
+        var session = login(ADMIN_A_EMAIL);
+
+        var collapsedWindow = createRawNotice(
+                session,
+                noticeCreate(
+                        "100ns 기간",
+                        "collapsed-window",
+                        null,
+                        null,
+                        false,
+                        "2030-01-01T00:00:00.123456700Z",
+                        "2030-01-01T00:00:00.123456800Z"));
+
+        assertEquals(422, collapsedWindow.statusCode());
+        assertTrue(collapsedWindow.body().contains("NOTICE_WINDOW_INVALID"));
+        assertEquals(0, jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM notices WHERE slug = 'collapsed-window'", Integer.class));
+
+        var created = createRawNotice(
+                session,
+                noticeCreate(
+                        "1µs 기간",
+                        "one-microsecond-window",
+                        null,
+                        null,
+                        false,
+                        "2030-01-01T00:00:00.123456789Z",
+                        "2030-01-01T00:00:00.123457789Z"));
+
+        assertEquals(201, created.statusCode());
+        assertTrue(created.body().contains("\"publishedAt\":\"2030-01-01T00:00:00.123456Z\""));
+        assertTrue(created.body().contains("\"expiresAt\":\"2030-01-01T00:00:00.123457Z\""));
+
+        var id = extractId(created.body());
+        var createdAgain = get(session.client(), "/api/admin/notices/" + id);
+        var createdState = readState(id);
+
+        assertEquals(200, createdAgain.statusCode());
+        assertTrue(createdAgain.body().contains("\"publishedAt\":\"2030-01-01T00:00:00.123456Z\""));
+        assertTrue(createdAgain.body().contains("\"expiresAt\":\"2030-01-01T00:00:00.123457Z\""));
+        assertEquals(OffsetDateTime.parse("2030-01-01T00:00:00.123456Z"), createdState.publishedAt());
+        assertEquals(OffsetDateTime.parse("2030-01-01T00:00:00.123457Z"), createdState.expiresAt());
+
+        var collapsedUpdate = putJson(
+                session.client(),
+                "/api/admin/notices/" + id,
+                noticeUpdate(
+                        "published",
+                        "100ns 수정",
+                        null,
+                        "게시 본문",
+                        true,
+                        "2031-02-03T04:05:06.234567100Z",
+                        "2031-02-03T04:05:06.234567200Z"),
+                session.csrfToken());
+
+        assertEquals(422, collapsedUpdate.statusCode());
+        assertTrue(collapsedUpdate.body().contains("NOTICE_WINDOW_INVALID"));
+        assertEquals(createdState, readState(id));
+
+        var updated = putJson(
+                session.client(),
+                "/api/admin/notices/" + id,
+                noticeUpdate(
+                        "published",
+                        "microsecond 수정",
+                        null,
+                        "게시 본문",
+                        false,
+                        "2031-02-03T04:05:06.654321999Z",
+                        "2031-02-03T04:05:06.654322999Z"),
+                session.csrfToken());
+        var updatedAgain = get(session.client(), "/api/admin/notices/" + id);
+        var updatedState = readState(id);
+
+        assertEquals(200, updated.statusCode());
+        assertEquals(200, updatedAgain.statusCode());
+        for (var response : new String[] {updated.body(), updatedAgain.body()}) {
+            assertTrue(response.contains("\"publishedAt\":\"2031-02-03T04:05:06.654321Z\""));
+            assertTrue(response.contains("\"expiresAt\":\"2031-02-03T04:05:06.654322Z\""));
+        }
+        assertEquals(OffsetDateTime.parse("2031-02-03T04:05:06.654321Z"), updatedState.publishedAt());
+        assertEquals(OffsetDateTime.parse("2031-02-03T04:05:06.654322Z"), updatedState.expiresAt());
+    }
+
+    @Test
     void should_listWithExplicitNullLastAndAllTieBreakers_when_noticeStatesDiffer() throws Exception {
         var session = login(ADMIN_A_EMAIL);
         var tieA = UUID.fromString("00000000-0000-0000-0000-000000000001");
@@ -275,6 +363,26 @@ class NoticeAdminApiContractTests {
     }
 
     @Test
+    void should_returnFixedInvalidRequestWithoutExceptionDetail_when_uuidPathIsMalformed()
+            throws Exception {
+        var session = login(ADMIN_A_EMAIL);
+
+        for (var path : new String[] {
+            "/api/admin/notices/not-a-uuid",
+            "/api/admin/breeds/not-a-uuid",
+            "/api/admin/services/not-a-uuid"
+        }) {
+            var response = get(session.client(), path);
+
+            assertEquals(400, response.statusCode(), path + " " + response.body());
+            assertTrue(response.body().contains("\"code\":\"INVALID_REQUEST\""), response.body());
+            assertFalse(response.body().contains("not-a-uuid"), response.body());
+            assertFalse(response.body().contains("MethodArgumentTypeMismatchException"), response.body());
+            assertFalse(response.body().contains("java.lang"), response.body());
+        }
+    }
+
+    @Test
     void should_enforceRequestLengthBoundaries_when_noticeTextReachesLimits() throws Exception {
         var session = login(ADMIN_A_EMAIL);
         var accepted = createRawNotice(
@@ -385,6 +493,23 @@ class NoticeAdminApiContractTests {
             assertTrue(invalidWindow.body().contains("NOTICE_WINDOW_INVALID"));
             assertEquals(before, readState(id));
         }
+
+        var reversedWindow = putJson(
+                session.client(),
+                "/api/admin/notices/" + id,
+                noticeUpdate(
+                        "published",
+                        "역전 기간",
+                        "변경 요약",
+                        "게시 본문",
+                        true,
+                        "2030-01-03T00:00:00Z",
+                        "2030-01-02T23:59:59.999999Z"),
+                session.csrfToken());
+
+        assertEquals(422, reversedWindow.statusCode());
+        assertTrue(reversedWindow.body().contains("NOTICE_WINDOW_INVALID"));
+        assertEquals(before, readState(id));
     }
 
     @Test
@@ -425,7 +550,8 @@ class NoticeAdminApiContractTests {
     }
 
     @Test
-    void should_keepArchivedNoticeAndReturnNotFound_when_fullUpdateOrIdRequiresIt() throws Exception {
+    void should_restoreArchivedNoticeToPublishedAndReturnNotFound_when_fullUpdateOrIdRequiresIt()
+            throws Exception {
         var session = login(ADMIN_A_EMAIL);
         var missingId = UUID.randomUUID();
 
@@ -448,7 +574,14 @@ class NoticeAdminApiContractTests {
         var restored = putJson(
                 session.client(),
                 "/api/admin/notices/" + id,
-                noticeUpdate("draft", "보존 공지", null, null, false, null, null),
+                noticeUpdate(
+                        "published",
+                        "게시 복구 공지",
+                        "복구 요약",
+                        "게시 복구 본문",
+                        true,
+                        "2032-01-01T00:00:00.123456Z",
+                        "2032-02-01T00:00:00.123457Z"),
                 session.csrfToken());
 
         assertEquals(200, archived.statusCode());
@@ -456,6 +589,9 @@ class NoticeAdminApiContractTests {
         assertEquals(200, stillReadable.statusCode());
         assertTrue(stillReadable.body().contains("\"status\":\"archived\""));
         assertEquals(200, restored.statusCode());
+        assertTrue(restored.body().contains("\"status\":\"published\""));
+        assertTrue(restored.body().contains("\"bodyMarkdown\":\"게시 복구 본문\""));
+        assertTrue(restored.body().contains("\"publishedAt\":\"2032-01-01T00:00:00.123456Z\""));
         assertEquals(1, jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM notices WHERE id = ?", Integer.class, id));
     }

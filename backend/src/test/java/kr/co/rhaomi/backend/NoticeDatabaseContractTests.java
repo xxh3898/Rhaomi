@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -73,6 +74,21 @@ class NoticeDatabaseContractTests {
                         String.class)
                 .stream()
                 .collect(Collectors.toSet());
+        var timestampPrecisions = jdbcTemplate.query(
+                        """
+                        SELECT column_name, datetime_precision
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                          AND table_name = 'notices'
+                          AND column_name IN (
+                              'published_at', 'expires_at', 'created_at', 'updated_at'
+                          )
+                        """,
+                        (resultSet, rowNumber) -> Map.entry(
+                                resultSet.getString("column_name"),
+                                resultSet.getInt("datetime_precision")))
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         assertTrue(versions.containsAll(Set.of("1", "2", "3")));
         assertEquals(
@@ -101,6 +117,13 @@ class NoticeDatabaseContractTests {
                 "ck_notices_window",
                 "fk_notices_created_by",
                 "fk_notices_updated_by")));
+        assertEquals(
+                Map.of(
+                        "published_at", 6,
+                        "expires_at", 6,
+                        "created_at", 6,
+                        "updated_at", 6),
+                timestampPrecisions);
     }
 
     @Test
@@ -143,6 +166,16 @@ class NoticeDatabaseContractTests {
                         "draft",
                         "중복 공지",
                         "first-notice",
+                        null,
+                        null,
+                        admin.getId()));
+        assertThrows(
+                DataIntegrityViolationException.class,
+                () -> insertNotice(
+                        UUID.randomUUID(),
+                        "draft",
+                        "\t\n",
+                        "whitespace-title",
                         null,
                         null,
                         admin.getId()));
@@ -200,6 +233,16 @@ class NoticeDatabaseContractTests {
                         "본문 없음",
                         "missing-body",
                         null,
+                        publishedAt,
+                        admin.getId()));
+        assertThrows(
+                DataIntegrityViolationException.class,
+                () -> insertNotice(
+                        UUID.randomUUID(),
+                        "published",
+                        "공백 본문",
+                        "whitespace-published-body",
+                        "\t\n",
                         publishedAt,
                         admin.getId()));
         assertThrows(

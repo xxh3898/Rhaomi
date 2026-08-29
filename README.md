@@ -99,7 +99,7 @@ docker compose --env-file .env.dev.local -f compose.dev.yaml run --rm --no-deps 
 docker compose --env-file .env.dev.local -f compose.dev.yaml down
 ```
 
-현재 콘텐츠 관리 API는 `/api/admin/breeds`, `/api/admin/services`, `/api/admin/notices`에 `GET`, `POST`, `PUT`만 제공한다. 생성은 항상 `draft`이며 수정 요청은 slug를 제외한 전체 mutable representation을 보낸다. 공지는 게시 본문·게시 시각과 유효한 만료 구간을 application과 PostgreSQL에서 이중 검증한다. `POST`와 `PUT`에는 관리자 session과 CSRF token이 모두 필요하고, `PATCH`와 영구 `DELETE` endpoint는 제공하지 않는다.
+현재 콘텐츠 관리 API는 `/api/admin/breeds`, `/api/admin/services`, `/api/admin/notices`에 `GET`, `POST`, `PUT`만 제공한다. 생성은 항상 `draft`이며 수정 요청은 slug를 제외한 전체 mutable representation을 보낸다. 공지는 게시·만료 시각을 microsecond로 정규화한 뒤 게시 본문·유효 기간을 application과 PostgreSQL에서 이중 검증한다. `POST`와 `PUT`에는 관리자 session과 CSRF token이 모두 필요하고, `PATCH`와 영구 `DELETE` endpoint는 제공하지 않는다.
 
 health, local/test bootstrap, CSRF login/me/logout, 재기동 후 persistent volume을 한 번에 검증하려면 다음처럼 명시적 test credential을 process 환경으로 전달한다. 실제 운영 email/password를 사용하지 않는다.
 

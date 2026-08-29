@@ -45,7 +45,7 @@ review_trigger: "기능 범위 변경 시"
 | FR-ADM-010 | 견종·서비스 생성은 항상 `draft`여야 하고 slug는 lowercase kebab-case이며 생성 후 변경할 수 없어야 한다. |
 | FR-ADM-011 | 견종·서비스·공지 관리 API는 session 인증을 요구하고 `POST`·`PUT`에는 CSRF를 강제하며 `PATCH`·`DELETE`를 제공하지 않아야 한다. |
 | FR-ADM-012 | 공지 생성은 항상 `draft`여야 하고 slug는 lowercase kebab-case이며 생성 후 변경할 수 없어야 한다. id·actor·audit·unknown field는 요청에서 거부해야 한다. |
-| FR-ADM-013 | 공지 게시에는 본문과 게시 시각이 필요하고, 만료 시각이 있으면 상태와 무관하게 게시 시각보다 늦어야 한다. application과 PostgreSQL이 이를 이중 검증하고 실패 시 row와 audit를 변경하지 않아야 한다. |
+| FR-ADM-013 | 공지 게시에는 whitespace가 아닌 문자를 포함한 본문과 게시 시각이 필요하고, 만료 시각이 있으면 상태와 무관하게 게시 시각보다 늦어야 한다. 게시·만료 시각은 microsecond로 먼저 정규화한 최종 값으로 application과 PostgreSQL이 이중 검증하고 실패 시 row와 audit를 변경하지 않아야 한다. |
 
 ## 배포
 

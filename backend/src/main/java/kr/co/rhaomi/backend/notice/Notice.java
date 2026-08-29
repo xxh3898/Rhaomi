@@ -7,6 +7,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import kr.co.rhaomi.backend.content.ContentAudit;
 import kr.co.rhaomi.backend.content.ContentFields;
@@ -66,7 +67,9 @@ public class Notice {
         var normalizedSlug = ContentFields.required(slug);
         var normalizedSummary = ContentFields.optional(summary);
         var normalizedBodyMarkdown = ContentFields.optional(bodyMarkdown);
-        validateWindow(publishedAt, expiresAt);
+        var normalizedPublishedAt = normalizeTimestamp(publishedAt);
+        var normalizedExpiresAt = normalizeTimestamp(expiresAt);
+        validateWindow(normalizedPublishedAt, normalizedExpiresAt);
 
         id = UUID.randomUUID();
         status = ContentStatus.DRAFT;
@@ -75,8 +78,8 @@ public class Notice {
         this.summary = normalizedSummary;
         this.bodyMarkdown = normalizedBodyMarkdown;
         this.pinned = Boolean.TRUE.equals(pinned);
-        this.publishedAt = publishedAt;
-        this.expiresAt = expiresAt;
+        this.publishedAt = normalizedPublishedAt;
+        this.expiresAt = normalizedExpiresAt;
         audit = ContentAudit.create(actorId);
     }
 
@@ -112,17 +115,23 @@ public class Notice {
         var normalizedTitle = ContentFields.required(title);
         var normalizedSummary = ContentFields.optional(summary);
         var normalizedBodyMarkdown = ContentFields.optional(bodyMarkdown);
-        validateWindow(publishedAt, expiresAt);
-        validatePublished(status, normalizedTitle, normalizedBodyMarkdown, publishedAt);
+        var normalizedPublishedAt = normalizeTimestamp(publishedAt);
+        var normalizedExpiresAt = normalizeTimestamp(expiresAt);
+        validateWindow(normalizedPublishedAt, normalizedExpiresAt);
+        validatePublished(status, normalizedTitle, normalizedBodyMarkdown, normalizedPublishedAt);
 
         this.status = status;
         this.title = normalizedTitle;
         this.summary = normalizedSummary;
         this.bodyMarkdown = normalizedBodyMarkdown;
         this.pinned = pinned;
-        this.publishedAt = publishedAt;
-        this.expiresAt = expiresAt;
+        this.publishedAt = normalizedPublishedAt;
+        this.expiresAt = normalizedExpiresAt;
         audit.touch(actorId);
+    }
+
+    private static Instant normalizeTimestamp(Instant value) {
+        return value == null ? null : value.truncatedTo(ChronoUnit.MICROS);
     }
 
     private void validatePublished(

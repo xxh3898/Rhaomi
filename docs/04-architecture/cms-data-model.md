@@ -99,9 +99,11 @@ erDiagram
 
 - 생성 상태는 항상 `draft`이고 생성 요청에서 status를 받지 않는다. pinned 누락·null은 false다.
 - title 200자, slug 160자, summary 300자, body Markdown 50,000자까지 관리 API에서 허용한다.
-- publish 시 title, immutable slug, non-blank body와 `published_at`이 필수이며 application과 `ck_notices_published_fields`가 이중 검증한다.
+- title과 published body는 whitespace가 아닌 문자를 최소 하나 포함해야 하며 application과 `ck_notices_title_not_blank`·`ck_notices_published_fields`가 이중 검증한다.
+- publish 시 title, immutable slug, non-blank body와 `published_at`이 필수다.
 - `expires_at`은 없거나 상태와 무관하게 `published_at`이 존재하고 그보다 늦어야 하며 `ck_notices_window`가 최종 차단한다.
-- 시간 API는 ISO-8601 offset/UTC를 받고 DB에는 timezone-aware timestamp로 저장한다. 미래 `published_at`을 허용하고 만료만으로 status를 자동 변경하지 않는다.
+- 시간 API는 ISO-8601 offset/UTC를 받고 `published_at`, `expires_at`을 application에서 microsecond로 절삭한 뒤 최종 값으로 기간을 검증·반영한다. DB의 게시·만료·audit 시간 column은 `TIMESTAMP(6) WITH TIME ZONE`이다.
+- 정규화 후 게시·만료가 같은 시각이면 거부하고 정확히 1µs 차이는 허용한다. 미래 `published_at`을 허용하고 만료만으로 status를 자동 변경하지 않는다.
 - created_by·updated_by는 `admin_users(id)`를 참조하고 `ON DELETE RESTRICT`다.
 - schema source of truth는 `backend/src/main/resources/db/migration/V3__create_notices.sql`이다.
 - 공개 build 후보는 `status = published AND published_at <= build_time AND (expires_at IS NULL OR expires_at > build_time)`를 모두 만족해야 한다.
