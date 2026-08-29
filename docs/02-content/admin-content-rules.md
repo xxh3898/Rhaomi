@@ -48,6 +48,15 @@ review_trigger: "관리 API field·운영 절차 변경 시"
 
 ## 공지
 
+- 생성 요청은 status를 받지 않고 항상 `draft`로 저장한다.
+- slug는 lowercase ASCII kebab-case로 생성하며 저장 후 일반 관리 API에서 바꾸지 않는다.
+- 수정과 상태 전환은 slug를 제외한 전체 mutable representation을 `PUT`으로 보낸다.
+- 제목·slug는 앞뒤 공백을 제거하고 선택형 요약·본문은 공백뿐이면 null로 저장한다.
+- 게시하려면 제목·slug·본문·게시 시각이 모두 있어야 한다. 미래 게시 시각은 허용하지만 공개 build에는 시각이 도래한 뒤 포함한다.
+- 만료 시각이 있으면 `draft`, `published`, `archived` 모두 게시 시각이 있어야 하고 만료 시각은 게시 시각보다 늦어야 한다.
+- 만료 시각이 지나도 status를 자동 변경하지 않으며 관리자 목록에는 모든 상태와 미래·만료 공지를 유지한다.
+- 목록은 `pinned DESC`, `published_at DESC NULLS LAST`, `updated_at DESC`, `id ASC` 순으로 정렬한다.
+- id, actor, audit timestamp와 내부 field는 요청에서 받지 않으며 검증 실패 시 기존 row와 audit를 바꾸지 않는다.
 - 고정 공지는 최소한으로 사용한다.
 - 임시휴무 공지는 `expires_at`을 설정한다.
 - 날짜가 지난 공지가 자동으로 사실과 충돌하지 않는지 확인한다.

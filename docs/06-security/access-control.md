@@ -18,11 +18,11 @@ review_trigger: "역할·권한·인증 방식 변경 시"
 대상: 실제 운영 계정은 후속 운영 승인에서 생성
 
 - 관리자 인증 API 사용
-- 견종·서비스 관리 API에서 생성·조회·전체 수정·archive와 복구 수행
+- 견종·서비스·공지 관리 API에서 생성·조회·전체 수정·archive와 복구 수행
 - 일반 고객 회원 기능 없음
 - 초기 단계에서 불필요한 다중 RBAC를 만들지 않음
 
-현재 `ADMIN` 업무 endpoint는 견종·서비스 기준정보에 한정한다. 갤러리·이미지·공지·매장정보와 관리자 UI는 아직 없다.
+현재 `ADMIN` 업무 endpoint는 견종·서비스 기준정보와 공지에 한정한다. 갤러리·이미지·매장정보와 관리자 UI는 아직 없다.
 
 ### Public customer
 
@@ -49,6 +49,9 @@ build-time 공개 콘텐츠 조회는 후속 Issue에서 `/api/build/**` 같은 
 | `GET /api/admin/services[/<id>]` | 거부 | 허용 | 전체 상태 조회, deterministic sort |
 | `POST /api/admin/services` | 거부 | 허용 | 유효 CSRF 필요, 항상 draft 생성 |
 | `PUT /api/admin/services/<id>` | 거부 | 허용 | 유효 CSRF 필요, 전체 mutable field 수정 |
+| `GET /api/admin/notices[/<id>]` | 거부 | 허용 | 모든 상태·시각 조회, deterministic sort |
+| `POST /api/admin/notices` | 거부 | 허용 | 유효 CSRF 필요, 항상 draft 생성 |
+| `PUT /api/admin/notices/<id>` | 거부 | 허용 | 유효 CSRF 필요, immutable slug·전체 mutable field 수정 |
 | `/api/admin/**` 나머지 | 거부 | 기본 인증 필요 | 명시 controller가 없으면 업무 수행 불가 |
 | `/api/**` 나머지 | 거부 | 거부 | 명시 설계 전 fail closed |
 | `GET /actuator/health` | 허용 | 허용 | health만 노출 |
@@ -88,9 +91,9 @@ build-time 공개 콘텐츠 조회는 후속 Issue에서 `/api/build/**` 같은 
 ## 콘텐츠 권한 원칙
 
 - 운영자용 update DTO는 명시적 field allowlist를 사용한다.
-- 현재 견종·서비스 create/update DTO는 unknown JSON field를 거부한다.
+- 현재 견종·서비스·공지 create/update DTO는 unknown JSON field를 거부한다.
 - `id`, `slug` 수정값, actor, `password_hash`, audit timestamp와 내부/system field는 일반 update API에서 받지 않는다.
 - 화면상 삭제는 `archived` 전환이며 영구 delete는 별도 관리·백업 승인 없이는 제공하지 않는다.
-- 현재 견종·서비스 controller/service에는 hard delete 경로와 `PATCH` endpoint가 없다.
+- 현재 견종·서비스·공지 controller/service에는 hard delete 경로와 `PATCH` endpoint가 없다.
 - schema, role, user, setting 변경 endpoint를 일반 콘텐츠 API에 포함하지 않는다.
 - 공개 build API와 관리자 write API의 credential·DTO·감사 경계를 분리한다.

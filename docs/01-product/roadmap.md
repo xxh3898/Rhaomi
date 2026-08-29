@@ -47,9 +47,20 @@ Phase 1B는 콘텐츠 CRUD나 관리자 화면의 완료를 의미하지 않는�
 
 Phase 1C-1은 갤러리·이미지·공지·매장정보, 관리자 화면이나 공개 build API의 완료를 의미하지 않는다.
 
-### Phase 1C-2 이후 — 나머지 콘텐츠 도메인
+### Phase 1C-2 — 공지 관리 API
 
-- 공지·갤러리·매장정보 table과 Flyway migration
+- Flyway V3 `notices`
+- 관리자 session·CSRF 기반 create/read/full update API
+- immutable slug와 request field allowlist
+- 게시 본문·게시 시각과 게시·만료 기간의 application/PostgreSQL 이중 검증
+- pinned·게시 시각·수정 시각·id 기반 deterministic 목록
+- actor/audit 불변성과 실제 PostgreSQL API·DB 계약 테스트
+
+Phase 1C-2는 공개 공지 UI·정적 route, build API, Markdown 렌더링·sanitize, scheduler나 관리자 화면의 완료를 의미하지 않는다.
+
+### Phase 1C-3 이후 — 나머지 콘텐츠 도메인
+
+- 갤러리·매장정보 table과 Flyway migration
 - 관리자 DTO field allowlist와 archive 정책
 - `/admin` 로그인·콘텐츠 관리 UI
 - 이미지 원본 storage와 upload validation
