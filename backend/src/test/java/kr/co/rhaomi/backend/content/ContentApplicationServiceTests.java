@@ -14,6 +14,9 @@ import kr.co.rhaomi.backend.notice.NoticeRepository;
 import kr.co.rhaomi.backend.service.GroomingServiceRepository;
 import kr.co.rhaomi.backend.service.ServiceAdminService;
 import kr.co.rhaomi.backend.service.ServiceUpdateRequest;
+import kr.co.rhaomi.backend.shop.ShopSettingsAdminService;
+import kr.co.rhaomi.backend.shop.ShopSettingsRepository;
+import kr.co.rhaomi.backend.shop.ShopSettingsRequest;
 import org.junit.jupiter.api.Test;
 
 class ContentApplicationServiceTests {
@@ -48,6 +51,38 @@ class ContentApplicationServiceTests {
                 "휴무 안내", "holiday-notice", null, null, false, null, null);
 
         assertThrows(NullPointerException.class, () -> service.create(request, null));
+
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void should_rejectBeforeRepositoryAccess_when_shopSettingsActorIsMissing() {
+        var repository = mock(ShopSettingsRepository.class);
+        var service = new ShopSettingsAdminService(repository);
+        var request = new ShopSettingsRequest(
+                "라오미펫",
+                "서울",
+                "애견미용",
+                "02-1234-5678",
+                "서울시 어딘가",
+                "10:00",
+                "19:00",
+                null,
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+
+        assertThrows(NullPointerException.class, () -> service.put(request, null));
 
         verifyNoInteractions(repository);
     }

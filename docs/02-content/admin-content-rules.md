@@ -11,6 +11,8 @@ review_trigger: "관리 API field·운영 절차 변경 시"
 
 ## 상태
 
+아래 상태는 견종·서비스·공지와 후속 gallery 같은 collection에 적용한다. 단일 현재값인 `shop_settings`에는 상태를 두지 않는다.
+
 | 상태 | 고객 노출 | 용도 |
 |---|---|---|
 | `draft` | 안 됨 | 작성 중, 검토 전 |
@@ -75,6 +77,15 @@ review_trigger: "관리 API field·운영 절차 변경 시"
 
 ## 매장정보
 
+- 매장정보는 하나의 현재 row만 유지하며 `GET`과 전체 mutable representation `PUT`으로 관리한다.
+- 최초 PUT은 row를 만들고 이후 PUT은 같은 row를 갱신한다. id와 singleton guard는 운영자에게 노출하지 않는다.
+- 매장명·지역·업종·전화·주소는 필수이며 앞뒤 Unicode whitespace 제거 후 비어 있을 수 없다.
+- 영업시간은 `HH:mm`의 동일 일자 시작·종료이고 시작이 종료보다 빨라야 한다. 야간 영업, 요일별 복수 시간과 복수 정기휴무는 후속 계약이다.
+- 휴무 요일은 없거나 `MONDAY`부터 `SUNDAY` 중 하나다. 임시휴무는 기본 휴무 필드를 바꾸기보다 공지로 처리한다.
+- 전화번호는 숫자·`+ - ( )`·일반 space만 사용하고 숫자를 최소 7개 포함한 7~32자로 저장한다.
+- 외부 URL은 absolute HTTPS, host 존재, userinfo·control 문자 없음 조건을 확인한다. 특정 채널 값이 없으면 빈 문자열이나 가짜 링크 대신 null로 저장한다.
+- 선택형 주차·Hero·소개·예약 문구는 앞뒤 whitespace 제거 후 비면 null로 저장한다.
+- id, singleton guard, actor, audit timestamp와 unknown field는 요청에서 받지 않으며 검증 실패 시 기존 row와 audit를 바꾸지 않는다.
+- Hero·프로필·OG image id나 임시 path는 저장하지 않는다. media table 이후 실제 FK relation으로 추가한다.
+- 실제 매장값은 migration이나 source에 seed하지 않고 운영 승인 뒤 입력한다.
 - 영업시간·휴무·전화·주소 변경은 네이버지도·카카오맵·블로그와 함께 갱신한다.
-- URL 값이 없으면 빈 문자열로 두고 가짜 링크를 입력하지 않는다.
-- 임시휴무는 기본 휴무 필드를 바꾸기보다 공지로 처리한다.

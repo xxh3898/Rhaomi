@@ -7,6 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import kr.co.rhaomi.backend.shop.BusinessHoursInvalidException;
+import kr.co.rhaomi.backend.shop.ShopSettingsInvalidRequestException;
+import kr.co.rhaomi.backend.shop.ShopSettingsNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -41,6 +44,29 @@ class ContentExceptionHandlerTests {
                 .andExpect(jsonPath("$.code").value("NOTICE_WINDOW_INVALID"));
     }
 
+    @Test
+    void should_returnShopSettingsNotFoundCode_when_singletonIsUninitialized() throws Exception {
+        mockMvc.perform(get("/shop-settings-not-found"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("SHOP_SETTINGS_NOT_FOUND"));
+    }
+
+    @Test
+    void should_returnBusinessHoursCode_when_hoursAreInvalid() throws Exception {
+        mockMvc.perform(get("/business-hours-invalid"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("BUSINESS_HOURS_INVALID"));
+    }
+
+    @Test
+    void should_returnFixedInvalidRequestWithoutDetails_when_shopSettingsValidationFails()
+            throws Exception {
+        mockMvc.perform(get("/shop-settings-invalid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(content().string(not(containsString("validation detail"))));
+    }
+
     @RestController
     static class FailingController {
 
@@ -52,6 +78,21 @@ class ContentExceptionHandlerTests {
         @GetMapping("/notice-window-invalid")
         void invalidWindow() {
             throw new NoticeWindowInvalidException();
+        }
+
+        @GetMapping("/shop-settings-not-found")
+        void shopSettingsNotFound() {
+            throw new ShopSettingsNotFoundException();
+        }
+
+        @GetMapping("/business-hours-invalid")
+        void businessHoursInvalid() {
+            throw new BusinessHoursInvalidException();
+        }
+
+        @GetMapping("/shop-settings-invalid")
+        void shopSettingsInvalid() {
+            throw new ShopSettingsInvalidRequestException();
         }
     }
 }

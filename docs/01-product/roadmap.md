@@ -58,9 +58,20 @@ Phase 1C-1은 갤러리·이미지·공지·매장정보, 관리자 화면이나
 
 Phase 1C-2는 공개 공지 UI·정적 route, build API, Markdown 렌더링·sanitize, scheduler나 관리자 화면의 완료를 의미하지 않는다.
 
-### Phase 1C-3 이후 — 나머지 콘텐츠 도메인
+### Phase 1C-3 — 매장정보 singleton 관리 API
 
-- 갤러리·매장정보 table과 Flyway migration
+- Flyway V4 `shop_settings`와 DB-level one-row guard
+- 관리자 session·CSRF 기반 `GET`·idempotent full `PUT`
+- 핵심 NAP·영업시간·휴무 요일·주차·소개·예약 안내·외부 링크 field allowlist
+- `HH:mm`/`TIME(0)` 영업시간, 전화번호, HTTPS URL validation
+- server-owned actor/audit와 실제 PostgreSQL API·DB 계약 테스트
+
+Phase 1C-3은 실제 운영값 입력, Hero·프로필·OG 이미지 relation, 갤러리, 관리자 화면, 공개 build API나 정적 배포의 완료를 의미하지 않는다.
+
+### Phase 1C-4 이후 — 나머지 콘텐츠 도메인
+
+- 갤러리·원본 이미지 table과 Flyway migration
+- 매장정보 Hero·프로필·OG 이미지 relation
 - 관리자 DTO field allowlist와 archive 정책
 - `/admin` 로그인·콘텐츠 관리 UI
 - 이미지 원본 storage와 upload validation
