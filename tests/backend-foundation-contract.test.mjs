@@ -110,6 +110,31 @@ test("공지 V3와 게시·만료 관리자 API 계약을 고정한다", async (
   assert.match(repository, /updatedAt DESC[\s\S]*?id ASC/);
 });
 
+test("매장정보 V4와 singleton 관리자 API 계약을 고정한다", async () => {
+  const [migration, controller, response] = await Promise.all([
+    source("backend/src/main/resources/db/migration/V4__create_shop_settings.sql"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/shop/ShopSettingsAdminController.java"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/shop/ShopSettingsResponse.java"),
+  ]);
+
+  assert.match(migration, /CREATE TABLE shop_settings/);
+  assert.match(migration, /singleton_key BOOLEAN NOT NULL DEFAULT TRUE/);
+  assert.match(migration, /CONSTRAINT uk_shop_settings_singleton_key UNIQUE/);
+  assert.match(migration, /CONSTRAINT ck_shop_settings_singleton_key CHECK/);
+  assert.match(migration, /opening_time TIME\(0\) WITHOUT TIME ZONE/);
+  assert.match(migration, /closing_time TIME\(0\) WITHOUT TIME ZONE/);
+  assert.match(migration, /created_at TIMESTAMP\(6\) WITH TIME ZONE/);
+  assert.match(migration, /updated_at TIMESTAMP\(6\) WITH TIME ZONE/);
+  assert.match(migration, /shop_name ~ '\[\^\[:space:\]\]'/);
+  assert.match(migration, /address ~ '\[\^\[:space:\]\]'/);
+  assert.match(migration, /REFERENCES admin_users\(id\) ON DELETE RESTRICT/);
+  assert.match(controller, /@RequestMapping\("\/api\/admin\/shop-settings"\)/);
+  assert.match(controller, /@GetMapping/);
+  assert.match(controller, /@PutMapping/);
+  assert.doesNotMatch(controller, /@(?:Post|Patch|Delete)Mapping/);
+  assert.doesNotMatch(response, /\bUUID id\b|singletonKey|\bstatus\b/);
+});
+
 test("실행 경로에 Directus 설정을 남기지 않는다", async () => {
   const runtimeFiles = await Promise.all([
     source("compose.dev.yaml"),

@@ -11,10 +11,10 @@ review_trigger: "PostgreSQL table·field·API 변경 시"
 
 ## 구현 상태
 
-- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`
-- 후속 구현: 매장정보, 갤러리, 원본 이미지
+- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`, Flyway V4의 `shop_settings`
+- 후속 구현: 갤러리, 원본 이미지, 매장정보 이미지 relation
 
-`breeds`, `services`, `notices`는 현재 schema와 관리 API 계약이고, 나머지 콘텐츠 모델은 제품 방향을 위한 proposed 계약이다.
+`breeds`, `services`, `notices`, `shop_settings`는 현재 schema와 관리 API 계약이고, 나머지 콘텐츠 모델은 제품 방향을 위한 proposed 계약이다.
 
 ## 현재 `admin_users`
 
@@ -33,9 +33,9 @@ schema source of truth는 `backend/src/main/resources/db/migration/V1__create_ad
 ## 콘텐츠 공통 규칙
 
 - primary key: UUID
-- 공개 상태: `draft | published | archived`
+- collection 공개 상태: `draft | published | archived`; 단일 현재값인 `shop_settings`에는 상태 없음
 - 정렬: 작은 값이 먼저
-- 시간: DB에는 timezone-aware timestamp, 화면은 Asia/Seoul
+- 게시·audit 시각은 timezone-aware timestamp로 저장한다. 매장 영업 시작·종료는 `TIME(0)` wall-clock 값이며 후속 공개 화면이 Asia/Seoul로 해석한다.
 - slug: lowercase ASCII kebab-case, unique, 생성 후 관리 API에서 변경 불가
 - raw HTML 입력 금지
 - 공지 본문은 현재 Markdown source로 저장하고 후속 공개 build에서 sanitize
@@ -56,13 +56,44 @@ erDiagram
     SERVICES ||--o{ GALLERY_ITEMS : describes
 ```
 
-## `shop_settings` — planned singleton
+## 현재 `shop_settings` singleton
 
-필수 영역: 매장명·대표 문구, 전화·주소·영업시간·휴무·주차, 은총쌤 소개, 허용된 외부 link, Hero/소개/OG image relation, audit timestamp.
+| field | type | 필수 | 설명 |
+|---|---|---:|---|
+| `id` | UUID | Y | 내부 primary key, API 비노출 |
+| `singleton_key` | boolean | Y | 항상 true인 내부 one-row guard, API 비노출 |
+| `shop_name` | varchar(100) | Y | 매장명 |
+| `region_label` | varchar(100) | Y | 공개 지역 표기 |
+| `business_type` | varchar(100) | Y | 업종 표기 |
+| `phone` | varchar(32) | Y | 표시용 전화번호 |
+| `address` | varchar(300) | Y | 공개 주소 |
+| `opening_time` | time(0) without time zone | Y | `HH:mm` 영업 시작 |
+| `closing_time` | time(0) without time zone | Y | `HH:mm` 영업 종료 |
+| `closed_weekday` | varchar(9) | N | `MONDAY`~`SUNDAY` 중 하나 |
+| `parking_available` | boolean | Y | 주차 가능 여부 |
+| `parking_note` | varchar(300) | N | 주차 안내 |
+| `hero_title` | varchar(200) | N | Hero 문구 |
+| `hero_description` | varchar(1000) | N | Hero 설명 |
+| `groomer_name` | varchar(100) | N | 운영자 표시명 |
+| `groomer_intro` | varchar(2000) | N | 운영자 소개 |
+| `reservation_notice` | varchar(4000) | N | 예약 전 안내 |
+| `instagram_url` | varchar(2048) | N | HTTPS 외부 링크 |
+| `naver_blog_url` | varchar(2048) | N | HTTPS 외부 링크 |
+| `naver_map_url` | varchar(2048) | N | HTTPS 외부 링크 |
+| `kakao_map_url` | varchar(2048) | N | HTTPS 외부 링크 |
+| `naver_talktalk_url` | varchar(2048) | N | HTTPS 외부 링크 |
+| `kakao_channel_url` | varchar(2048) | N | HTTPS 외부 링크 |
+| `created_at`·`updated_at` | timestamp(6) with time zone | Y | microsecond audit timestamp |
+| `created_by`·`updated_by` | UUID FK | Y | `admin_users(id)`, delete restrict |
 
-- 구조화 영업시간은 시작·종료·휴무 요일에서 생성한다.
-- 복잡한 요일별 시간은 별도 ADR로 확장한다.
-- 선택형 URL이 없으면 button을 숨긴다.
+- `singleton_key = TRUE` CHECK와 UNIQUE를 함께 사용해 application을 우회해도 row를 최대 하나만 허용한다.
+- 필수 문자열은 Unicode whitespace 정규화 뒤 application에서 검증하고 DB의 nonblank CHECK로 다시 방어한다.
+- `opening_time < closing_time`이며 overnight·요일별 복수 시간은 지원하지 않는다.
+- 전화번호는 허용 문자와 숫자 개수를 application에서 검증한다.
+- 선택형 URL은 absolute HTTPS, host 필수, userinfo·control 문자 금지를 application에서 검증하고 DB column이 최대 길이를 제한한다.
+- 최초 PUT actor가 created/updated audit를 채우고 후속 PUT은 created audit를 보존한다. validation 실패는 모든 field와 audit를 보존한다.
+- Hero·프로필·OG 이미지 식별자나 임시 path는 저장하지 않으며 media table 이후 FK relation으로 추가한다.
+- schema source of truth는 `backend/src/main/resources/db/migration/V4__create_shop_settings.sql`이다.
 
 ## 현재 `breeds`
 

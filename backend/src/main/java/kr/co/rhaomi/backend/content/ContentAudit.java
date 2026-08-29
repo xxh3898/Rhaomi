@@ -3,6 +3,7 @@ package kr.co.rhaomi.backend.content;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -25,7 +26,7 @@ public class ContentAudit {
 
     private ContentAudit(UUID actorId) {
         var actor = Objects.requireNonNull(actorId, "actorId");
-        var now = Instant.now();
+        var now = now();
         createdAt = now;
         updatedAt = now;
         createdBy = actor;
@@ -38,8 +39,12 @@ public class ContentAudit {
 
     public void touch(UUID actorId) {
         var actor = Objects.requireNonNull(actorId, "actorId");
-        updatedAt = Instant.now();
+        updatedAt = now();
         updatedBy = actor;
+    }
+
+    private static Instant now() {
+        return Instant.now().truncatedTo(ChronoUnit.MICROS);
     }
 
     public Instant getCreatedAt() {

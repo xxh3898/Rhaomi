@@ -23,7 +23,7 @@ review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 
 ## 현재 구현 범위
 
-Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1의 견종·서비스 API에 이어 Phase 1C-2에서는 Flyway V3와 관리자용 공지 create/read/full-update API, 게시·만료 기간 계약을 추가했다. 갤러리·이미지·매장정보, 관리자 화면과 실제 랜딩 디자인은 후속 Issue에서 구현한다.
+Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1의 견종·서비스, Phase 1C-2의 공지 API에 이어 Phase 1C-3에서는 Flyway V4와 관리자용 매장정보 singleton `GET`·전체 `PUT` API를 추가했다. 갤러리·이미지 relation, 관리자 화면과 실제 랜딩 디자인은 후속 Issue에서 구현한다.
 
 ```text
 .
@@ -99,7 +99,9 @@ docker compose --env-file .env.dev.local -f compose.dev.yaml run --rm --no-deps 
 docker compose --env-file .env.dev.local -f compose.dev.yaml down
 ```
 
-현재 콘텐츠 관리 API는 `/api/admin/breeds`, `/api/admin/services`, `/api/admin/notices`에 `GET`, `POST`, `PUT`만 제공한다. 생성은 항상 `draft`이며 수정 요청은 slug를 제외한 전체 mutable representation을 보낸다. 공지는 게시·만료 시각을 microsecond로 정규화한 뒤 게시 본문·유효 기간을 application과 PostgreSQL에서 이중 검증한다. `POST`와 `PUT`에는 관리자 session과 CSRF token이 모두 필요하고, `PATCH`와 영구 `DELETE` endpoint는 제공하지 않는다.
+현재 collection 관리 API는 `/api/admin/breeds`, `/api/admin/services`, `/api/admin/notices`에 `GET`, `POST`, `PUT`만 제공한다. 생성은 항상 `draft`이며 수정 요청은 slug를 제외한 전체 mutable representation을 보낸다. 공지는 게시·만료 시각을 microsecond로 정규화한 뒤 게시 본문·유효 기간을 application과 PostgreSQL에서 이중 검증한다.
+
+매장정보는 상태나 공개 id가 없는 단일 현재값이다. `/api/admin/shop-settings`의 `GET`과 전체 `PUT`만 제공하며 최초 PUT은 `201`, 이후 PUT은 `200`이다. PostgreSQL UNIQUE/CHECK가 row를 하나로 제한하고, API는 핵심 NAP·영업시간·전화번호·HTTPS 외부 링크와 server-owned audit를 검증한다. 모든 state-changing 요청에는 관리자 session과 CSRF token이 필요하며 `PATCH`와 영구 `DELETE` endpoint는 제공하지 않는다. 실제 운영값 seed와 Hero·프로필·OG 이미지 relation은 포함하지 않는다.
 
 health, local/test bootstrap, CSRF login/me/logout, 재기동 후 persistent volume을 한 번에 검증하려면 다음처럼 명시적 test credential을 process 환경으로 전달한다. 실제 운영 email/password를 사용하지 않는다.
 
@@ -117,7 +119,8 @@ sh scripts/validate-backend-compose.sh .env.dev.local
 - 관리자 인증은 HttpOnly session cookie와 CSRF 보호를 사용하는 Spring Security 기반이다.
 - 견종·서비스 기준정보는 관리자 session·CSRF가 적용된 API로 생성·조회·수정·보관할 수 있다.
 - 공지는 같은 인증 경계에서 생성·조회·수정·보관하며 게시 필수값과 게시·만료 기간을 검증한다.
-- 갤러리·매장정보·이미지와 `/admin` 화면은 후속 Issue에서 구현한다.
+- 매장정보 singleton은 같은 인증 경계에서 조회·전체 갱신하며 DB와 application이 한 행·필수값·영업시간·HTTPS URL을 검증한다.
+- 갤러리·이미지 relation과 `/admin` 화면은 후속 Issue에서 구현한다.
 - 공개 콘텐츠 변경은 정적 사이트 재빌드·검증·원자적 교체를 유발한다.
 - 고객용 예약 시스템, 결제, 회원가입, 문의 폼은 만들지 않는다.
 - 전화, 인스타그램, 네이버톡톡 등 외부 문의 채널로 연결한다.

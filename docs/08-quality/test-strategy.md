@@ -18,7 +18,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - 모바일 문의·검색 metadata 보호
 - 배포 실패 시 기존 사이트 보호
 
-## 현재 Phase 1C-2 자동 검증
+## 현재 Phase 1C-3 자동 검증
 
 ### Frontend
 
@@ -89,6 +89,20 @@ review_trigger: "기술·기능 범위 변경 시"
 - 미래 publishedAt 허용, 100ns collapse 422, 정확히 1µs 차이 성공과 create/update/재조회 microsecond round-trip
 - hard `DELETE`, `PATCH`, public endpoint와 scheduler 부재
 
+### 매장정보 singleton domain/API/DB
+
+- 기존 Flyway V1·V2·V3 database에서 V4 upgrade와 clean V1→V2→V3→V4 순차 적용
+- `shop_settings` 전체 column, `TIME(0) WITHOUT TIME ZONE`, `TIMESTAMP(6) WITH TIME ZONE`와 명명된 singleton/nonblank/hours/weekday/actor constraint
+- application을 우회한 두 번째 TRUE row, FALSE guard, whitespace-only 필수 text, 같거나 역전된 영업시간, 잘못된 요일·actor FK의 DB 차단
+- anonymous GET/PUT, CSRF 없는 PUT, public endpoint 거부와 미초기화 `404 SHOP_SETTINGS_NOT_FOUND`
+- 최초 PUT `201`, 후속·반복 PUT `200`, 항상 row count 1과 full response/read round-trip
+- Unicode whitespace 정규화, 선택형 blank→null, 모든 text 길이 경계, phone 허용 문자·길이·최소 숫자 검증
+- 정확한 `HH:mm`, nullable 영문 weekday, absolute HTTPS URL과 host/userinfo/control/2048자 경계
+- id/singletonKey/audit/actor/unknown field mass assignment, partial PUT, malformed time/weekday의 `400 INVALID_REQUEST`
+- opening >= closing의 `422 BUSINESS_HOURS_INVALID`와 실패 뒤 row·created/updated audit 전체 불변
+- 두 번째 관리자 update의 created audit 보존, updated actor 변경과 microsecond audit round-trip
+- `POST`, `PATCH`, `DELETE`, id 기반·public/build endpoint 부재와 generic DB 5xx detail 비노출
+
 H2 전용 통과는 DB contract 증거로 인정하지 않는다. Hosted CI Backend job은 실제 PostgreSQL service를 사용한다.
 Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 application context를 시작하기 전에 중단한다. fixture 정리는 지정된 test email에만 한정한다.
 
@@ -137,7 +151,7 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 - test-only 관리자 email/password
 - active/inactive admin
 - 공개/초안/보관 콘텐츠와 만료 공지
-- 긴 title·견종명, 선택형 URL 빈 값
+- 긴 title·견종명·매장 text, 선택형 URL 빈 값과 HTTPS/비HTTPS URL
 - portrait/landscape/손상/HEIC image
 
 실사용 email, 실제 운영 password, token과 운영 DB/API는 test에 사용하지 않는다.
