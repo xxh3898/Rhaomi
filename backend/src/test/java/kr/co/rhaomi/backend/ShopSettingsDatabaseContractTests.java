@@ -27,6 +27,7 @@ class ShopSettingsDatabaseContractTests {
 
     private static final String ADMIN_EMAIL = "shop.database@example.com";
     private static final String ADMIN_PASSWORD = "local-shop-database-password-123!";
+    private static final String HASH = "a".repeat(64);
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -52,7 +53,7 @@ class ShopSettingsDatabaseContractTests {
     }
 
     @Test
-    void should_createV4ShopSettingsSchemaWithExactTypesAndNamedConstraints_when_flywayMigrates() {
+    void should_createShopSettingsSchemaWithExactTypesAndNamedConstraints_when_flywayMigrates() {
         var versions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success = TRUE ORDER BY installed_rank",
                 String.class);
@@ -91,8 +92,42 @@ class ShopSettingsDatabaseContractTests {
                                         resultSet.getInt("datetime_precision"))))
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        var mediaColumnTypes = jdbcTemplate.query(
+                        """
+                        SELECT column_name, data_type, character_maximum_length
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                          AND table_name = 'shop_settings'
+                          AND column_name IN (
+                              'hero_image_id', 'hero_image_alt_text',
+                              'groomer_image_id', 'groomer_image_alt_text', 'og_image_id'
+                          )
+                        """,
+                        (resultSet, rowNumber) -> Map.entry(
+                                resultSet.getString("column_name"),
+                                new ColumnType(
+                                        resultSet.getString("data_type"),
+                                        resultSet.getObject("character_maximum_length", Integer.class))))
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        var mediaForeignKeyDeleteActions = jdbcTemplate.query(
+                        """
+                        SELECT conname, confdeltype
+                        FROM pg_constraint
+                        WHERE conrelid = 'shop_settings'::regclass
+                          AND conname IN (
+                              'fk_shop_settings_hero_image',
+                              'fk_shop_settings_groomer_image',
+                              'fk_shop_settings_og_image'
+                          )
+                        """,
+                        (resultSet, rowNumber) -> Map.entry(
+                                resultSet.getString("conname"),
+                                resultSet.getString("confdeltype")))
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        assertTrue(versions.containsAll(Set.of("1", "2", "3", "4")));
+        assertTrue(versions.containsAll(Set.of("1", "2", "3", "4", "5", "6", "7")));
         assertEquals(
                 Set.of(
                         "id",
@@ -112,6 +147,11 @@ class ShopSettingsDatabaseContractTests {
                         "groomer_name",
                         "groomer_intro",
                         "reservation_notice",
+                        "hero_image_id",
+                        "hero_image_alt_text",
+                        "groomer_image_id",
+                        "groomer_image_alt_text",
+                        "og_image_id",
                         "instagram_url",
                         "naver_blog_url",
                         "naver_map_url",
@@ -134,6 +174,11 @@ class ShopSettingsDatabaseContractTests {
                 "ck_shop_settings_address_not_blank",
                 "ck_shop_settings_business_hours",
                 "ck_shop_settings_closed_weekday",
+                "fk_shop_settings_hero_image",
+                "fk_shop_settings_groomer_image",
+                "fk_shop_settings_og_image",
+                "ck_shop_settings_hero_image_alt_pair",
+                "ck_shop_settings_groomer_image_alt_pair",
                 "fk_shop_settings_created_by",
                 "fk_shop_settings_updated_by")));
         assertEquals(
@@ -143,6 +188,63 @@ class ShopSettingsDatabaseContractTests {
                         "created_at", new TemporalType("timestamp with time zone", 6),
                         "updated_at", new TemporalType("timestamp with time zone", 6)),
                 temporalTypes);
+        assertEquals(
+                Map.of(
+                        "hero_image_id", new ColumnType("uuid", null),
+                        "hero_image_alt_text", new ColumnType("character varying", 300),
+                        "groomer_image_id", new ColumnType("uuid", null),
+                        "groomer_image_alt_text", new ColumnType("character varying", 300),
+                        "og_image_id", new ColumnType("uuid", null)),
+                mediaColumnTypes);
+        assertEquals(
+                Map.of(
+                        "fk_shop_settings_hero_image", "r",
+                        "fk_shop_settings_groomer_image", "r",
+                        "fk_shop_settings_og_image", "r"),
+                mediaForeignKeyDeleteActions);
+    }
+
+    @Test
+    void should_rejectInvalidImageAltPairs_when_applicationValidationIsBypassed() {
+        var mediaId = insertMedia("active");
+        var invalidRelations = Set.of(
+                new MediaRelations(mediaId, null, null, null, null),
+                new MediaRelations(null, "Hero", null, null, null),
+                new MediaRelations(mediaId, "\t\n ", null, null, null),
+                new MediaRelations(null, null, mediaId, null, null),
+                new MediaRelations(null, null, null, "프로필", null),
+                new MediaRelations(null, null, mediaId, "\t\n ", null));
+
+        for (var relations : invalidRelations) {
+            assertThrows(
+                    DataIntegrityViolationException.class,
+                    () -> insertShopSettingsWithMedia(UUID.randomUUID(), relations),
+                    relations.toString());
+            assertEquals(0, jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM shop_settings", Integer.class));
+        }
+    }
+
+    @Test
+    void should_allowOneAssetForEveryRoleAndRestrictHardDelete_when_relationsAreValid() {
+        var mediaId = insertMedia("active");
+        insertShopSettingsWithMedia(
+                UUID.randomUUID(),
+                new MediaRelations(mediaId, "Hero", mediaId, "프로필", mediaId));
+
+        var relationIds = jdbcTemplate.queryForMap(
+                """
+                SELECT hero_image_id, groomer_image_id, og_image_id
+                FROM shop_settings
+                """);
+        assertEquals(mediaId, relationIds.get("hero_image_id"));
+        assertEquals(mediaId, relationIds.get("groomer_image_id"));
+        assertEquals(mediaId, relationIds.get("og_image_id"));
+        assertThrows(
+                DataIntegrityViolationException.class,
+                () -> jdbcTemplate.update("DELETE FROM media_assets WHERE id = ?", mediaId));
+        assertEquals(1, jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM media_assets WHERE id = ?", Integer.class, mediaId));
     }
 
     @Test
@@ -328,11 +430,63 @@ class ShopSettingsDatabaseContractTests {
                 updatedBy);
     }
 
+    private void insertShopSettingsWithMedia(UUID id, MediaRelations relations) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO shop_settings (
+                    id, shop_name, region_label, business_type, phone, address,
+                    opening_time, closing_time, parking_available,
+                    hero_image_id, hero_image_alt_text,
+                    groomer_image_id, groomer_image_alt_text, og_image_id,
+                    created_by, updated_by
+                ) VALUES (?, '라오미펫', '서울', '애견미용', '02-1234-5678', '서울시 어딘가',
+                          '10:00', '19:00', FALSE, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                id,
+                relations.heroImageId(),
+                relations.heroImageAltText(),
+                relations.groomerImageId(),
+                relations.groomerImageAltText(),
+                relations.ogImageId(),
+                admin.getId(),
+                admin.getId());
+    }
+
+    private UUID insertMedia(String status) {
+        var id = UUID.randomUUID();
+        jdbcTemplate.update(
+                """
+                INSERT INTO media_assets (
+                    id, status, source_content_type, content_type, file_extension,
+                    storage_key, source_byte_size, byte_size, width, height, sha256,
+                    created_by, updated_by
+                ) VALUES (?, ?, 'image/jpeg', 'image/jpeg', 'jpg', ?,
+                          100, 100, 4, 3, ?, ?, ?)
+                """,
+                id,
+                status,
+                "masters/" + id.toString().substring(0, 2) + "/" + id + ".jpg",
+                HASH,
+                admin.getId(),
+                admin.getId());
+        return id;
+    }
+
     private void clearFixtures() {
         jdbcTemplate.update("DELETE FROM shop_settings");
+        jdbcTemplate.update("DELETE FROM media_assets");
         adminUserRepository.findByEmail(ADMIN_EMAIL).ifPresent(adminUserRepository::delete);
         adminUserRepository.flush();
     }
 
     private record TemporalType(String dataType, int precision) {}
+
+    private record ColumnType(String dataType, Integer maximumLength) {}
+
+    private record MediaRelations(
+            UUID heroImageId,
+            String heroImageAltText,
+            UUID groomerImageId,
+            String groomerImageAltText,
+            UUID ogImageId) {}
 }

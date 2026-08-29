@@ -37,7 +37,7 @@ review_trigger: "기능 범위 변경 시"
 | FR-ADM-002 | 운영자는 갤러리 항목을 생성·조회·수정·보관할 수 있어야 한다. |
 | FR-ADM-003 | 인증된 운영자는 공지를 생성·전체 상태 조회·전체 수정하고 `archived`로 보관하거나 복구할 수 있어야 한다. |
 | FR-ADM-004 | 인증된 운영자는 견종과 서비스를 생성·조회·전체 수정하고 `archived`로 보관하거나 `draft`·`published`로 복구할 수 있어야 한다. |
-| FR-ADM-005 | 인증된 운영자는 매장정보 singleton의 상호, 문구, 영업정보, 주차, 외부 링크를 조회하고 전체 수정할 수 있어야 한다. |
+| FR-ADM-005 | 인증된 운영자는 매장정보 singleton의 상호, 문구, 영업정보, 주차, 외부 링크와 Hero·프로필·OG media relation을 조회하고 전체 수정할 수 있어야 한다. |
 | FR-ADM-006 | 운영자는 시스템 컬렉션, 권한, Flow, 환경설정을 변경할 수 없어야 한다. |
 | FR-ADM-007 | 공개 상태 전환은 `PUT`의 최종 entity 전체를 검증해야 하며 서비스 게시 필수값은 Spring application과 PostgreSQL constraint로 이중 강제해야 한다. |
 | FR-ADM-008 | 영구 삭제는 시스템 관리자만 수행할 수 있어야 한다. |
@@ -59,6 +59,9 @@ review_trigger: "기능 범위 변경 시"
 | FR-ADM-024 | 갤러리 게시에는 breed, primary service, cover media, 사실 기반 alt text와 published timestamp가 필요하며 breed/service는 `published`, 모든 연결 media는 `active`여야 한다. draft·archived에서는 null이 아닌 관계 대상의 존재만 요구해야 한다. |
 | FR-ADM-025 | cover media는 before 또는 after와 같을 수 있지만 before와 after는 서로 달라야 한다. 관계 대상의 후속 상태 변경은 갤러리에 cascade하지 않고 공개 snapshot이 gallery·relation·file eligibility를 다시 검증해야 한다. |
 | FR-ADM-026 | 갤러리 performedAt·publishedAt은 저장 전에 microsecond로 정규화해야 하고 관계·게시 검증 실패에는 mutable field와 actor/audit 전체를 보존해야 한다. |
+| FR-ADM-027 | 매장정보 Hero·프로필 이미지는 nullable `media_assets` relation과 Unicode trim·최대 300 code-point의 nonblank 대체텍스트를 pair로 관리해야 하며 OG relation에는 alt field를 만들지 않아야 한다. |
+| FR-ADM-028 | 매장정보 PUT의 non-null Hero·프로필·OG media는 모두 존재하고 `active`여야 한다. 검증 실패에는 `422 SHOP_MEDIA_RELATION_INVALID`를 반환하고 기존 row와 audit를 변경하지 않아야 한다. |
+| FR-ADM-029 | 같은 media를 Hero·프로필·OG에 재사용할 수 있어야 한다. 대상이 나중에 archived돼도 relation과 audit를 자동 변경하지 않고 후속 public build가 relation·status·file 유효성을 다시 검증해야 한다. |
 
 ## 배포
 

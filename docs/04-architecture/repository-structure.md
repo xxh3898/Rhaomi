@@ -11,7 +11,7 @@ review_trigger: "module·배포 구조 변경 시"
 
 기존 Next.js source를 이동하지 않고 repository root에 `backend/`를 추가한다.
 
-## Phase 1C-5 현재 구조
+## Phase 1C-6 현재 구조
 
 ```text
 Rhaomi/
@@ -32,11 +32,11 @@ Rhaomi/
 │   │   ├── notice/                # 공지 관리 domain/API와 게시·기간 검증
 │   │   ├── media/                 # private upload·HEIC 정규화·storage domain/API
 │   │   ├── service/               # 미용 서비스 관리 domain/API
-│   │   └── shop/                  # 매장정보 singleton domain/API와 입력 검증
+│   │   └── shop/                  # 매장정보 singleton·media relation domain/API와 검증
 │   ├── src/main/resources/
-│   │   ├── db/migration/          # Flyway V1~V6, V6 gallery_items
+│   │   ├── db/migration/          # Flyway V1~V7, V7 shop media relation
 │   │   └── application.yml
-│   ├── src/test/                  # PostgreSQL auth·콘텐츠·media·gallery 계약
+│   ├── src/test/                  # PostgreSQL auth·콘텐츠·media·gallery·shop relation 계약
 │   └── Dockerfile.dev             # exact Java 25 + libheif runtime
 ├── scripts/
 │   ├── generate-synthetic-media-fixtures.mjs

@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import kr.co.rhaomi.backend.shop.BusinessHoursInvalidException;
+import kr.co.rhaomi.backend.shop.ShopMediaRelationInvalidException;
 import kr.co.rhaomi.backend.shop.ShopSettingsInvalidRequestException;
 import kr.co.rhaomi.backend.shop.ShopSettingsNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,6 +68,13 @@ class ContentExceptionHandlerTests {
                 .andExpect(content().string(not(containsString("validation detail"))));
     }
 
+    @Test
+    void should_returnShopMediaRelationCode_when_relationIsInvalid() throws Exception {
+        mockMvc.perform(get("/shop-media-relation-invalid"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("SHOP_MEDIA_RELATION_INVALID"));
+    }
+
     @RestController
     static class FailingController {
 
@@ -93,6 +101,11 @@ class ContentExceptionHandlerTests {
         @GetMapping("/shop-settings-invalid")
         void shopSettingsInvalid() {
             throw new ShopSettingsInvalidRequestException();
+        }
+
+        @GetMapping("/shop-media-relation-invalid")
+        void shopMediaRelationInvalid() {
+            throw new ShopMediaRelationInvalidException();
         }
     }
 }

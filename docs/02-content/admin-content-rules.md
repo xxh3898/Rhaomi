@@ -105,6 +105,10 @@ review_trigger: "관리 API field·운영 절차 변경 시"
 - 외부 URL은 absolute HTTPS, host 존재, userinfo·control 문자 없음 조건을 확인한다. 특정 채널 값이 없으면 빈 문자열이나 가짜 링크 대신 null로 저장한다.
 - 선택형 주차·Hero·소개·예약 문구는 앞뒤 whitespace 제거 후 비면 null로 저장한다.
 - id, singleton guard, actor, audit timestamp와 unknown field는 요청에서 받지 않으며 검증 실패 시 기존 row와 audit를 바꾸지 않는다.
-- Hero·프로필·OG image id나 임시 path는 저장하지 않는다. 구현된 `media_assets`를 참조하는 실제 FK relation은 후속 migration에서 추가한다.
+- Hero·프로필·OG 이미지는 nullable `media_assets` scalar FK로 저장하며 같은 active asset을 여러 역할에 재사용할 수 있다. 임시 path·storage key·파일명은 받지 않는다.
+- Hero·프로필 image가 있으면 사실 기반 대체텍스트가 필수이고 image가 없으면 대체텍스트도 null이어야 한다. 대체텍스트는 Unicode 양끝 whitespace 제거, blank→null, 최대 300 code points를 적용하며 파일명이나 키워드로 자동 생성하지 않는다.
+- OG 이미지는 HTML 접근성 alt 대상이 아니므로 별도 alt field를 두지 않는다.
+- non-null image relation은 저장 전에 존재와 `active` 상태를 확인한다. 대상이 나중에 archived돼도 relation과 audit를 자동 변경하지 않으며, 다음 PUT에서는 null로 제거하거나 active media로 교체해야 한다.
+- 후속 public build는 선택된 Hero·프로필·OG relation, media status와 private master/파생 file 유효성을 다시 확인하고 실패를 조용히 숨기지 않는다.
 - 실제 매장값은 migration이나 source에 seed하지 않고 운영 승인 뒤 입력한다.
 - 영업시간·휴무·전화·주소 변경은 네이버지도·카카오맵·블로그와 함께 갱신한다.

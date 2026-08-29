@@ -45,6 +45,8 @@ review_trigger: "데이터 수집·사진·외부 도구 변경 시"
 - HEIC·HEIF upload는 backend에서 EXIF·GPS·XMP·기기 metadata를 제거한 JPEG master만 보관한다.
 - JPEG·PNG는 현재 private 원본 byte를 보존하므로 EXIF가 남을 수 있다. private master를 공개 URL로 사용하지 않고 후속 공개 파생 단계에서 metadata를 반드시 제거한다.
 - original filename·storage key·filesystem path·master SHA-256은 관리자 API response와 공개 HTML에 노출하지 않는다.
+- Hero·프로필·OG 설정은 private media의 scalar UUID만 참조하며 relation 설정만으로 master를 공개하지 않는다. public build는 게시 권한·active 상태·metadata 제거 파생본을 다시 검증해야 한다.
+- Hero·프로필 대체텍스트는 사진 내용을 사실대로 설명하되 불필요한 개인 식별정보를 추가하지 않는다. OG에는 별도 alt field를 두지 않는다.
 - 게시 철회 요청이 들어오면 공개 상태를 즉시 `archived`로 전환하고 재배포한다.
 - 백업에서의 보존·삭제 절차는 별도로 검토한다.
 

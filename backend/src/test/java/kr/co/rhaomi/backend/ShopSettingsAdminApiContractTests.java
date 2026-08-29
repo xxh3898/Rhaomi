@@ -3,6 +3,7 @@ package kr.co.rhaomi.backend;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.CookieManager;
@@ -36,6 +37,7 @@ class ShopSettingsAdminApiContractTests {
     private static final String ADMIN_A_EMAIL = "shop.admin.a@example.com";
     private static final String ADMIN_B_EMAIL = "shop.admin.b@example.com";
     private static final String ADMIN_PASSWORD = "local-shop-password-123!";
+    private static final String HASH = "a".repeat(64);
     private static final Pattern CSRF_TOKEN_PATTERN =
             Pattern.compile("\\\"token\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
 
@@ -123,6 +125,11 @@ class ShopSettingsAdminApiContractTests {
         assertTrue(created.body().contains("\"groomerName\":\"라오미\""));
         assertTrue(created.body().contains("\"groomerIntro\":\"반려견의 속도에 맞춥니다.\""));
         assertTrue(created.body().contains("\"reservationNotice\":\"예약 전 상담이 필요합니다.\""));
+        assertTrue(created.body().contains("\"heroImageId\":null"));
+        assertTrue(created.body().contains("\"heroImageAltText\":null"));
+        assertTrue(created.body().contains("\"groomerImageId\":null"));
+        assertTrue(created.body().contains("\"groomerImageAltText\":null"));
+        assertTrue(created.body().contains("\"ogImageId\":null"));
         assertTrue(created.body().contains("\"instagramUrl\":\"https://example.com/rhaomi\""));
         assertTrue(created.body().contains("\"naverBlogUrl\":\"https://blog.example/rhaomi\""));
         assertTrue(created.body().contains("\"naverMapUrl\":\"https://map.example/naver\""));
@@ -135,6 +142,174 @@ class ShopSettingsAdminApiContractTests {
         assertFalse(created.body().contains("singletonKey"));
         assertFalse(created.body().contains("\"status\":"));
         assertEquals(1, rowCount());
+    }
+
+    @Test
+    void should_createAndRoundTripNormalizedMediaRelations_when_activeAssetIsReusedForEveryRole()
+            throws Exception {
+        var mediaId = insertMedia("active");
+        var session = login(ADMIN_A_EMAIL);
+        var heroAlt = "가".repeat(300);
+        var request = withMediaRelations(
+                validSettings(),
+                mediaId,
+                "\u2003" + heroAlt + "\u00a0",
+                mediaId,
+                "  라오미펫 은총쌤 프로필 사진  ",
+                mediaId);
+
+        var created = putJson(session.client(), PATH, request, session.csrfToken());
+        var fetched = get(session.client(), PATH);
+
+        assertEquals(201, created.statusCode(), created.body());
+        assertEquals(created.body(), fetched.body());
+        assertTrue(created.body().contains("\"heroImageId\":\"" + mediaId + "\""));
+        assertTrue(created.body().contains("\"heroImageAltText\":\"" + heroAlt + "\""));
+        assertTrue(created.body().contains("\"groomerImageId\":\"" + mediaId + "\""));
+        assertTrue(created.body().contains(
+                "\"groomerImageAltText\":\"라오미펫 은총쌤 프로필 사진\""));
+        assertTrue(created.body().contains("\"ogImageId\":\"" + mediaId + "\""));
+        assertFalse(created.body().contains("storageKey"));
+        assertFalse(created.body().contains("fileExtension"));
+        assertFalse(created.body().contains("sha256"));
+        assertFalse(created.body().contains("originalFilename"));
+        assertEquals(1, rowCount());
+    }
+
+    @Test
+    void should_notCreateSingleton_when_firstPutReferencesMissingMedia() throws Exception {
+        var session = login(ADMIN_A_EMAIL);
+        var request = withMediaRelations(
+                validSettings(), UUID.randomUUID(), "Hero", null, null, null);
+
+        var response = putJson(session.client(), PATH, request, session.csrfToken());
+
+        assertEquals(422, response.statusCode(), response.body());
+        assertTrue(response.body().contains("SHOP_MEDIA_RELATION_INVALID"));
+        assertEquals(0, rowCount());
+    }
+
+    @Test
+    void should_replaceThenClearEveryMediaRelation_when_subsequentPutsAreValid() throws Exception {
+        var firstMedia = insertMedia("active");
+        var secondMedia = insertMedia("active");
+        var session = login(ADMIN_A_EMAIL);
+        var initial = withMediaRelations(
+                validSettings(), firstMedia, "첫 Hero", firstMedia, "첫 프로필", firstMedia);
+        assertEquals(201, putJson(session.client(), PATH, initial, session.csrfToken()).statusCode());
+        var createdState = readState();
+
+        var replacement = withMediaRelations(
+                validSettings(), secondMedia, "교체 Hero", secondMedia, "교체 프로필", secondMedia);
+        var replaced = putJson(session.client(), PATH, replacement, session.csrfToken());
+        var replacedState = readState();
+
+        assertEquals(200, replaced.statusCode(), replaced.body());
+        assertEquals(secondMedia, replacedState.get("hero_image_id"));
+        assertEquals(secondMedia, replacedState.get("groomer_image_id"));
+        assertEquals(secondMedia, replacedState.get("og_image_id"));
+        assertEquals(createdState.get("created_at"), replacedState.get("created_at"));
+        assertEquals(createdState.get("created_by"), replacedState.get("created_by"));
+
+        var cleared = putJson(session.client(), PATH, validSettings(), session.csrfToken());
+        var clearedState = readState();
+
+        assertEquals(200, cleared.statusCode(), cleared.body());
+        assertTrue(cleared.body().contains("\"heroImageId\":null"));
+        assertTrue(cleared.body().contains("\"groomerImageId\":null"));
+        assertTrue(cleared.body().contains("\"ogImageId\":null"));
+        assertNull(clearedState.get("hero_image_id"));
+        assertNull(clearedState.get("hero_image_alt_text"));
+        assertNull(clearedState.get("groomer_image_id"));
+        assertNull(clearedState.get("groomer_image_alt_text"));
+        assertNull(clearedState.get("og_image_id"));
+        assertEquals(createdState.get("created_at"), clearedState.get("created_at"));
+        assertEquals(createdState.get("created_by"), clearedState.get("created_by"));
+    }
+
+    @Test
+    void should_rejectMissingArchivedMalformedAndInvalidPairs_withoutChangingRowOrAudit()
+            throws Exception {
+        var session = initializedSession();
+        var before = readState();
+        var missing = UUID.randomUUID();
+        var archived = insertMedia("archived");
+        var active = insertMedia("active");
+
+        var invalidRelations = new String[] {
+            withMediaRelations(validSettings(), missing, "Hero", null, null, null),
+            withMediaRelations(validSettings(), null, null, missing, "프로필", null),
+            withMediaRelations(validSettings(), null, null, null, null, missing),
+            withMediaRelations(validSettings(), archived, "Hero", null, null, null),
+            withMediaRelations(validSettings(), null, null, archived, "프로필", null),
+            withMediaRelations(validSettings(), null, null, null, null, archived),
+            withMediaRelations(validSettings(), active, null, null, null, null),
+            withMediaRelations(validSettings(), active, "\t\n ", null, null, null),
+            withMediaRelations(validSettings(), null, "Hero", null, null, null),
+            withMediaRelations(validSettings(), null, null, active, null, null),
+            withMediaRelations(validSettings(), null, null, active, "\t\n ", null),
+            withMediaRelations(validSettings(), null, null, null, "프로필", null)
+        };
+
+        for (var request : invalidRelations) {
+            var response = putJson(session.client(), PATH, request, session.csrfToken());
+            assertEquals(422, response.statusCode(), response.body());
+            assertTrue(response.body().contains("SHOP_MEDIA_RELATION_INVALID"), response.body());
+            assertEquals(before, readState());
+        }
+
+        for (var field : new String[] {"heroImageId", "groomerImageId", "ogImageId"}) {
+            var malformed = replaceField(validSettings(), field, "null", jsonString("not-a-uuid"));
+            var response = putJson(session.client(), PATH, malformed, session.csrfToken());
+            assertEquals(400, response.statusCode(), response.body());
+            assertTrue(response.body().contains("INVALID_REQUEST"), response.body());
+            assertFalse(response.body().contains("not-a-uuid"), response.body());
+            assertEquals(before, readState());
+        }
+
+        var tooLong = withMediaRelations(
+                validSettings(), active, "가".repeat(301), null, null, null);
+        var tooLongResponse = putJson(session.client(), PATH, tooLong, session.csrfToken());
+        assertEquals(400, tooLongResponse.statusCode(), tooLongResponse.body());
+        assertTrue(tooLongResponse.body().contains("INVALID_REQUEST"), tooLongResponse.body());
+        assertEquals(before, readState());
+    }
+
+    @Test
+    void should_keepStoredRelationsUntilExplicitChange_when_referencedMediaIsArchivedLater()
+            throws Exception {
+        var mediaId = insertMedia("active");
+        var replacementId = insertMedia("active");
+        var session = login(ADMIN_A_EMAIL);
+        var related = withMediaRelations(
+                validSettings(), mediaId, "Hero", mediaId, "프로필", mediaId);
+        assertEquals(201, putJson(session.client(), PATH, related, session.csrfToken()).statusCode());
+        var beforeArchive = readState();
+
+        jdbcTemplate.update("UPDATE media_assets SET status = 'archived' WHERE id = ?", mediaId);
+
+        assertEquals(beforeArchive, readState());
+        var fetched = get(session.client(), PATH);
+        assertEquals(200, fetched.statusCode());
+        assertTrue(fetched.body().contains("\"heroImageId\":\"" + mediaId + "\""));
+
+        var stalePut = putJson(session.client(), PATH, related, session.csrfToken());
+        assertEquals(422, stalePut.statusCode(), stalePut.body());
+        assertTrue(stalePut.body().contains("SHOP_MEDIA_RELATION_INVALID"));
+        assertEquals(beforeArchive, readState());
+
+        var cleared = putJson(session.client(), PATH, validSettings(), session.csrfToken());
+        assertEquals(200, cleared.statusCode(), cleared.body());
+        var afterClear = readState();
+        assertNull(afterClear.get("hero_image_id"));
+        assertNull(afterClear.get("groomer_image_id"));
+        assertNull(afterClear.get("og_image_id"));
+
+        var replacement = withMediaRelations(
+                validSettings(), replacementId, "새 Hero", replacementId, "새 프로필", replacementId);
+        var replaced = putJson(session.client(), PATH, replacement, session.csrfToken());
+        assertEquals(200, replaced.statusCode(), replaced.body());
+        assertTrue(replaced.body().contains("\"ogImageId\":\"" + replacementId + "\""));
     }
 
     @Test
@@ -391,8 +566,12 @@ class ShopSettingsAdminApiContractTests {
             "\"singletonKey\":true",
             "\"status\":\"published\"",
             "\"createdAt\":\"2030-01-01T00:00:00Z\"",
+            "\"updatedAt\":\"2030-01-01T00:00:00Z\"",
             "\"createdBy\":\"" + adminB.getId() + "\"",
             "\"updatedBy\":\"" + adminB.getId() + "\"",
+            "\"storageKey\":\"masters/aa/private.jpg\"",
+            "\"sha256\":\"" + HASH + "\"",
+            "\"originalFilename\":\"private.jpg\"",
             "\"unknownField\":\"value\""
         }) {
             var response = putJson(
@@ -444,13 +623,16 @@ class ShopSettingsAdminApiContractTests {
                        parking_note, hero_title, hero_description, groomer_name,
                        groomer_intro, reservation_notice, instagram_url, naver_blog_url,
                        naver_map_url, kakao_map_url, naver_talktalk_url,
-                       kakao_channel_url, created_at, updated_at, created_by, updated_by
+                       kakao_channel_url, hero_image_id, hero_image_alt_text,
+                       groomer_image_id, groomer_image_alt_text, og_image_id,
+                       created_at, updated_at, created_by, updated_by
                 FROM shop_settings
                 """);
     }
 
     private void clearFixtures() {
         jdbcTemplate.update("DELETE FROM shop_settings");
+        jdbcTemplate.update("DELETE FROM media_assets");
         adminUserRepository.findByEmail(ADMIN_A_EMAIL).ifPresent(adminUserRepository::delete);
         adminUserRepository.findByEmail(ADMIN_B_EMAIL).ifPresent(adminUserRepository::delete);
         adminUserRepository.flush();
@@ -537,6 +719,11 @@ class ShopSettingsAdminApiContractTests {
                   "groomerName": "라오미",
                   "groomerIntro": "반려견의 속도에 맞춥니다.",
                   "reservationNotice": "예약 전 상담이 필요합니다.",
+                  "heroImageId": null,
+                  "heroImageAltText": null,
+                  "groomerImageId": null,
+                  "groomerImageAltText": null,
+                  "ogImageId": null,
                   "instagramUrl": "https://example.com/rhaomi",
                   "naverBlogUrl": "https://blog.example/rhaomi",
                   "naverMapUrl": "https://map.example/naver",
@@ -545,6 +732,53 @@ class ShopSettingsAdminApiContractTests {
                   "kakaoChannelUrl": "https://channel.example/kakao"
                 }
                 """;
+    }
+
+    private String withMediaRelations(
+            String body,
+            UUID heroImageId,
+            String heroImageAltText,
+            UUID groomerImageId,
+            String groomerImageAltText,
+            UUID ogImageId) {
+        var result = replaceField(body, "heroImageId", "null", jsonUuid(heroImageId));
+        result = replaceField(
+                result, "heroImageAltText", "null", jsonNullableString(heroImageAltText));
+        result = replaceField(result, "groomerImageId", "null", jsonUuid(groomerImageId));
+        result = replaceField(
+                result,
+                "groomerImageAltText",
+                "null",
+                jsonNullableString(groomerImageAltText));
+        return replaceField(result, "ogImageId", "null", jsonUuid(ogImageId));
+    }
+
+    private UUID insertMedia(String status) {
+        var id = UUID.randomUUID();
+        jdbcTemplate.update(
+                """
+                INSERT INTO media_assets (
+                    id, status, source_content_type, content_type, file_extension,
+                    storage_key, source_byte_size, byte_size, width, height, sha256,
+                    created_by, updated_by
+                ) VALUES (?, ?, 'image/jpeg', 'image/jpeg', 'jpg', ?,
+                          100, 100, 4, 3, ?, ?, ?)
+                """,
+                id,
+                status,
+                "masters/" + id.toString().substring(0, 2) + "/" + id + ".jpg",
+                HASH,
+                adminA.getId(),
+                adminA.getId());
+        return id;
+    }
+
+    private String jsonUuid(UUID value) {
+        return value == null ? "null" : jsonString(value.toString());
+    }
+
+    private String jsonNullableString(String value) {
+        return value == null ? "null" : jsonString(value);
     }
 
     private String replaceField(String body, String field, String originalJson, String replacementJson) {

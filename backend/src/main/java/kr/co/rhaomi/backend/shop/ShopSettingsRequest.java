@@ -2,6 +2,7 @@ package kr.co.rhaomi.backend.shop;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import java.util.UUID;
 
 public record ShopSettingsRequest(
         @NotNull String shopName,
@@ -20,6 +21,11 @@ public record ShopSettingsRequest(
         String groomerName,
         String groomerIntro,
         String reservationNotice,
+        UUID heroImageId,
+        String heroImageAltText,
+        UUID groomerImageId,
+        String groomerImageAltText,
+        UUID ogImageId,
         String instagramUrl,
         String naverBlogUrl,
         String naverMapUrl,

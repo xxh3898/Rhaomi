@@ -70,6 +70,21 @@ public class ShopSettings {
     @Column(name = "reservation_notice", length = 4_000)
     private String reservationNotice;
 
+    @Column(name = "hero_image_id")
+    private UUID heroImageId;
+
+    @Column(name = "hero_image_alt_text", length = 300)
+    private String heroImageAltText;
+
+    @Column(name = "groomer_image_id")
+    private UUID groomerImageId;
+
+    @Column(name = "groomer_image_alt_text", length = 300)
+    private String groomerImageAltText;
+
+    @Column(name = "og_image_id")
+    private UUID ogImageId;
+
     @Column(name = "instagram_url", length = 2_048)
     private String instagramUrl;
 
@@ -125,6 +140,11 @@ public class ShopSettings {
         groomerName = values.groomerName();
         groomerIntro = values.groomerIntro();
         reservationNotice = values.reservationNotice();
+        heroImageId = values.heroImageId();
+        heroImageAltText = values.heroImageAltText();
+        groomerImageId = values.groomerImageId();
+        groomerImageAltText = values.groomerImageAltText();
+        ogImageId = values.ogImageId();
         instagramUrl = values.instagramUrl();
         naverBlogUrl = values.naverBlogUrl();
         naverMapUrl = values.naverMapUrl();
@@ -191,6 +211,26 @@ public class ShopSettings {
 
     public String getReservationNotice() {
         return reservationNotice;
+    }
+
+    public UUID getHeroImageId() {
+        return heroImageId;
+    }
+
+    public String getHeroImageAltText() {
+        return heroImageAltText;
+    }
+
+    public UUID getGroomerImageId() {
+        return groomerImageId;
+    }
+
+    public String getGroomerImageAltText() {
+        return groomerImageAltText;
+    }
+
+    public UUID getOgImageId() {
+        return ogImageId;
     }
 
     public String getInstagramUrl() {
