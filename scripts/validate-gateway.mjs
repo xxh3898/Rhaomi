@@ -47,6 +47,18 @@ if (mode === "upstream-unavailable") {
   assert(!((await unknownApi.text()).includes("라오미펫")));
   assertNoCors(unknownApi);
 
+  const buildDeny = await request("/api/build/snapshot?publishGeneration=1", {
+    headers: {
+      Authorization:
+        "Bearer 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    },
+  });
+  assert.equal(buildDeny.status, 404);
+  const buildDenyBody = await buildDeny.text();
+  assert(!buildDenyBody.includes("BUILD_GENERATION_NOT_ACTIVE"));
+  assert(!buildDenyBody.includes("BUILD_UNAUTHORIZED"));
+  assertNoCors(buildDeny);
+
   const nginxServerHeader = admin.headers.get("server") ?? "";
   assert(!/nginx\/\d/i.test(nginxServerHeader), "Nginx version이 노출됐습니다.");
 
@@ -71,6 +83,6 @@ if (mode === "upstream-unavailable") {
   assertNoCors(uploadBoundary);
 
   console.log(
-    `Gateway routing contract passed: home=${home.status} admin=${admin.status} api=${csrf.status} upload=${uploadBoundary.status}`,
+    `Gateway routing contract passed: home=${home.status} admin=${admin.status} api=${csrf.status} build=${buildDeny.status} upload=${uploadBoundary.status}`,
   );
 }

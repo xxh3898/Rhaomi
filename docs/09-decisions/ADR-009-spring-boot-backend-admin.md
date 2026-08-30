@@ -42,7 +42,7 @@ review_trigger: "관리자 인증·콘텐츠 API·DB·배포 구조 변경 시"
 - 최소 Actuator health
 - PostgreSQL을 사용하는 인증 contract test와 개발 Compose·Hosted CI
 
-공지·견종·서비스·갤러리·매장정보 CRUD API, private 이미지 storage·변환과 `/admin/` 인증 셸은 이 ADR의 방향을 따라 후속 Phase에서 구현했다. 콘텐츠 CRUD UI, build API, 콘텐츠 snapshot과 자동 재빌드 hook은 아직 구현하지 않았다.
+공지·견종·서비스·갤러리·매장정보 CRUD API, private 이미지 storage·변환, `/admin/` 콘텐츠 UI와 관리자 session과 분리된 internal read-only build API는 후속 Phase에서 구현했다. 자동 polling publisher, transformer·정적 release switch는 아직 구현하지 않았다.
 
 ### Phase 1C-7 same-origin client 경계
 

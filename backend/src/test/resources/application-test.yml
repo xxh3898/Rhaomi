@@ -1,3 +1,5 @@
 rhaomi:
+  build-service:
+    token: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
   media:
     root: ${RHAOMI_MEDIA_ROOT:${java.io.tmpdir}/rhaomi-media-tests}

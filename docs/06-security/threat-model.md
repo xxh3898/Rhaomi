@@ -16,7 +16,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - PostgreSQL 데이터
 - transactional content revision, publish generation과 publishing outbox state
 - 향후 원본 시술사진
-- 향후 internal build/publisher service credential
+- internal build service credential과 향후 publisher 주입 경계
 - encrypted restic repository와 recovery key
 - 공개 도메인과 배포 권한
 - GitHub 저장소와 Actions 권한
@@ -28,8 +28,9 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - local/test 관리자 bootstrap
 - Actuator health
 - local Nginx same-origin `/api/**` proxy와 production `/api/admin/**` edge
+- local Compose env file과 frontend dependency/runtime mount 경계
 - PostgreSQL 연결
-- 파일 upload·native image decoder, 내부 publication recorder·claim state service와 향후 build API·publisher
+- 파일 upload·native image decoder, 내부 publication recorder·claim state service·build API와 향후 publisher
 - GitHub Actions·production environment·Tailscale deploy entrypoint
 - HomeOps health/status/event와 bounded restart
 - backup 파일과 운영자 휴대전화
@@ -58,22 +59,26 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | 공지 response drift·게시기간 오판 | 내부 field 노출, 잘못된 공지 게시·만료 | exact response validator, immutable slug·audit request 제외, microsecond window 비교, backend publish/window 최종 검증 |
 | 콘텐츠 mutation 중복·stale GET 경쟁 | 중복 row, 최신 성공 상태 유실 | pending ref, refresh/mutation 상호 잠금, request sequence 무효화, 자동 retry·auto-save 부재 |
 | stale media relation 은폐 | archived/missing 원본의 공개 후보 오인 | active-only 새 선택, 기존 UUID 가시화, clear/replace 안내, backend relation 재검증 |
-| 갤러리 archived media의 게시 오용 | 보관 원본이 public 후보로 오인됨 | picker 상태 text, published client 안내, backend의 active media 강제, 후속 public snapshot 재검증 |
-| gateway route 혼합 | API 오류를 HTML 성공으로 오인, 보호 경계 우회 | `/api/**` 전용 backend location, upstream 실패 non-200, frontend fallback 분리 |
+| 갤러리 archived media의 게시 오용 | 보관 원본이 public 후보로 오인됨 | picker 상태 text, published client 안내, backend mutation과 build snapshot의 active media 재검증 |
+| gateway route 혼합 | API 오류를 HTML 성공으로 오인, 보호 경계 우회 | `/api/build/**` 선행 404, 일반 `/api/**` 전용 backend location, upstream 실패 non-200, frontend fallback 분리 |
 | CORS·cookie rewrite 완화 | 의도하지 않은 origin의 session 사용 | same-origin relative URL, CORS header와 cookie Domain rewrite 금지 |
 | DB 포트 노출 | 데이터 탈취 | host port 금지, 개발 전용 내부 network |
 | 공급망 취약점 | 코드 실행 | exact version, Wrapper/lockfile, scanner, 별도 upgrade 검증 |
 | backend 장애 | 관리자 작업 중단 | 공개 Static Export와 runtime 분리 |
 | 콘텐츠 삭제 | 영업 자산 손실 | 후속 CRUD에서 archive, migration·backup gate |
 | revision 중복·event 유실 | 최신 snapshot 식별 실패, 공개 반영 누락 | singleton row lock 기반 allocator, content·revision·typed outbox same-transaction commit/rollback, sequence·best-effort hook 금지 |
-| outbox 위조·내부 상태 노출 | draft trigger 오분류, 내부 콘텐츠 식별자 노출 | kind/source/boundary DB allowlist, domain 내부 `MANDATORY` recorder, 관리자 response·public/build endpoint 비노출 |
+| outbox 위조·내부 상태 노출 | draft trigger 오분류, 내부 콘텐츠 식별자 노출 | kind/source/boundary DB allowlist, domain 내부 `MANDATORY` recorder, 관리자와 build DTO에서 outbox row·claim field 비노출 |
 | concurrent outbox double claim·generation gap | 동일 trigger 중복 build, ordering 불일치 | `FOR UPDATE SKIP LOCKED`, transactional singleton row `UPDATE ... RETURNING`, claim·generation·첫 attempt same-transaction rollback |
 | claim 탈취·stale owner 완료 | active build 결과 오염, attempt 상태 손상 | owner·generation·`PROCESSING`·active lease guard, 만료 lease만 같은 generation으로 recovery, 최대 attempt 4회 |
 | publication 결과 detail 노출 | SQL·path·credential·내부 예외 노출 | fixed result code DB allowlist, arbitrary result text column·HTTP status endpoint 부재 |
-| stale scheduled event 오용 | 재예약·보관 콘텐츠의 잘못된 공개 | claim 시 current Notice·Gallery published 상태·expected boundary 최소 검증과 generation 없는 no-op, 후속 build API/transformer의 전체 snapshot·relation·media/file 재검증 |
+| stale scheduled event 오용 | 재예약·보관 콘텐츠의 잘못된 공개 | claim 시 current Notice·Gallery published 상태·expected boundary 최소 검증과 generation 없는 no-op, current build API와 후속 transformer의 전체 snapshot·relation·media/file 재검증 |
 | generation coalesce 역전 | 낮은 trigger가 더 새로운 공개 결과를 덮음 | source보다 큰 실제 `PROCESSING` target self-reference, same-owner active claim guard, terminal source·higher→lower 거부 |
 | self-hosted runner 악용 | Mac mini 장악 | 전용 runner scope, untrusted PR 실행 금지, 최소 권한 |
-| publisher credential 탈취 | private snapshot·media 노출 | internal network, read-only endpoint, admin session 분리, public Nginx deny |
+| build credential 탈취 | private snapshot·canonical media 노출 | 256-bit token·timing-safe 비교, stateless GET allowlist, admin session 분리, active generation·public relation scope, public Nginx deny, token 비기록 |
+| frontend filesystem credential 노출 | browser build·dependency lifecycle을 통한 build token·DB/admin credential 탈취 | frontend repository-root bind 금지, source/config allowlist mount, `.env*`·backend·local secret 제외, frontend env/file·token digest Compose smoke |
+| build credential 오구성 | internal endpoint의 fail-open 또는 production 미보호 기동 | non-production 503 fail-closed, production 누락·형식 오류 startup failure, browser/public env 주입 금지 |
+| build snapshot 혼합·내부 field 노출 | 서로 다른 revision 조합 또는 private metadata 유출 | read-only REPEATABLE READ, 단일 microsecond generatedAt, exact DTO allowlist, current revision과 relation/media/file 재검증 |
+| build API state mutation | lease·attempt·콘텐츠 ordering 오염 | GET-only chain, 모든 mutation deny, read-only transaction, 전후 publication state integration test |
 | backup key 탈취·분실 | 민감 원본 노출 또는 복구 불가 | 별도 encrypted repository, 제한된 password source, password manager+offline recovery key |
 | PostgreSQL volume 오삭제 | 전체 운영 DB 손실 | project-scoped named volume, 일반 `down` 보존, production `down -v`·prune·direct delete 금지, logical backup·isolated `pg_restore` |
 | 자동 복구 오작동 | 장애 확대·data mutation | stateless web/backend 단일 restart allowlist, deploy/backup lock, 30분 cooldown, audit |

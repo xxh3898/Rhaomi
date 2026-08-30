@@ -18,7 +18,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - 모바일 문의·검색 metadata 보호
 - 배포 실패 시 기존 사이트 보호
 
-## 현재 Phase 1C-8f2 자동 검증
+## 현재 Phase 1C-8f3 자동 검증
 
 ### Frontend
 
@@ -158,14 +158,14 @@ review_trigger: "기술·기능 범위 변경 시"
 - role별 missing·archived·malformed UUID, 301 code-point, storage metadata·system field 거부와 `422 SHOP_MEDIA_RELATION_INVALID` 계약
 - relation 실패 뒤 row·created/updated audit 불변, 후속 media archive의 non-cascade, archived relation 유지 거부와 clear·active 교체 성공
 - 세 media FK `ON DELETE RESTRICT`, 참조 asset hard delete 차단과 response의 storage key/path/hash/entity 비노출
-- `POST`, `PATCH`, `DELETE`, id 기반·public/build endpoint 부재와 generic DB 5xx detail 비노출
+- `POST`, `PATCH`, `DELETE`, id 기반 관리자 endpoint·anonymous public endpoint 부재와 generic DB 5xx detail 비노출
 
 ### private media domain/API/DB
 
 - 기존 Flyway V1→V4 database의 V5 upgrade와 clean V1→V2→V3→V4→V5 migration
 - `media_assets` 전체 column, `TIMESTAMP(6) WITH TIME ZONE`, 명명된 status/type/extension/조합/size/dimension/pixel/hash/storage-key/actor constraint와 JPA validate
 - 두 번째 row·동일 SHA-256 허용, storage key unique와 DB 우회 invalid 값 차단
-- anonymous list/detail/content/upload/update, CSRF 없는 upload/update, public/build route 거부
+- anonymous list/detail/content/upload/update, CSRF 없는 upload/update와 public admin-media route 거부
 - JPEG·PNG passthrough byte round-trip, generic/빈 MIME, filename 없음·extension 없음과 traversal filename 무해성
 - 실제 합성 HEIC·HEIF를 orientation 적용·sRGB·metadata-free JPEG로 정규화하고 display dimension·pixel 방향·stored hash/byte를 확인
 - HEIC still `heic | heix | heim | heis`의 major·compatible brand 인식, HEIC sequence `hevc | hevx | hevm | hevs`와 `msf1`의 422, AVIF `avif | avis`의 415를 detector·실제 API에서 직접 확인
@@ -193,7 +193,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - `featured DESC, sort_order ASC, published_at DESC NULLS LAST, id ASC`의 모든 tie-breaker와 단건 round-trip
 - performedAt·publishedAt nanosecond 입력의 microsecond 절삭·DB/response/재조회 round-trip과 future publishedAt 허용
 - response의 scalar relation id만 노출하고 media storage key/path/hash와 relation 객체를 embed하지 않음
-- `PATCH`, `DELETE`, publish action, public/build endpoint 부재와 domain별 고정 404/422/generic 5xx 계약
+- `PATCH`, `DELETE`, publish action과 anonymous public endpoint 부재, domain별 고정 404/422/generic 5xx 계약
 
 ### publication revision·outbox producer
 
@@ -224,6 +224,22 @@ review_trigger: "기술·기능 범위 변경 시"
 - 같은 content revision의 distinct fresh generation과 lower→higher active coalesce, higher→lower·missing/terminal/wrong-owner target 거부
 - typed internal status model과 controller·scheduler·background executor·service credential·환경 변수 부재
 
+### internal build security·snapshot·media
+
+- valid 64자 lowercase hex Bearer와 missing·wrong·malformed·duplicate header, disabled non-production token의 fixed 401/503 계약
+- 별도 stateless build principal·SecurityFilterChain, session 비생성, GET CSRF 불필요와 관리자 session/build token 교차 권한 부재
+- snapshot·media 두 GET allowlist, POST·PUT·PATCH·DELETE·unknown route deny와 raw token/header 비노출
+- production profile의 missing·malformed token startup failure와 valid token·Secure cookie 성공
+- active PROCESSING generation+live lease 성공, pending·retry-wait·terminal·expired·unknown·nonpositive generation 거부
+- read-only PostgreSQL REPEATABLE READ transaction과 단일 server-owned microsecond generatedAt, current revision과 target event revision 분리
+- exact top-level·Shop·Breed·Service·Gallery·Notice·Media key allowlist, `schemaVersion=1`, `codeImageDigest`·audit·storage/hash·claim field 부재
+- published Breed/Service ordering, Gallery due/future와 relation published 조건, Notice active/future/expired·pinned ordering, Markdown source 보존
+- Shop singleton·NAP/time/HTTPS/image-alt validation, Service final state와 direct-invalid content 전체 422
+- Shop/Gallery relation의 active media distinct union·id ordering과 canonical master size·SHA 검증, invalid/missing/corrupt file 전체 snapshot 실패
+- public-scope media success header, unlinked·draft/archived/future Gallery-only·archived·missing media 404, corrupt bytes 503, malformed UUID 400
+- snapshot transaction barrier 동안 concurrent content commit 뒤 기존 response의 pre-mutation 일관성과 다음 request의 새 revision/content
+- snapshot/media success·failure 전후 content revision, outbox, generation, lease, attempt와 content/media state 불변
+
 H2 전용 통과는 DB contract 증거로 인정하지 않는다. Hosted CI Backend job은 실제 PostgreSQL service를 사용한다.
 Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 application context를 시작하기 전에 중단한다. fixture 정리는 지정된 test email에만 한정한다.
 
@@ -232,11 +248,16 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 - exact service/image와 config validation
 - exact Nginx tag/digest와 `127.0.0.1:3000` gateway-only browser bind
 - frontend host port 부재와 gateway/PostgreSQL network 비공유
+- frontend repository-root bind와 `.env.dev.local` 부재, source/config read-only allowlist mount
+- frontend·gateway environment의 `RHAOMI_BUILD_SERVICE_TOKEN` 부재와 frontend `/workspace`의 backend token literal digest match 0건
+- backend environment token digest 일치, raw token 비출력, backend loopback valid Bearer의 인증 단계 통과와 gateway same Bearer 404
+- network-disabled `contract-check`의 actual env file 부재와 repository-wide frontend contract 검증
 - exact Temurin 25 image의 Java 25 `bootRun` 확인
 - gateway/frontend/backend/PostgreSQL health
 - backend loopback bind와 PostgreSQL host port 부재
 - explicit local/test bootstrap
 - gateway `/admin/` HTML과 `/api/**` JSON routing·no-CORS·server version 비노출
+- valid build Bearer를 포함해 gateway `/api/build/**` 선행 404, backend loopback/integration에서만 build 인증 허용
 - backend 중단 중 API non-200과 frontend HTML fallback 부재
 - gateway를 통한 실제 HTTP CSRF login/me/post-login fresh CSRF/logout
 - 20 MiB multipart source가 gateway 413으로 차단되지 않음
@@ -270,19 +291,16 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 
 문서 PASS는 production Compose, publisher, backup, HomeOps 또는 decoder-only image의 runtime acceptance 증거가 아니다.
 
-## 후속 build·콘텐츠 단위·통합 테스트
+## 후속 transformer·publisher 단위·통합 테스트
 
-- URL, phone link, 공지 build-time 게시 도래·expiry filter
-- slug/canonical, JSON-LD, alt validation
-- published 관계와 file scope
-- 매장정보 Hero·프로필·OG relation의 active status·private master·파생 file 재검증
-- build API read-only와 모든 mutation deny
+- Build API URL/phone/source Markdown을 transformer가 링크·HTML로 안전하게 변환
+- slug/canonical, JSON-LD, alt validation과 content fixture → transformer → static snapshot
+- build API가 검증한 published 관계·canonical master를 transformer가 다시 검증하고 responsive derivative manifest 생성
 - additional admin mutation 없는 future Notice publish·expiry와 Gallery publish, publisher restart 뒤 overdue 처리
-- Notice·Gallery claim 뒤 변경까지 포함한 build snapshot 재검증과 stale 공개 방지
+- Notice·Gallery claim 뒤 변경까지 포함한 Build API 재검증 결과가 release까지 stale 공개를 막음
 - 30초 debounce·global lock·highest generation coalescing과 최종 snapshot 정확성
 - 낮거나 같은 generation의 old build switch 거부와 승인된 manual rebuild/retry의 새 generation
-- snapshot schema와 image manifest
-- content fixture → transformer → static snapshot
+- persisted snapshot/release manifest의 contentRevision·publishGeneration·generatedAt·codeImageDigest 일치
 
 ## 후속 콘텐츠 UI/E2E
 

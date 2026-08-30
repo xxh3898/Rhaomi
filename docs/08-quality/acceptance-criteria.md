@@ -224,7 +224,7 @@ review_trigger: "제품 기능 변경 시"
 
 **When** due claim을 시도하면
 
-**Then** generation 없이 `NOOP / STALE_TRIGGER`로 종료한다. 이 판정은 source 상태·경계의 최소 검증이며 relation·media·file을 포함한 전체 공개 eligibility는 후속 build API/transformer가 다시 검증한다.
+**Then** generation 없이 `NOOP / STALE_TRIGGER`로 종료한다. 이 판정은 source 상태·경계의 최소 검증이며 relation·media·file을 포함한 전체 공개 eligibility는 build API와 후속 transformer가 다시 검증한다.
 
 **Given** active processing lease가 만료되거나 transient attempt가 실패했을 때
 
@@ -237,3 +237,29 @@ review_trigger: "제품 기능 변경 시"
 **When** lower를 higher에 coalesce하면
 
 **Then** 실제 존재하는 higher `PROCESSING` generation만 target이 되고 higher→lower, terminal source, 잘못된 owner·generation은 거부된다. 실제 30초 debounce와 build orchestration은 실행되지 않는다.
+
+## AC-19 internal read-only build API
+
+**Given** valid 64자 lowercase hex build token과 active `PROCESSING` generation·live lease가 있을 때
+
+**When** publisher 후보가 `GET /api/build/snapshot`을 호출하면
+
+**Then** 관리자 session과 분리된 stateless principal로 인증하고 하나의 read-only PostgreSQL `REPEATABLE READ` transaction에서 server-owned microsecond `generatedAt`, current `contentRevision`, exact DTO allowlist와 published/time/relation/media/file 조건을 검증한다.
+
+**Given** admin session만 있거나 build token이 missing·wrong·malformed·disabled이고, 또는 build token으로 admin API를 호출할 때
+
+**Then** 각 namespace는 서로 권한을 부여하지 않고 fixed 401 또는 disabled build service의 503으로 fail-closed한다. production token 누락·형식 오류는 startup failure다.
+
+**Given** unknown·terminal·retry-wait·expired lease generation 또는 invalid explicit relation/file이 있을 때
+
+**Then** active target이 아니면 409, snapshot data가 invalid면 silent omission 없는 422로 종료하고 SQL·path·token·hash·내부 detail이나 partial snapshot을 반환하지 않는다.
+
+**Given** Shop 또는 현재 공개 가능한 Gallery relation에 속한 active media가 있을 때
+
+**When** 같은 active generation으로 media content를 요청하면
+
+**Then** actual size·SHA가 검증된 canonical master와 exact private header를 반환한다. unlinked·draft/archived/future-only·missing·archived media는 존재 여부를 구분하지 않는 404다.
+
+**Given** snapshot 또는 media GET이 성공·실패했을 때
+
+**Then** `contentRevision`, outbox row, `publishGeneration`, lease, attempt와 content/media state는 변하지 않는다. POST·PUT·PATCH·DELETE와 unknown build route, dev/public gateway `/api/build/**`는 모두 거부한다.

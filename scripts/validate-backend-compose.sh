@@ -22,6 +22,35 @@ if [ "${RHAOMI_BOOTSTRAP_ADMIN_ENABLED:-}" != "true" ] ||
   exit 1
 fi
 
+if ! command -v openssl >/dev/null 2>&1; then
+  echo "Compose smoke token 검증에 openssl이 필요합니다." >&2
+  exit 1
+fi
+
+local_file_build_token=$(awk '
+  index($0, "RHAOMI_BUILD_SERVICE_TOKEN=") == 1 {
+    print substr($0, length("RHAOMI_BUILD_SERVICE_TOKEN=") + 1)
+    exit
+  }
+' "$env_file")
+local_file_token_digest=""
+if printf '%s' "$local_file_build_token" | grep -Eq '^[0-9a-f]{64}$'; then
+  local_file_token_digest=$(
+    printf '%s' "$local_file_build_token" | openssl dgst -sha256 | awk '{print $NF}'
+  )
+fi
+unset local_file_build_token
+
+RHAOMI_BUILD_SERVICE_TOKEN=$(openssl rand -hex 32)
+export RHAOMI_BUILD_SERVICE_TOKEN
+build_token_digest=$(
+  printf '%s' "$RHAOMI_BUILD_SERVICE_TOKEN" | openssl dgst -sha256 | awk '{print $NF}'
+)
+if ! printf '%s' "$build_token_digest" | grep -Eq '^[0-9a-f]{64}$'; then
+  echo "Compose smoke token digest를 생성하지 못했습니다." >&2
+  exit 1
+fi
+
 compose() {
   if [ -n "${RHAOMI_COMPOSE_OVERLAY:-}" ]; then
     docker compose --env-file "$env_file" -f "$compose_file" -f "$RHAOMI_COMPOSE_OVERLAY" "$@"
@@ -31,7 +60,7 @@ compose() {
 }
 
 cleanup() {
-  compose --profile frontend --profile smoke down >/dev/null 2>&1 || true
+  compose --profile frontend --profile smoke --profile validation down >/dev/null 2>&1 || true
 }
 
 admin_count() {
@@ -64,6 +93,14 @@ postgres" ]; then
   exit 1
 fi
 
+validation_services=$(compose --profile validation config --services | sort)
+if [ "$validation_services" != "backend
+contract-check
+postgres" ]; then
+  echo "validation profile service 경계가 예상과 다릅니다." >&2
+  exit 1
+fi
+
 compose --profile frontend run --rm --no-deps frontend npm ci
 compose --profile frontend up -d --wait --wait-timeout 300 postgres backend frontend gateway
 compose ps
@@ -83,6 +120,7 @@ compose exec -T postgres sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 test "$(compose port backend 8080)" = "127.0.0.1:8080"
 test "$(compose --profile frontend port gateway 3000)" = "127.0.0.1:3000"
 frontend_id=$(compose --profile frontend ps -q frontend)
+gateway_id=$(compose --profile frontend ps -q gateway)
 frontend_port_bindings=$(docker inspect "$frontend_id" --format '{{json .HostConfig.PortBindings}}')
 case "$frontend_port_bindings" in
   null | '{}') ;;
@@ -91,6 +129,49 @@ case "$frontend_port_bindings" in
     exit 1
     ;;
 esac
+frontend_token_env_count=$(
+  docker inspect "$frontend_id" --format '{{range .Config.Env}}{{println .}}{{end}}' |
+    awk -F= '$1 == "RHAOMI_BUILD_SERVICE_TOKEN" { count += 1 } END { print count + 0 }'
+)
+gateway_token_env_count=$(
+  docker inspect "$gateway_id" --format '{{range .Config.Env}}{{println .}}{{end}}' |
+    awk -F= '$1 == "RHAOMI_BUILD_SERVICE_TOKEN" { count += 1 } END { print count + 0 }'
+)
+test "$frontend_token_env_count" -eq 0
+test "$gateway_token_env_count" -eq 0
+frontend_workspace_root_mount=$(
+  docker inspect "$frontend_id" --format \
+    '{{range .Mounts}}{{if eq .Destination "/workspace"}}{{.Source}}{{end}}{{end}}'
+)
+test -z "$frontend_workspace_root_mount"
+compose exec -T frontend test ! -e /workspace/.env.dev.local
+
+backend_token_digest=$(
+  compose exec -T backend sh -c \
+    'test -n "$RHAOMI_BUILD_SERVICE_TOKEN" && printf "%s" "$RHAOMI_BUILD_SERVICE_TOKEN" | sha256sum | cut -d " " -f 1'
+)
+test "$backend_token_digest" = "$build_token_digest"
+if [ -n "$local_file_token_digest" ] && [ "$local_file_token_digest" != "$build_token_digest" ]; then
+  compose exec -T frontend node scripts/validate-frontend-credential-isolation.mjs \
+    /workspace "$build_token_digest" "$local_file_token_digest"
+else
+  compose exec -T frontend node scripts/validate-frontend-credential-isolation.mjs \
+    /workspace "$build_token_digest"
+fi
+
+backend_build_status=$(
+  printf 'Authorization: Bearer %s\n' "$RHAOMI_BUILD_SERVICE_TOKEN" |
+    curl --header @- --silent --show-error --output /dev/null --write-out '%{http_code}' \
+      'http://127.0.0.1:8080/api/build/snapshot?publishGeneration=9223372036854775807'
+)
+test "$backend_build_status" = "409"
+gateway_build_status=$(
+  printf 'Authorization: Bearer %s\n' "$RHAOMI_BUILD_SERVICE_TOKEN" |
+    curl --header @- --silent --show-error --output /dev/null --write-out '%{http_code}' \
+      'http://127.0.0.1:3000/api/build/snapshot?publishGeneration=9223372036854775807'
+)
+test "$gateway_build_status" = "404"
+
 postgres_id=$(compose ps -q postgres)
 postgres_port_bindings=$(docker inspect "$postgres_id" --format '{{json .HostConfig.PortBindings}}')
 case "$postgres_port_bindings" in
@@ -100,7 +181,6 @@ case "$postgres_port_bindings" in
     exit 1
     ;;
 esac
-gateway_id=$(compose --profile frontend ps -q gateway)
 gateway_networks=$(docker inspect "$gateway_id" --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}} {{end}}')
 postgres_networks=$(docker inspect "$postgres_id" --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}} {{end}}')
 case "$gateway_networks" in

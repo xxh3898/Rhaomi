@@ -49,6 +49,8 @@ management:
       show-details: never
 
 rhaomi:
+  build-service:
+    token: ${RHAOMI_BUILD_SERVICE_TOKEN:}
   bootstrap-admin:
     enabled: ${RHAOMI_BOOTSTRAP_ADMIN_ENABLED:false}
     email: ${RHAOMI_BOOTSTRAP_ADMIN_EMAIL:}

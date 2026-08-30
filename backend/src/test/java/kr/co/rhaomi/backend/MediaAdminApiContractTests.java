@@ -117,7 +117,7 @@ class MediaAdminApiContractTests {
 
         var session = login();
         assertEquals(403, get(session.client(), "/api/media/" + id).statusCode());
-        assertEquals(403, get(session.client(), "/api/build/media/" + id).statusCode());
+        assertEquals(401, get(session.client(), "/api/build/media/" + id).statusCode());
         assertEquals(403, upload(
                         session.client(),
                         null,
