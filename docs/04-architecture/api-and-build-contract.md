@@ -89,7 +89,7 @@ review_trigger: "관리 API·build 입력 변경 시"
 
 - create allowlist는 dogName, breedId, primaryServiceId, coverImageId, beforeImageId, afterImageId, summary, altText, featured, sortOrder, performedAt, publishedAt이고 status를 받지 않는다. featured 누락·null은 false, sortOrder 누락·null은 100이다.
 - full PUT은 위 mutable field와 status를 모두 명시한다. nullable field도 key 생략을 허용하지 않으며 id·actor·audit·unknown/system field는 `400 INVALID_REQUEST`다.
-- 문자열은 Unicode 양끝 whitespace를 제거하고 비면 null로 저장한다. dogName·summary·altText 최대 길이는 100·1000·300이고 sortOrder는 0 이상이다.
+- 문자열은 Java `Character.isWhitespace() || Character.isSpaceChar()`인 양끝 code point를 제거하고 비면 null로 저장한다. dogName·summary·altText 최대 길이는 100·1000·300이고 sortOrder는 0 이상이다.
 - performedAt·publishedAt은 ISO-8601 offset/UTC를 받고 application에서 microsecond로 절삭한 값으로 검증·저장·응답한다. 미래 값은 허용한다.
 - 목록은 `featured DESC, sort_order ASC, published_at DESC NULLS LAST, id ASC`이며 모든 상태를 포함한다.
 - draft·archived 최종 상태는 null이 아닌 breed·service·media row의 존재만 요구한다. published는 breed·primary service·cover·nonblank altText·publishedAt이 필수이고 breed/service `published`, cover와 선택한 before/after media `active`를 요구한다.
@@ -116,7 +116,7 @@ review_trigger: "관리 API·build 입력 변경 시"
 - `GET`은 아직 row가 없으면 `404 SHOP_SETTINGS_NOT_FOUND`다.
 - `PUT`은 shopName, regionLabel, businessType, phone, address, openingTime, closingTime, closedWeekday, parkingAvailable, parkingNote, heroTitle, heroDescription, groomerName, groomerIntro, reservationNotice, heroImageId, heroImageAltText, groomerImageId, groomerImageAltText, ogImageId와 여섯 URL만 받는 full representation이다.
 - id, singletonKey, createdAt, updatedAt, createdBy, updatedBy와 unknown field는 `400 INVALID_REQUEST`로 거부한다.
-- 필수 문자열은 Unicode whitespace를 제거한 뒤 nonblank와 각 길이를 검사하고, 선택 문자열은 같은 정규화 뒤 비면 null이다.
+- 필수 문자열은 Java `Character.isWhitespace() || Character.isSpaceChar()`인 양끝 code point를 제거한 뒤 nonblank와 각 길이를 검사하고, 선택 문자열은 같은 정규화 뒤 비면 null이다.
 - openingTime·closingTime은 정확한 `HH:mm`이며 opening이 closing보다 빠르지 않으면 `422 BUSINESS_HOURS_INVALID`다. malformed time과 weekday는 `400 INVALID_REQUEST`다.
 - phone은 7~32자이고 숫자·`+ - ( )`·일반 space만 허용하며 숫자를 최소 7개 포함해야 한다.
 - URL은 null 또는 2048자 이하의 absolute HTTPS URL이어야 하며 host가 필요하고 userinfo·control 문자를 허용하지 않는다.
@@ -273,6 +273,7 @@ audit actor/timestamp, status, storage key/path, extension, persisted SHA-256, s
 
 - transformer는 backend HTTP·credential이나 Spring DTO class에 의존하지 않고 JSON 값과 `MediaContentProvider` port를 입력으로 받는다.
 - top-level·모든 entity exact key, `schemaVersion = 1`, safe integer revision/generation, canonical UUID·slug·microsecond Instant, backend/build API가 정의한 field별 문자열·URL·number limit과 Shop/media pair를 fail-closed로 검증한다. Breed·Service description은 canonical/nonblank 계약만 재검증하며 transformer 전용 길이 제한을 추가하지 않는다.
+- text acceptance는 ECMAScript `String.trim()`이나 `\S`를 공통 authority로 사용하지 않고 backend field family를 그대로 따른다. Breed·Service·Notice는 `ContentFields`의 Java `String.strip()`과 `BuildContentValidator`의 `String.isBlank()`·UTF-16 `String.length()`를 따른다. Shop은 `ShopSettingsValues`의 `Character.isWhitespace() || Character.isSpaceChar()` strip과 code-point length를 따르며, Gallery는 같은 strip 결과와 최종 Build API의 UTF-16 length를 모두 만족해야 한다. 따라서 U+00A0·U+2007·U+202F는 `ContentFields` text edge에서 보존될 수 있고 U+FEFF는 Shop/Gallery edge에서도 보존될 수 있다.
 - published/time eligibility, Breed·Service·Gallery·Notice 관계와 before/after·alt, exact distinct media manifest를 독립적으로 다시 확인한다. unknown/missing field나 explicit invalid relation은 silent omission하지 않는다.
 - Breed·Service는 snapshot의 canonical server order를 보존하고, media processing과 manifest는 media UUID·고정 profile·format·width 순서를 사용한다.
 - `MediaContentProvider`는 distinct media UUID당 한 번 호출한다. provider 결과의 content type, JPEG·PNG signature/decode, byte·dimension·pixel·single-image 조건을 manifest와 다시 대조한다.

@@ -13,6 +13,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import kr.co.rhaomi.backend.admin.AdminUser;
@@ -141,6 +142,44 @@ class ContentAdminApiContractTests {
                 "SELECT created_by FROM services WHERE id = ?", UUID.class, serviceId));
         assertNotNull(jdbcTemplate.queryForObject(
                 "SELECT created_at FROM breeds WHERE id = ?", java.time.OffsetDateTime.class, breedId));
+    }
+
+    @Test
+    void should_preserveJavaStripNonWhitespaceDescription_when_breedIsPublishedThroughAdminApi()
+            throws Exception {
+        var session = login(ADMIN_A_EMAIL);
+        var separators = List.of("\u00a0", "\u2007", "\u202f");
+
+        for (var index = 0; index < separators.size(); index++) {
+            var description = separators.get(index) + "설명" + separators.get(index);
+            var created = postJson(
+                    session.client(),
+                    "/api/admin/breeds",
+                    breedCreate(
+                            "Unicode 견종 " + index,
+                            "unicode-breed-" + index,
+                            description,
+                            index),
+                    session.csrfToken());
+            assertEquals(201, created.statusCode(), created.body());
+            var id = extractId(created.body());
+
+            var published = putJson(
+                    session.client(),
+                    "/api/admin/breeds/" + id,
+                    breedUpdate("published", "Unicode 견종 " + index, description, index),
+                    session.csrfToken());
+            var fetched = get(session.client(), "/api/admin/breeds/" + id);
+
+            assertEquals(200, published.statusCode(), published.body());
+            assertEquals(200, fetched.statusCode(), fetched.body());
+            assertTrue(published.body().contains(description));
+            assertTrue(fetched.body().contains(description));
+            assertEquals(
+                    description,
+                    jdbcTemplate.queryForObject(
+                            "SELECT description FROM breeds WHERE id = ?", String.class, id));
+        }
     }
 
     @Test
@@ -484,10 +523,14 @@ class ContentAdminApiContractTests {
     }
 
     private String breedCreate(String name, String slug, Integer sortOrder) {
+        return breedCreate(name, slug, null, sortOrder);
+    }
+
+    private String breedCreate(String name, String slug, String description, Integer sortOrder) {
         var sort = sortOrder == null ? "null" : sortOrder.toString();
         return """
-                {"name":"%s","slug":"%s","description":null,"sortOrder":%s}
-                """.formatted(name, slug, sort);
+                {"name":"%s","slug":"%s","description":%s,"sortOrder":%s}
+                """.formatted(name, slug, jsonString(description), sort);
     }
 
     private String breedUpdate(String status, String name, String description, int sortOrder) {

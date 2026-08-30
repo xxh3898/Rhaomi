@@ -50,6 +50,8 @@ review_trigger: "관리 backend·배포 event 변경 시"
 
 - [x] exact `BuildSnapshotV1` unknown/missing key, backend field별 type·limit·unsafe integer, UUID·slug·Instant·HTTPS·Shop pair 검증
 - [x] published Breed·Service의 10,001자 description이 Build API snapshot과 transformer를 통과하고 nullable/nonblank canonical 계약은 유지
+- [x] Admin API→published Breed description의 U+00A0·U+2007·U+202F 보존, Build API exact serialization과 transformer PASS
+- [x] ContentFields Java strip, Shop/Gallery Unicode-space strip, U+FEFF 보존과 Java UTF-16/code-point length family 차이 회귀
 - [x] published/time eligibility, relation, before/after, alt, duplicate와 exact media manifest 재검증
 - [x] Breed·Service source order 보존과 media/profile/format/width 결정 순서, 같은 입력의 byte-for-byte deterministic output
 - [x] distinct media fetch-once, JPEG·PNG content type/signature/decode와 30 MiB·12,000px·60MP·single-image/APNG 제한

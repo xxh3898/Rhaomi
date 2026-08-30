@@ -295,6 +295,8 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 
 - strict snapshot exact key·schema·semantic·published/time/relation/media manifest와 typed safe error
 - Breed nullable description과 Service required description의 canonical/nonblank 재검증, backend에 없는 transformer 전용 길이 제한 부재
+- Admin API published Breed description과 Build API snapshot의 U+00A0·U+2007·U+202F exact 보존, 동일 snapshot transformer acceptance
+- Breed·Service·Notice의 Java `String.strip()`/UTF-16 length, Shop/Gallery의 Unicode-space strip, Shop code-point와 Gallery final UTF-16 length 차이, U+FEFF 보존 회귀
 - distinct media fetch-once와 source canonical order 보존, derivative manifest deterministic ordering
 - JPEG·PNG signature/decode·size/pixel/single-image/APNG 제한과 corrupt/type mismatch
 - EXIF/GPS/XMP·orientation을 넣은 synthetic source의 rotate·sRGB·metadata strip

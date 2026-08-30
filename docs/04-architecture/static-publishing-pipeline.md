@@ -68,6 +68,7 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 ## 현재 transformer 경계
 
 - exact `BuildSnapshotV1` top-level·entity key와 UUID·slug·microsecond Instant·URL, backend/build API가 정의한 field별 text/number limit, uniqueness, relation, published/time eligibility와 exact media manifest를 fail-closed로 다시 검증한다. Breed·Service description에는 publication-only 길이 제한을 두지 않는다.
+- 문자열 canonical 검증은 JS `trim()` 공통 규칙이 아니다. Breed·Service·Notice는 Java `String.strip()`/`isBlank()`와 UTF-16 length, Shop은 `Character.isWhitespace() || Character.isSpaceChar()` strip과 code-point length, Gallery는 같은 strip과 Build API UTF-16 length를 각각 재현한다.
 - source 배열의 Breed·Service canonical server order는 보존하고 media 처리·manifest는 UUID, profile, format, width의 고정 순서로 만든다.
 - `MediaContentProvider`는 distinct media UUID당 한 번만 호출한다. HTTP·Bearer credential·session과 backend storage path는 transformer에 포함하지 않는다.
 - JPEG·PNG signature/content type·decode·30 MiB·12,000px·60MP·single-image 조건을 확인한 뒤 orientation·sRGB·metadata 제거와 no-upscale AVIF·WebP·JPEG 파생본을 생성하고 결과도 decode·format·metadata로 재검증한다.

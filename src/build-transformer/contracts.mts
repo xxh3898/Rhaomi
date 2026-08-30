@@ -5,6 +5,7 @@ const UUID_PATTERN =
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const PHONE_PATTERN = /^[0-9+() -]+$/;
+const ISO_CONTROL_PATTERN = /[\u0000-\u001f\u007f-\u009f]/u;
 const MICROSECOND_INSTANT_PATTERN =
   /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(?:\.(\d{1,6}))?Z$/;
 const MAX_JAVA_INTEGER = 2_147_483_647;
@@ -212,32 +213,132 @@ function exact(
   }
 }
 
-function canonicalText(value: unknown): string {
-  if (
-    typeof value !== "string" ||
-    value !== value.trim() ||
-    !/\S/u.test(value)
-  ) {
+type CodePointPredicate = (codePoint: number) => boolean;
+
+function isJavaWhitespace(codePoint: number): boolean {
+  return (
+    (codePoint >= 0x0009 && codePoint <= 0x000d) ||
+    (codePoint >= 0x001c && codePoint <= 0x0020) ||
+    codePoint === 0x1680 ||
+    (codePoint >= 0x2000 && codePoint <= 0x2006) ||
+    (codePoint >= 0x2008 && codePoint <= 0x200a) ||
+    codePoint === 0x2028 ||
+    codePoint === 0x2029 ||
+    codePoint === 0x205f ||
+    codePoint === 0x3000
+  );
+}
+
+function isJavaSpaceChar(codePoint: number): boolean {
+  return (
+    codePoint === 0x0020 ||
+    codePoint === 0x00a0 ||
+    codePoint === 0x1680 ||
+    (codePoint >= 0x2000 && codePoint <= 0x200a) ||
+    codePoint === 0x2028 ||
+    codePoint === 0x2029 ||
+    codePoint === 0x202f ||
+    codePoint === 0x205f ||
+    codePoint === 0x3000
+  );
+}
+
+function isShopGalleryWhitespace(codePoint: number): boolean {
+  return isJavaWhitespace(codePoint) || isJavaSpaceChar(codePoint);
+}
+
+function stripCodePoints(
+  value: string,
+  isWhitespace: CodePointPredicate,
+): string {
+  const codePoints = Array.from(value);
+  let start = 0;
+  let end = codePoints.length;
+  while (start < end && isWhitespace(codePoints[start].codePointAt(0)!)) {
+    start += 1;
+  }
+  while (start < end && isWhitespace(codePoints[end - 1].codePointAt(0)!)) {
+    end -= 1;
+  }
+  return codePoints.slice(start, end).join("");
+}
+
+function canonicalTextUsing(
+  value: unknown,
+  isWhitespace: CodePointPredicate,
+): string {
+  if (typeof value !== "string") {
+    fail("SNAPSHOT_INVALID");
+  }
+  const normalized = stripCodePoints(value, isWhitespace);
+  if (normalized.length === 0 || normalized !== value) {
     fail("SNAPSHOT_INVALID");
   }
   return value;
 }
 
-function requiredText(value: unknown, maxCodePoints: number): string {
-  const text = canonicalText(value);
+function contentFieldsCanonicalText(value: unknown): string {
+  return canonicalTextUsing(value, isJavaWhitespace);
+}
+
+function contentFieldsRequiredText(
+  value: unknown,
+  maxJavaLength: number,
+): string {
+  const text = contentFieldsCanonicalText(value);
+  if (text.length > maxJavaLength) {
+    fail("SNAPSHOT_INVALID");
+  }
+  return text;
+}
+
+function nullableContentFieldsText(
+  value: unknown,
+  maxJavaLength: number,
+): string | null {
+  if (value === null) return null;
+  return contentFieldsRequiredText(value, maxJavaLength);
+}
+
+function nullableContentFieldsCanonicalText(value: unknown): string | null {
+  return value === null ? null : contentFieldsCanonicalText(value);
+}
+
+function shopCanonicalText(value: unknown): string {
+  return canonicalTextUsing(value, isShopGalleryWhitespace);
+}
+
+function shopRequiredText(value: unknown, maxCodePoints: number): string {
+  const text = shopCanonicalText(value);
   if (Array.from(text).length > maxCodePoints) {
     fail("SNAPSHOT_INVALID");
   }
   return text;
 }
 
-function nullableText(value: unknown, maxCodePoints: number): string | null {
+function nullableShopText(value: unknown, maxCodePoints: number): string | null {
   if (value === null) return null;
-  return requiredText(value, maxCodePoints);
+  return shopRequiredText(value, maxCodePoints);
 }
 
-function nullableCanonicalText(value: unknown): string | null {
-  return value === null ? null : canonicalText(value);
+function galleryCanonicalText(value: unknown): string {
+  return canonicalTextUsing(value, isShopGalleryWhitespace);
+}
+
+function galleryRequiredText(value: unknown, maxJavaLength: number): string {
+  const text = galleryCanonicalText(value);
+  if (text.length > maxJavaLength) {
+    fail("SNAPSHOT_INVALID");
+  }
+  return text;
+}
+
+function nullableGalleryText(
+  value: unknown,
+  maxJavaLength: number,
+): string | null {
+  if (value === null) return null;
+  return galleryRequiredText(value, maxJavaLength);
 }
 
 function uuid(value: unknown): string {
@@ -340,7 +441,7 @@ function weekday(value: unknown): BuildShopV1["closedWeekday"] {
 
 function httpsUrl(value: unknown): string | null {
   if (value === null) return null;
-  const normalized = requiredText(value, 2_048);
+  const normalized = shopRequiredText(value, 2_048);
   try {
     const parsed = new URL(normalized);
     if (
@@ -348,7 +449,7 @@ function httpsUrl(value: unknown): string | null {
       parsed.hostname.length === 0 ||
       parsed.username.length > 0 ||
       parsed.password.length > 0 ||
-      /[\u0000-\u001f\u007f]/u.test(normalized)
+      ISO_CONTROL_PATTERN.test(normalized)
     ) {
       fail("SNAPSHOT_INVALID");
     }
@@ -364,20 +465,20 @@ function parseShop(value: unknown): BuildShopV1 {
   const openingTime = time(input.openingTime);
   const closingTime = time(input.closingTime);
   if (openingTime >= closingTime) fail("SNAPSHOT_INVALID");
-  const phone = requiredText(input.phone, 32);
+  const phone = shopRequiredText(input.phone, 32);
   const phoneDigits = Array.from(phone).filter((character) => /\d/u.test(character));
   if (
     Array.from(phone).length < 7 ||
     phoneDigits.length < 7 ||
     !PHONE_PATTERN.test(phone) ||
-    /[\u0000-\u001f\u007f]/u.test(phone)
+    ISO_CONTROL_PATTERN.test(phone)
   ) {
     fail("SNAPSHOT_INVALID");
   }
   const heroImageId = nullableUuid(input.heroImageId);
-  const heroImageAltText = nullableText(input.heroImageAltText, 300);
+  const heroImageAltText = nullableShopText(input.heroImageAltText, 300);
   const groomerImageId = nullableUuid(input.groomerImageId);
-  const groomerImageAltText = nullableText(input.groomerImageAltText, 300);
+  const groomerImageAltText = nullableShopText(input.groomerImageAltText, 300);
   if (
     (heroImageId === null) !== (heroImageAltText === null) ||
     (groomerImageId === null) !== (groomerImageAltText === null)
@@ -385,21 +486,21 @@ function parseShop(value: unknown): BuildShopV1 {
     fail("SNAPSHOT_INVALID");
   }
   return {
-    shopName: requiredText(input.shopName, 100),
-    regionLabel: requiredText(input.regionLabel, 100),
-    businessType: requiredText(input.businessType, 100),
+    shopName: shopRequiredText(input.shopName, 100),
+    regionLabel: shopRequiredText(input.regionLabel, 100),
+    businessType: shopRequiredText(input.businessType, 100),
     phone,
-    address: requiredText(input.address, 300),
+    address: shopRequiredText(input.address, 300),
     openingTime,
     closingTime,
     closedWeekday: weekday(input.closedWeekday),
     parkingAvailable: booleanValue(input.parkingAvailable),
-    parkingNote: nullableText(input.parkingNote, 300),
-    heroTitle: nullableText(input.heroTitle, 200),
-    heroDescription: nullableText(input.heroDescription, 1_000),
-    groomerName: nullableText(input.groomerName, 100),
-    groomerIntro: nullableText(input.groomerIntro, 2_000),
-    reservationNotice: nullableText(input.reservationNotice, 4_000),
+    parkingNote: nullableShopText(input.parkingNote, 300),
+    heroTitle: nullableShopText(input.heroTitle, 200),
+    heroDescription: nullableShopText(input.heroDescription, 1_000),
+    groomerName: nullableShopText(input.groomerName, 100),
+    groomerIntro: nullableShopText(input.groomerIntro, 2_000),
+    reservationNotice: nullableShopText(input.reservationNotice, 4_000),
     heroImageId,
     heroImageAltText,
     groomerImageId,
@@ -419,9 +520,9 @@ function parseBreed(value: unknown): BuildBreedV1 {
   exact(input, BREED_KEYS);
   return {
     id: uuid(input.id),
-    name: requiredText(input.name, 100),
+    name: contentFieldsRequiredText(input.name, 100),
     slug: slug(input.slug, 120),
-    description: nullableCanonicalText(input.description),
+    description: nullableContentFieldsCanonicalText(input.description),
     sortOrder: nonNegativeInteger(input.sortOrder),
   };
 }
@@ -431,10 +532,10 @@ function parseService(value: unknown): BuildServiceV1 {
   exact(input, SERVICE_KEYS);
   return {
     id: uuid(input.id),
-    name: requiredText(input.name, 100),
+    name: contentFieldsRequiredText(input.name, 100),
     slug: slug(input.slug, 120),
-    description: canonicalText(input.description),
-    priceText: requiredText(input.priceText, 100),
+    description: contentFieldsCanonicalText(input.description),
+    priceText: contentFieldsRequiredText(input.priceText, 100),
     sortOrder: nonNegativeInteger(input.sortOrder),
   };
 }
@@ -449,14 +550,14 @@ function parseGallery(value: unknown): BuildGalleryItemV1 {
   }
   return {
     id: uuid(input.id),
-    dogName: nullableText(input.dogName, 100),
+    dogName: nullableGalleryText(input.dogName, 100),
     breedId: uuid(input.breedId),
     primaryServiceId: uuid(input.primaryServiceId),
     coverImageId: uuid(input.coverImageId),
     beforeImageId,
     afterImageId,
-    summary: nullableText(input.summary, 1_000),
-    altText: requiredText(input.altText, 300),
+    summary: nullableGalleryText(input.summary, 1_000),
+    altText: galleryRequiredText(input.altText, 300),
     featured: booleanValue(input.featured),
     sortOrder: nonNegativeInteger(input.sortOrder),
     performedAt: nullableInstant(input.performedAt),
@@ -469,10 +570,10 @@ function parseNotice(value: unknown): BuildNoticeV1 {
   exact(input, NOTICE_KEYS);
   return {
     id: uuid(input.id),
-    title: requiredText(input.title, 200),
+    title: contentFieldsRequiredText(input.title, 200),
     slug: slug(input.slug, 160),
-    summary: nullableText(input.summary, 300),
-    bodyMarkdown: requiredText(input.bodyMarkdown, 50_000),
+    summary: nullableContentFieldsText(input.summary, 300),
+    bodyMarkdown: contentFieldsRequiredText(input.bodyMarkdown, 50_000),
     pinned: booleanValue(input.pinned),
     publishedAt: instant(input.publishedAt),
     expiresAt: nullableInstant(input.expiresAt),

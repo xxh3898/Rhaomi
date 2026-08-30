@@ -55,6 +55,103 @@ describe("BuildSnapshotV1 strict validator", () => {
     expect(Array.from(snapshot.services[0].description)).toHaveLength(10_001);
   });
 
+  it("ContentFields가 Java strip에서 보존하는 separator를 exact snapshot에서 허용한다", () => {
+    for (const separator of ["\u00a0", "\u2007", "\u202f", "\ufeff"]) {
+      const source = snapshotFixture();
+      const wrapped = `${separator}내용${separator}`;
+      const snapshot = parseBuildSnapshotV1({
+        ...source,
+        breeds: source.breeds.map((item, index) =>
+          index === 0
+            ? { ...item, name: wrapped, description: wrapped }
+            : item,
+        ),
+        services: source.services.map((item, index) =>
+          index === 0
+            ? {
+                ...item,
+                name: wrapped,
+                description: wrapped,
+                priceText: wrapped,
+              }
+            : item,
+        ),
+        notices: source.notices.map((item) => ({
+          ...item,
+          title: wrapped,
+          summary: wrapped,
+          bodyMarkdown: wrapped,
+        })),
+      });
+
+      expect(snapshot.breeds[0].description).toBe(wrapped);
+      expect(snapshot.services[0].description).toBe(wrapped);
+      expect(snapshot.notices[0].bodyMarkdown).toBe(wrapped);
+    }
+  });
+
+  it("Shop과 Gallery가 보존하는 U+FEFF edge text를 허용한다", () => {
+    const source = snapshotFixture();
+    const wrapped = "\ufeff내용\ufeff";
+    const snapshot = parseBuildSnapshotV1({
+      ...source,
+      shop: {
+        ...source.shop,
+        shopName: wrapped,
+        heroTitle: wrapped,
+      },
+      galleryItems: source.galleryItems.map((item) => ({
+        ...item,
+        dogName: wrapped,
+        summary: wrapped,
+        altText: wrapped,
+      })),
+    });
+
+    expect(snapshot.shop.shopName).toBe(wrapped);
+    expect(snapshot.galleryItems[0].altText).toBe(wrapped);
+  });
+
+  it("Shop과 Gallery의 custom Unicode whitespace edge를 noncanonical로 거부한다", () => {
+    for (const separator of ["\u00a0", "\u2007", "\u202f", "\u001c"]) {
+      const source = snapshotFixture();
+      expectInvalid({
+        ...source,
+        shop: { ...source.shop, shopName: `${separator}내용` },
+      });
+      expectInvalid({
+        ...source,
+        galleryItems: source.galleryItems.map((item) => ({
+          ...item,
+          altText: `내용${separator}`,
+        })),
+      });
+    }
+  });
+
+  it("Build API의 Java UTF-16 length와 Shop code-point length를 구분한다", () => {
+    const source = snapshotFixture();
+    expectInvalid({
+      ...source,
+      services: source.services.map((item, index) =>
+        index === 0 ? { ...item, name: "🐶".repeat(51) } : item,
+      ),
+    });
+    expectInvalid({
+      ...source,
+      galleryItems: source.galleryItems.map((item) => ({
+        ...item,
+        altText: "🐶".repeat(151),
+      })),
+    });
+
+    const parsed = parseBuildSnapshotV1({
+      ...source,
+      shop: { ...source.shop, heroTitle: "🐶".repeat(200) },
+    });
+    expect(Array.from(parsed.shop.heroTitle ?? "")).toHaveLength(200);
+  });
+
   it("Breed와 Service description의 nullable/nonblank canonical 계약을 유지한다", () => {
     const source = snapshotFixture();
     const nullableBreed = parseBuildSnapshotV1({
@@ -65,7 +162,12 @@ describe("BuildSnapshotV1 strict validator", () => {
     });
 
     expect(nullableBreed.breeds[0].description).toBeNull();
-    for (const description of ["   ", " 정규화되지 않은 설명 "]) {
+    for (const description of [
+      "   ",
+      " 정규화되지 않은 설명 ",
+      "\u001c정규화되지 않은 설명",
+      "정규화되지 않은 설명\u2003",
+    ]) {
       expectInvalid({
         ...source,
         breeds: source.breeds.map((item, index) =>
@@ -73,12 +175,14 @@ describe("BuildSnapshotV1 strict validator", () => {
         ),
       });
     }
-    expectInvalid({
-      ...source,
-      services: source.services.map((item, index) =>
-        index === 0 ? { ...item, description: "\t\n" } : item,
-      ),
-    });
+    for (const description of ["   ", "\t\n"]) {
+      expectInvalid({
+        ...source,
+        services: source.services.map((item, index) =>
+          index === 0 ? { ...item, description } : item,
+        ),
+      });
+    }
   });
 
   it("unknown 또는 missing top-level/entity field를 거부한다", () => {
