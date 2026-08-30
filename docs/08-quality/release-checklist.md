@@ -3,7 +3,7 @@ title: "출시 체크리스트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "출시 기준 변경 시"
 ---
 
@@ -53,7 +53,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] build API read-only와 public `/api/build/**` deny
 - [ ] published·notice expiry·relation·media/file의 API/transformer 이중 검증
 - [ ] publisher 동일 generation 1분·5분·15분 최대 3회 retry, 승인된 manual rebuild/retry의 새 generation과 data 오류 중단
-- [ ] snapshot/release manifest의 `contentRevision`·`publishGeneration`·`generatedAt`과 generation 기준 stale switch 거부
+- [ ] V2 snapshot/release manifest의 canonical decimal string `contentRevision`·`publishGeneration`·`generatedAt`과 `BigInt` generation 기준 stale switch 거부
 - [ ] 실제 iPhone Safari HEIC 선택·upload·preview·archive/restore
 - [ ] 실제 iPhone Safari·VoiceOver 견종·서비스 form·status·sortOrder·긴 slug reflow
 - [ ] 실제 iPhone Safari·VoiceOver 갤러리 form·relation picker·datetime-local·긴 alt/summary reflow

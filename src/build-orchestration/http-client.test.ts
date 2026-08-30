@@ -29,6 +29,13 @@ function jsonResponse(value: unknown, status = 200): Response {
   });
 }
 
+function rawJsonResponse(value: string, status = 200): Response {
+  return new Response(value, {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
 function mediaResponse(
   bytes: Uint8Array,
   overrides: Readonly<{
@@ -91,7 +98,7 @@ describe("Build API snapshot client", () => {
     );
   });
 
-  it("Java Long.MAX_VALUE generation을 query decimal에서 정밀도 손실 없이 보존한다", async () => {
+  it("Java Long.MAX_VALUE generation을 inactive 409 query decimal에서 정밀도 손실 없이 보존한다", async () => {
     const fetchImpl = vi.fn<BuildApiFetch>(async (input) => {
       expect(String(input)).toBe(
         "https://backend.internal/api/build/snapshot?publishGeneration=9223372036854775807",
@@ -104,6 +111,47 @@ describe("Build API snapshot client", () => {
       client.fetchSnapshot(parsePublishGeneration("9223372036854775807")),
     ).rejects.toMatchObject({ code: "BUILD_GENERATION_NOT_ACTIVE" });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("backend-valid int64 publishGeneration 200 raw JSON string을 exact 보존한다", async () => {
+    const decimal = "9007199254740993";
+    const raw = JSON.stringify(
+      snapshotFixture({
+        contentRevision: decimal,
+        publishGeneration: decimal,
+      }),
+    );
+    expect(raw).toContain(`"publishGeneration":"${decimal}"`);
+    expect(
+      (JSON.parse(raw) as { publishGeneration: string }).publishGeneration,
+    ).toBe(decimal);
+    const client = new BuildApiClient(
+      config(),
+      vi.fn<BuildApiFetch>(async () => rawJsonResponse(raw)),
+    );
+
+    const snapshot = await client.fetchSnapshot(parsePublishGeneration(decimal));
+
+    expect(snapshot.contentRevision).toBe(decimal);
+    expect(snapshot.publishGeneration).toBe(decimal);
+  });
+
+  it("backend-valid int64 contentRevision 200 raw JSON string을 exact 보존한다", async () => {
+    const decimal = "9007199254740993";
+    const raw = JSON.stringify(snapshotFixture({ contentRevision: decimal }));
+    expect(raw).toContain(`"contentRevision":"${decimal}"`);
+    expect(
+      (JSON.parse(raw) as { contentRevision: string }).contentRevision,
+    ).toBe(decimal);
+    const client = new BuildApiClient(
+      config(),
+      vi.fn<BuildApiFetch>(async () => rawJsonResponse(raw)),
+    );
+
+    const snapshot = await client.fetchSnapshot(parsePublishGeneration("7"));
+
+    expect(snapshot.contentRevision).toBe(decimal);
+    expect(snapshot.publishGeneration).toBe("7");
   });
 
   it.each([
@@ -156,7 +204,7 @@ describe("Build API snapshot client", () => {
     const mismatch = new BuildApiClient(
       config(),
       vi.fn<BuildApiFetch>(async () =>
-        jsonResponse(snapshotFixture({ publishGeneration: 8 })),
+        jsonResponse(snapshotFixture({ publishGeneration: "8" })),
       ),
     );
     await expect(
@@ -186,7 +234,10 @@ describe("Build API snapshot client", () => {
 
   it("future schema와 unknown field를 기존 strict snapshot category로 거부한다", async () => {
     for (const raw of [
-      { ...snapshotFixture(), schemaVersion: 2 },
+      { ...snapshotFixture(), schemaVersion: 1 },
+      { ...snapshotFixture(), schemaVersion: 3 },
+      { ...snapshotFixture(), contentRevision: 14 },
+      { ...snapshotFixture(), publishGeneration: 7 },
       { ...snapshotFixture(), unexpected: true },
       {
         ...snapshotFixture(),

@@ -35,7 +35,7 @@ Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Bo
 ├── src/
 │   ├── app/                 # 공개 홈과 /admin Static Export route
 │   ├── build-orchestration/ # authenticated Build API adapter·private staging orchestration
-│   ├── build-transformer/   # strict BuildSnapshotV1·responsive derivative·staging library
+│   ├── build-transformer/   # strict BuildSnapshotV2·responsive derivative·staging library
 │   └── features/            # admin auth/transport, dashboard, media·shop·breed·service·gallery UI
 ├── backend/                 # Spring Boot admin/build API와 dedicated publisher control plane
 ├── infra/nginx/dev.conf     # local same-origin gateway와 /api/build 명시적 차단
@@ -115,7 +115,7 @@ Flyway V9은 transactional `publish_generation_state` singleton과 outbox의 `PE
 
 internal build API는 정확히 `GET /api/build/snapshot`과 `GET /api/build/media/{id}/content`만 허용한다. 64자 lowercase hex Bearer token은 관리자 session·CSRF와 분리되고 request를 session에 저장하지 않는다. local Compose에서도 token은 backend environment에만 전달하며 frontend·gateway에는 environment key나 credential file을 제공하지 않는다. snapshot은 active `PROCESSING` generation과 live lease를 확인한 뒤 하나의 read-only `REPEATABLE READ` transaction에서 server-owned microsecond `generatedAt`, current `contentRevision`, published/time/relation/media/file 조건과 exact DTO allowlist를 검증한다. media content는 현재 Shop 또는 공개 가능한 Gallery relation에 속한 active canonical master만 size·SHA 검증 후 `private, no-store`로 반환한다. build API는 revision, outbox, generation, lease, attempt나 콘텐츠를 변경하지 않으며 dev/public gateway는 이 namespace를 backend로 전달하지 않는다.
 
-build snapshot transformer는 `BuildSnapshotV1`의 exact key·schema·semantic·관계·게시 시각·media manifest를 다시 검증하고 `MediaContentProvider`로 distinct canonical media를 한 번씩만 읽는다. JPEG·PNG signature·decode·30 MiB·12,000px·60MP·단일 image 조건을 재검증한 뒤 orientation·sRGB·metadata 제거와 no-upscale responsive AVIF·WebP·JPEG 파생본을 만든다. 파생 byte SHA-256 파일명, 결정적 manifest 순서와 `src/generated/{content.json,media-manifest.json}`·`public/generated/media`를 임시 sibling에서 완성한 뒤 새 staging target으로 rename한다. 실패 시 partial temp를 제거하고 기존 성공 target은 교체하지 않는다. transformer core와 fixture filesystem CLI는 HTTP·credential을 계속 모른다.
+build snapshot transformer는 `BuildSnapshotV2`의 exact key·schema·semantic·관계·게시 시각·media manifest를 다시 검증하고 `MediaContentProvider`로 distinct canonical media를 한 번씩만 읽는다. `contentRevision`·`publishGeneration`은 PostgreSQL/Java `long`을 손실 없이 표현하는 canonical decimal string이며 Node는 range·equality·ordering에만 `BigInt`를 사용한다. JPEG·PNG signature·decode·30 MiB·12,000px·60MP·단일 image 조건을 재검증한 뒤 orientation·sRGB·metadata 제거와 no-upscale responsive AVIF·WebP·JPEG 파생본을 만든다. 파생 byte SHA-256 파일명, 결정적 manifest 순서와 V2 `src/generated/{content.json,media-manifest.json}`·`public/generated/media`를 임시 sibling에서 완성한 뒤 새 staging target으로 rename한다. 실패 시 partial temp를 제거하고 기존 성공 target은 교체하지 않는다. transformer core와 fixture filesystem CLI는 HTTP·credential을 계속 모른다.
 
 Build orchestration은 `BUILD_API_INTERNAL_URL`과 exact 64자 lowercase hex `BUILD_API_CREDENTIAL`을 request 전에 검증하고, redirect를 따르지 않는 bounded GET으로 raw snapshot을 strict parser에 직접 전달한다. parsed manifest 밖 media를 network 전에 거부하고 UUID별 in-flight/result를 memory에 memoize하며 response MIME·Content-Length·실제 byte length를 exact 대조한 뒤 기존 transformer에 전달한다. `scripts/prepare-publication-staging.mts`는 generation과 private output path만 argv로 받고 safe JSON result와 terminal/transient/generation failure를 구분한다. token·내부 URL·media UUID·path·raw exception은 출력이나 generated artifact에 넣지 않는다.
 

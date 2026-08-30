@@ -1,7 +1,7 @@
 import type {
   BuildGalleryItemV1,
   BuildMediaAssetV1,
-  BuildSnapshotV1,
+  BuildSnapshotV2,
 } from "./contracts.mts";
 
 export const IDS = {
@@ -49,12 +49,12 @@ export function galleryItem(
 }
 
 export function snapshotFixture(
-  overrides: Partial<BuildSnapshotV1> = {},
-): BuildSnapshotV1 {
+  overrides: Partial<BuildSnapshotV2> = {},
+): BuildSnapshotV2 {
   return {
-    schemaVersion: 1,
-    contentRevision: 14,
-    publishGeneration: 7,
+    schemaVersion: 2,
+    contentRevision: "14",
+    publishGeneration: "7",
     generatedAt: "2026-08-30T00:00:00.123456Z",
     shop: {
       shopName: "라오미펫",

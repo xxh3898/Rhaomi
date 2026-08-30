@@ -198,7 +198,7 @@ Phase 1C-8f3은 build 입력 조회 경계까지만 구현한다. publisher poll
 
 ### Phase 1C-8f4 — build snapshot transformer·responsive image derivative
 
-- Build API transport와 분리된 strict `BuildSnapshotV1` schema·semantic·relation·time/media manifest 재검증
+- Build API transport와 분리된 strict `BuildSnapshotV2` schema·semantic·relation·time/media manifest 재검증과 int64 canonical decimal string 보존
 - distinct `MediaContentProvider` fetch-once와 JPEG·PNG signature/decode/size/pixel/single-image fail-closed 검증
 - Gallery card·large와 Hero의 no-upscale AVIF·WebP·JPEG 파생본, Shop 미용사·OG의 임시 JPEG fallback
 - output-byte SHA-256 filename, 결정적 `content.json`·`media-manifest.json`과 `public/generated/media` staging 산출물

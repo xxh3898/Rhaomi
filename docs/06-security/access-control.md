@@ -36,12 +36,13 @@ review_trigger: "역할·권한·인증 방식 변경 시"
 
 ### Build service
 
-build-time 공개 콘텐츠 조회는 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에 따라 internal `/api/build/**` namespace와 관리자 session과 분리된 service credential을 사용한다.
+build-time 공개 콘텐츠 조회는 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)과 [ADR-015](../09-decisions/ADR-015-lossless-int64-json-wire-contract.md)에 따라 internal `/api/build/**` namespace와 관리자 session과 분리된 service credential을 사용한다.
 
 - snapshot·media read만 허용하고 create/update/delete/share를 모두 금지한다.
 - public Nginx에서 `/api/build/**`를 명시적으로 거부한다.
 - query 단계에서 published 상태, notice 게시·만료, relation target, media active와 file scope를 제한한다.
 - publisher transformer가 같은 status·relation·file 조건을 다시 검증한다.
+- Build Snapshot V2 revision/generation은 canonical decimal string만 허용하고 Node가 JSON number로 축소하지 않아 generation equality·stale protection을 precision collision로 우회하지 못하게 한다.
 - raw storage path, DB credential, admin session과 private metadata를 노출하지 않는다.
 
 build API와 stateless credential 경계, Node staging adapter와 credential을 사용하지 않는 publisher control loop는 구현됐다. adapter는 같은 secret source의 `BUILD_API_CREDENTIAL`을 environment로만 받고 URL/query/argv/output에는 넣지 않으며 no-redirect bounded GET과 manifest-scoped memory media provider만 사용한다. production publisher secret provisioning과 Java executor binding은 아직 구현되지 않았다. local token은 backend와 명시적인 staging validation process에만 전달하고 frontend·gateway environment에는 key를 두지 않으며 frontend filesystem에는 `.env.dev.local`, backend source와 local secret/config를 mount하지 않는다. 관리자 session을 재사용하거나 실제 token을 이 문서·저장소에 만들지 않는다.

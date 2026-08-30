@@ -61,19 +61,19 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 
 - `GET /api/build/snapshot?publishGeneration=<positive-long>`과 `GET /api/build/media/{id}/content?publishGeneration=<positive-long>`만 허용한다.
 - 관리자 session과 분리된 64자 lowercase hex Bearer token을 timing-safe 비교하며 build chain은 stateless이고 session·request cache를 만들지 않는다.
-- snapshot은 active `PROCESSING` generation과 live lease를 확인한 뒤 하나의 read-only `REPEATABLE READ` transaction에서 current `contentRevision`과 server-owned microsecond `generatedAt`을 읽는다.
+- snapshot은 active `PROCESSING` generation과 live lease를 확인한 뒤 하나의 read-only `REPEATABLE READ` transaction에서 current `contentRevision`과 server-owned microsecond `generatedAt`을 읽는다. PostgreSQL `BIGINT`와 Java `long`은 유지하고 Build Snapshot V2 wire에서 revision/generation만 canonical decimal string으로 직렬화한다.
 - exact DTO allowlist와 published/time/relation/media/file 조건을 검증하고 Shop·공개 가능한 Gallery가 참조한 distinct active media manifest만 반환한다.
 - media content는 current public relation scope를 다시 확인하고 canonical master의 실제 size·SHA를 검증한 뒤 `private, no-store`·`nosniff`로 반환한다.
 - build 호출은 revision·outbox·generation·lease·attempt·콘텐츠를 변경하지 않는다. dev/public Nginx는 `/api/build/**`를 backend로 proxy하지 않는다.
 
 ## 현재 transformer 경계
 
-- exact `BuildSnapshotV1` top-level·entity key와 UUID·slug·microsecond Instant·URL, backend/build API가 정의한 field별 text/number limit, uniqueness, relation, published/time eligibility와 exact media manifest를 fail-closed로 다시 검증한다. Breed·Service description에는 publication-only 길이 제한을 두지 않는다.
+- exact `BuildSnapshotV2` top-level·entity key와 UUID·slug·microsecond Instant·URL, canonical int64 decimal string revision/generation, backend/build API가 정의한 field별 text/number limit, uniqueness, relation, published/time eligibility와 exact media manifest를 fail-closed로 다시 검증한다. Breed·Service description에는 publication-only 길이 제한을 두지 않는다.
 - 문자열 canonical 검증은 JS `trim()` 공통 규칙이 아니다. Breed·Service·Notice는 Java `String.strip()`/`isBlank()`와 UTF-16 length, Shop은 `Character.isWhitespace() || Character.isSpaceChar()` strip과 code-point length, Gallery는 같은 strip과 Build API UTF-16 length를 각각 재현한다.
 - source 배열의 Breed·Service canonical server order는 보존하고 media 처리·manifest는 UUID, profile, format, width의 고정 순서로 만든다.
 - `MediaContentProvider`는 distinct media UUID당 한 번만 호출한다. HTTP·Bearer credential·session과 backend storage path는 transformer에 포함하지 않는다.
 - JPEG·PNG signature/content type·decode·30 MiB·12,000px·60MP·single-image 조건을 확인한 뒤 orientation·sRGB·metadata 제거와 no-upscale AVIF·WebP·JPEG 파생본을 생성하고 결과도 decode·format·metadata로 재검증한다.
-- output byte SHA-256 파일명으로 중복 file을 합치고 `src/generated/content.json`, `src/generated/media-manifest.json`, `public/generated/media`를 deterministic하게 생성한다.
+- output byte SHA-256 파일명으로 중복 file을 합치고 V2 `src/generated/content.json`, V2 `src/generated/media-manifest.json`, `public/generated/media`를 deterministic하게 생성한다. 두 JSON artifact와 staging result·machine CLI는 fetched revision/generation string을 byte-for-byte 보존하고 Node는 범위·equality·ordering에만 `BigInt`를 사용한다.
 - 새 staging target과 같은 parent의 임시 directory를 완성한 뒤 rename한다. 실패 시 임시 산출물을 제거하며 이미 존재하는 성공 target을 교체하거나 current/previous를 조작하지 않는다.
 - `SNAPSHOT_INVALID`, `MEDIA_NOT_FOUND`, `MEDIA_INVALID`, `MEDIA_TRANSFORM_FAILED`, `OUTPUT_FAILED`만 외부 오류 계약으로 사용하고 path·UUID·decoder detail을 출력하지 않는다.
 
@@ -163,9 +163,9 @@ sequenceDiagram
 - publisher container의 활성 `current` 안에서 build하지 않는다.
 - 모든 입력 조회가 성공하기 전 snapshot을 확정하지 않는다.
 - 일부 최신/일부 과거 콘텐츠를 혼합하지 않는다.
-- release manifest와 content snapshot에 `contentRevision`, `publishGeneration`, `generatedAt`을 함께 기록한다.
+- release manifest와 content snapshot에 canonical decimal string `contentRevision`, `publishGeneration`, `generatedAt`을 함께 기록한다.
 - 검증 성공 전 symlink를 바꾸지 않는다.
-- target `publishGeneration`을 `current` manifest의 generation과 비교하고, 낮거나 같은 generation의 build는 최신 release를 덮지 못한다.
+- target `publishGeneration` string을 `BigInt`로 검증·비교하고, 낮거나 같은 generation의 build는 최신 release를 덮지 못한다. string을 JSON number로 변환하지 않는다.
 - 같은 `contentRevision`도 게시·만료 경계마다 서로 다른 generation과 공개 snapshot을 가질 수 있다.
 
 ## scheduled event 안전성

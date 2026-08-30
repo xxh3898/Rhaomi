@@ -19,8 +19,8 @@ import java.util.UUID;
 })
 public record BuildSnapshotResponse(
         int schemaVersion,
-        long contentRevision,
-        long publishGeneration,
+        String contentRevision,
+        String publishGeneration,
         Instant generatedAt,
         Shop shop,
         List<Service> services,

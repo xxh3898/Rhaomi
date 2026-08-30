@@ -1,8 +1,8 @@
 import {
   BuildTransformError,
-  parseBuildSnapshotV1,
+  parseBuildSnapshotV2,
   type BuildMediaAssetV1,
-  type BuildSnapshotV1,
+  type BuildSnapshotV2,
   type MediaContent,
   type MediaContentProvider,
 } from "../build-transformer/index.mts";
@@ -172,7 +172,7 @@ export class BuildApiClient {
 
   async fetchSnapshot(
     generation: PublishGeneration,
-  ): Promise<BuildSnapshotV1> {
+  ): Promise<BuildSnapshotV2> {
     return withRequestTimeout(
       this.#config.requestTimeoutMs,
       async (signal) => {
@@ -185,9 +185,9 @@ export class BuildApiClient {
           preparationFail("BUILD_RESPONSE_INVALID");
         }
         const rawSnapshot = await responseJson(response);
-        let snapshot: BuildSnapshotV1;
+        let snapshot: BuildSnapshotV2;
         try {
-          snapshot = parseBuildSnapshotV1(rawSnapshot);
+          snapshot = parseBuildSnapshotV2(rawSnapshot);
         } catch (error) {
           if (
             error instanceof BuildTransformError &&

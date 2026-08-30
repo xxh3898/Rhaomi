@@ -226,13 +226,13 @@ Authorization: Bearer <64 lowercase hex token>
 - response `contentRevision`은 event가 생성될 때의 revision이 아니라 같은 database snapshot의 current singleton 값이다.
 - build API는 generation 상태 확인만 하며 claim, lease renewal, attempt·terminal transition, revision/outbox/content/media mutation을 수행하지 않는다.
 
-## build snapshot response v1 — current
+## build snapshot response V2 — current
 
 ```json
 {
-  "schemaVersion": 1,
-  "contentRevision": 123,
-  "publishGeneration": 128,
+  "schemaVersion": 2,
+  "contentRevision": "9007199254740993",
+  "publishGeneration": "9007199254740993",
   "generatedAt": "2035-01-01T00:00:00.123456Z",
   "shop": {},
   "services": [],
@@ -242,6 +242,8 @@ Authorization: Bearer <64 lowercase hex token>
   "mediaAssets": []
 }
 ```
+
+PostgreSQL `BIGINT`와 Java internal `long` domain은 유지하고 HTTP DTO 경계에서만 `Long.toString(...)`으로 변환한다. `contentRevision`은 `0` 또는 `[1-9][0-9]*`이면서 `0..9223372036854775807`, `publishGeneration`은 `[1-9][0-9]*`이면서 `1..9223372036854775807`인 canonical decimal string이다. 빈 값, sign, 공백, leading zero, 소수·지수, 범위 초과와 JSON number는 V2에서 거부한다. query의 `publishGeneration=<positive-long decimal>`과 backend service의 `long` 계약은 바뀌지 않는다.
 
 Build API response에는 `codeImageDigest`를 넣지 않는다. top-level과 item DTO는 다음 exact allowlist만 사용한다.
 
@@ -274,26 +276,27 @@ audit actor/timestamp, status, storage key/path, extension, persisted SHA-256, s
 ## build snapshot transformer — current
 
 - transformer는 backend HTTP·credential이나 Spring DTO class에 의존하지 않고 JSON 값과 `MediaContentProvider` port를 입력으로 받는다.
-- top-level·모든 entity exact key, `schemaVersion = 1`, safe integer revision/generation, canonical UUID·slug·microsecond Instant, backend/build API가 정의한 field별 문자열·URL·number limit과 Shop/media pair를 fail-closed로 검증한다. Breed·Service description은 canonical/nonblank 계약만 재검증하며 transformer 전용 길이 제한을 추가하지 않는다.
+- top-level·모든 entity exact key, `schemaVersion = 2`, canonical int64 decimal string revision/generation, canonical UUID·slug·microsecond Instant, backend/build API가 정의한 field별 문자열·URL·number limit과 Shop/media pair를 fail-closed로 검증한다. Breed·Service description은 canonical/nonblank 계약만 재검증하며 transformer 전용 길이 제한을 추가하지 않는다.
+- revision/generation은 Node object와 `content.json`·`media-manifest.json`에서 string을 그대로 유지하고 범위·요청 equality·향후 stale ordering에만 `BigInt`를 사용한다. `Number`, `parseInt`, unary `+`로 변환하지 않는다.
 - text acceptance는 ECMAScript `String.trim()`이나 `\S`를 공통 authority로 사용하지 않고 backend field family를 그대로 따른다. Breed·Service·Notice는 `ContentFields`의 Java `String.strip()`과 `BuildContentValidator`의 `String.isBlank()`·UTF-16 `String.length()`를 따른다. Shop은 `ShopSettingsValues`의 `Character.isWhitespace() || Character.isSpaceChar()` strip과 code-point length를 따르며, Gallery는 같은 strip 결과와 최종 Build API의 UTF-16 length를 모두 만족해야 한다. 따라서 U+00A0·U+2007·U+202F는 `ContentFields` text edge에서 보존될 수 있고 U+FEFF는 Shop/Gallery edge에서도 보존될 수 있다.
 - published/time eligibility, Breed·Service·Gallery·Notice 관계와 before/after·alt, exact distinct media manifest를 독립적으로 다시 확인한다. unknown/missing field나 explicit invalid relation은 silent omission하지 않는다.
 - Breed·Service는 snapshot의 canonical server order를 보존하고, media processing과 manifest는 media UUID·고정 profile·format·width 순서를 사용한다.
 - `MediaContentProvider`는 distinct media UUID당 한 번 호출한다. provider 결과의 content type, JPEG·PNG signature/decode, byte·dimension·pixel·single-image 조건을 manifest와 다시 대조한다.
 - orientation 적용·sRGB·metadata 제거 뒤 Gallery card `360/640/960`, Gallery large `768/1200/1600`, Hero `768/1280/1920`의 no-upscale AVIF·WebP·JPEG를 생성한다. 미용사·OG는 최종 layout 결정 전 최대 1200 JPEG fallback을 사용한다.
 - output도 decode·format·metadata를 다시 확인하고 encoded byte SHA-256을 filename으로 사용한다. 동일 byte는 하나의 public file로 deduplicate한다.
-- `src/generated/content.json`, `src/generated/media-manifest.json`, `public/generated/media`를 target sibling temp에서 모두 만든 뒤 새 target으로 rename한다. target이 이미 존재하거나 어느 단계든 실패하면 기존 target을 교체하지 않고 partial temp를 제거한다.
+- `GeneratedContentV2`의 `src/generated/content.json`과 `PublicMediaManifestV2`의 `src/generated/media-manifest.json`은 모두 `schemaVersion = 2`와 fetched snapshot의 canonical decimal string revision/generation을 byte-for-byte 보존한다. `public/generated/media`와 함께 target sibling temp에서 모두 만든 뒤 새 target으로 rename한다. target이 이미 존재하거나 어느 단계든 실패하면 기존 target을 교체하지 않고 partial temp를 제거한다.
 - `SNAPSHOT_INVALID`, `MEDIA_NOT_FOUND`, `MEDIA_INVALID`, `MEDIA_TRANSFORM_FAILED`, `OUTPUT_FAILED`의 fixed code/message만 호출 경계에 제공한다. UUID·path·decoder/exception detail을 포함하지 않는다.
 - filesystem CLI는 `<media-root>/<uuid>.jpg|png` fixture adapter일 뿐 build API HTTP client나 production publisher가 아니다.
 
 ## Build API adapter·staging orchestration — current
 
 - `BUILD_API_INTERNAL_URL`은 root absolute `http|https` origin만, `BUILD_API_CREDENTIAL`은 exact 64자 lowercase hex만 request 전에 허용한다. userinfo/query/fragment/path, credential argv/query/path와 `NEXT_PUBLIC_*`는 거부한다.
-- snapshot은 redirect를 따르지 않는 bounded `GET /api/build/snapshot?publishGeneration=<positive-long>`의 `200 application/json` 응답만 허용하고 raw JSON을 unknown field 제거 없이 `parseBuildSnapshotV1()`에 직접 전달한다. parsed generation은 요청 decimal long과 exact 일치해야 한다.
+- snapshot은 redirect를 따르지 않는 bounded `GET /api/build/snapshot?publishGeneration=<positive-long>`의 `200 application/json` 응답만 허용하고 raw JSON을 unknown field 제거 없이 `parseBuildSnapshotV2()`에 직접 전달한다. parsed canonical string generation은 요청 `BigInt`와 exact 일치해야 한다.
 - parsed manifest를 authority로 `HttpMediaContentProvider`를 만들고 manifest 밖 UUID를 network 전에 거부한다. UUID별 in-flight/success/failure Promise를 memoize해 중복 relation과 concurrent `get()`도 실제 HTTP request 최대 1회다.
 - media response는 HTTP 200, manifest와 exact `Content-Type`, canonical `Content-Length`와 실제 body length를 모두 만족해야 한다. canonical raw byte는 durable input file 없이 memory cache에서 기존 transformer로 전달한다.
 - fixed runtime timeout은 snapshot/media headers와 body 완료까지 10초이며 redirect, 401/403, 409, 422, 429/5xx, malformed 2xx와 transformer code를 `TERMINAL | TRANSIENT | GENERATION`의 safe category로 분리한다. `BUILD_OUTPUT_FAILED`는 이번 staging-only 경계에서 terminal이다.
 - process entrypoint는 `--publish-generation`과 `--output`만 argv로 받고 safe one-line JSON과 exit `0 | 20 | 21 | 22`만 제공한다. token·Authorization·internal URL/path·media UUID·raw response/stack은 출력하지 않는다.
-- orchestration은 manifest media를 cache에 먼저 채워 HTTP retry category를 보존한 뒤 기존 transformer를 호출하고 configurable private target에 atomic staging을 만든다. output의 `contentRevision`, `publishGeneration`, `generatedAt`은 fetched snapshot과 같다.
+- orchestration은 manifest media를 cache에 먼저 채워 HTTP retry category를 보존한 뒤 기존 transformer를 호출하고 configurable private target에 atomic staging을 만든다. `PublicationStagingResult`와 machine JSON CLI의 `contentRevision`, `publishGeneration`도 fetched snapshot의 canonical string을 그대로 보존한다.
 - 이 staging 성공은 public publication `SUCCESS`나 `NO_PUBLIC_CHANGE`가 아니다. `PublisherConfiguration` placeholder, outbox state, `current/previous`, active public path는 변경하지 않는다.
 
 ## publisher content snapshot·release manifest — planned
@@ -302,10 +305,10 @@ audit actor/timestamp, status, storage key/path, extension, persisted SHA-256, s
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "generatedAt": "2035-01-01T00:00:00.123456Z",
-  "contentRevision": 123,
-  "publishGeneration": 128,
+  "contentRevision": "9007199254740993",
+  "publishGeneration": "9007199254740993",
   "codeImageDigest": "sha256:<digest>",
   "shop": {},
   "services": [],
@@ -319,7 +322,7 @@ audit actor/timestamp, status, storage key/path, extension, persisted SHA-256, s
 - 모든 조회·transform이 성공한 뒤 임시 file과 atomic rename으로 기록한다.
 - `contentRevision`은 지원되는 콘텐츠 domain mutation snapshot revision이고 `publishGeneration`은 immediate mutation, due boundary, 승인된 code release와 manual rebuild/retry를 포함하는 public trigger sequence다.
 - 같은 `contentRevision`에서도 publish/expiry boundary별 generation과 snapshot을 만들 수 있다. 자동 attempt retry는 같은 generation을 유지한다.
-- release manifest도 `contentRevision`, `publishGeneration`, `generatedAt`, 승인된 `codeImageDigest`를 기록하고 `current` atomic switch는 generation을 stale protection authority로 사용한다.
+- release manifest도 canonical decimal string `contentRevision`, `publishGeneration`, `generatedAt`, 승인된 `codeImageDigest`를 기록하고 `current` atomic switch는 generation을 `BigInt`로 비교한 stale protection authority로 사용한다.
 - 일부 collection만 과거 data로 fallback하거나 scheduled event ID·과거 boundary로 current snapshot filter를 우회하지 않는다.
 - transformer는 API response schema와 published/relation/file 조건을 다시 검증하고 raw response를 component에 직접 전달하지 않는다.
 

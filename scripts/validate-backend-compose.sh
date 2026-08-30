@@ -122,6 +122,8 @@ compose run --rm --no-deps \
   --tests 'kr.co.rhaomi.publisher.*' \
   --tests 'kr.co.rhaomi.backend.PublisherIsolationIntegrationTests' \
   --no-daemon
+compose down
+sh "$repo_dir/scripts/validate-build-int64-e2e.sh"
 compose --profile frontend up -d --wait --wait-timeout 300 postgres backend frontend gateway
 compose ps
 

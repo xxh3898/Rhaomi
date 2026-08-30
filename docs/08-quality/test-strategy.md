@@ -232,7 +232,8 @@ review_trigger: "기술·기능 범위 변경 시"
 - production profile의 missing·malformed token startup failure와 valid token·Secure cookie 성공
 - active PROCESSING generation+live lease 성공, pending·retry-wait·terminal·expired·unknown·nonpositive generation 거부
 - read-only PostgreSQL REPEATABLE READ transaction과 단일 server-owned microsecond generatedAt, current revision과 target event revision 분리
-- exact top-level·Shop·Breed·Service·Gallery·Notice·Media key allowlist, `schemaVersion=1`, `codeImageDigest`·audit·storage/hash·claim field 부재
+- exact top-level·Shop·Breed·Service·Gallery·Notice·Media key allowlist, `schemaVersion=2`, canonical decimal string revision/generation과 `codeImageDigest`·audit·storage/hash·claim field 부재
+- 실제 PostgreSQL 18.6·Flyway V1~V9에서 `9007199254740993`과 `9223372036854775807` active generation HTTP 200, JSON string exact 보존과 content revision `0` 경계
 - published Breed/Service ordering, Gallery due/future와 relation published 조건, Notice active/future/expired·pinned ordering, Markdown source 보존
 - Shop singleton·NAP/time/HTTPS/image-alt validation, Service final state와 direct-invalid content 전체 422
 - Shop/Gallery relation의 active media distinct union·id ordering과 canonical master size·SHA 검증, invalid/missing/corrupt file 전체 snapshot 실패
@@ -328,11 +329,12 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 
 - absolute root http/https URL, exact lowercase-hex credential와 positive Java long의 request 전 fail-closed validation
 - exact Bearer·generation query, no redirect/cookie, snapshot/media body까지 bounded timeout
-- raw JSON strict parse, future/unknown schema·field와 generation mismatch safe failure, 10,001-char·Java Unicode whitespace 회귀
+- raw JSON V2 strict parse, future/unknown/V1 schema·field·numeric revision/generation과 generation mismatch safe failure, canonical int64 malformed/overflow 경계, 10,001-char·Java Unicode whitespace 회귀
 - 401/403, 409, 422, 429/5xx/timeout, malformed JSON·unexpected snapshot MIME의 terminal/transient/generation category
 - manifest membership과 UUID별 concurrent duplicate fetch 1회, exact MIME·Content-Length·body length
 - media 404/503와 corrupt actual byte의 transport/deterministic transformer category 분리
-- synthetic loopback HTTP JPEG/PNG → existing transformer → atomic staging의 revision/generation/generatedAt·decode/hash/metadata 검증
+- synthetic loopback HTTP JPEG/PNG → existing transformer → atomic staging의 canonical string revision/generation·generatedAt·decode/hash/metadata 검증
+- raw HTTP `9007199254740993` → Node parser → V2 `content.json`·`media-manifest.json`과 machine CLI의 exact string 보존
 - CLI environment-only credential, fixed argv, safe one-line JSON과 exit `0/20/21/22`, secret/URL/path/UUID/stack leak 0
 - Linux amd64 Hosted와 Linux arm64 Mac Compose Node 24/Sharp 실행
 - Java placeholder executor, publication DB state, Flyway V1~V9, default Compose와 public/admin route 불변

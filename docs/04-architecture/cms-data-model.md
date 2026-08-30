@@ -3,7 +3,7 @@ title: "도메인 데이터 모델"
 status: "proposed"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "PostgreSQL table·field·API 변경 시"
 ---
 
@@ -92,7 +92,8 @@ schema source of truth는 `backend/src/main/resources/db/migration/V1__create_ad
 
 - Build API는 새 table·column 없이 V1~V9 current row를 하나의 read-only PostgreSQL `REPEATABLE READ` transaction에서 조회한다.
 - active `PROCESSING` generation과 live lease가 request gate이고, response `contentRevision`은 해당 event의 과거 값이 아니라 같은 snapshot에서 읽은 current singleton 값이다.
-- top-level은 `schemaVersion`, `contentRevision`, `publishGeneration`, server-owned microsecond `generatedAt`, `shop`, `services`, `breeds`, `galleryItems`, `notices`, `mediaAssets`만 허용한다.
+- Build Snapshot V2 top-level은 `schemaVersion`, `contentRevision`, `publishGeneration`, server-owned microsecond `generatedAt`, `shop`, `services`, `breeds`, `galleryItems`, `notices`, `mediaAssets`만 허용한다.
+- database source-of-truth는 `BIGINT`, Java internal source-of-truth는 `long`이다. HTTP/generated JSON 경계의 revision/generation만 canonical decimal string이며 `contentRevision`은 0 이상, `publishGeneration`은 1 이상이고 둘 다 `Long.MAX_VALUE` 이하다. 이 wire 변경에는 Flyway V10이나 data migration이 없다.
 - Shop은 공개 business field 26개만, Breed·Service·Gallery·Notice는 각 public field allowlist만, media manifest는 `id`, `contentType`, `byteSize`, `width`, `height`만 반환한다.
 - audit, status, storage key/path, persisted hash, source filename/type, claim owner·lease·event ID는 ordering·validation input일 수 있지만 DTO에는 노출하지 않는다.
 - collection은 published/time 조건으로 filter하고 relation target·active media·실제 canonical master size/hash를 다시 검증한다. 명시적 invalid relation/file은 silent omission 없이 전체 snapshot 오류다.

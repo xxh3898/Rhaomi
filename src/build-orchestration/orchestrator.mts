@@ -16,8 +16,8 @@ import { BuildApiClient, type BuildApiFetch } from "./http-client.mts";
 
 export type PublicationStagingResult = Readonly<{
   status: "STAGING_PREPARED";
-  contentRevision: number;
-  publishGeneration: number;
+  contentRevision: string;
+  publishGeneration: string;
   generatedAt: string;
   publicFileCount: number;
 }>;

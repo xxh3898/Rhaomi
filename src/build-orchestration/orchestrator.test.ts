@@ -10,7 +10,7 @@ import { join, resolve } from "node:path";
 import sharp from "sharp";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { BuildSnapshotV1 } from "../build-transformer/contracts.mts";
+import type { BuildSnapshotV2 } from "../build-transformer/contracts.mts";
 import {
   IDS,
   galleryItem,
@@ -81,7 +81,7 @@ async function syntheticPng(): Promise<Buffer> {
     .toBuffer();
 }
 
-function orchestrationSnapshot(jpeg: Buffer, png: Buffer): BuildSnapshotV1 {
+function orchestrationSnapshot(jpeg: Buffer, png: Buffer): BuildSnapshotV2 {
   const base = snapshotFixture();
   return snapshotFixture({
     shop: {
@@ -107,7 +107,7 @@ function orchestrationSnapshot(jpeg: Buffer, png: Buffer): BuildSnapshotV1 {
 }
 
 async function listen(
-  snapshot: BuildSnapshotV1,
+  snapshot: BuildSnapshotV2,
   media: ReadonlyMap<string, Readonly<{ contentType: string; bytes: Buffer }>>,
 ): Promise<{
   baseUrl: string;
@@ -126,7 +126,8 @@ async function listen(
 
     if (
       request.method === "GET" &&
-      requestUrl === "/api/build/snapshot?publishGeneration=7"
+      requestUrl ===
+        `/api/build/snapshot?publishGeneration=${snapshot.publishGeneration}`
     ) {
       const body = Buffer.from(JSON.stringify(snapshot));
       response.writeHead(200, {
@@ -138,7 +139,10 @@ async function listen(
     }
 
     const match = requestUrl.match(
-      /^\/api\/build\/media\/([0-9a-f-]+)\/content\?publishGeneration=7$/u,
+      new RegExp(
+        `^/api/build/media/([0-9a-f-]+)/content\\?publishGeneration=${snapshot.publishGeneration}$`,
+        "u",
+      ),
     );
     const content = match === null ? undefined : media.get(match[1] ?? "");
     if (request.method === "GET" && content !== undefined) {
@@ -307,18 +311,21 @@ describe("publication staging orchestration", () => {
     );
     const content = JSON.parse(contentText) as Record<string, unknown>;
     const manifest = JSON.parse(manifestText) as {
-      contentRevision: number;
-      publishGeneration: number;
+      schemaVersion: number;
+      contentRevision: string;
+      publishGeneration: string;
       items: Array<{
         variants: Array<{ publicPath: string }>;
       }>;
     };
     expect(content).toMatchObject({
+      schemaVersion: 2,
       contentRevision: snapshot.contentRevision,
       publishGeneration: snapshot.publishGeneration,
       generatedAt: snapshot.generatedAt,
     });
     expect(manifest).toMatchObject({
+      schemaVersion: 2,
       contentRevision: snapshot.contentRevision,
       publishGeneration: snapshot.publishGeneration,
     });
@@ -410,7 +417,12 @@ describe("publication staging orchestration", () => {
     const root = await taskRoot();
     const jpeg = await syntheticJpeg();
     const png = await syntheticPng();
-    const snapshot = orchestrationSnapshot(jpeg, png);
+    const decimal = "9007199254740993";
+    const snapshot = {
+      ...orchestrationSnapshot(jpeg, png),
+      contentRevision: decimal,
+      publishGeneration: decimal,
+    };
     const server = await listen(
       snapshot,
       new Map([
@@ -426,7 +438,7 @@ describe("publication staging orchestration", () => {
     };
 
     const success = await runCli(
-      ["--publish-generation", "7", "--output", output],
+      ["--publish-generation", decimal, "--output", output],
       environment,
     );
 
@@ -434,7 +446,8 @@ describe("publication staging orchestration", () => {
     expect(success.stderr).toBe("");
     expect(JSON.parse(success.stdout)).toMatchObject({
       status: "STAGING_PREPARED",
-      publishGeneration: 7,
+      contentRevision: decimal,
+      publishGeneration: decimal,
     });
     expect(success.stdout).not.toContain(SYNTHETIC_CREDENTIAL);
     expect(success.stdout).not.toContain(server.baseUrl);

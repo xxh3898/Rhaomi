@@ -27,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class BuildSnapshotService {
 
-    private static final int SCHEMA_VERSION = 1;
+    private static final int SCHEMA_VERSION = 2;
     private static final DateTimeFormatter TIME_FORMAT =
             DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT);
 
@@ -59,8 +59,8 @@ public class BuildSnapshotService {
 
         return new BuildSnapshotResponse(
                 SCHEMA_VERSION,
-                contentRevision,
-                publishGeneration,
+                Long.toString(contentRevision),
+                Long.toString(publishGeneration),
                 generatedAt,
                 shop(shop),
                 services.stream().map(this::service).toList(),

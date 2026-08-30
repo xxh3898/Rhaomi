@@ -418,7 +418,11 @@ test("internal read-only build API와 service credential 경계를 고정한다"
     /@Transactional\(readOnly = true, isolation = Isolation\.REPEATABLE_READ\)/,
   );
   assert.match(mediaService, /MediaStorage/);
-  assert.match(snapshotResponse, /publishGeneration/);
+  assert.match(snapshotService, /SCHEMA_VERSION = 2/);
+  assert.match(snapshotService, /Long\.toString\(contentRevision\)/);
+  assert.match(snapshotService, /Long\.toString\(publishGeneration\)/);
+  assert.match(snapshotResponse, /String contentRevision/);
+  assert.match(snapshotResponse, /String publishGeneration/);
   assert.doesNotMatch(
     snapshotResponse,
     /createdBy|updatedBy|storageKey|fileExtension|sha256|sourceContentType|claimOwner|leaseUntil|eventId/,
@@ -477,12 +481,15 @@ test("frontend runtime과 dependency에서 local credential filesystem을 격리
 });
 
 test("build snapshot transformer dependency와 amd64/arm64 Compose smoke를 고정한다", async () => {
-  const [packageJson, packageLock, composeSmoke, transformer] = await Promise.all([
-    source("package.json"),
-    source("package-lock.json"),
-    source("scripts/validate-backend-compose.sh"),
-    source("src/build-transformer/transformer.mts"),
-  ]);
+  const [packageJson, packageLock, composeSmoke, int64E2e, contracts, transformer] =
+    await Promise.all([
+      source("package.json"),
+      source("package-lock.json"),
+      source("scripts/validate-backend-compose.sh"),
+      source("scripts/validate-build-int64-e2e.sh"),
+      source("src/build-transformer/contracts.mts"),
+      source("src/build-transformer/transformer.mts"),
+    ]);
 
   const manifest = JSON.parse(packageJson);
   const lock = JSON.parse(packageLock);
@@ -512,7 +519,17 @@ test("build snapshot transformer dependency와 amd64/arm64 Compose smoke를 고�
   assert.match(composeSmoke, /x86_64 \| aarch64/);
   assert.match(composeSmoke, /npm run test:orchestration/);
   assert.match(composeSmoke, /npm run test:transformer/);
+  assert.match(composeSmoke, /validate-build-int64-e2e\.sh/);
+  assert.match(int64E2e, /9007199254740993/);
+  assert.match(int64E2e, /9223372036854775807/);
+  assert.doesNotMatch(int64E2e, /docker (?:volume rm|system prune|volume prune)/);
+  assert.match(contracts, /export type BuildSnapshotV2/);
+  assert.match(contracts, /schemaVersion: 2/);
+  assert.match(contracts, /contentRevision: string/);
+  assert.match(contracts, /publishGeneration: string/);
+  assert.match(contracts, /BigInt\(value\)/);
   assert.match(transformer, /createHash\("sha256"\)/);
+  assert.match(transformer, /PublicMediaManifestV2/);
   assert.match(transformer, /\/generated\/media\/\$\{filename\}/);
   assert.doesNotMatch(transformer, /RHAOMI_BUILD_SERVICE_TOKEN|Authorization/);
 });
@@ -549,10 +566,14 @@ test("Build API HTTP adapter와 staging-only orchestration 경계를 고정한�
   assert.match(httpClient, /redirect: "manual"/);
   assert.match(httpClient, /credentials: "omit"/);
   assert.match(httpClient, /publishGeneration/);
+  assert.match(httpClient, /parseBuildSnapshotV2/);
+  assert.match(httpClient, /BigInt\(snapshot\.publishGeneration\)/);
   assert.match(httpClient, /new Map\(input\.assets\.map/);
   assert.match(httpClient, /this\.#content\.set\(mediaId, pending\)/);
   assert.match(orchestrator, /await mediaContentProvider\.prefetchAll\(\)/);
   assert.match(orchestrator, /transformBuildSnapshot/);
+  assert.match(orchestrator, /contentRevision: string/);
+  assert.match(orchestrator, /publishGeneration: string/);
   assert.doesNotMatch(orchestrator, /completeSuccess|completeNoop|PublicationBuildResult/);
   assert.match(cli, /--publish-generation/);
   assert.match(cli, /--output/);

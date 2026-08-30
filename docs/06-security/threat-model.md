@@ -84,6 +84,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | Build API redirect·SSRF·credential 유출 | token이 다른 origin으로 전달되거나 internal topology 노출 | root absolute http/https origin allowlist, userinfo/query/fragment/path 거부, redirect manual·cookie omit, credential argv/query/path/log/generated output 금지 |
 | media 중복·protocol drift | 같은 private master 반복 유출, memory/resource 낭비, 잘못된 byte transform | strict manifest membership, UUID별 rejected/in-flight/result memoization, exact MIME·Content-Length·body length와 bounded body read |
 | build snapshot 혼합·내부 field 노출 | 서로 다른 revision 조합 또는 private metadata 유출 | read-only REPEATABLE READ, 단일 microsecond generatedAt, exact DTO allowlist, current revision과 relation/media/file 재검증 |
+| int64 JSON precision loss | generation equality·stale ordering 충돌, 잘못된 artifact 식별 | V2 canonical decimal string, `Long.toString` DTO, Node string 보존과 range/equality/ordering 한정 `BigInt`, JSON number·malformed·overflow 거부 |
 | build API state mutation | lease·attempt·콘텐츠 ordering 오염 | GET-only chain, 모든 mutation deny, read-only transaction, 전후 publication state integration test |
 | snapshot parser drift·relation 우회 | draft·만료·missing relation 또는 private field의 공개 산출물 유입 | exact key·schema·semantic·generatedAt eligibility·relation·media manifest를 transport-independent transformer에서 재검증, unknown/missing field fail-closed |
 | canonical media 위조·metadata 노출 | 손상 image 처리, GPS·기기 정보 공개 | provider content type과 JPEG·PNG signature/decode/size/pixel/single-image 재검증, orientation·sRGB·metadata strip, output decode·format·metadata 검사 |

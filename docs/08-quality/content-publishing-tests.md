@@ -37,7 +37,8 @@ review_trigger: "관리 backend·배포 event 변경 시"
 - [x] 관리자 session과 분리된 64자 lowercase hex Bearer token, timing-safe 비교, stateless principal·SecurityFilterChain과 production fail-fast
 - [x] exact 두 GET allowlist, mutation·unknown route·admin/build 교차 권한 거부와 session 비생성
 - [x] active PROCESSING generation·live lease gate와 read-only PostgreSQL REPEATABLE READ snapshot
-- [x] current contentRevision, server-owned microsecond generatedAt, exact top-level·item DTO allowlist와 codeImageDigest 부재
+- [x] current contentRevision, server-owned microsecond generatedAt, exact Build Snapshot V2 top-level·item DTO allowlist와 codeImageDigest 부재
+- [x] 실제 PostgreSQL 18.6 active generation의 `9007199254740993`·`9223372036854775807` HTTP 200과 exact canonical string revision/generation
 - [x] published Breed/Service, due Gallery, active-window Notice와 canonical ordering·Markdown source 보존
 - [x] Shop·Gallery relation, active distinct media manifest와 실제 canonical master size·SHA 재검증
 - [x] current public relation scope media content와 Content-Type/Length/private no-store/nosniff header
@@ -48,7 +49,7 @@ review_trigger: "관리 backend·배포 event 변경 시"
 
 ## Phase 1C-8f4 snapshot transformer 완료
 
-- [x] exact `BuildSnapshotV1` unknown/missing key, backend field별 type·limit·unsafe integer, UUID·slug·Instant·HTTPS·Shop pair 검증
+- [x] exact `BuildSnapshotV2` unknown/missing key, backend field별 type·limit·canonical int64 string boundary, UUID·slug·Instant·HTTPS·Shop pair 검증
 - [x] published Breed·Service의 10,001자 description이 Build API snapshot과 transformer를 통과하고 nullable/nonblank canonical 계약은 유지
 - [x] Admin API→published Breed description의 U+00A0·U+2007·U+202F 보존, Build API exact serialization과 transformer PASS
 - [x] ContentFields Java strip, Shop/Gallery Unicode-space strip, U+FEFF 보존과 Java UTF-16/code-point length family 차이 회귀
@@ -57,7 +58,7 @@ review_trigger: "관리 backend·배포 event 변경 시"
 - [x] distinct media fetch-once, JPEG·PNG content type/signature/decode와 30 MiB·12,000px·60MP·single-image/APNG 제한
 - [x] orientation·sRGB·metadata strip과 Gallery card·large·Hero no-upscale AVIF·WebP·JPEG 파생본
 - [x] output decode·format·metadata 재검증, output-byte SHA-256 filename과 duplicate byte file dedupe
-- [x] `src/generated/content.json`·`media-manifest.json`·`public/generated/media` staging contract
+- [x] V2 `src/generated/content.json`·`media-manifest.json`의 fetched int64 string byte-for-byte 보존과 `public/generated/media` staging contract
 - [x] missing/invalid/transform/output typed error, partial temp cleanup과 existing successful target 보존
 - [x] filesystem CLI success/failure safe output와 credential·UUID·path·decoder detail 비노출
 - [x] Linux amd64 Hosted·Linux arm64 Mac Compose에서 Node 24·exact Sharp transformer suite 실행 계약
@@ -80,13 +81,14 @@ review_trigger: "관리 backend·배포 event 변경 시"
 ## Phase 1C-8f6 Build API adapter·staging orchestration 완료
 
 - [x] URL/credential/generation request 전 검증, redirect·cookie 금지와 body까지 bounded timeout
-- [x] exact Bearer와 generation query, raw snapshot strict parse, requested/parsed generation exact 일치
+- [x] exact Bearer와 generation query, raw V2 snapshot strict parse, requested/parsed generation `BigInt` exact 일치
 - [x] 401/403 terminal, 409 generation, timeout/connection/429/5xx transient와 malformed 2xx terminal 분류
 - [x] manifest 밖 media network 전 거부와 UUID별 rejected/in-flight/result HTTP fetch 최대 1회
 - [x] media 200·exact Content-Type·Content-Length·actual body length와 404 terminal·503 transient 분류
 - [x] synthetic HTTP JPEG/PNG → existing Sharp transformer → content/media manifest·AVIF/WebP/JPEG hash staging
 - [x] corrupt media deterministic failure, partial temp 부재와 existing target 보존
-- [x] CLI fixed argv, environment-only credential, safe JSON/exit family와 token·URL/path·UUID·stack 비노출
+- [x] staging result·CLI의 canonical revision/generation string 보존, fixed argv, environment-only credential, safe JSON/exit family와 token·URL/path·UUID·stack 비노출
+- [x] `0` content revision, safe integer 경계, `9007199254740993`, `Long.MAX_VALUE` 성공과 zero generation·leading zero·overflow·JSON number 거부
 - [x] frontend/gateway credential environment/filesystem 0, public `/api/build/**` 404 유지
 - [x] Java `PublicationBuildExecutor` transient placeholder와 publication state·Flyway V1~V9 불변
 - [x] Linux amd64 Hosted와 Linux arm64 Mac Compose의 Node 24/Sharp orchestration suite 실행 계약
@@ -164,8 +166,8 @@ WebP source와 실제 iPhone HEIC는 canonical master transformer 입력 형식�
 ## 실패 안전성
 
 - [x] 콘텐츠 변경과 publishing outbox가 같은 PostgreSQL transaction에서 commit/rollback
-- [x] Build API response의 `contentRevision`·`publishGeneration`·`generatedAt` 일치와 `codeImageDigest` 부재
-- [x] transformer content/manifest의 `contentRevision`·`publishGeneration`·`generatedAt` 보존
+- [x] Build API V2 response의 canonical string `contentRevision`·`publishGeneration`·`generatedAt` 일치와 `codeImageDigest` 부재
+- [x] transformer V2 content/manifest·staging result·CLI의 canonical string `contentRevision`·`publishGeneration`·`generatedAt` 보존
 - [ ] publisher content snapshot/release manifest의 위 세 field·승인 code image digest 일치
 - [ ] 낮거나 같은 `publishGeneration`의 old build가 newer current를 덮지 못함
 - [x] build service token disabled → fixed 503, production 누락·malformed → startup failure

@@ -246,6 +246,10 @@ review_trigger: "제품 기능 변경 시"
 
 **Then** 관리자 session과 분리된 stateless principal로 인증하고 하나의 read-only PostgreSQL `REPEATABLE READ` transaction에서 server-owned microsecond `generatedAt`, current `contentRevision`, exact DTO allowlist와 published/time/relation/media/file 조건을 검증한다.
 
+**Given** active generation과 current revision이 `9007199254740993` 또는 `9223372036854775807`일 때
+
+**Then** Build Snapshot V2 HTTP 200은 두 값을 canonical decimal JSON string으로 exact 보존한다. PostgreSQL `BIGINT`·Java `long`과 positive-long query 계약은 유지하고 numeric V1 wire를 만들지 않는다.
+
 **Given** admin session만 있거나 build token이 missing·wrong·malformed·disabled이고, 또는 build token으로 admin API를 호출할 때
 
 **Then** 각 namespace는 서로 권한을 부여하지 않고 fixed 401 또는 disabled build service의 503으로 fail-closed한다. production token 누락·형식 오류는 startup failure다.
@@ -266,13 +270,17 @@ review_trigger: "제품 기능 변경 시"
 
 ## AC-20 build snapshot transformer·responsive derivative
 
-**Given** exact `BuildSnapshotV1`과 manifest에 일치하는 JPEG·PNG canonical media가 `MediaContentProvider`로 제공될 때
+**Given** exact `BuildSnapshotV2`와 manifest에 일치하는 JPEG·PNG canonical media가 `MediaContentProvider`로 제공될 때
 
 **When** 독립 transformer가 새 staging target을 만들면
 
 **Then** unknown/missing field·schema·semantic·게시 시각·relation·media manifest를 다시 검증하고 distinct media를 한 번씩만 읽으며, source보다 업스케일하지 않은 Gallery card `360/640/960`, Gallery large `768/1200/1600`, Hero `768/1280/1920` AVIF·WebP·JPEG 파생본을 생성한다.
 
-**Then** orientation·sRGB와 metadata 제거를 적용하고 output byte SHA-256 filename, 결정적 `content.json`·`media-manifest.json`과 `public/generated/media`를 기록한다. 같은 입력은 byte-for-byte 같은 산출물과 순서를 만든다.
+**Then** orientation·sRGB와 metadata 제거를 적용하고 output byte SHA-256 filename, 결정적 V2 `content.json`·`media-manifest.json`과 `public/generated/media`를 기록한다. revision/generation canonical decimal string은 fetched snapshot과 byte-for-byte 같고 같은 입력은 byte-for-byte 같은 산출물과 순서를 만든다.
+
+**Given** content revision `0` 또는 safe integer 경계를 넘는 `9007199254740993`·`9223372036854775807`의 유효한 V2 snapshot일 때
+
+**Then** Node는 string representation을 유지하고 validation/equality에만 `BigInt`를 사용한다. zero generation, leading zero, overflow와 JSON numeric revision/generation은 `SNAPSHOT_INVALID`로 거부한다.
 
 **Given** snapshot drift, missing media, MIME/signature mismatch, corrupt·APNG·oversized image, transform 또는 filesystem 실패가 있을 때
 
