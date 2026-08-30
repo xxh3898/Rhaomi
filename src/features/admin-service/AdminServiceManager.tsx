@@ -13,13 +13,12 @@ import { isAdminApiError } from "@/features/admin-auth/api";
 import type { AdminApiTransport } from "@/features/admin-auth/types";
 import styles from "@/features/admin-content/AdminContentManager.module.css";
 import {
+  applyContentMutationResult,
   CONTENT_STATUSES,
   isSlug,
   nullableText,
   parseOptionalSortOrder,
   parseRequiredSortOrder,
-  sortContentItems,
-  upsertContentItem,
   type ContentStatus,
 } from "@/features/admin-content/types";
 
@@ -31,6 +30,7 @@ import type {
 } from "./types";
 
 type ListState = "loading" | "ready" | "error" | "refreshing";
+type ListLoadMode = "initial" | "refresh" | "post-mutation";
 type ServiceCreateDraft = {
   name: string;
   slug: string;
@@ -59,6 +59,8 @@ const EMPTY_CREATE_DRAFT: ServiceCreateDraft = {
   priceText: "",
   sortOrder: "",
 };
+const POST_MUTATION_REFRESH_FAILURE =
+  "저장은 완료됐지만 목록 순서를 새로고침하지 못했습니다. 새로고침을 다시 시도해 주세요.";
 
 function statusLabel(status: ContentStatus): string {
   if (status === "published") return "게시됨";
@@ -177,14 +179,14 @@ export function AdminServiceManager({
   const restoreFocusRef = useRef<HTMLElement | null>(null);
 
   const loadServices = useCallback(
-    async (mode: "initial" | "refresh") => {
+    async (mode: ListLoadMode) => {
       const sequence = ++requestSequenceRef.current;
       setListMessage(null);
       setListState(mode === "initial" ? "loading" : "refreshing");
       try {
         const response = await api.list();
         if (sequence !== requestSequenceRef.current) return;
-        setItems(sortContentItems(response));
+        setItems(response);
         setListState("ready");
       } catch (error) {
         if (sequence !== requestSequenceRef.current) return;
@@ -193,7 +195,9 @@ export function AdminServiceManager({
           return;
         }
         setListMessage(
-          "서비스 목록을 불러오지 못했습니다. 연결을 확인해 주세요.",
+          mode === "post-mutation"
+            ? POST_MUTATION_REFRESH_FAILURE
+            : "서비스 목록을 불러오지 못했습니다. 연결을 확인해 주세요.",
         );
         setListState(mode === "initial" ? "error" : "ready");
       }
@@ -277,11 +281,13 @@ export function AdminServiceManager({
     setActionMessage(null);
     try {
       const created = await api.create(request);
-      setItems((current) => upsertContentItem(current, created));
-      setListState("ready");
+      setItems((current) => applyContentMutationResult(current, created));
       setSuccessMessage("서비스를 생성했습니다.");
       restoreFocusRef.current = createTriggerRef.current;
       setCreateOpen(false);
+      mutationBusyRef.current = false;
+      setMutationPending(false);
+      await loadServices("post-mutation");
     } catch (error) {
       if (isSessionExpired(error)) onSessionExpired();
       else setActionMessage(mutationErrorMessage(error, "create"));
@@ -320,11 +326,14 @@ export function AdminServiceManager({
       if (updated.slug !== item.slug) {
         throw new Error("immutable content contract drift");
       }
-      setItems((current) => upsertContentItem(current, updated));
+      setItems((current) => applyContentMutationResult(current, updated));
       setSuccessMessage("서비스를 수정했습니다.");
       restoreFocusRef.current = editTriggerRefs.current.get(item.id) ?? null;
       setEditingId(null);
       setEditDraft(null);
+      mutationBusyRef.current = false;
+      setMutationPending(false);
+      await loadServices("post-mutation");
     } catch (error) {
       if (isSessionExpired(error)) onSessionExpired();
       else setActionMessage(mutationErrorMessage(error, "update"));
@@ -369,7 +378,9 @@ export function AdminServiceManager({
       <div className={styles.headerRow}>
         <div>
           <h3>미용 서비스 콘텐츠</h3>
-          <p className={styles.help}>정렬 순서, 이름, 식별자 순으로 표시됩니다.</p>
+          <p className={styles.help}>
+            서버가 정한 정렬 순서, 이름, 식별자 순서를 그대로 표시합니다.
+          </p>
         </div>
         <button
           ref={createTriggerRef}

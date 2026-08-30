@@ -64,7 +64,7 @@ review_trigger: "기능 범위 변경 시"
 | FR-ADM-029 | 같은 media를 Hero·프로필·OG에 재사용할 수 있어야 한다. 대상이 나중에 archived돼도 relation과 audit를 자동 변경하지 않고 후속 public build가 relation·status·file 유효성을 다시 검증해야 한다. |
 | FR-ADM-030 | `/admin/` 매장정보 UI는 row 없음과 조회 장애를 구분하고 mutable field 26개를 모두 포함한 단일 full PUT으로 최초 생성·수정해야 한다. nullable field는 `null`을 명시하고 server audit field를 request에 포함하지 않아야 한다. |
 | FR-ADM-031 | 매장정보 media picker는 active private media만 Hero·미용사·OG의 새 관계로 선택하고 같은 media 재사용과 선택 해제를 허용해야 한다. archived/missing 기존 relation은 숨기지 않고 clear 또는 active 교체가 필요함을 표시해야 한다. |
-| FR-ADM-032 | `/admin/` 견종·서비스 UI는 strict response 검증 뒤 목록·생성·전체 수정을 제공하고 immutable slug, `draft | published | archived`, 0 이상 sortOrder와 canonical 정렬을 유지해야 한다. 사용자 action당 mutation은 한 번만 보내고 401 session expiry·403 CSRF 실패·network/5xx를 자동 재시도하지 않아야 한다. |
+| FR-ADM-032 | `/admin/` 견종·서비스 UI는 strict response 검증 뒤 목록·생성·전체 수정을 제공하고 immutable slug, `draft | published | archived`, 0 이상 sortOrder를 유지해야 한다. list ordering은 backend response 배열이 authority이며 mutation 뒤 GET list로 canonical ordering을 다시 획득해야 한다. 후속 GET 실패는 저장 실패와 구분하고 사용자 action당 mutation은 한 번만 보내며 401 session expiry·403 CSRF 실패·network/5xx를 자동 재시도하지 않아야 한다. |
 
 ## 배포
 

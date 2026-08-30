@@ -124,11 +124,15 @@ review_trigger: "제품 기능 변경 시"
 
 **When** 운영자가 새 견종 또는 서비스를 만들면
 
-**Then** 이름과 직접 입력한 lowercase kebab slug, 선택 text, 빈 값이면 null인 sortOrder를 POST 한 번으로 보내고 strict하게 검증한 `draft` canonical response를 목록에 반영한다.
+**Then** 이름과 직접 입력한 lowercase kebab slug, 선택 text, 빈 값이면 null인 sortOrder를 POST 한 번으로 보내고 strict하게 검증한 `draft` canonical response를 item state로 반영한 뒤 GET list의 server ordering을 적용한다.
 
 **When** 운영자가 기존 견종 또는 서비스를 편집하면
 
-**Then** slug는 읽기 전용이고 status와 mutable field 전체를 PUT 한 번으로 보내며 성공 response를 `sortOrder`, `name`, `id` 순서로 다시 정렬한다.
+**Then** slug는 읽기 전용이고 status와 mutable field 전체를 PUT 한 번으로 보내며 성공 response를 item state로 반영한 뒤 GET list가 반환한 `sortOrder`, `name`, `id` 순서를 그대로 적용한다.
+
+**Given** POST 또는 PUT은 성공했지만 후속 GET list가 실패했을 때
+
+**Then** mutation 실패로 표시하거나 자동 재전송하지 않고 저장 완료와 목록 순서 refresh 실패를 구분하며 explicit refresh로 복구할 수 있다.
 
 **Given** 서비스의 description 또는 priceText가 비어 있을 때
 

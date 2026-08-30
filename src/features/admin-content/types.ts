@@ -1,12 +1,6 @@
 export const CONTENT_STATUSES = ["draft", "published", "archived"] as const;
 export type ContentStatus = (typeof CONTENT_STATUSES)[number];
 
-export type OrderedContentItem = Readonly<{
-  id: string;
-  name: string;
-  sortOrder: number;
-}>;
-
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TIMESTAMP_PATTERN =
@@ -94,26 +88,13 @@ export function parseRequiredSortOrder(value: string): number | undefined {
   return parsed === null ? undefined : parsed;
 }
 
-export function compareContentItems(
-  left: OrderedContentItem,
-  right: OrderedContentItem,
-): number {
-  return (
-    left.sortOrder - right.sortOrder ||
-    left.name.localeCompare(right.name, "ko") ||
-    left.id.localeCompare(right.id)
-  );
-}
-
-export function sortContentItems<T extends OrderedContentItem>(
-  items: readonly T[],
-): readonly T[] {
-  return [...items].sort(compareContentItems);
-}
-
-export function upsertContentItem<T extends OrderedContentItem>(
+export function applyContentMutationResult<T extends Readonly<{ id: string }>>(
   items: readonly T[],
   item: T,
 ): readonly T[] {
-  return sortContentItems([item, ...items.filter((current) => current.id !== item.id)]);
+  const existingIndex = items.findIndex((current) => current.id === item.id);
+  if (existingIndex === -1) {
+    return [...items, item];
+  }
+  return items.map((current, index) => (index === existingIndex ? item : current));
 }

@@ -75,7 +75,9 @@ review_trigger: "관리 API·build 입력 변경 시"
 
 - 두 도메인의 API adapter와 response validator를 명시적으로 분리하고 UUID·status·slug·sortOrder·Instant·audit UUID와 exact response key를 runtime에서 검증한다. storage/path/internal 추가 field와 malformed response는 성공으로 처리하지 않는다.
 - 생성 form의 빈 sortOrder와 선택 text는 각각 `null`로 보내 backend default·정규화 authority를 유지한다. 수정 form은 slug를 전송하지 않고 status, name, nullable description, 서비스의 nullable priceText와 필수 sortOrder를 한 번의 full `PUT`으로 보낸다.
-- 성공 response를 canonical item으로 적용한 뒤 `sortOrder ASC, name ASC, id ASC` comparator로 목록을 재정렬한다. refresh 중 mutation과 mutation 중 refresh를 차단해 stale GET이 성공 response를 덮지 않게 한다.
+- list response의 배열 순서는 PostgreSQL `sort_order ASC, name ASC, id ASC` 결과를 전달한 backend가 authority이며 client는 locale comparator로 다시 정렬하지 않는다.
+- create/update 성공 response는 해당 item의 canonical state로 먼저 적용하고, 즉시 GET list를 수행해 전체 canonical ordering을 다시 획득한다. 후속 GET 실패는 저장 실패로 바꾸지 않고 목록 순서 refresh 경고와 explicit refresh를 제공하며 mutation을 자동 재전송하지 않는다.
+- mutation 시작 전에 이전 GET sequence를 무효화하고 post-mutation GET을 현재 generation authority로 삼아 stale GET이 최신 목록을 덮지 않게 한다.
 - `CONTENT_NOT_FOUND`, `SLUG_CONFLICT`, `PUBLISH_VALIDATION_FAILED`만 allowlisted frontend 문구로 표시하고 backend raw message를 출력하지 않는다. 401은 session expiry로 위임하고 403·network·5xx mutation을 자동 재전송하지 않는다.
 - archive는 reversible status로만 표현하며 `PATCH`, `DELETE`, public/build route를 client에 추가하지 않는다.
 

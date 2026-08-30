@@ -42,15 +42,20 @@ function createTransport(
 }
 
 describe("AdminServiceManager", () => {
-  it("empty와 sortOrder/name/id 정렬을 제공한다", async () => {
+  it("empty 뒤 refresh server array order를 locale 재정렬 없이 보존한다", async () => {
     const user = userEvent.setup();
+    const localeOrdered = [
+      service({ name: "가나다", slug: "ganada", sortOrder: 10 }),
+      service({ id: SPA_ID, name: "라마바", slug: "ramaba", sortOrder: 10 }),
+    ].sort((left, right) => left.name.localeCompare(right.name, "ko"));
+    const serverOrdered = [...localeOrdered].reverse();
+    expect(serverOrdered.map((item) => item.name)).not.toEqual(
+      localeOrdered.map((item) => item.name),
+    );
     const requestAuthenticatedJson = vi
       .fn()
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        service({ id: SPA_ID, name: "스파", slug: "spa", sortOrder: 20 }),
-        service(),
-      ]);
+      .mockResolvedValueOnce(serverOrdered);
 
     render(
       <AdminServiceManager
@@ -62,10 +67,11 @@ describe("AdminServiceManager", () => {
     expect(await screen.findByText(/등록된 서비스가 없습니다/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "새로고침" }));
     const list = await screen.findByRole("list", { name: "서비스 목록" });
-    expect(within(list).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      expect.stringContaining("기본 미용"),
-      expect.stringContaining("스파"),
-    ]);
+    expect(
+      within(list)
+        .getAllByRole("listitem")
+        .map((item) => within(item).getByRole("heading", { level: 3 }).textContent),
+    ).toEqual(serverOrdered.map((item) => item.name));
   });
 
   it("refresh pending 동안 새 mutation 진입을 막아 stale GET 경쟁을 차단한다", async () => {
@@ -97,17 +103,32 @@ describe("AdminServiceManager", () => {
     );
   });
 
-  it("keyboard create와 priceText payload, canonical response, focus 복귀를 보장한다", async () => {
+  it("keyboard create 뒤 canonical GET server order와 focus 복귀를 보장한다", async () => {
     const user = userEvent.setup();
-    const requestJsonMutation = vi.fn().mockResolvedValue(service({ sortOrder: 100 }));
+    const created = service({ sortOrder: 100 });
+    const existing = service({
+      id: SPA_ID,
+      name: "스파",
+      slug: "spa",
+      sortOrder: 100,
+    });
+    const canonicalList = [created, existing];
+    const requestAuthenticatedJson = vi
+      .fn()
+      .mockResolvedValueOnce([existing])
+      .mockResolvedValueOnce(canonicalList);
+    const requestJsonMutation = vi.fn().mockResolvedValue(created);
     render(
       <AdminServiceManager
-        transport={createTransport({ requestJsonMutation })}
+        transport={createTransport({
+          requestAuthenticatedJson,
+          requestJsonMutation,
+        })}
         onBack={vi.fn()}
         onSessionExpired={vi.fn()}
       />,
     );
-    await screen.findByText(/등록된 서비스가 없습니다/);
+    await screen.findByText("spa");
 
     const trigger = screen.getByRole("button", { name: "새 서비스" });
     trigger.focus();
@@ -131,18 +152,30 @@ describe("AdminServiceManager", () => {
       },
       expect.any(Function),
     );
-    expect(await screen.findByText("basic-grooming")).toBeInTheDocument();
+    await waitFor(() => expect(requestAuthenticatedJson).toHaveBeenCalledTimes(2));
+    const list = screen.getByRole("list", { name: "서비스 목록" });
+    expect(
+      within(list)
+        .getAllByRole("listitem")
+        .map((item) => within(item).getByRole("heading", { level: 3 }).textContent),
+    ).toEqual(canonicalList.map((item) => item.name));
     expect(trigger).toHaveFocus();
   });
 
   it("optional description과 자유 텍스트 priceText blank를 null로 전송한다", async () => {
     const user = userEvent.setup();
-    const requestJsonMutation = vi.fn().mockResolvedValue(
-      service({ description: null, priceText: null, sortOrder: 100 }),
-    );
+    const created = service({ description: null, priceText: null, sortOrder: 100 });
+    const requestAuthenticatedJson = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([created]);
+    const requestJsonMutation = vi.fn().mockResolvedValue(created);
     render(
       <AdminServiceManager
-        transport={createTransport({ requestJsonMutation })}
+        transport={createTransport({
+          requestAuthenticatedJson,
+          requestJsonMutation,
+        })}
         onBack={vi.fn()}
         onSessionExpired={vi.fn()}
       />,
@@ -165,6 +198,102 @@ describe("AdminServiceManager", () => {
       },
       expect.any(Function),
     );
+    await waitFor(() => expect(requestAuthenticatedJson).toHaveBeenCalledTimes(2));
+  });
+
+  it("name과 sortOrder update 뒤 canonical GET server order를 적용한다", async () => {
+    const user = userEvent.setup();
+    const current = service();
+    const spa = service({ id: SPA_ID, name: "스파", slug: "spa", sortOrder: 20 });
+    const updated = service({
+      name: "프리미엄 기본 미용",
+      sortOrder: 30,
+      updatedAt: "2026-08-30T00:00:01Z",
+    });
+    const canonicalList = [updated, spa];
+    const requestAuthenticatedJson = vi
+      .fn()
+      .mockResolvedValueOnce([current, spa])
+      .mockResolvedValueOnce(canonicalList);
+    const requestJsonMutation = vi.fn().mockResolvedValue(updated);
+
+    render(
+      <AdminServiceManager
+        transport={createTransport({
+          requestAuthenticatedJson,
+          requestJsonMutation,
+        })}
+        onBack={vi.fn()}
+        onSessionExpired={vi.fn()}
+      />,
+    );
+    await user.click(await screen.findByRole("button", { name: "기본 미용 수정" }));
+    await user.clear(screen.getByLabelText("서비스 이름"));
+    await user.type(screen.getByLabelText("서비스 이름"), "프리미엄 기본 미용");
+    await user.clear(screen.getByLabelText("정렬 순서"));
+    await user.type(screen.getByLabelText("정렬 순서"), "30");
+    await user.click(screen.getByRole("button", { name: "변경 저장" }));
+
+    expect(requestJsonMutation).toHaveBeenCalledWith(
+      `/api/admin/services/${BASIC_ID}`,
+      "PUT",
+      {
+        status: "draft",
+        name: "프리미엄 기본 미용",
+        description: "목욕과 기본 커트",
+        priceText: "상담 후 안내",
+        sortOrder: 30,
+      },
+      expect.any(Function),
+    );
+    await waitFor(() => expect(requestAuthenticatedJson).toHaveBeenCalledTimes(2));
+    const list = screen.getByRole("list", { name: "서비스 목록" });
+    expect(
+      within(list)
+        .getAllByRole("listitem")
+        .map((item) => within(item).getByRole("heading", { level: 3 }).textContent),
+    ).toEqual(canonicalList.map((item) => item.name));
+    expect(screen.getByRole("button", { name: "프리미엄 기본 미용 수정" })).toHaveFocus();
+  });
+
+  it("mutation 성공 뒤 canonical GET 실패를 저장 실패로 오인하지 않고 refresh로 복구한다", async () => {
+    const user = userEvent.setup();
+    const created = service({ sortOrder: 100 });
+    const requestAuthenticatedJson = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new AdminApiError("unavailable"))
+      .mockResolvedValueOnce([created]);
+    const requestJsonMutation = vi.fn().mockResolvedValue(created);
+
+    render(
+      <AdminServiceManager
+        transport={createTransport({
+          requestAuthenticatedJson,
+          requestJsonMutation,
+        })}
+        onBack={vi.fn()}
+        onSessionExpired={vi.fn()}
+      />,
+    );
+    await screen.findByText(/등록된 서비스가 없습니다/);
+    await user.click(screen.getByRole("button", { name: "새 서비스" }));
+    await user.type(screen.getByLabelText("서비스 이름"), "기본 미용");
+    await user.type(screen.getByLabelText("슬러그"), "basic-grooming");
+    await user.click(screen.getByRole("button", { name: "서비스 생성" }));
+
+    expect(await screen.findByText("서비스를 생성했습니다.")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "저장은 완료됐지만 목록 순서를 새로고침하지 못했습니다",
+    );
+    expect(screen.getByText("basic-grooming")).toBeInTheDocument();
+    expect(screen.queryByText(/서비스를 생성하지 못했습니다/)).not.toBeInTheDocument();
+    expect(requestJsonMutation).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "새로고침" }));
+    await waitFor(() => expect(requestAuthenticatedJson).toHaveBeenCalledTimes(3));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(requestJsonMutation).toHaveBeenCalledTimes(1);
   });
 
   it("published 전환 전에 description과 priceText를 보조 검증하고 backend 422도 고정한다", async () => {
@@ -211,10 +340,15 @@ describe("AdminServiceManager", () => {
       .fn()
       .mockResolvedValueOnce(archived)
       .mockResolvedValueOnce(restored);
+    const requestAuthenticatedJson = vi
+      .fn()
+      .mockResolvedValueOnce([service()])
+      .mockResolvedValueOnce([archived])
+      .mockResolvedValueOnce([restored]);
     render(
       <AdminServiceManager
         transport={createTransport({
-          requestAuthenticatedJson: vi.fn().mockResolvedValue([service()]),
+          requestAuthenticatedJson,
           requestJsonMutation,
         })}
         onBack={vi.fn()}

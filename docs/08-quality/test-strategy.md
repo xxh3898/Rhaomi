@@ -56,10 +56,11 @@ review_trigger: "기술·기능 범위 변경 시"
 - shop ready 상태 background GET·auto-save 부재와 save snapshot/canonical response의 stale overwrite 방지
 - Breed/Service exact relative list·detail·POST·PUT path와 도메인별 strict list/item response validator, malformed·unexpected internal field 거부
 - `CONTENT_NOT_FOUND`, `SLUG_CONFLICT`, `PUBLISH_VALIDATION_FAILED` allowlist와 기존 media/shop error mapping 회귀
-- 견종·서비스 loading/ready/empty/error/refreshing, `sortOrder ASC, name ASC, id ASC`와 canonical response 재정렬
+- 견종·서비스 loading/ready/empty/error/refreshing, locale comparator 없이 GET list server array order 보존
+- create/update canonical item response 적용 뒤 post-mutation GET의 server ordering 반영, refresh failure의 저장 성공 분리·explicit recovery
 - 항상 draft인 생성, blank description·priceText·sortOrder의 null 변환, immutable slug와 update full representation
 - draft/published/archived 표시, archive를 delete로 표현하지 않는 복구 flow와 서비스 published description·priceText UX 보조
-- create/edit 첫 input focus와 취소·성공 뒤 trigger/item action 복귀, pending ref의 중복 POST/PUT 방지와 refresh/mutation 경쟁 차단
+- create/edit 첫 input focus와 취소·성공 뒤 trigger/item action 복귀, pending ref의 중복 POST/PUT 방지와 pre-mutation stale GET·post-mutation generation 경쟁 차단
 - 401 session callback, 403/network/5xx mutation non-retry와 frontend-owned error 문구·raw detail 비노출
 - 320px CSS, 44px control, keyboard native control, aria status/alert/pressed와 archived text state
 

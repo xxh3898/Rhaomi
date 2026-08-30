@@ -88,10 +88,11 @@ Client boundary는 가장 작은 상호작용 단위에 둔다.
 - shop settings는 404를 빈 미초기화 form으로 처리하고 26개 mutable key를 명시한 full PUT 한 번만 보낸다. nullable input은 `null`로 보내며 server audit key는 form/request에 포함하지 않는다.
 - Hero·미용사·OG는 현재 활성 slot의 relation 바로 아래에 한 inline media picker만 공유한다. picker를 열면 첫 내부 control로 focus를 이동하고, 닫기·선택 완료 후에는 해당 slot의 원래 trigger로 복귀한다. active asset만 새 선택 option이며 archived/missing 기존 relation은 field에 남겨 clear/replace 필요 상태를 표시한다.
 - shop save 중 form과 picker를 잠그고 성공 response를 canonical state로 적용한다. ready form의 background refresh·auto-save·mutation retry는 없다.
-- 견종·서비스 adapter와 strict response validator는 도메인별로 명시하고, shared `admin-content`에는 status·UUID·Instant·slug·정렬 검증과 CSS primitive만 둔다. runtime schema-driven form이나 route config 기반 meta-CRUD는 만들지 않는다.
+- 견종·서비스 adapter와 strict response validator는 도메인별로 명시하고, shared `admin-content`에는 status·UUID·Instant·slug·sortOrder 입력 검증과 CSS primitive만 둔다. PostgreSQL ordering을 JavaScript locale comparator로 복제하거나 runtime schema-driven form·route config 기반 meta-CRUD를 만들지 않는다.
 - 견종·서비스 생성은 빈 sortOrder를 null로 보내고 성공 response의 draft·backend default를 canonical state로 사용한다. 수정은 immutable slug를 읽기 전용으로 두고 status와 mutable field 전체를 저장 action 한 번의 PUT으로 보낸다.
 - 서비스 published 선택 시 description·priceText를 client에서 보조 확인하되 backend의 `PUBLISH_VALIDATION_FAILED`를 최종 authority로 유지한다. archive는 삭제가 아니며 draft/published로 복구할 수 있다.
-- 목록 refresh와 mutation은 서로 잠그고 request sequence를 무효화해 stale GET overwrite를 막는다. pending ref로 사용자 action당 POST/PUT 한 번만 허용하고 자동 저장·polling·mutation retry를 하지 않는다.
+- 초기·명시적 목록 GET은 backend가 반환한 배열 순서를 그대로 적용한다. mutation 성공 response는 item canonical state로 반영한 뒤 post-mutation GET으로 전체 server ordering을 다시 획득한다.
+- 목록 refresh와 mutation은 서로 잠그고 mutation 전 GET sequence를 무효화하며 post-mutation GET을 현재 authority로 삼아 stale overwrite를 막는다. post-mutation GET이 실패해도 저장 성공을 유지하고 목록 순서 refresh 경고와 explicit refresh를 제공한다. pending ref로 사용자 action당 POST/PUT 한 번만 허용하고 자동 저장·polling·mutation retry를 하지 않는다.
 - create/edit inline panel은 열릴 때 첫 이름 input으로 focus를 옮기고 취소·성공 뒤 원래 생성 trigger나 item 수정 action으로 되돌린다.
 - 현재 관리 홈 이동에는 unsaved-change 확인을 두지 않으므로 저장하지 않은 shop·견종·서비스 form 변경은 화면 전환 시 폐기된다. router/blocker infrastructure 없이 유지하는 알려진 UX 제한이며 운영자는 저장 완료 feedback을 확인한 뒤 이동해야 한다.
 - upload `accept`와 20 MiB client check는 UX 보조이며 실제 type·size·decoder validation authority는 backend다.

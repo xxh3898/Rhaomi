@@ -37,7 +37,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] `/admin/` media list·authenticated preview·single upload·archive/restore와 401/403 non-retry 계약
 - [ ] `/admin/` shop settings 404 미초기화·26-key full PUT·canonical response와 audit field 제외
 - [ ] Hero·미용사·OG active-only private media picker, image-alt pair와 archived/missing relation clear·replace
-- [ ] `/admin/` breed/service strict list·draft create·immutable slug·full PUT·canonical sort와 archive/restore
+- [ ] `/admin/` breed/service strict list·draft create·immutable slug·full PUT·server order 보존·post-mutation canonical GET와 archive/restore
 - [ ] 서비스 published description·priceText 보조 검증과 404/409/422 frontend-owned 오류 문구
 - [ ] breed/service pending 중복 방지·stale GET 차단·401/403 mutation non-retry와 keyboard focus lifecycle
 - [ ] 공개 영향 transaction과 같은 PostgreSQL transaction의 immediate publishing event

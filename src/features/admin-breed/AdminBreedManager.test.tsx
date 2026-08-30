@@ -41,15 +41,20 @@ function createTransport(
 }
 
 describe("AdminBreedManager", () => {
-  it("loading, empty, retry와 sortOrder/name/id 정렬을 구분한다", async () => {
+  it("loading, error, retry 뒤 server array order를 locale 재정렬 없이 보존한다", async () => {
     const user = userEvent.setup();
+    const localeOrdered = [
+      breed({ name: "가나다", slug: "ganada", sortOrder: 10 }),
+      breed({ id: POODLE_ID, name: "라마바", slug: "ramaba", sortOrder: 10 }),
+    ].sort((left, right) => left.name.localeCompare(right.name, "ko"));
+    const serverOrdered = [...localeOrdered].reverse();
+    expect(serverOrdered.map((item) => item.name)).not.toEqual(
+      localeOrdered.map((item) => item.name),
+    );
     const requestAuthenticatedJson = vi
       .fn()
       .mockRejectedValueOnce(new AdminApiError("unavailable"))
-      .mockResolvedValueOnce([
-        breed({ id: POODLE_ID, name: "푸들", slug: "poodle", sortOrder: 20 }),
-        breed(),
-      ]);
+      .mockResolvedValueOnce(serverOrdered);
 
     render(
       <AdminBreedManager
@@ -64,25 +69,40 @@ describe("AdminBreedManager", () => {
     await user.click(screen.getByRole("button", { name: "다시 시도" }));
 
     const list = await screen.findByRole("list", { name: "견종 목록" });
-    expect(within(list).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      expect.stringContaining("비숑 프리제"),
-      expect.stringContaining("푸들"),
-    ]);
+    expect(
+      within(list)
+        .getAllByRole("listitem")
+        .map((item) => within(item).getByRole("heading", { level: 3 }).textContent),
+    ).toEqual(serverOrdered.map((item) => item.name));
   });
 
-  it("keyboard create open, blank sortOrder null, canonical response와 focus 복귀를 보장한다", async () => {
+  it("keyboard create 성공 뒤 canonical GET server order와 focus 복귀를 보장한다", async () => {
     const user = userEvent.setup();
     const created = breed({ sortOrder: 100 });
+    const existing = breed({
+      id: POODLE_ID,
+      name: "푸들",
+      slug: "poodle",
+      sortOrder: 100,
+    });
+    const canonicalList = [created, existing];
+    const requestAuthenticatedJson = vi
+      .fn()
+      .mockResolvedValueOnce([existing])
+      .mockResolvedValueOnce(canonicalList);
     const requestJsonMutation = vi.fn().mockResolvedValue(created);
 
     render(
       <AdminBreedManager
-        transport={createTransport({ requestJsonMutation })}
+        transport={createTransport({
+          requestAuthenticatedJson,
+          requestJsonMutation,
+        })}
         onBack={vi.fn()}
         onSessionExpired={vi.fn()}
       />,
     );
-    await screen.findByText(/등록된 견종이 없습니다/);
+    await screen.findByText("poodle");
 
     const trigger = screen.getByRole("button", { name: "새 견종" });
     trigger.focus();
@@ -105,11 +125,17 @@ describe("AdminBreedManager", () => {
       },
       expect.any(Function),
     );
-    expect(await screen.findByText("bichon-frise")).toBeInTheDocument();
+    await waitFor(() => expect(requestAuthenticatedJson).toHaveBeenCalledTimes(2));
+    const list = screen.getByRole("list", { name: "견종 목록" });
+    expect(
+      within(list)
+        .getAllByRole("listitem")
+        .map((item) => within(item).getByRole("heading", { level: 3 }).textContent),
+    ).toEqual(canonicalList.map((item) => item.name));
     expect(trigger).toHaveFocus();
   });
 
-  it("edit에서 slug를 잠그고 full PUT response로 재정렬한 뒤 action으로 focus를 돌린다", async () => {
+  it("edit full PUT 성공 뒤 canonical GET server order와 action focus를 적용한다", async () => {
     const user = userEvent.setup();
     const current = breed();
     const updated = breed({
@@ -119,20 +145,23 @@ describe("AdminBreedManager", () => {
       sortOrder: 30,
       updatedAt: "2026-08-30T00:00:01Z",
     });
+    const poodle = breed({
+      id: POODLE_ID,
+      name: "푸들",
+      slug: "poodle",
+      sortOrder: 20,
+    });
+    const canonicalList = [updated, poodle];
+    const requestAuthenticatedJson = vi
+      .fn()
+      .mockResolvedValueOnce([current, poodle])
+      .mockResolvedValueOnce(canonicalList);
     const requestJsonMutation = vi.fn().mockResolvedValue(updated);
 
     render(
       <AdminBreedManager
         transport={createTransport({
-          requestAuthenticatedJson: vi.fn().mockResolvedValue([
-            current,
-            breed({
-              id: POODLE_ID,
-              name: "푸들",
-              slug: "poodle",
-              sortOrder: 20,
-            }),
-          ]),
+          requestAuthenticatedJson,
           requestJsonMutation,
         })}
         onBack={vi.fn()}
@@ -163,13 +192,56 @@ describe("AdminBreedManager", () => {
       },
       expect.any(Function),
     );
-    expect(await screen.findByRole("button", { name: "비숑 수정" })).toHaveFocus();
+    await waitFor(() => expect(requestAuthenticatedJson).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("button", { name: "비숑 수정" })).toHaveFocus();
     expect(screen.getByText("게시됨")).toBeInTheDocument();
     const list = screen.getByRole("list", { name: "견종 목록" });
-    expect(within(list).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
-      expect.stringContaining("푸들"),
-      expect.stringContaining("비숑"),
-    ]);
+    expect(
+      within(list)
+        .getAllByRole("listitem")
+        .map((item) => within(item).getByRole("heading", { level: 3 }).textContent),
+    ).toEqual(canonicalList.map((item) => item.name));
+  });
+
+  it("create 성공 뒤 canonical GET 실패를 저장 실패로 오인하지 않고 explicit refresh로 복구한다", async () => {
+    const user = userEvent.setup();
+    const created = breed({ sortOrder: 100 });
+    const requestAuthenticatedJson = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new AdminApiError("unavailable"))
+      .mockResolvedValueOnce([created]);
+    const requestJsonMutation = vi.fn().mockResolvedValue(created);
+
+    render(
+      <AdminBreedManager
+        transport={createTransport({
+          requestAuthenticatedJson,
+          requestJsonMutation,
+        })}
+        onBack={vi.fn()}
+        onSessionExpired={vi.fn()}
+      />,
+    );
+    await screen.findByText(/등록된 견종이 없습니다/);
+    await user.click(screen.getByRole("button", { name: "새 견종" }));
+    await user.type(screen.getByLabelText("견종 이름"), "비숑 프리제");
+    await user.type(screen.getByLabelText("슬러그"), "bichon-frise");
+    await user.click(screen.getByRole("button", { name: "견종 생성" }));
+
+    expect(await screen.findByText("견종을 생성했습니다.")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "저장은 완료됐지만 목록 순서를 새로고침하지 못했습니다",
+    );
+    expect(screen.getByText("bichon-frise")).toBeInTheDocument();
+    expect(screen.queryByText(/견종을 생성하지 못했습니다/)).not.toBeInTheDocument();
+    expect(requestJsonMutation).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "새로고침" }));
+    await waitFor(() => expect(requestAuthenticatedJson).toHaveBeenCalledTimes(3));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("bichon-frise")).toBeInTheDocument();
+    expect(requestJsonMutation).toHaveBeenCalledTimes(1);
   });
 
   it("archive 후 restore를 허용하고 영구 삭제 action을 노출하지 않는다", async () => {
@@ -180,11 +252,16 @@ describe("AdminBreedManager", () => {
       .fn()
       .mockResolvedValueOnce(archived)
       .mockResolvedValueOnce(restored);
+    const requestAuthenticatedJson = vi
+      .fn()
+      .mockResolvedValueOnce([breed()])
+      .mockResolvedValueOnce([archived])
+      .mockResolvedValueOnce([restored]);
 
     render(
       <AdminBreedManager
         transport={createTransport({
-          requestAuthenticatedJson: vi.fn().mockResolvedValue([breed()]),
+          requestAuthenticatedJson,
           requestJsonMutation,
         })}
         onBack={vi.fn()}
@@ -262,6 +339,11 @@ describe("AdminBreedManager", () => {
   it("create pending 중 중복 POST와 refresh 경쟁을 막는다", async () => {
     const user = userEvent.setup();
     let resolveCreate: ((value: Breed) => void) | undefined;
+    const created = breed({ sortOrder: 100 });
+    const requestAuthenticatedJson = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([created]);
     const requestJsonMutation = vi.fn().mockReturnValue(
       new Promise<Breed>((resolve) => {
         resolveCreate = resolve;
@@ -269,7 +351,10 @@ describe("AdminBreedManager", () => {
     );
     render(
       <AdminBreedManager
-        transport={createTransport({ requestJsonMutation })}
+        transport={createTransport({
+          requestAuthenticatedJson,
+          requestJsonMutation,
+        })}
         onBack={vi.fn()}
         onSessionExpired={vi.fn()}
       />,
@@ -286,13 +371,19 @@ describe("AdminBreedManager", () => {
     await user.click(pending);
     expect(requestJsonMutation).toHaveBeenCalledTimes(1);
 
-    resolveCreate?.(breed({ sortOrder: 100 }));
+    resolveCreate?.(created);
     expect(await screen.findByText("bichon-frise")).toBeInTheDocument();
+    expect(requestAuthenticatedJson).toHaveBeenCalledTimes(2);
   });
 
   it("update pending 중 동일 item PUT을 한 번만 보내고 cancel은 원 trigger로 focus를 복귀한다", async () => {
     const user = userEvent.setup();
     let resolveUpdate: ((value: Breed) => void) | undefined;
+    const updated = breed({ updatedAt: "2026-08-30T00:00:03Z" });
+    const requestAuthenticatedJson = vi
+      .fn()
+      .mockResolvedValueOnce([breed()])
+      .mockResolvedValueOnce([updated]);
     const requestJsonMutation = vi.fn().mockReturnValue(
       new Promise<Breed>((resolve) => {
         resolveUpdate = resolve;
@@ -301,7 +392,7 @@ describe("AdminBreedManager", () => {
     render(
       <AdminBreedManager
         transport={createTransport({
-          requestAuthenticatedJson: vi.fn().mockResolvedValue([breed()]),
+          requestAuthenticatedJson,
           requestJsonMutation,
         })}
         onBack={vi.fn()}
@@ -321,8 +412,62 @@ describe("AdminBreedManager", () => {
     await user.click(pending);
     expect(requestJsonMutation).toHaveBeenCalledTimes(1);
 
-    resolveUpdate?.(breed({ updatedAt: "2026-08-30T00:00:03Z" }));
+    resolveUpdate?.(updated);
     await waitFor(() => expect(trigger).toHaveFocus());
+    expect(requestAuthenticatedJson).toHaveBeenCalledTimes(2);
+  });
+
+  it("mutation 이전 stale GET이 post-mutation canonical generation을 덮지 않는다", async () => {
+    const user = userEvent.setup();
+    let resolveStale: ((value: readonly Breed[]) => void) | undefined;
+    const staleRequest = vi.fn().mockReturnValue(
+      new Promise<readonly Breed[]>((resolve) => {
+        resolveStale = resolve;
+      }),
+    );
+    const current = breed();
+    const updated = breed({
+      name: "서버 최신 견종",
+      updatedAt: "2026-08-30T00:00:04Z",
+    });
+    const currentRequest = vi
+      .fn()
+      .mockResolvedValueOnce([current])
+      .mockResolvedValueOnce([updated]);
+    const currentTransport = createTransport({
+      requestAuthenticatedJson: currentRequest,
+      requestJsonMutation: vi.fn().mockResolvedValue(updated),
+    });
+    const { rerender } = render(
+      <AdminBreedManager
+        transport={createTransport({ requestAuthenticatedJson: staleRequest })}
+        onBack={vi.fn()}
+        onSessionExpired={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(staleRequest).toHaveBeenCalledTimes(1));
+    rerender(
+      <AdminBreedManager
+        transport={currentTransport}
+        onBack={vi.fn()}
+        onSessionExpired={vi.fn()}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "비숑 프리제 수정" }));
+    await user.clear(screen.getByLabelText("견종 이름"));
+    await user.type(screen.getByLabelText("견종 이름"), "서버 최신 견종");
+    await user.click(screen.getByRole("button", { name: "변경 저장" }));
+    expect(await screen.findByText("서버 최신 견종")).toBeInTheDocument();
+    expect(currentRequest).toHaveBeenCalledTimes(2);
+
+    resolveStale?.([
+      breed({ name: "오래된 견종", updatedAt: "2026-08-29T23:59:59Z" }),
+    ]);
+    await waitFor(() =>
+      expect(screen.queryByText("오래된 견종")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("서버 최신 견종")).toBeInTheDocument();
   });
 
   it("401은 session-expired callback으로 위임한다", async () => {

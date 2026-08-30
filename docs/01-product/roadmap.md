@@ -135,11 +135,11 @@ Phase 1C-8b는 실제 운영값·사진 seed, 공개 Hero·소개·OG 렌더링,
 ### Phase 1C-8c — 관리자 견종·서비스 콘텐츠 UI
 
 - `/admin/` dashboard에서 매장정보·미디어·견종·서비스가 enabled인 same-page navigation
-- 견종·서비스 loading·empty·error·refresh 목록과 `sortOrder ASC, name ASC, id ASC` canonical 정렬
+- 견종·서비스 loading·empty·error·refresh 목록, backend list response의 `sortOrder ASC, name ASC, id ASC` 순서 보존과 mutation 뒤 canonical GET
 - 항상 draft인 명시적 생성, immutable slug와 status/name/nullable text/sortOrder full PUT 편집
 - 서비스 published 전환의 description·priceText UX 보조와 backend 최종 validation authority 유지
 - strict response allowlist, 404/409/422 frontend-owned 오류, 401 session expiry·403 mutation non-retry
-- mutation 중복·refresh 경쟁 차단과 320px·keyboard·focus·44px·aria·reduced-motion 검증
+- mutation 중복·stale refresh 경쟁 차단, post-mutation GET 실패 분리·explicit recovery와 320px·keyboard·focus·44px·aria·reduced-motion 검증
 
 Phase 1C-8c는 실제 견종·서비스 seed, 공개 서비스·필터 렌더링, 갤러리·공지 UI, build API/publisher, 실제 iPhone Safari·VoiceOver나 운영 배포의 완료를 의미하지 않는다.
 
