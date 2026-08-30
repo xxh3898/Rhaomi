@@ -339,6 +339,94 @@ class BuildApiIntegrationTests {
     }
 
     @Test
+    void should_includeDescriptionsBeyondTenThousandCharacters_when_publishedContentIsValid()
+            throws Exception {
+        var breedDescription = "견".repeat(10_001);
+        var serviceDescription = "서".repeat(10_001);
+        putShop(null, null, null);
+        var breed = publishBreed(
+                "Long breed", "build-long-breed", breedDescription, 1);
+        var service = publishService(
+                "Long service", "build-long-service", serviceDescription, 1);
+        var generation = activateGeneration(63);
+
+        var response = getString("/api/build/snapshot?publishGeneration=" + generation);
+
+        assertEquals(200, response.statusCode(), response.body());
+        var root = objectMapper.readTree(response.body());
+        assertEquals(breed.toString(), root.get("breeds").get(0).get("id").asText());
+        assertEquals(
+                breedDescription,
+                root.get("breeds").get(0).get("description").asText());
+        assertEquals(service.toString(), root.get("services").get(0).get("id").asText());
+        assertEquals(
+                serviceDescription,
+                root.get("services").get(0).get("description").asText());
+    }
+
+    @Test
+    void should_preserveFieldFamilyCanonicalUnicodeText_when_snapshotIsSerialized()
+            throws Exception {
+        var separators = List.of("\u00a0", "\u2007", "\u202f");
+        var expectedDescriptions = new ArrayList<String>();
+        var coverMedia = uploadPng();
+        var byteOrderMarkText = "\ufeff라오미펫\ufeff";
+        putShop(byteOrderMarkText, null, null, null);
+
+        var galleryBreed = publishBreed("Gallery breed", "unicode-gallery-breed", 10);
+        var galleryService = publishService("Gallery service", "unicode-gallery-service", 10);
+        publishGalleryWithText(
+                "\ufeff강아지\ufeff",
+                "\ufeff갤러리 요약\ufeff",
+                "\ufeff갤러리 대체 텍스트\ufeff",
+                galleryBreed,
+                galleryService,
+                coverMedia,
+                null,
+                null,
+                false,
+                10,
+                GENERATED_AT.minusSeconds(1));
+
+        for (var index = 0; index < separators.size(); index++) {
+            var wrapped = separators.get(index) + "내용 " + index + separators.get(index);
+            expectedDescriptions.add(wrapped);
+            publishBreed(
+                    separators.get(index) + "견종 " + index + separators.get(index),
+                    "unicode-breed-" + index,
+                    wrapped,
+                    index);
+            publishService(
+                    separators.get(index) + "서비스 " + index + separators.get(index),
+                    "unicode-service-" + index,
+                    wrapped,
+                    separators.get(index) + "가격 " + index + separators.get(index),
+                    index);
+            publishNotice(
+                    separators.get(index) + "공지 " + index + separators.get(index),
+                    "unicode-notice-" + index,
+                    separators.get(index) + "요약 " + index + separators.get(index),
+                    wrapped,
+                    false,
+                    GENERATED_AT.minusSeconds(10),
+                    null);
+        }
+
+        var response = getString("/api/build/snapshot?publishGeneration=" + activateGeneration(64));
+
+        assertEquals(200, response.statusCode(), response.body());
+        var root = objectMapper.readTree(response.body());
+        assertEquals(byteOrderMarkText, root.get("shop").get("shopName").asText());
+        assertTrue(textValues(root.get("breeds"), "description").containsAll(expectedDescriptions));
+        assertTrue(textValues(root.get("services"), "description").containsAll(expectedDescriptions));
+        assertTrue(textValues(root.get("notices"), "bodyMarkdown").containsAll(expectedDescriptions));
+        var gallery = root.get("galleryItems").get(0);
+        assertEquals("\ufeff강아지\ufeff", gallery.get("dogName").asText());
+        assertEquals("\ufeff갤러리 요약\ufeff", gallery.get("summary").asText());
+        assertEquals("\ufeff갤러리 대체 텍스트\ufeff", gallery.get("altText").asText());
+    }
+
+    @Test
     void should_applyNoticeUpdatedAtOrdering_when_publishedAtAndPinnedAreEqual() throws Exception {
         putShop(null, null, null);
         var first = publishNotice(
@@ -678,13 +766,16 @@ class BuildApiIntegrationTests {
     }
 
     private UUID publishBreed(String name, String slug, int sortOrder) {
+        return publishBreed(name, slug, "공개 견종 설명", sortOrder);
+    }
+
+    private UUID publishBreed(String name, String slug, String description, int sortOrder) {
         var created = breedAdminService.create(
-                new BreedCreateRequest(name, slug, "공개 견종 설명", sortOrder), admin.getId());
+                new BreedCreateRequest(name, slug, description, sortOrder), admin.getId());
         return breedAdminService
                 .update(
                         created.id(),
-                        new BreedUpdateRequest(
-                                "published", name, "공개 견종 설명", sortOrder),
+                        new BreedUpdateRequest("published", name, description, sortOrder),
                         admin.getId())
                 .id();
     }
@@ -698,8 +789,17 @@ class BuildApiIntegrationTests {
     }
 
     private UUID publishService(String name, String slug, int sortOrder) {
+        return publishService(name, slug, "공개 서비스 설명", sortOrder);
+    }
+
+    private UUID publishService(String name, String slug, String description, int sortOrder) {
+        return publishService(name, slug, description, "상담 후 안내", sortOrder);
+    }
+
+    private UUID publishService(
+            String name, String slug, String description, String priceText, int sortOrder) {
         var created = serviceAdminService.create(
-                new ServiceCreateRequest(name, slug, "공개 서비스 설명", "상담 후 안내", sortOrder),
+                new ServiceCreateRequest(name, slug, description, priceText, sortOrder),
                 admin.getId());
         return serviceAdminService
                 .update(
@@ -707,8 +807,8 @@ class BuildApiIntegrationTests {
                         new ServiceUpdateRequest(
                                 "published",
                                 name,
-                                "공개 서비스 설명",
-                                "상담 후 안내",
+                                description,
+                                priceText,
                                 sortOrder),
                         admin.getId())
                 .id();
@@ -733,6 +833,32 @@ class BuildApiIntegrationTests {
             boolean featured,
             int sortOrder,
             Instant publishedAt) {
+        return publishGalleryWithText(
+                dogName,
+                "갤러리 요약",
+                "미용 완료 사진",
+                breedId,
+                serviceId,
+                coverId,
+                beforeId,
+                afterId,
+                featured,
+                sortOrder,
+                publishedAt);
+    }
+
+    private UUID publishGalleryWithText(
+            String dogName,
+            String summary,
+            String altText,
+            UUID breedId,
+            UUID serviceId,
+            UUID coverId,
+            UUID beforeId,
+            UUID afterId,
+            boolean featured,
+            int sortOrder,
+            Instant publishedAt) {
         var created = galleryAdminService.create(
                 new GalleryCreateRequest(
                         dogName,
@@ -741,8 +867,8 @@ class BuildApiIntegrationTests {
                         coverId,
                         beforeId,
                         afterId,
-                        "갤러리 요약",
-                        "미용 완료 사진",
+                        summary,
+                        altText,
                         featured,
                         sortOrder,
                         GENERATED_AT.minusSeconds(3_600),
@@ -759,8 +885,8 @@ class BuildApiIntegrationTests {
                                 coverId,
                                 beforeId,
                                 afterId,
-                                "갤러리 요약",
-                                "미용 완료 사진",
+                                summary,
+                                altText,
                                 featured,
                                 sortOrder,
                                 GENERATED_AT.minusSeconds(3_600),
@@ -796,9 +922,21 @@ class BuildApiIntegrationTests {
             boolean pinned,
             Instant publishedAt,
             Instant expiresAt) {
+        return publishNotice(
+                title, slug, "공지 요약", body, pinned, publishedAt, expiresAt);
+    }
+
+    private UUID publishNotice(
+            String title,
+            String slug,
+            String summary,
+            String body,
+            boolean pinned,
+            Instant publishedAt,
+            Instant expiresAt) {
         var created = noticeAdminService.create(
                 new NoticeCreateRequest(
-                        title, slug, "공지 요약", body, pinned, publishedAt, expiresAt),
+                        title, slug, summary, body, pinned, publishedAt, expiresAt),
                 admin.getId());
         return noticeAdminService
                 .update(
@@ -806,7 +944,7 @@ class BuildApiIntegrationTests {
                         new NoticeUpdateRequest(
                                 "published",
                                 title,
-                                "공지 요약",
+                                summary,
                                 body,
                                 pinned,
                                 publishedAt,
@@ -816,9 +954,13 @@ class BuildApiIntegrationTests {
     }
 
     private void putShop(UUID heroId, UUID groomerId, UUID ogId) {
+        putShop("라오미펫", heroId, groomerId, ogId);
+    }
+
+    private void putShop(String shopName, UUID heroId, UUID groomerId, UUID ogId) {
         shopSettingsAdminService.put(
                 new ShopSettingsRequest(
-                        "라오미펫",
+                        shopName,
                         "용인 처인구",
                         "애견미용",
                         "031-123-4567",
@@ -949,6 +1091,12 @@ class BuildApiIntegrationTests {
         var ids = new ArrayList<UUID>();
         array.forEach(item -> ids.add(UUID.fromString(item.get("id").asText())));
         return ids;
+    }
+
+    private List<String> textValues(JsonNode array, String field) {
+        var values = new ArrayList<String>();
+        array.forEach(item -> values.add(item.get(field).asText()));
+        return values;
     }
 
     private long currentRevision() {

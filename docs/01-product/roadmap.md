@@ -196,10 +196,21 @@ Phase 1C-8f2는 HTTP 없는 DB/state-machine foundation만 구현한다. 실제 
 
 Phase 1C-8f3은 build 입력 조회 경계까지만 구현한다. publisher polling loop, 30초 debounce, image derivative, Markdown/HTML transform, Next build, filesystem lock, release manifest와 atomic switch는 포함하지 않는다.
 
-### Phase 1C-8f 후속 — transformer·publisher와 샘플 콘텐츠
+### Phase 1C-8f4 — build snapshot transformer·responsive image derivative
 
-- 공개 image derivative와 content transformer
+- Build API transport와 분리된 strict `BuildSnapshotV1` schema·semantic·relation·time/media manifest 재검증
+- distinct `MediaContentProvider` fetch-once와 JPEG·PNG signature/decode/size/pixel/single-image fail-closed 검증
+- Gallery card·large와 Hero의 no-upscale AVIF·WebP·JPEG 파생본, Shop 미용사·OG의 임시 JPEG fallback
+- output-byte SHA-256 filename, 결정적 `content.json`·`media-manifest.json`과 `public/generated/media` staging 산출물
+- temp sibling 완성 뒤 새 target rename, failure cleanup과 기존 성공 target 보존
+- Linux amd64 Hosted CI·Linux arm64 Mac Compose의 exact Node 24·Sharp 실행
+
+Phase 1C-8f4는 독립 transformer library·filesystem CLI와 staging contract까지만 구현한다. build API HTTP client, polling publisher, 30초 debounce, Markdown/HTML·SEO·Next render, global lock, release manifest·atomic switch는 포함하지 않는다.
+
+### Phase 1C-8f 후속 — publisher·정적 렌더링과 샘플 콘텐츠
+
 - single static publisher, validation과 atomic switch
+- build API HTTP client와 transformer orchestration, Next 정적 content/SEO render
 - 샘플 콘텐츠
 
 ### Phase 1D — Production 운영 아키텍처 계약

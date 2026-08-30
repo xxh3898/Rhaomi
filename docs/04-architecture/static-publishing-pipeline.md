@@ -11,7 +11,7 @@ review_trigger: "콘텐츠 배포 방식 변경 시"
 
 ## 구현 상태
 
-Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Flyway V8과 domain service 연동으로 `contentRevision`·publishing outbox producer를 구현했고, Flyway V9과 internal Java service로 pending/due claim·lease recovery·`publishGeneration`·attempt/result state-machine 기반을 구현했다. Phase 1C-8f3은 active generation에 묶인 stateless read-only build snapshot·public-scope media API를 구현한다. 실제 polling loop, 30초 debounce orchestration, transformer, publisher process와 public content route는 아직 구현되지 않았다. 이 문서는 현재 DB/state/build API 경계와 후속 pipeline 계약을 함께 정의한다.
+Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Flyway V8과 domain service 연동으로 `contentRevision`·publishing outbox producer를 구현했고, Flyway V9과 internal Java service로 pending/due claim·lease recovery·`publishGeneration`·attempt/result state-machine 기반을 구현했다. Phase 1C-8f3은 active generation에 묶인 stateless read-only build snapshot·public-scope media API를, Phase 1C-8f4는 transport-independent strict snapshot transformer·responsive public derivative·atomic staging 산출물을 구현한다. 실제 polling loop, build API HTTP client, 30초 debounce orchestration, Next render, publisher process와 public content route는 아직 구현되지 않았다. 이 문서는 현재 DB/state/build/transformer 경계와 후속 pipeline 계약을 함께 정의한다.
 
 ## 목적
 
@@ -65,6 +65,17 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - media content는 current public relation scope를 다시 확인하고 canonical master의 실제 size·SHA를 검증한 뒤 `private, no-store`·`nosniff`로 반환한다.
 - build 호출은 revision·outbox·generation·lease·attempt·콘텐츠를 변경하지 않는다. dev/public Nginx는 `/api/build/**`를 backend로 proxy하지 않는다.
 
+## 현재 transformer 경계
+
+- exact `BuildSnapshotV1` top-level·entity key와 UUID·slug·microsecond Instant·URL, backend/build API가 정의한 field별 text/number limit, uniqueness, relation, published/time eligibility와 exact media manifest를 fail-closed로 다시 검증한다. Breed·Service description에는 publication-only 길이 제한을 두지 않는다.
+- 문자열 canonical 검증은 JS `trim()` 공통 규칙이 아니다. Breed·Service·Notice는 Java `String.strip()`/`isBlank()`와 UTF-16 length, Shop은 `Character.isWhitespace() || Character.isSpaceChar()` strip과 code-point length, Gallery는 같은 strip과 Build API UTF-16 length를 각각 재현한다.
+- source 배열의 Breed·Service canonical server order는 보존하고 media 처리·manifest는 UUID, profile, format, width의 고정 순서로 만든다.
+- `MediaContentProvider`는 distinct media UUID당 한 번만 호출한다. HTTP·Bearer credential·session과 backend storage path는 transformer에 포함하지 않는다.
+- JPEG·PNG signature/content type·decode·30 MiB·12,000px·60MP·single-image 조건을 확인한 뒤 orientation·sRGB·metadata 제거와 no-upscale AVIF·WebP·JPEG 파생본을 생성하고 결과도 decode·format·metadata로 재검증한다.
+- output byte SHA-256 파일명으로 중복 file을 합치고 `src/generated/content.json`, `src/generated/media-manifest.json`, `public/generated/media`를 deterministic하게 생성한다.
+- 새 staging target과 같은 parent의 임시 directory를 완성한 뒤 rename한다. 실패 시 임시 산출물을 제거하며 이미 존재하는 성공 target을 교체하거나 current/previous를 조작하지 않는다.
+- `SNAPSHOT_INVALID`, `MEDIA_NOT_FOUND`, `MEDIA_INVALID`, `MEDIA_TRANSFORM_FAILED`, `OUTPUT_FAILED`만 외부 오류 계약으로 사용하고 path·UUID·decoder detail을 출력하지 않는다.
+
 ## planned pipeline
 
 ```mermaid
@@ -104,7 +115,7 @@ sequenceDiagram
 4. release ID, target `contentRevision`·`publishGeneration`과 승인된 production code image digest 확인
 5. internal read-only build API로 일관된 snapshot 조회
 6. scheduled event라면 current Notice·Gallery row를 다시 읽고, snapshot schema, `generatedAt` 기준 published·게시/만료, 관계·media 상태와 실제 file scope 재검증
-7. image download·validation·metadata 제거·responsive derivative 생성
+7. build API HTTP client로 image 획득 후 구현된 transformer의 validation·metadata 제거·responsive derivative·staging 생성
 8. Next.js build/export
 9. HTML, link, canonical, sitemap, robots와 asset 검증
 10. 새 release directory smoke
@@ -119,9 +130,10 @@ sequenceDiagram
 - 구현된 build API는 internal network의 read-only snapshot·media endpoint만 제공한다.
 - create, update, delete와 share는 모두 금지한다.
 - public Nginx는 `/api/build/**`를 거부한다.
-- 현재 API query가 `published`, notice `published_at <= generatedAt < expires_at`, relation target, media `active`와 실제 file을 검증하고 후속 transformer가 response를 다시 검증한다.
+- 현재 API query가 `published`, notice `published_at <= generatedAt < expires_at`, relation target, media `active`와 실제 file을 검증하고 구현된 transformer가 response를 독립적으로 다시 검증한다.
 - 선택된 media가 archived, missing 또는 corrupt면 silent omission하지 않고 build 전체를 실패시킨다.
 - raw storage path, DB credential, admin session과 private metadata를 snapshot에 넣지 않는다.
+- transformer는 credential이나 URL을 모르며 `MediaContentProvider` 호출만 한다. build API HTTP adapter와 publisher의 credential 주입은 후속 범위다.
 
 ## 원자성·일관성
 

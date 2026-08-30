@@ -79,6 +79,9 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | build credential 오구성 | internal endpoint의 fail-open 또는 production 미보호 기동 | non-production 503 fail-closed, production 누락·형식 오류 startup failure, browser/public env 주입 금지 |
 | build snapshot 혼합·내부 field 노출 | 서로 다른 revision 조합 또는 private metadata 유출 | read-only REPEATABLE READ, 단일 microsecond generatedAt, exact DTO allowlist, current revision과 relation/media/file 재검증 |
 | build API state mutation | lease·attempt·콘텐츠 ordering 오염 | GET-only chain, 모든 mutation deny, read-only transaction, 전후 publication state integration test |
+| snapshot parser drift·relation 우회 | draft·만료·missing relation 또는 private field의 공개 산출물 유입 | exact key·schema·semantic·generatedAt eligibility·relation·media manifest를 transport-independent transformer에서 재검증, unknown/missing field fail-closed |
+| canonical media 위조·metadata 노출 | 손상 image 처리, GPS·기기 정보 공개 | provider content type과 JPEG·PNG signature/decode/size/pixel/single-image 재검증, orientation·sRGB·metadata strip, output decode·format·metadata 검사 |
+| partial·nondeterministic staging 공개 | 혼합 revision, cache 불일치, 이전 성공 결과 훼손 | deterministic order와 output-byte SHA-256 filename, temp sibling 완성 뒤 rename, failure cleanup, existing target fail-closed 보존 |
 | backup key 탈취·분실 | 민감 원본 노출 또는 복구 불가 | 별도 encrypted repository, 제한된 password source, password manager+offline recovery key |
 | PostgreSQL volume 오삭제 | 전체 운영 DB 손실 | project-scoped named volume, 일반 `down` 보존, production `down -v`·prune·direct delete 금지, logical backup·isolated `pg_restore` |
 | 자동 복구 오작동 | 장애 확대·data mutation | stateless web/backend 단일 restart allowlist, deploy/backup lock, 30분 cooldown, audit |

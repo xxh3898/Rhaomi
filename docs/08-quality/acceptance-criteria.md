@@ -263,3 +263,21 @@ review_trigger: "제품 기능 변경 시"
 **Given** snapshot 또는 media GET이 성공·실패했을 때
 
 **Then** `contentRevision`, outbox row, `publishGeneration`, lease, attempt와 content/media state는 변하지 않는다. POST·PUT·PATCH·DELETE와 unknown build route, dev/public gateway `/api/build/**`는 모두 거부한다.
+
+## AC-20 build snapshot transformer·responsive derivative
+
+**Given** exact `BuildSnapshotV1`과 manifest에 일치하는 JPEG·PNG canonical media가 `MediaContentProvider`로 제공될 때
+
+**When** 독립 transformer가 새 staging target을 만들면
+
+**Then** unknown/missing field·schema·semantic·게시 시각·relation·media manifest를 다시 검증하고 distinct media를 한 번씩만 읽으며, source보다 업스케일하지 않은 Gallery card `360/640/960`, Gallery large `768/1200/1600`, Hero `768/1280/1920` AVIF·WebP·JPEG 파생본을 생성한다.
+
+**Then** orientation·sRGB와 metadata 제거를 적용하고 output byte SHA-256 filename, 결정적 `content.json`·`media-manifest.json`과 `public/generated/media`를 기록한다. 같은 입력은 byte-for-byte 같은 산출물과 순서를 만든다.
+
+**Given** snapshot drift, missing media, MIME/signature mismatch, corrupt·APNG·oversized image, transform 또는 filesystem 실패가 있을 때
+
+**Then** fixed typed error로 전체 transform을 실패시키고 partial temp를 제거하며 이미 존재하는 성공 target을 교체하지 않는다. 오류에는 snapshot data·media UUID·path·decoder detail을 노출하지 않는다.
+
+**Given** Phase 1C-8f4 transformer가 성공했을 때
+
+**Then** build API HTTP client, publisher polling/debounce, Markdown/HTML·SEO·Next render, global lock, release manifest와 `current` atomic switch가 완료된 것으로 간주하지 않는다.

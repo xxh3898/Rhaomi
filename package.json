@@ -13,13 +13,16 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "npm run test:contracts && npm run test:unit",
     "test:contracts": "node --test tests/*.test.mjs",
+    "test:transformer": "vitest run src/build-transformer",
     "test:unit": "vitest run",
+    "transform:snapshot": "node scripts/transform-build-snapshot.mts",
     "validate:export": "node scripts/validate-export.mjs"
   },
   "dependencies": {
     "next": "16.3.3",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "sharp": "0.35.4"
   },
   "devDependencies": {
     "@testing-library/dom": "10.4.1",

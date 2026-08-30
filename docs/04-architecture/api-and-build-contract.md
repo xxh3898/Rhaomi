@@ -89,7 +89,7 @@ review_trigger: "관리 API·build 입력 변경 시"
 
 - create allowlist는 dogName, breedId, primaryServiceId, coverImageId, beforeImageId, afterImageId, summary, altText, featured, sortOrder, performedAt, publishedAt이고 status를 받지 않는다. featured 누락·null은 false, sortOrder 누락·null은 100이다.
 - full PUT은 위 mutable field와 status를 모두 명시한다. nullable field도 key 생략을 허용하지 않으며 id·actor·audit·unknown/system field는 `400 INVALID_REQUEST`다.
-- 문자열은 Unicode 양끝 whitespace를 제거하고 비면 null로 저장한다. dogName·summary·altText 최대 길이는 100·1000·300이고 sortOrder는 0 이상이다.
+- 문자열은 Java `Character.isWhitespace() || Character.isSpaceChar()`인 양끝 code point를 제거하고 비면 null로 저장한다. dogName·summary·altText 최대 길이는 100·1000·300이고 sortOrder는 0 이상이다.
 - performedAt·publishedAt은 ISO-8601 offset/UTC를 받고 application에서 microsecond로 절삭한 값으로 검증·저장·응답한다. 미래 값은 허용한다.
 - 목록은 `featured DESC, sort_order ASC, published_at DESC NULLS LAST, id ASC`이며 모든 상태를 포함한다.
 - draft·archived 최종 상태는 null이 아닌 breed·service·media row의 존재만 요구한다. published는 breed·primary service·cover·nonblank altText·publishedAt이 필수이고 breed/service `published`, cover와 선택한 before/after media `active`를 요구한다.
@@ -116,7 +116,7 @@ review_trigger: "관리 API·build 입력 변경 시"
 - `GET`은 아직 row가 없으면 `404 SHOP_SETTINGS_NOT_FOUND`다.
 - `PUT`은 shopName, regionLabel, businessType, phone, address, openingTime, closingTime, closedWeekday, parkingAvailable, parkingNote, heroTitle, heroDescription, groomerName, groomerIntro, reservationNotice, heroImageId, heroImageAltText, groomerImageId, groomerImageAltText, ogImageId와 여섯 URL만 받는 full representation이다.
 - id, singletonKey, createdAt, updatedAt, createdBy, updatedBy와 unknown field는 `400 INVALID_REQUEST`로 거부한다.
-- 필수 문자열은 Unicode whitespace를 제거한 뒤 nonblank와 각 길이를 검사하고, 선택 문자열은 같은 정규화 뒤 비면 null이다.
+- 필수 문자열은 Java `Character.isWhitespace() || Character.isSpaceChar()`인 양끝 code point를 제거한 뒤 nonblank와 각 길이를 검사하고, 선택 문자열은 같은 정규화 뒤 비면 null이다.
 - openingTime·closingTime은 정확한 `HH:mm`이며 opening이 closing보다 빠르지 않으면 `422 BUSINESS_HOURS_INVALID`다. malformed time과 weekday는 `400 INVALID_REQUEST`다.
 - phone은 7~32자이고 숫자·`+ - ( )`·일반 space만 허용하며 숫자를 최소 7개 포함해야 한다.
 - URL은 null 또는 2048자 이하의 absolute HTTPS URL이어야 하며 host가 필요하고 userinfo·control 문자를 허용하지 않는다.
@@ -269,6 +269,20 @@ audit actor/timestamp, status, storage key/path, extension, persisted SHA-256, s
 - canonical master를 `verifiedContent()`로 실제 size·SHA 검증하고 `Content-Type`, exact `Content-Length`, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`만 반환한다.
 - Range, ETag, original filename, path, SHA header는 제공하지 않는다. snapshot 뒤 scope가 바뀌면 안전하게 거부하며 과거 file로 fallback하지 않는다.
 
+## build snapshot transformer — current
+
+- transformer는 backend HTTP·credential이나 Spring DTO class에 의존하지 않고 JSON 값과 `MediaContentProvider` port를 입력으로 받는다.
+- top-level·모든 entity exact key, `schemaVersion = 1`, safe integer revision/generation, canonical UUID·slug·microsecond Instant, backend/build API가 정의한 field별 문자열·URL·number limit과 Shop/media pair를 fail-closed로 검증한다. Breed·Service description은 canonical/nonblank 계약만 재검증하며 transformer 전용 길이 제한을 추가하지 않는다.
+- text acceptance는 ECMAScript `String.trim()`이나 `\S`를 공통 authority로 사용하지 않고 backend field family를 그대로 따른다. Breed·Service·Notice는 `ContentFields`의 Java `String.strip()`과 `BuildContentValidator`의 `String.isBlank()`·UTF-16 `String.length()`를 따른다. Shop은 `ShopSettingsValues`의 `Character.isWhitespace() || Character.isSpaceChar()` strip과 code-point length를 따르며, Gallery는 같은 strip 결과와 최종 Build API의 UTF-16 length를 모두 만족해야 한다. 따라서 U+00A0·U+2007·U+202F는 `ContentFields` text edge에서 보존될 수 있고 U+FEFF는 Shop/Gallery edge에서도 보존될 수 있다.
+- published/time eligibility, Breed·Service·Gallery·Notice 관계와 before/after·alt, exact distinct media manifest를 독립적으로 다시 확인한다. unknown/missing field나 explicit invalid relation은 silent omission하지 않는다.
+- Breed·Service는 snapshot의 canonical server order를 보존하고, media processing과 manifest는 media UUID·고정 profile·format·width 순서를 사용한다.
+- `MediaContentProvider`는 distinct media UUID당 한 번 호출한다. provider 결과의 content type, JPEG·PNG signature/decode, byte·dimension·pixel·single-image 조건을 manifest와 다시 대조한다.
+- orientation 적용·sRGB·metadata 제거 뒤 Gallery card `360/640/960`, Gallery large `768/1200/1600`, Hero `768/1280/1920`의 no-upscale AVIF·WebP·JPEG를 생성한다. 미용사·OG는 최종 layout 결정 전 최대 1200 JPEG fallback을 사용한다.
+- output도 decode·format·metadata를 다시 확인하고 encoded byte SHA-256을 filename으로 사용한다. 동일 byte는 하나의 public file로 deduplicate한다.
+- `src/generated/content.json`, `src/generated/media-manifest.json`, `public/generated/media`를 target sibling temp에서 모두 만든 뒤 새 target으로 rename한다. target이 이미 존재하거나 어느 단계든 실패하면 기존 target을 교체하지 않고 partial temp를 제거한다.
+- `SNAPSHOT_INVALID`, `MEDIA_NOT_FOUND`, `MEDIA_INVALID`, `MEDIA_TRANSFORM_FAILED`, `OUTPUT_FAILED`의 fixed code/message만 호출 경계에 제공한다. UUID·path·decoder/exception detail을 포함하지 않는다.
+- filesystem CLI는 `<media-root>/<uuid>.jpg|png` fixture adapter일 뿐 build API HTTP client나 production publisher가 아니다.
+
 ## publisher content snapshot·release manifest — planned
 
 후속 publisher가 Build API response를 승인된 production code image와 결합해 저장하는 최종 파일은 다음 정보를 포함한다.
@@ -296,18 +310,18 @@ audit actor/timestamp, status, storage key/path, extension, persisted SHA-256, s
 - 일부 collection만 과거 data로 fallback하거나 scheduled event ID·과거 boundary로 current snapshot filter를 우회하지 않는다.
 - transformer는 API response schema와 published/relation/file 조건을 다시 검증하고 raw response를 component에 직접 전달하지 않는다.
 
-## 공개 media 파생 — planned
+## 공개 media 파생 staging — current
 
 ```text
 backend-owned private canonical master
-→ authenticated build-time download
-→ MIME/signature/pixel 검증
-→ metadata 제거와 최적화
-→ content hash
-→ /generated/media/<item-id>-<hash>-<width>.<format>
+→ MediaContentProvider                           [implemented]
+→ MIME/signature/decode/byte/pixel 재검증        [implemented]
+→ orientation·sRGB·metadata 제거와 no-upscale   [implemented]
+→ output decode·format·metadata 재검증           [implemented]
+→ /generated/media/<output-sha256>.<format>      [implemented staging]
 ```
 
-원본 id·storage path·내부 URL을 공개 HTML에 남기지 않는다.
+원본 id·storage path·내부 URL을 public path에 남기지 않는다. authenticated build-time HTTP download와 실제 public release 설치·HTML binding은 후속 publisher/Static Export 범위다.
 
 ## build API 오류 — current
 
@@ -325,11 +339,19 @@ backend-owned private canonical master
 
 고정 JSON은 SQL, constraint, filesystem path, token, private metadata나 내부 exception detail을 포함하지 않는다. partial snapshot 성공 response는 없다.
 
-## transformer·release 실패 조건 — planned
+## transformer 실패 조건 — current
+
+- snapshot unknown/missing/schema/semantic/relation/media manifest 불일치
+- media missing, content-type/signature mismatch, corrupt·APNG·oversized source
+- output encode/decode·format·metadata 검증 실패
+- staging parent/write/rename 실패 또는 이미 존재하는 target
+
+어느 경우도 partial target을 성공으로 반환하지 않고 fixed typed error로 종료한다.
+
+## publisher·release 실패 조건 — planned
 
 - build API 연결·인증 실패
-- snapshot schema mismatch 또는 build API가 거부한 invalid singleton/content/relation/file
-- file download·decode·지원 형식 실패
+- transformer typed failure
 - HTML sanitize·sitemap canonical·link·asset 검증 실패
 - target `publishGeneration`이 current generation 이하
 

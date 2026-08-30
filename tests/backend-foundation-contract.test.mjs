@@ -476,6 +476,42 @@ test("frontend runtime과 dependency에서 local credential filesystem을 격리
   assert.doesNotMatch(isolationCheck, /console\.log\([^)]*match\[0\]/s);
 });
 
+test("build snapshot transformer dependency와 amd64/arm64 Compose smoke를 고정한다", async () => {
+  const [packageJson, packageLock, composeSmoke, transformer] = await Promise.all([
+    source("package.json"),
+    source("package-lock.json"),
+    source("scripts/validate-backend-compose.sh"),
+    source("src/build-transformer/transformer.mts"),
+  ]);
+
+  const manifest = JSON.parse(packageJson);
+  const lock = JSON.parse(packageLock);
+  assert.equal(manifest.dependencies.sharp, "0.35.4");
+  assert.equal(manifest.scripts["test:transformer"], "vitest run src/build-transformer");
+  assert.equal(lock.packages["node_modules/sharp"].version, "0.35.4");
+  for (const platform of [
+    "linux-x64",
+    "linux-arm64",
+    "linuxmusl-x64",
+    "linuxmusl-arm64",
+  ]) {
+    assert.equal(
+      lock.packages[`node_modules/@img/sharp-${platform}`].version,
+      "0.35.4",
+    );
+    assert.equal(
+      lock.packages[`node_modules/@img/sharp-libvips-${platform}`].version,
+      "1.3.3",
+    );
+  }
+  assert.match(composeSmoke, /architecture=\$\(uname -m\)/);
+  assert.match(composeSmoke, /x86_64 \| aarch64/);
+  assert.match(composeSmoke, /npm run test:transformer/);
+  assert.match(transformer, /createHash\("sha256"\)/);
+  assert.match(transformer, /\/generated\/media\/\$\{filename\}/);
+  assert.doesNotMatch(transformer, /RHAOMI_BUILD_SERVICE_TOKEN|Authorization/);
+});
+
 test("실행 경로에 Directus 설정을 남기지 않는다", async () => {
   const runtimeFiles = await Promise.all([
     source("compose.dev.yaml"),

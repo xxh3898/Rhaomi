@@ -3,7 +3,7 @@ title: "이미지 파이프라인"
 status: "proposed"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "미디어 형식·저장소 변경 시"
 ---
 
@@ -26,16 +26,14 @@ JPEG / PNG / HEIC / HEIF upload
 → JPEG/PNG: 검증 원본 byte
 → HEIC/HEIF: orientation + sRGB + metadata-free quality 92 JPEG
 → backend private canonical master                         [implemented]
-→ 빌더 인증 다운로드                                      [planned]
-→ JPEG/PNG source metadata 제거·재검증                     [planned]
-→ crop/focal point 적용
-→ responsive variants
-→ content-hashed filename
-→ public/generated
-→ static export
+→ internal build API + publisher HTTP client              [API implemented / client planned]
+→ MediaContentProvider 입력·JPEG/PNG metadata 제거·재검증 [implemented]
+→ no-upscale responsive variants + content-hashed filename [implemented]
+→ atomic staging의 src/generated + public/generated       [implemented]
+→ crop/focal point·Next static render·release switch       [planned]
 ```
 
-현재 완료 범위는 upload에서 private canonical master, 갤러리 relation과 매장정보 Hero·프로필·OG scalar relation까지다. 공개 파생본, publisher credential/API와 Static Export 반영은 완료로 보지 않는다.
+현재 완료 범위는 upload에서 private canonical master, 갤러리 relation과 매장정보 Hero·프로필·OG scalar relation, internal build API와 transport-independent transformer staging까지다. build API를 호출하는 HTTP client, polling publisher, crop/focal-point 정책, Static Export render와 release 반영은 완료로 보지 않는다.
 
 ## 저장 정책
 
@@ -63,18 +61,19 @@ JPEG / PNG / HEIC / HEIF upload
 
 ## 초기 파생 규격
 
-구현 중 실제 디자인에 맞춰 조정한다.
+Gallery·Hero profile은 Phase 1C-8f4의 구현 계약이다. source가 후보 폭보다 작으면 실제 source 폭만 사용하고 업스케일하지 않는다.
 
 | 용도 | 폭 후보 | 형식 |
 |---|---|---|
 | 갤러리 카드 | 360, 640, 960 | AVIF, WebP, JPEG fallback |
 | 갤러리 상세 | 768, 1200, 1600 | AVIF, WebP, JPEG fallback |
 | Hero | 768, 1280, 1920 | AVIF, WebP, JPEG fallback |
-| OG | 1200×630 | JPEG 또는 PNG |
+| 미용사·OG 임시 fallback | 최대 1200 | JPEG |
 
 - 원본보다 큰 이미지를 업스케일하지 않는다.
 - 이미지마다 실제 `width`와 `height`를 manifest에 기록한다.
-- `<picture>`와 `srcset`을 사용한다.
+- 같은 source byte와 encode 결과는 output SHA-256으로 file을 deduplicate한다.
+- `<picture>`와 `srcset`을 실제 page에 연결하는 작업은 후속이다.
 - Hero LCP 후보는 preload 여부를 검토한다.
 - 아래쪽 이미지는 `loading="lazy"`를 사용한다.
 
@@ -99,10 +98,17 @@ JPEG / PNG / HEIC / HEIF upload
 
 production decoder-only image는 아직 구현되지 않았다. 현재 local/CI Alpine package runtime과 future production source build를 같은 상태로 표현하지 않는다.
 
-### 후속 public derivative
+### 현재 public derivative transformer
 
-- Node.js 기반 `sharp` 또는 동등한 검증된 도구
-- 버전·codec 고정, 실패를 무시하지 않음
+- Node.js 24와 exact `sharp 0.35.4`
+- Gallery card `360/640/960`, large `768/1200/1600`, Hero `768/1280/1920`
+- AVIF quality 50/effort 4, WebP quality 80/effort 4, progressive JPEG quality 82
+- orientation 적용, sRGB 변환, metadata 제거, alpha JPEG는 white background로 flatten
+- JPEG·PNG actual signature·decode·30 MiB·12,000px·60MP·single-image 재검증과 output decode·format·metadata 재검증
+- output byte SHA-256 filename과 결정적 media manifest
+- format·decode·transform·write 실패를 silent skip하지 않고 typed build 오류로 종료
+
+실제 page crop/focal point, 미용사·OG 최종 profile, HTML `<picture>` binding은 디자인·Static Export Issue에서 확정한다. 현재 fallback을 최종 OG 1200×630 crop 계약으로 해석하지 않는다.
 
 ## HEIC 출시 게이트
 
@@ -127,11 +133,11 @@ synthetic backend 검증은 physical-device와 publisher 검증을 대체하지 
 
 ## 파일 검증
 
-- 실제 byte 기준 JPEG·PNG·HEIC·HEIF allowlist, 구체적 MIME·extension 충돌 거부
+- upload는 실제 byte 기준 JPEG·PNG·HEIC·HEIF allowlist와 구체적 MIME·extension 충돌을 거부한다. public transformer 입력은 canonical master 계약에 따라 JPEG·PNG만 허용한다.
 - ISO BMFF brand는 HEIC still `heic | heix | heim | heis`, HEIC sequence `hevc | hevx | hevm | hevs`, generic HEIF sequence `msf1`, AVIF `avif | avis`로 분리한다. HEIC still은 major와 compatible brand 모두에서 인식하고, AVIF·sequence 거부를 먼저 적용한 뒤 나머지 major `mif1` 구조만 generic HEIF로 분류한다.
 - source 최대 20 MiB, stored 최대 30 MiB
 - width·height 각각 최대 12,000px, total 최대 60MP
-- GIF·WebP·AVIF·SVG는 `415 MEDIA_TYPE_UNSUPPORTED`, APNG·multi-image/sequence HEIF는 `422 MEDIA_INVALID_IMAGE`로 거부
+- upload에서 GIF·WebP·AVIF·SVG는 `415 MEDIA_TYPE_UNSUPPORTED`, APNG·multi-image/sequence HEIF는 `422 MEDIA_INVALID_IMAGE`로 거부한다. transformer도 APNG·multi-page와 manifest content type/signature mismatch를 `MEDIA_INVALID`로 거부한다.
 - 손상·truncated·decode 불가 source와 canonical output 재검증
 - 실패 시 temp/final/DB orphan cleanup
 
