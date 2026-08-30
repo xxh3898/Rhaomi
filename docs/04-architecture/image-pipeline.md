@@ -33,7 +33,7 @@ JPEG / PNG / HEIC / HEIF upload
 → crop/focal point·Next static render·release switch       [planned]
 ```
 
-현재 완료 범위는 upload에서 private canonical master, 갤러리 relation과 매장정보 Hero·프로필·OG scalar relation, internal build API와 transport-independent transformer staging까지다. build API를 호출하는 HTTP client, polling publisher, crop/focal-point 정책, Static Export render와 release 반영은 완료로 보지 않는다.
+현재 완료 범위는 upload에서 private canonical master, 갤러리 relation과 매장정보 Hero·프로필·OG scalar relation, internal build API, transport-independent transformer staging과 dedicated publisher polling/debounce/coalesce/lock control plane까지다. build API를 호출하는 publisher HTTP adapter와 transformer orchestration, crop/focal-point 정책, Static Export render와 release 반영은 완료로 보지 않는다.
 
 ## 저장 정책
 

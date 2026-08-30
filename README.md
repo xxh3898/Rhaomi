@@ -23,7 +23,7 @@ review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 
 ## 현재 구현 범위
 
-Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1에서 transactional `contentRevision`과 publishing outbox producer를, Phase 1C-8f2에서 pending/due claim·lease recovery·`publishGeneration`·attempt/result 상태 머신 기반을 추가했다. Phase 1C-8f3은 별도 stateless service credential을 쓰는 internal read-only build snapshot·public-scope media API를 제공한다. Phase 1C-8f4는 API transport와 분리된 strict snapshot transformer, responsive public image 파생본과 원자적 staging 산출물을 제공한다. 실제 polling publisher, build API HTTP client, 30초 debounce orchestration, Next 랜딩·SEO 렌더링과 release switch는 후속 Issue 범위다.
+Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1에서 transactional `contentRevision`과 publishing outbox producer를, Phase 1C-8f2에서 pending/due claim·lease recovery·`publishGeneration`·attempt/result 상태 머신 기반을 추가했다. Phase 1C-8f3은 별도 stateless service credential을 쓰는 internal read-only build snapshot·public-scope media API를 제공한다. Phase 1C-8f4는 API transport와 분리된 strict snapshot transformer, responsive public image 파생본과 원자적 staging 산출물을 제공한다. Phase 1C-8f5는 명시적으로 선택한 non-web process에서만 실행되는 polling control loop, 첫 accepted generation 기준 고정 30초 debounce, highest-generation coalesce, lease heartbeat, global filesystem lock과 typed build executor port를 제공한다. 실제 build API HTTP client·transformer orchestration, Next 랜딩·SEO 렌더링과 release switch는 후속 Issue 범위다.
 
 ```text
 .
@@ -36,7 +36,7 @@ Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Bo
 │   ├── app/                 # 공개 홈과 /admin Static Export route
 │   ├── build-transformer/   # strict BuildSnapshotV1·responsive derivative·staging library
 │   └── features/            # admin auth/transport, dashboard, media·shop·breed·service·gallery UI
-├── backend/                 # Spring Boot admin/build API, publication producer/state와 PostgreSQL contract test
+├── backend/                 # Spring Boot admin/build API와 dedicated publisher control plane
 ├── infra/nginx/dev.conf     # local same-origin gateway와 /api/build 명시적 차단
 ├── scripts/                 # 정적 산출물·gateway·HEIC·Compose smoke 검증
 ├── tests/                   # frontend·runtime contract test
@@ -116,6 +116,8 @@ internal build API는 정확히 `GET /api/build/snapshot`과 `GET /api/build/med
 
 build snapshot transformer는 `BuildSnapshotV1`의 exact key·schema·semantic·관계·게시 시각·media manifest를 다시 검증하고 `MediaContentProvider`로 distinct canonical media를 한 번씩만 읽는다. JPEG·PNG signature·decode·30 MiB·12,000px·60MP·단일 image 조건을 재검증한 뒤 orientation·sRGB·metadata 제거와 no-upscale responsive AVIF·WebP·JPEG 파생본을 만든다. 파생 byte SHA-256 파일명, 결정적 manifest 순서와 `src/generated/{content.json,media-manifest.json}`·`public/generated/media`를 임시 sibling에서 완성한 뒤 새 staging target으로 rename한다. 실패 시 partial temp를 제거하고 기존 성공 target은 교체하지 않는다. CLI filesystem adapter와 library port만 제공하며 build API HTTP client, publisher polling·release/current 전환, Next 렌더링은 포함하지 않는다.
 
+publisher control loop는 exact `--rhaomi.publisher.mode=control-loop` 인자가 있을 때만 별도 root context로 기동하고 `WebApplicationType.NONE`을 강제한다. 일반 backend process에는 loop·lifecycle bean이 없으며 publisher context에도 controller·web server가 없다. 기존 state service로 pending/due·retry·expired lease를 claim하고 첫 `claimedAt`부터 `T0 + 30s`를 포함하는 fixed window에서 lower generation을 highest target으로 즉시 coalesce한다. debounce와 executor 대기 중 lease를 갱신하고 `FileChannel.tryLock` 뒤에만 typed executor를 호출한다. 현재 placeholder executor는 release를 만들지 않고 transient failure를 반환하므로 build API HTTP adapter와 transformer orchestration을 구현하기 전에는 공개 결과를 만들 수 없다. default Compose service나 Nginx route도 추가하지 않는다.
+
 매장정보는 상태나 공개 id가 없는 단일 현재값이다. `/api/admin/shop-settings`의 `GET`과 전체 `PUT`만 제공하며 최초 PUT은 `201`, 이후 PUT은 `200`이다. PostgreSQL UNIQUE/CHECK가 row를 하나로 제한하고 Hero·프로필 image/alt pair와 세 media FK를 방어한다. API는 핵심 NAP·영업시간·전화번호·HTTPS 외부 링크, nullable Hero·프로필·OG scalar media id, Hero·프로필 대체텍스트와 server-owned audit를 검증한다. non-null media는 존재하고 `active`여야 하며 관계가 나중에 archived돼도 자동 제거하지 않는다. 모든 state-changing 요청에는 관리자 session과 CSRF token이 필요하며 `PATCH`와 영구 `DELETE` endpoint는 제공하지 않는다. 실제 운영값과 실사진은 seed하지 않는다.
 
 미디어는 `/api/admin/media`의 목록·단건·private content 조회, multipart upload와 status `PUT`을 제공한다. 20 MiB source, 30 MiB stored, 12,000px, 60MP 제한을 실제 byte signature와 decoder로 검증하며 client MIME·확장자·파일명을 신뢰하지 않는다. server-owned UUID storage key와 SHA-256 무결성 metadata를 사용하고 `active | archived` row와 master file을 유지한다. original filename·storage key·filesystem path·SHA-256은 관리자 또는 build DTO에 노출하지 않는다. anonymous/public media endpoint와 physical delete는 없으며 build service만 current public relation scope의 검증된 canonical master를 읽을 수 있다.
@@ -148,7 +150,7 @@ sh scripts/validate-backend-compose.sh .env.dev.local
 - 지원 콘텐츠 mutation은 transactional row counter로 `contentRevision`을 한 번만 전진시키고, 공개 영향 변경과 Notice·Gallery 시간 경계는 V8 typed outbox에 같은 transaction으로 기록한다.
 - V9 internal state service는 pending/due claim, transactional `publishGeneration`, active lease·owner guard, same-generation recovery/retry, typed terminal result와 lower→higher coalesce primitive를 제공한다.
 - 별도 stateless build credential과 active generation 기반 read-only snapshot·public-scope media content API를 제공하며 관리자 session이나 browser 경로와 공유하지 않는다. local frontend는 token environment뿐 아니라 `.env.dev.local`과 backend filesystem도 mount하지 않는다.
-- strict build snapshot transformer와 responsive public image derivative·staging 산출물은 구현됐지만 실제 publisher polling loop·build API HTTP client·30초 debounce/coalesce orchestration·Next static build·release switch는 아직 구현되지 않았다.
+- dedicated non-web publisher control loop, 고정 30초 debounce, highest generation coalesce, lease renewal, global advisory lock과 typed executor/result mapping까지 구현됐다. build API HTTP client·transformer orchestration·Next static build·manifest·release switch는 아직 구현되지 않았다.
 - 공개 콘텐츠 변경은 정적 사이트 재빌드·검증·원자적 교체를 유발한다.
 - 고객용 예약 시스템, 결제, 회원가입, 문의 폼은 만들지 않는다.
 - 전화, 인스타그램, 네이버톡톡 등 외부 문의 채널로 연결한다.

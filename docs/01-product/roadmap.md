@@ -207,11 +207,33 @@ Phase 1C-8f3은 build 입력 조회 경계까지만 구현한다. publisher poll
 
 Phase 1C-8f4는 독립 transformer library·filesystem CLI와 staging contract까지만 구현한다. build API HTTP client, polling publisher, 30초 debounce, Markdown/HTML·SEO·Next render, global lock, release manifest·atomic switch는 포함하지 않는다.
 
-### Phase 1C-8f 후속 — publisher·정적 렌더링과 샘플 콘텐츠
+### Phase 1C-8f5 — publisher control loop·debounce·coalesce·lock
 
-- single static publisher, validation과 atomic switch
-- build API HTTP client와 transformer orchestration, Next 정적 content/SEO render
-- 샘플 콘텐츠
+- exact opt-in dedicated non-web publisher process와 normal backend lifecycle 분리
+- existing state service 기반 pending/due·retry·expired lease 반복 claim
+- 첫 accepted generation 기준 `T0 + 30s` 포함 fixed debounce와 highest-generation coalesce
+- debounce·executor 중 lease heartbeat, lost ownership의 completion 거부
+- container-side configurable `FileChannel.tryLock` global lock과 typed build executor/result port
+- idle/debounce/executor shutdown, PostgreSQL burst·stale·same-generation retry/recovery와 shared-lock contender 검증
+
+Phase 1C-8f5는 control plane만 구현한다. production executor는 release를 만들지 않는 fail-closed placeholder다. Build API HTTP client, transformer·Next 실행, manifest와 `current/previous` switch는 포함하지 않는다.
+
+### Phase 1C-8f6 — Build API adapter·transformer orchestration
+
+- backend-only service credential을 쓰는 internal Build API HTTP client
+- 구현된 snapshot/media transformer port 연결과 staging 검증
+- safe transport/transform failure classification
+
+### Phase 1C-8f7 — Next render·release manifest·atomic switch
+
+- Markdown/HTML·SEO·Next Static Export와 산출물 검증
+- release manifest, generation stale guard, `current/previous` atomic switch
+- 새 release·public smoke와 rollback
+
+### Phase 1C-8f8 — sample content·local end-to-end acceptance
+
+- 실제 공개 후보 sample content와 due publish/expiry end-to-end
+- local gateway/public render·image·SEO·accessibility acceptance
 
 ### Phase 1D — Production 운영 아키텍처 계약
 

@@ -30,7 +30,7 @@ flowchart LR
     Backend --> PostgreSQL[(PostgreSQL<br/>project-scoped named volume)]
     Backend --> Uploads[(Mac host bind<br/>/private/var/lib/rhaomi/data/media)]
     Backend -. 후속 same-transaction .-> Outbox[(Immediate / scheduled publishing event)]
-    Publisher[Single internal publisher] -. 후속 pending/due poll·claim .-> Outbox
+    Publisher[Single internal publisher] -->|pending/due poll·claim| Outbox
     Publisher -. 후속 read-only build API .-> Backend
     Publisher -. 후속 .-> Releases[(Mac host bind<br/>/private/var/lib/rhaomi/public)]
     Releases --> PublicSite
@@ -41,7 +41,7 @@ flowchart LR
     HomeOps -. 후속 상태 .-> Publisher
 ```
 
-실선은 현재 기반 또는 공개 외부 연결이고, 점선은 후속 Issue에서 구현할 관리·게시 경로다.
+실선은 현재 기반·control 경계 또는 공개 외부 연결이고, 점선은 후속 Issue에서 구현할 publisher data plane과 운영 경로다.
 
 ## 현재 구현 경계
 
@@ -50,9 +50,10 @@ flowchart LR
 - PostgreSQL과 Flyway V1~V9 publication producer·claim/generation state
 - local/test bootstrap과 `/admin/` 인증 셸·콘텐츠 CRUD UI
 - active generation에 묶인 stateless internal read-only build snapshot·public-scope media API
+- transport-independent snapshot transformer와 dedicated non-web publisher polling/debounce/coalesce/lock control plane
 - `/api/build/**`를 먼저 거부하는 local same-origin gateway, 최소 health와 Hosted CI
 
-publisher polling·30초 debounce, transformer·responsive derivative·release manifest·atomic switch와 public content route는 아직 없다.
+Build API HTTP adapter·transformer orchestration, Next render·release manifest·atomic switch와 public content route는 아직 없다. 현재 publisher placeholder는 release를 만들지 않는다.
 
 ## 신뢰 경계
 

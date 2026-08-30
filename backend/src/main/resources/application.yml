@@ -51,6 +51,14 @@ management:
 rhaomi:
   build-service:
     token: ${RHAOMI_BUILD_SERVICE_TOKEN:}
+  publisher:
+    owner: ${RHAOMI_PUBLISHER_OWNER:}
+    idle-poll-interval: ${RHAOMI_PUBLISHER_IDLE_POLL_INTERVAL:1s}
+    lease-duration: ${RHAOMI_PUBLISHER_LEASE_DURATION:2m}
+    lease-renewal-interval: ${RHAOMI_PUBLISHER_LEASE_RENEWAL_INTERVAL:30s}
+    shutdown-timeout: ${RHAOMI_PUBLISHER_SHUTDOWN_TIMEOUT:10s}
+    lock-file: ${RHAOMI_PUBLISHER_LOCK_FILE:/var/lib/rhaomi/locks/publisher.lock}
+    auto-start: ${RHAOMI_PUBLISHER_AUTO_START:true}
   bootstrap-admin:
     enabled: ${RHAOMI_BOOTSTRAP_ADMIN_ENABLED:false}
     email: ${RHAOMI_BOOTSTRAP_ADMIN_EMAIL:}

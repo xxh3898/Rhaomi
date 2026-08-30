@@ -114,6 +114,13 @@ compose --profile validation run --rm --no-deps contract-check sh -c '
   echo "Transformer container architecture: $architecture"
   npm run test:transformer
 '
+compose up -d --wait --wait-timeout 120 postgres
+compose run --rm --no-deps \
+  -e RHAOMI_TEST_DATABASE_ALLOWED=true \
+  backend ./gradlew test \
+  --tests 'kr.co.rhaomi.publisher.*' \
+  --tests 'kr.co.rhaomi.backend.PublisherIsolationIntegrationTests' \
+  --no-daemon
 compose --profile frontend up -d --wait --wait-timeout 300 postgres backend frontend gateway
 compose ps
 

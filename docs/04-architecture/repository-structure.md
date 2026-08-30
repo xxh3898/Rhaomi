@@ -27,19 +27,21 @@ Rhaomi/
 │   └── test/                      # Vitest DOM setup
 ├── backend/
 │   ├── gradle/wrapper/            # Gradle 9.7.1 Wrapper
-│   ├── src/main/java/kr/co/rhaomi/backend/
-│   │   ├── admin/                 # admin_users domain
-│   │   ├── auth/                  # login/me/logout/csrf API
-│   │   ├── build/                 # stateless read-only snapshot·public-scope media API
-│   │   ├── breed/                 # 견종 관리 domain/API
-│   │   ├── content/               # 상태·audit·공통 오류 계약
-│   │   ├── config/                # security와 bootstrap
-│   │   ├── gallery/               # 갤러리 CRUD·관계·게시 검증 domain/API
-│   │   ├── notice/                # 공지 관리 domain/API와 게시·기간 검증
-│   │   ├── media/                 # private upload·HEIC 정규화·storage domain/API
-│   │   ├── publication/           # revision/outbox producer와 claim·lease·generation state service
-│   │   ├── service/               # 미용 서비스 관리 domain/API
-│   │   └── shop/                  # 매장정보 singleton·media relation domain/API와 검증
+│   ├── src/main/java/kr/co/rhaomi/
+│   │   ├── backend/
+│   │   │   ├── admin/             # admin_users domain
+│   │   │   ├── auth/              # login/me/logout/csrf API
+│   │   │   ├── build/             # stateless read-only snapshot·public-scope media API
+│   │   │   ├── breed/             # 견종 관리 domain/API
+│   │   │   ├── content/           # 상태·audit·공통 오류 계약
+│   │   │   ├── config/            # security와 bootstrap
+│   │   │   ├── gallery/           # 갤러리 CRUD·관계·게시 검증 domain/API
+│   │   │   ├── notice/            # 공지 관리 domain/API와 게시·기간 검증
+│   │   │   ├── media/             # private upload·HEIC 정규화·storage domain/API
+│   │   │   ├── publication/       # revision/outbox producer와 claim·lease·generation state service
+│   │   │   ├── service/           # 미용 서비스 관리 domain/API
+│   │   │   └── shop/              # 매장정보 singleton·media relation domain/API와 검증
+│   │   └── publisher/             # dedicated non-web poll/debounce/coalesce/lock control plane
 │   ├── src/main/resources/
 │   │   ├── db/migration/          # Flyway V1~V9, V8 producer·V9 claim/generation state
 │   │   └── application.yml
@@ -73,6 +75,7 @@ Rhaomi/
 - `src/features/admin-auth`는 relative `/api/admin/**`, same-origin credential, GET no-store, response shape와 고정 오류 mapping을 한 경계에서 처리한다.
 - `infra/nginx/dev.conf`는 local 개발 전용이며 production Nginx·TLS 설정이 아니다.
 - `backend/.../publication`은 domain transaction 밖에서 호출할 수 없는 `MANDATORY` producer recorder와 deterministic JDBC state service를 둔다. state service는 due claim, source/boundary 최소 stale 판정, generation·lease·retry·terminal/coalesce primitive만 제공하며 HTTP controller, scheduler, background executor나 범용 queue framework를 제공하지 않는다.
+- `kr.co.rhaomi.publisher`는 exact mode argument 전용 non-web root와 state adapter, fixed debounce/highest coalesce, lease heartbeat, advisory lock, typed executor/result port를 둔다. 현재 placeholder는 public artifact를 만들지 않는다.
 - `backend/.../build`는 별도 stateless principal과 GET allowlist, active generation gate, read-only `REPEATABLE READ` snapshot, exact DTO와 current public relation media 조회만 제공한다. admin session을 재사용하거나 publication/content state를 변경하지 않는다.
 - `src/build-transformer`는 backend나 browser transport에 의존하지 않는 strict `BuildSnapshotV1` parser, `MediaContentProvider` port, responsive image transformer와 staging writer를 제공한다. publisher loop, HTTP client, Next route와 release/current switch는 포함하지 않는다.
 - `scripts/transform-build-snapshot.mts`는 test·수동 fixture 검증용 filesystem adapter다. media UUID나 local path를 성공·오류 출력에 기록하지 않는다.
@@ -98,7 +101,7 @@ Rhaomi/
 │   └── types/
 ├── backend/
 │   └── src/main/
-│       ├── java/                  # 현재 admin/build API와 후속 publisher orchestration
+│       ├── java/                  # admin/build API와 dedicated publisher control plane
 │       └── resources/db/migration/
 ├── public/
 │   ├── brand/
@@ -124,6 +127,9 @@ planned 경로는 관련 Issue가 구현할 때만 추가한다.
 - 인증·인가·domain·persistence 경계를 package로 구분하되 불필요한 layer를 만들지 않는다.
 - publication recorder는 최종 domain persistence와 같은 transaction에서 한 mutation당 한 번만 호출한다.
 - publication state service는 전달받은 `now`·lease를 microsecond로 정규화하고 owner·generation·active lease를 확인한다. 실제 poll/debounce/build orchestration이나 full public eligibility를 이 package에 복제하지 않는다.
+- `kr.co.rhaomi.publisher`는 normal backend component scan 밖의 별도 root다. exact mode argument가 선택된 `WebApplicationType.NONE` process에서만 state adapter, fixed debounce/coalesce, lease heartbeat, filesystem lock과 typed executor port를 구성한다.
+- normal `BackendApplication`은 publisher mode argument가 없으면 기존 HTTP context만 기동한다. publisher root는 controller, servlet security chain, JPA repository, public route와 admin bootstrap을 scan하지 않는다.
+- publisher placeholder executor는 release를 만들지 않고 transient failure로 fail-closed한다. build API HTTP client·transformer·Next·release filesystem adapter는 후속 package 범위다.
 - build package는 64자 lowercase hex service token을 timing-safe 비교하고 session을 만들지 않는다. snapshot/media response는 exact allowlist만 사용하며 raw entity·storage path·hash·audit·claim 내부 상태를 노출하지 않는다.
 - password hash, session id와 credential을 log에 남기지 않는다.
 

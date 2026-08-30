@@ -129,20 +129,34 @@ production release manifest에는 exact `main` SHA, image tag·digest, Flyway ve
 
 backend의 `RHAOMI_BUILD_SERVICE_TOKEN`과 internal read-only API는 구현됐다. token은 64자 lowercase hex만 허용하고 production 누락·형식 오류는 startup failure다. browser/frontend에는 build credential이나 `NEXT_PUBLIC_` 변수를 주입하지 않고 credential file도 mount하지 않으며 dev/public Nginx가 build namespace를 차단한다. 위 `BUILD_API_INTERNAL_URL`·`BUILD_API_CREDENTIAL` 이름을 포함한 실제 publisher 주입과 production secret provisioning은 아직 구현되지 않았다.
 
-## Static publisher — planned
+## Static publisher control loop
 
-| 변수 | 비밀 | 설명 |
+publisher는 normal backend profile이나 환경변수만으로 시작하지 않는다. executable jar에 exact `--rhaomi.publisher.mode=control-loop` command-line argument를 전달했을 때만 별도 non-web root를 선택한다. 이 process는 controller·web server·admin bootstrap을 구성하지 않고 Flyway migration도 실행하지 않는다.
+
+| 변수 | 비밀 | 기본값 | 설명 |
+|---|---:|---|---|
+| `RHAOMI_PUBLISHER_OWNER` | N | 빈 값, publisher mode에서 기동 실패 | process lifetime 동안 stable한 최대 128 code-point owner |
+| `RHAOMI_PUBLISHER_IDLE_POLL_INTERVAL` | N | `1s` | claim 없음·safe iteration failure 뒤 bounded wait |
+| `RHAOMI_PUBLISHER_LEASE_DURATION` | N | `2m` | existing state service claim lease |
+| `RHAOMI_PUBLISHER_LEASE_RENEWAL_INTERVAL` | N | `30s` | debounce·executor heartbeat, lease의 절반 이하 |
+| `RHAOMI_PUBLISHER_SHUTDOWN_TIMEOUT` | N | `10s` | worker join의 bounded shutdown wait |
+| `RHAOMI_PUBLISHER_LOCK_FILE` | N, 내부 경로 | `/var/lib/rhaomi/locks/publisher.lock` | executor 직전 empty advisory lock file |
+| `RHAOMI_PUBLISHER_AUTO_START` | N | `true` | explicit publisher root 안의 lifecycle gate, normal backend activation 수단 아님 |
+
+첫 accepted generation 기준 debounce는 고정 30초이며 환경변수로 바꿀 수 없다. `T0 + 30s` trigger를 포함하고 이후 trigger는 다음 window에 남긴다. poll·lease·renew·shutdown duration은 positive bounded 값이고 owner에는 credential·path를 넣지 않는다.
+
+현재 control loop는 immediate pending, due scheduled, same-generation retry와 expired lease recovery를 처리하고 highest generation coalesce·lease heartbeat·global lock·typed result mapping을 제공한다. placeholder executor는 항상 transient failure를 반환해 public release를 만들지 않는다. default `compose.dev.yaml`은 publisher service를 자동 기동하지 않으며 public/dev Nginx route와 Docker socket도 추가하지 않는다.
+
+아래 release adapter 변수는 후속 Phase 1C-8f6~8f7 planned contract다.
+
+| planned 변수 | 비밀 | 설명 |
 |---|---:|---|
 | `BUILD_API_CREDENTIAL` | Y | admin session과 분리된 read-only service credential |
-| `PUBLISHER_STATE_DIR` | Y 취급 | immediate·scheduled event claim, generation·attempt/result 상태 |
-| `PUBLISHER_LOCK_PATH` | N | global filesystem lock |
+| `PUBLISHER_STATE_DIR` | Y 취급 | publisher process의 non-DB local state |
 | `RELEASES_DIR` | N | publisher container 내부 `/srv/rhaomi/public/releases` |
 | `CURRENT_LINK` | N | publisher container 내부 `/srv/rhaomi/public/current` |
 | `PREVIOUS_LINK` | N | publisher container 내부 `/srv/rhaomi/public/previous` |
 | `RELEASE_RETENTION` | N | 성공 release 5개, current·previous 항상 보존 |
-| `DEBOUNCE_SECONDS` | N | 고정 30초 |
-
-publisher는 public network·Docker socket을 사용하지 않으며 immediate pending event와 due scheduled event를 처리한다. 동일 `publishGeneration`의 transient failure를 1분·5분·15분 최대 3회 retry한다. actual service와 변수는 아직 구현되지 않았다.
 
 ## Production deploy·migration — planned
 
@@ -177,7 +191,7 @@ backup repository, key와 HomeOps 설정은 아직 생성·변경하지 않았�
 - 실제 key, password, 실사용 email 금지
 - 운영 `.env`와 credential source를 참조하지 않음
 
-현재 example에는 PostgreSQL, session cookie, 비활성 local/test bootstrap, 빈 backend-only build token과 local-safe private media root만 둔다. actual `.env.dev.local`은 frontend filesystem에 mount하지 않는다. planned production deploy, publisher, backup와 HomeOps secret은 implementation Issue 전까지 추가하지 않는다.
+현재 example에는 default Compose가 쓰는 PostgreSQL, session cookie, 비활성 local/test bootstrap, 빈 backend-only build token과 local-safe private media root만 둔다. actual `.env.dev.local`은 frontend filesystem에 mount하지 않는다. publisher는 default Compose service가 아니므로 위 non-secret control 설정과 planned credential을 `.env.example`에 주입하지 않는다. production deploy, publisher adapter credential, backup와 HomeOps secret은 해당 implementation Issue 전까지 추가하지 않는다.
 
 ## domain — 후속
 

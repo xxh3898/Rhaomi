@@ -240,6 +240,20 @@ review_trigger: "기술·기능 범위 변경 시"
 - snapshot transaction barrier 동안 concurrent content commit 뒤 기존 response의 pre-mutation 일관성과 다음 request의 새 revision/content
 - snapshot/media success·failure 전후 content revision, outbox, generation, lease, attempt와 content/media state 불변
 
+### publisher control loop
+
+- normal backend의 publisher bean/thread 부재와 exact mode argument 전용 non-web root, controller·web server 부재
+- bounded owner/poll/lease/renew/shutdown/absolute lock path validation, 30초 debounce의 non-configurable contract
+- claim 없음의 idle wait·busy-spin 부재와 generation 없는 stale no-op executor 0회
+- first `claimedAt` 기준 exact 30초 fixed window, `T0 + 30s` 포함·직후 제외
+- burst generation 1/2/3의 lower→highest coalesce와 generation 3 단일 executor, recovered lower generation의 highest 유지
+- debounce·async executor lease heartbeat, pre-lock·executor 중 lease 상실과 state completion false의 success 금지
+- typed executor 네 결과와 safe exception의 fixed state mapping, lock unavailable의 transient 처리
+- idle/debounce/executor shutdown과 shutdown 뒤 새 claim 부재, lock handle release
+- PostgreSQL 18.6 pending burst monotonic generation·coalesce·highest success, stale no-generation, due retry와 expired lease recovery의 same generation
+- shared filesystem을 쓰는 두 publisher contender의 executor maximum concurrency 1과 loser retry-wait
+- actual advisory lock file 내용 0 byte, fixed I/O failure와 path detail 비노출
+
 H2 전용 통과는 DB contract 증거로 인정하지 않는다. Hosted CI Backend job은 실제 PostgreSQL service를 사용한다.
 Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 application context를 시작하기 전에 중단한다. fixture 정리는 지정된 test email에만 한정한다.
 
@@ -305,15 +319,17 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 - temp sibling failure cleanup, existing successful target preservation과 filesystem output failure
 - CLI success와 path·UUID·decoder detail 없는 fixed failure output
 - Linux amd64 Hosted CI와 Linux arm64 Mac Compose의 actual Sharp transform
+- default backend/postgres와 frontend profile service 집합에 publisher 자동 추가 부재, normal backend HTTP 회귀
+- explicit publisher mode의 Java 25 non-web startup과 controller/port 부재
 
-## 후속 publisher·정적 render 단위·통합 테스트
+## 후속 publisher adapter·정적 render 단위·통합 테스트
 
 - Build API URL/phone/source Markdown을 transformer가 링크·HTML로 안전하게 변환
 - slug/canonical, JSON-LD, alt validation과 content fixture → transformer → static snapshot
 - build API HTTP client의 authenticated snapshot/media acquisition과 구현된 transformer port 연결
 - additional admin mutation 없는 future Notice publish·expiry와 Gallery publish, publisher restart 뒤 overdue 처리
 - Notice·Gallery claim 뒤 변경까지 포함한 Build API 재검증 결과가 release까지 stale 공개를 막음
-- 30초 debounce·global lock·highest generation coalescing과 최종 snapshot 정확성
+- 구현된 30초 debounce·global lock·highest generation target과 실제 Build API/transformer 결과의 최종 snapshot 정확성
 - 낮거나 같은 generation의 old build switch 거부와 승인된 manual rebuild/retry의 새 generation
 - persisted snapshot/release manifest의 contentRevision·publishGeneration·generatedAt·codeImageDigest 일치
 
