@@ -291,11 +291,23 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 
 문서 PASS는 production Compose, publisher, backup, HomeOps 또는 decoder-only image의 runtime acceptance 증거가 아니다.
 
-## 후속 transformer·publisher 단위·통합 테스트
+## 현재 Phase 1C-8f4 transformer 자동 검증
+
+- strict snapshot exact key·schema·semantic·published/time/relation/media manifest와 typed safe error
+- distinct media fetch-once와 source canonical order 보존, derivative manifest deterministic ordering
+- JPEG·PNG signature/decode·size/pixel/single-image/APNG 제한과 corrupt/type mismatch
+- EXIF/GPS/XMP·orientation을 넣은 synthetic source의 rotate·sRGB·metadata strip
+- Gallery card·large·Hero AVIF·WebP·JPEG width, no upscale, output decode·format·metadata 재검증
+- output byte SHA-256 filename, duplicate byte dedupe와 byte-for-byte repeated-run determinism
+- temp sibling failure cleanup, existing successful target preservation과 filesystem output failure
+- CLI success와 path·UUID·decoder detail 없는 fixed failure output
+- Linux amd64 Hosted CI와 Linux arm64 Mac Compose의 actual Sharp transform
+
+## 후속 publisher·정적 render 단위·통합 테스트
 
 - Build API URL/phone/source Markdown을 transformer가 링크·HTML로 안전하게 변환
 - slug/canonical, JSON-LD, alt validation과 content fixture → transformer → static snapshot
-- build API가 검증한 published 관계·canonical master를 transformer가 다시 검증하고 responsive derivative manifest 생성
+- build API HTTP client의 authenticated snapshot/media acquisition과 구현된 transformer port 연결
 - additional admin mutation 없는 future Notice publish·expiry와 Gallery publish, publisher restart 뒤 overdue 처리
 - Notice·Gallery claim 뒤 변경까지 포함한 Build API 재검증 결과가 release까지 stale 공개를 막음
 - 30초 debounce·global lock·highest generation coalescing과 최종 snapshot 정확성

@@ -11,7 +11,7 @@ review_trigger: "module·배포 구조 변경 시"
 
 기존 Next.js source를 이동하지 않고 repository root에 `backend/`를 추가한다.
 
-## Phase 1C-8f3 현재 구조
+## Phase 1C-8f4 현재 구조
 
 ```text
 Rhaomi/
@@ -22,6 +22,7 @@ Rhaomi/
 │   ├── app/
 │   │   ├── page.tsx               # 공개 Static Export 홈
 │   │   └── admin/                 # Static Export auth shell·DOM test
+│   ├── build-transformer/         # strict snapshot·responsive derivative·staging library/test
 │   ├── features/admin-auth/       # relative API client·shape/error test
 │   └── test/                      # Vitest DOM setup
 ├── backend/
@@ -51,6 +52,7 @@ Rhaomi/
 │   ├── validate-backend-media.mjs
 │   ├── validate-gateway.mjs
 │   ├── validate-backend-compose.sh
+│   ├── transform-build-snapshot.mts
 │   ├── validate-frontend-credential-isolation.mjs
 │   └── validate-export.mjs
 ├── tests/                         # frontend·runtime contract
@@ -72,6 +74,8 @@ Rhaomi/
 - `infra/nginx/dev.conf`는 local 개발 전용이며 production Nginx·TLS 설정이 아니다.
 - `backend/.../publication`은 domain transaction 밖에서 호출할 수 없는 `MANDATORY` producer recorder와 deterministic JDBC state service를 둔다. state service는 due claim, source/boundary 최소 stale 판정, generation·lease·retry·terminal/coalesce primitive만 제공하며 HTTP controller, scheduler, background executor나 범용 queue framework를 제공하지 않는다.
 - `backend/.../build`는 별도 stateless principal과 GET allowlist, active generation gate, read-only `REPEATABLE READ` snapshot, exact DTO와 current public relation media 조회만 제공한다. admin session을 재사용하거나 publication/content state를 변경하지 않는다.
+- `src/build-transformer`는 backend나 browser transport에 의존하지 않는 strict `BuildSnapshotV1` parser, `MediaContentProvider` port, responsive image transformer와 staging writer를 제공한다. publisher loop, HTTP client, Next route와 release/current switch는 포함하지 않는다.
+- `scripts/transform-build-snapshot.mts`는 test·수동 fixture 검증용 filesystem adapter다. media UUID나 local path를 성공·오류 출력에 기록하지 않는다.
 
 ## 전체 제품 목표 구조 — planned
 
@@ -130,19 +134,21 @@ planned 경로는 관련 Issue가 구현할 때만 추가한다.
 - JPA `ddl-auto`로 schema 생성 금지
 - destructive migration은 별도 data/backup/rollback 승인 필요
 
-### `src/generated` — 후속
+### `src/generated` — transformer 산출물, repository에는 미커밋
 
-- 후속 publisher가 build API response와 승인된 code image를 결합해 만드는 고정 입력
+- transformer staging root에 `content.json`과 `media-manifest.json`으로 생성하는 고정 입력
 - 수동 수정 금지
 - schema version 포함
 - 일부 실패에서 과거 데이터와 혼합 금지
+- 실제 Next render가 이 산출물을 소비하는 연결은 후속
 
-### `public/generated` — 후속
+### `public/generated` — transformer 산출물, repository에는 미커밋
 
 - 공개용 image 파생본
 - 원본 upload 금지
 - 내용 hash 기반 파일명
 - metadata 제거 후 export에 포함
+- 실제 release 설치·retention·current switch는 후속 publisher 범위
 
 ### `infra`
 

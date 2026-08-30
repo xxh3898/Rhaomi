@@ -269,6 +269,19 @@ audit actor/timestamp, status, storage key/path, extension, persisted SHA-256, s
 - canonical master를 `verifiedContent()`로 실제 size·SHA 검증하고 `Content-Type`, exact `Content-Length`, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`만 반환한다.
 - Range, ETag, original filename, path, SHA header는 제공하지 않는다. snapshot 뒤 scope가 바뀌면 안전하게 거부하며 과거 file로 fallback하지 않는다.
 
+## build snapshot transformer — current
+
+- transformer는 backend HTTP·credential이나 Spring DTO class에 의존하지 않고 JSON 값과 `MediaContentProvider` port를 입력으로 받는다.
+- top-level·모든 entity exact key, `schemaVersion = 1`, safe integer revision/generation, canonical UUID·slug·microsecond Instant, 문자열·URL·number limit과 Shop/media pair를 fail-closed로 검증한다.
+- published/time eligibility, Breed·Service·Gallery·Notice 관계와 before/after·alt, exact distinct media manifest를 독립적으로 다시 확인한다. unknown/missing field나 explicit invalid relation은 silent omission하지 않는다.
+- Breed·Service는 snapshot의 canonical server order를 보존하고, media processing과 manifest는 media UUID·고정 profile·format·width 순서를 사용한다.
+- `MediaContentProvider`는 distinct media UUID당 한 번 호출한다. provider 결과의 content type, JPEG·PNG signature/decode, byte·dimension·pixel·single-image 조건을 manifest와 다시 대조한다.
+- orientation 적용·sRGB·metadata 제거 뒤 Gallery card `360/640/960`, Gallery large `768/1200/1600`, Hero `768/1280/1920`의 no-upscale AVIF·WebP·JPEG를 생성한다. 미용사·OG는 최종 layout 결정 전 최대 1200 JPEG fallback을 사용한다.
+- output도 decode·format·metadata를 다시 확인하고 encoded byte SHA-256을 filename으로 사용한다. 동일 byte는 하나의 public file로 deduplicate한다.
+- `src/generated/content.json`, `src/generated/media-manifest.json`, `public/generated/media`를 target sibling temp에서 모두 만든 뒤 새 target으로 rename한다. target이 이미 존재하거나 어느 단계든 실패하면 기존 target을 교체하지 않고 partial temp를 제거한다.
+- `SNAPSHOT_INVALID`, `MEDIA_NOT_FOUND`, `MEDIA_INVALID`, `MEDIA_TRANSFORM_FAILED`, `OUTPUT_FAILED`의 fixed code/message만 호출 경계에 제공한다. UUID·path·decoder/exception detail을 포함하지 않는다.
+- filesystem CLI는 `<media-root>/<uuid>.jpg|png` fixture adapter일 뿐 build API HTTP client나 production publisher가 아니다.
+
 ## publisher content snapshot·release manifest — planned
 
 후속 publisher가 Build API response를 승인된 production code image와 결합해 저장하는 최종 파일은 다음 정보를 포함한다.
@@ -296,18 +309,18 @@ audit actor/timestamp, status, storage key/path, extension, persisted SHA-256, s
 - 일부 collection만 과거 data로 fallback하거나 scheduled event ID·과거 boundary로 current snapshot filter를 우회하지 않는다.
 - transformer는 API response schema와 published/relation/file 조건을 다시 검증하고 raw response를 component에 직접 전달하지 않는다.
 
-## 공개 media 파생 — planned
+## 공개 media 파생 staging — current
 
 ```text
 backend-owned private canonical master
-→ authenticated build-time download
-→ MIME/signature/pixel 검증
-→ metadata 제거와 최적화
-→ content hash
-→ /generated/media/<item-id>-<hash>-<width>.<format>
+→ MediaContentProvider                           [implemented]
+→ MIME/signature/decode/byte/pixel 재검증        [implemented]
+→ orientation·sRGB·metadata 제거와 no-upscale   [implemented]
+→ output decode·format·metadata 재검증           [implemented]
+→ /generated/media/<output-sha256>.<format>      [implemented staging]
 ```
 
-원본 id·storage path·내부 URL을 공개 HTML에 남기지 않는다.
+원본 id·storage path·내부 URL을 public path에 남기지 않는다. authenticated build-time HTTP download와 실제 public release 설치·HTML binding은 후속 publisher/Static Export 범위다.
 
 ## build API 오류 — current
 
@@ -325,11 +338,19 @@ backend-owned private canonical master
 
 고정 JSON은 SQL, constraint, filesystem path, token, private metadata나 내부 exception detail을 포함하지 않는다. partial snapshot 성공 response는 없다.
 
-## transformer·release 실패 조건 — planned
+## transformer 실패 조건 — current
+
+- snapshot unknown/missing/schema/semantic/relation/media manifest 불일치
+- media missing, content-type/signature mismatch, corrupt·APNG·oversized source
+- output encode/decode·format·metadata 검증 실패
+- staging parent/write/rename 실패 또는 이미 존재하는 target
+
+어느 경우도 partial target을 성공으로 반환하지 않고 fixed typed error로 종료한다.
+
+## publisher·release 실패 조건 — planned
 
 - build API 연결·인증 실패
-- snapshot schema mismatch 또는 build API가 거부한 invalid singleton/content/relation/file
-- file download·decode·지원 형식 실패
+- transformer typed failure
 - HTML sanitize·sitemap canonical·link·asset 검증 실패
 - target `publishGeneration`이 current generation 이하
 

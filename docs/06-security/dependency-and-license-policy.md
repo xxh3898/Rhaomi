@@ -3,7 +3,7 @@ title: "의존성·라이선스 정책"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "주요 의존성·라이선스 변경 시"
 ---
 
@@ -17,6 +17,8 @@ review_trigger: "주요 의존성·라이선스 변경 시"
 - PostgreSQL `18.6-alpine3.23`
 - NightMonkeys `imageio-heif 1.1.0` — MIT, Java 22+ FFM ImageIO adapter
 - Alpine `libheif 1.23.0-r0` — LGPL-3.0-or-later, amd64·arm64 native HEIC/HEIF decode/color transform
+- `sharp 0.35.4` — Apache-2.0, Node 24 build transformer의 JPEG·PNG 재검증과 AVIF·WebP·JPEG 파생본
+- `@img/sharp-libvips-* 1.3.3` — LGPL-3.0-or-later, lockfile로 고정한 Linux amd64·arm64 prebuilt libvips runtime
 - Next.js와 frontend dependency는 `package-lock.json` 기준
 - Docker image는 검증한 exact tag를 사용하고 운영에서는 가능하면 digest까지 고정
 
@@ -38,6 +40,17 @@ Alpine package가 동적 link하는 현재 runtime package와 Alpine metadata의
 | `libsharpyuv` | `1.6.0-r0` | BSD-3-Clause | color conversion dependency |
 
 현재 workflow는 위 image를 test용으로 build할 뿐 registry에 publish하지 않는다. 개발 package의 x265 encoder는 application에서 사용하지 않는다.
+
+## 현재 build transformer runtime 인벤토리
+
+`package.json`과 `package-lock.json`은 `sharp 0.35.4`를 exact로 고정한다. lockfile은 Hosted Linux amd64와 Mac mini Docker Linux arm64에 필요한 glibc·musl `sharp` binary와 `sharp-libvips 1.3.3` optional package를 포함한다. Compose contract-check는 container architecture를 확인한 뒤 실제 transformer suite를 실행한다.
+
+| package | version | license | 현재 용도 |
+|---|---|---|---|
+| `sharp` | `0.35.4` | Apache-2.0 | decode, orientation, sRGB, resize, AVIF·WebP·JPEG encode |
+| `@img/sharp-libvips-*` | `1.3.3` | LGPL-3.0-or-later | Linux x64·arm64 image processing runtime |
+
+application runtime에서 codec·binary를 다운로드하지 않고 `npm ci`가 exact lockfile artifact를 설치한다. actual production publisher image·SBOM·notice packaging은 아직 구현되지 않았으며 release 전에 production dependency inventory와 vulnerability scan을 다시 수행한다.
 
 ## Production HEIC runtime target — planned
 
@@ -104,6 +117,8 @@ Directus 12.3.1 Core의 custom permission entitlement가 라오미펫의 item fi
 - libheif: `https://github.com/strukturag/libheif/`
 - libheif v1.23.1: `https://github.com/strukturag/libheif/releases/tag/v1.23.1`
 - libde265: `https://github.com/strukturag/libde265/`
+- sharp: `https://sharp.pixelplumbing.com/`
+- sharp license: `https://github.com/lovell/sharp/blob/v0.35.4/LICENSE`
 
 ## 폰트·아이콘·사진
 

@@ -102,6 +102,18 @@ postgres" ]; then
 fi
 
 compose --profile frontend run --rm --no-deps frontend npm ci
+compose --profile validation run --rm --no-deps contract-check sh -c '
+  architecture=$(uname -m)
+  case "$architecture" in
+    x86_64 | aarch64) ;;
+    *)
+      echo "지원하지 않는 transformer container architecture입니다." >&2
+      exit 1
+      ;;
+  esac
+  echo "Transformer container architecture: $architecture"
+  npm run test:transformer
+'
 compose --profile frontend up -d --wait --wait-timeout 300 postgres backend frontend gateway
 compose ps
 

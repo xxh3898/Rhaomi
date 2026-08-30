@@ -46,7 +46,20 @@ review_trigger: "관리 backend·배포 event 변경 시"
 - [x] dev gateway `/api/build/**` 선행 404와 frontend token/environment 부재
 - [x] concurrent mutation 중 기존 snapshot 일관성과 다음 request의 새 revision/content 확인
 
-아래 항목은 각 줄의 전체 범위를 기준으로 표시한다. producer와 claim/generation DB state 항목은 완료했고 실제 polling publisher·build·공개 결과를 포함한 항목은 미완료다.
+## Phase 1C-8f4 snapshot transformer 완료
+
+- [x] exact `BuildSnapshotV1` unknown/missing key, type·limit·unsafe integer, UUID·slug·Instant·HTTPS·Shop pair 검증
+- [x] published/time eligibility, relation, before/after, alt, duplicate와 exact media manifest 재검증
+- [x] Breed·Service source order 보존과 media/profile/format/width 결정 순서, 같은 입력의 byte-for-byte deterministic output
+- [x] distinct media fetch-once, JPEG·PNG content type/signature/decode와 30 MiB·12,000px·60MP·single-image/APNG 제한
+- [x] orientation·sRGB·metadata strip과 Gallery card·large·Hero no-upscale AVIF·WebP·JPEG 파생본
+- [x] output decode·format·metadata 재검증, output-byte SHA-256 filename과 duplicate byte file dedupe
+- [x] `src/generated/content.json`·`media-manifest.json`·`public/generated/media` staging contract
+- [x] missing/invalid/transform/output typed error, partial temp cleanup과 existing successful target 보존
+- [x] filesystem CLI success/failure safe output와 credential·UUID·path·decoder detail 비노출
+- [x] Linux amd64 Hosted·Linux arm64 Mac Compose에서 Node 24·exact Sharp transformer suite 실행 계약
+
+아래 항목은 각 줄의 전체 범위를 기준으로 표시한다. producer, claim/generation, build API와 독립 transformer staging은 완료했고 실제 polling publisher·HTTP 연동·Next build·release/public 결과를 포함한 항목은 미완료다.
 
 ## 기본 게시
 
@@ -91,39 +104,43 @@ review_trigger: "관리 backend·배포 event 변경 시"
 - [x] publishedAt·expiresAt 변경 뒤 old event claim → current row 최소 재검증과 generation 없는 stale no-op
 - [x] future notice의 draft·archived 전환 뒤 old event claim → generation 없는 stale no-op
 - [x] active generation build snapshot이 event payload 대신 current row·relation·media/file을 재검증
-- [ ] 위 재검증 결과를 후속 transformer·release까지 전달 → stale 공개 없음
+- [x] Build API DTO 형태의 snapshot을 transformer가 independently 재검증하고 invalid stale/관계 입력을 staging 전에 거부
+- [ ] 위 재검증 결과를 publisher release까지 전달 → stale 공개 없음
 - [ ] publisher가 boundary 동안 down → restart 후 overdue event 반복 처리·정확한 snapshot 공개/제거
 - [ ] 가까운 여러 publish/expiry boundary → 30초 debounce/coalesce 후 최종 `generatedAt` snapshot 정확
 - [x] 같은 `contentRevision`의 publish boundary와 expiry boundary claim이 서로 다른 `publishGeneration` 생성
 - [ ] 주간 notice expiry audit가 event drift를 탐지하되 correctness trigger를 대체하지 않음
 
-## 이미지
+## 이미지 transformer
 
-- [ ] JPEG
-- [ ] PNG
+- [x] JPEG signature/decode·metadata strip·responsive derivative
+- [x] PNG signature/decode·alpha JPEG flatten·responsive derivative
 - [ ] WebP
 - [ ] 실제 iPhone HEIC
-- [ ] portrait orientation
-- [ ] landscape
-- [ ] 큰 원본
-- [ ] 손상 파일
-- [ ] 잘못된 MIME
-- [ ] GPS EXIF 제거
-- [ ] responsive variants
-- [ ] 원본 URL 비노출
+- [x] synthetic portrait orientation
+- [x] synthetic landscape
+- [x] 큰 원본의 30 MiB·12,000px·60MP 제한
+- [x] 손상 파일
+- [x] 잘못된 MIME·signature
+- [x] synthetic GPS EXIF·XMP 제거
+- [x] Gallery card·large·Hero responsive AVIF·WebP·JPEG variants와 no upscale
+- [x] snapshot/manifest·public path에 원본 URL·storage path 비노출
+
+WebP source와 실제 iPhone HEIC는 canonical master transformer 입력 형식이 아니다. 실제 iPhone HEIC는 backend에서 JPEG master로 정규화된 뒤 publisher end-to-end gate에서 별도 검증한다.
 
 ## 실패 안전성
 
 - [x] 콘텐츠 변경과 publishing outbox가 같은 PostgreSQL transaction에서 commit/rollback
 - [x] Build API response의 `contentRevision`·`publishGeneration`·`generatedAt` 일치와 `codeImageDigest` 부재
+- [x] transformer content/manifest의 `contentRevision`·`publishGeneration`·`generatedAt` 보존
 - [ ] publisher content snapshot/release manifest의 위 세 field·승인 code image digest 일치
 - [ ] 낮거나 같은 `publishGeneration`의 old build가 newer current를 덮지 못함
 - [x] build service token disabled → fixed 503, production 누락·malformed → startup failure
 - [ ] Spring Boot/build API 중단 → 후속 publisher build 실패, current 유지
 - [ ] PostgreSQL 중단 → build 실패, current 유지
-- [ ] invalid content → build 실패, current 유지
-- [ ] image decoder 실패 → build 실패, current 유지
-- [ ] disk full simulation → current 유지
+- [x] invalid snapshot → staging 실패, partial temp 부재와 기존 target 유지
+- [x] image decoder/transform 실패 → staging 실패, partial temp 부재와 기존 target 유지
+- [x] parent write failure → staging 실패, partial temp 부재와 기존 target 유지
 - [x] build service credential 오류·admin session-only·dev/public `/api/build/**` → 요청 거부
 - [x] build API create/update/delete/share와 unknown GET 모두 거부
 - [ ] 첫 변경 뒤 30초 debounce와 global filesystem lock
