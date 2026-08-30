@@ -139,13 +139,13 @@ publisher는 normal backend profile이나 환경변수만으로 시작하지 않
 | `RHAOMI_PUBLISHER_IDLE_POLL_INTERVAL` | N | `1s` | claim 없음·safe iteration failure 뒤 bounded wait |
 | `RHAOMI_PUBLISHER_LEASE_DURATION` | N | `2m` | existing state service claim lease |
 | `RHAOMI_PUBLISHER_LEASE_RENEWAL_INTERVAL` | N | `30s` | debounce·executor heartbeat, lease의 절반 이하 |
-| `RHAOMI_PUBLISHER_SHUTDOWN_TIMEOUT` | N | `10s` | worker join의 bounded shutdown wait |
-| `RHAOMI_PUBLISHER_LOCK_FILE` | N, 내부 경로 | `/var/lib/rhaomi/locks/publisher.lock` | executor 직전 empty advisory lock file |
+| `RHAOMI_PUBLISHER_SHUTDOWN_TIMEOUT` | N | `10s` | lifecycle caller의 bounded worker join; 미종료 executor의 lock lifetime을 단축하지 않음 |
+| `RHAOMI_PUBLISHER_LOCK_FILE` | N, 내부 경로 | `/var/lib/rhaomi/locks/publisher.lock` | executor 직전 획득하고 physical termination acknowledgment까지 유지하는 empty advisory lock file |
 | `RHAOMI_PUBLISHER_AUTO_START` | N | `true` | explicit publisher root 안의 lifecycle gate, normal backend activation 수단 아님 |
 
 첫 accepted generation 기준 debounce는 고정 30초이며 환경변수로 바꿀 수 없다. `T0 + 30s` trigger를 포함하고 이후 trigger는 다음 window에 남긴다. poll·lease·renew·shutdown duration은 positive bounded 값이고 owner에는 credential·path를 넣지 않는다.
 
-현재 control loop는 immediate pending, due scheduled, same-generation retry와 expired lease recovery를 처리하고 highest generation coalesce·lease heartbeat·global lock·typed result mapping을 제공한다. placeholder executor는 항상 transient failure를 반환해 public release를 만들지 않는다. default `compose.dev.yaml`은 publisher service를 자동 기동하지 않으며 public/dev Nginx route와 Docker socket도 추가하지 않는다.
+현재 control loop는 immediate pending, due scheduled, same-generation retry와 expired lease recovery를 처리하고 highest generation coalesce·lease heartbeat·global lock·typed result mapping을 제공한다. cancellation은 executor wrapper의 실제 진입·종료 상태를 추적하며, interrupt 뒤에도 body가 살아 있으면 lock과 non-daemon control worker를 유지한다. shutdown timeout은 lifecycle caller의 대기만 제한하고 lock을 먼저 넘기지 않으며, 외부 process termination 때 executor와 OS lock이 함께 정리된다. placeholder executor는 항상 transient failure를 반환해 public release를 만들지 않는다. default `compose.dev.yaml`은 publisher service를 자동 기동하지 않으며 public/dev Nginx route와 Docker socket도 추가하지 않는다.
 
 아래 release adapter 변수는 후속 Phase 1C-8f6~8f7 planned contract다.
 

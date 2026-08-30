@@ -249,9 +249,11 @@ review_trigger: "기술·기능 범위 변경 시"
 - burst generation 1/2/3의 lower→highest coalesce와 generation 3 단일 executor, recovered lower generation의 highest 유지
 - debounce·async executor lease heartbeat, pre-lock·executor 중 lease 상실과 state completion false의 success 금지
 - typed executor 네 결과와 safe exception의 fixed state mapping, lock unavailable의 transient 처리
-- idle/debounce/executor shutdown과 shutdown 뒤 새 claim 부재, lock handle release
+- idle/debounce/executor shutdown과 shutdown 뒤 새 claim 부재, actual executor body 종료 뒤 lock handle release
 - PostgreSQL 18.6 pending burst monotonic generation·coalesce·highest success, stale no-generation, due retry와 expired lease recovery의 same generation
 - shared filesystem을 쓰는 두 publisher contender의 executor maximum concurrency 1과 loser retry-wait
+- interrupt를 무시하고 release latch까지 살아 있는 actual async executor로 lease-loss·shutdown timeout 동안 두 번째 file lock 획득 불가, physical 종료 뒤에만 재획득 가능
+- lease를 잃은 executor의 늦은 success/no-public-change 결과가 completeSuccess·completeNoop으로 기록되지 않음
 - actual advisory lock file 내용 0 byte, fixed I/O failure와 path detail 비노출
 
 H2 전용 통과는 DB contract 증거로 인정하지 않는다. Hosted CI Backend job은 실제 PostgreSQL service를 사용한다.

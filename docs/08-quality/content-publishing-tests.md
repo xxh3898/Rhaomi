@@ -71,7 +71,9 @@ review_trigger: "관리 backend·배포 event 변경 시"
 - [x] debounce·executor lease heartbeat, lost lease·state mutation false의 success/no-op completion 금지
 - [x] empty `FileChannel.tryLock` advisory file, shared lock contender executor concurrency 1과 unavailable transient 처리
 - [x] typed success/no-public-change/transient/terminal mapping과 raw exception·path 없는 safe internal failure
-- [x] idle/debounce/executor shutdown, bounded cancel과 shutdown 뒤 새 claim 부재
+- [x] lease-loss·shutdown cancellation에서 interrupt를 무시하는 actual async executor의 physical 종료 전 lock 재획득 불가, 종료 뒤 재획득 가능
+- [x] shutdown timeout 뒤 non-daemon control worker·lock 유지와 executor의 늦은 success/no-op completion 금지
+- [x] idle/debounce/executor shutdown, bounded lifecycle join과 shutdown 뒤 새 claim 부재
 - [x] PostgreSQL 18.6 burst·stale·same-generation retry·expired lease recovery·shared lock integration
 - [x] production Build API/transformer/Next/release adapter 없는 transient placeholder와 default Compose publisher service 부재
 

@@ -65,6 +65,9 @@ public final class PublisherLifecycle implements SmartLifecycle {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
         }
+        // An alive worker remains the lock owner until the executor body acknowledges termination.
+        // Keeping this platform thread alive makes shutdown fail closed; process termination then
+        // removes both the physical execution and its operating-system file lock.
         running.set(currentWorker.isAlive());
     }
 

@@ -194,7 +194,7 @@ review_trigger: "관리 API·build 입력 변경 시"
 ## publisher orchestration — current control / planned data plane
 
 - exact mode argument로 선택한 dedicated non-web publisher는 current state service를 호출해 immediate pending, due scheduled, overdue lease와 due retry를 계속 처리한다.
-- 첫 accepted trigger의 `claimedAt`부터 `T0 + 30s`를 포함하는 fixed debounce를 적용하고 lower active generation을 highest live generation으로 즉시 coalesce한다. debounce와 executor 대기 중 lease를 갱신하고 container-side global advisory lock을 획득한 뒤에만 typed executor port를 호출한다.
+- 첫 accepted trigger의 `claimedAt`부터 `T0 + 30s`를 포함하는 fixed debounce를 적용하고 lower active generation을 highest live generation으로 즉시 coalesce한다. debounce와 executor 대기 중 lease를 갱신하고 container-side global advisory lock을 획득한 뒤에만 typed executor port를 호출한다. lease 상실·shutdown으로 cancellation을 요청해도 실제 executor body가 종료됐거나 시작 불가능하다는 acknowledgment 전에는 lock scope를 빠져나가지 않는다. `Future.cancel(true)`와 `Future.isDone()`은 이 acknowledgment가 아니다.
 - normal backend에는 publisher loop·lifecycle bean이 없고 publisher root에는 controller·web server가 없다. 현재 placeholder executor는 transient failure로 fail-closed하며 public artifact를 만들지 않는다.
 - claim 뒤 current row가 바뀔 수 있으므로 event 값을 public authority로 사용하지 않고 전체 build snapshot의 status·게시/만료·relation·media/file 조건을 다시 검증한다.
 - Build API HTTP client, transformer·Next 실행, release manifest·atomic switch와 운영 관제는 후속 Issue에서 구현한다.

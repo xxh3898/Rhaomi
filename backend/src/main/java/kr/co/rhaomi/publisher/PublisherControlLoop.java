@@ -294,6 +294,10 @@ public final class PublisherControlLoop {
 
         BuildTaskPoll await(Duration timeout) throws InterruptedException;
 
+        /**
+         * Requests cancellation and returns only after the executor body cannot start or has
+         * physically terminated.
+         */
         void cancel();
 
         @Override

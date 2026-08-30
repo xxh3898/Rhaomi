@@ -75,7 +75,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | generation coalesce 역전 | 낮은 trigger가 더 새로운 공개 결과를 덮음 | source보다 큰 실제 `PROCESSING` target self-reference, same-owner active claim guard, terminal source·higher→lower 거부 |
 | publisher의 HTTP process 암묵 실행 | admin process 장애·권한과 build lifecycle 혼합 | exact mode argument 전용 root, normal component scan 밖 구성, `WebApplicationType.NONE`, controller·web server 부재 |
 | debounce·executor 중 lease 상실 | stale owner가 성공 결과를 기록하거나 새 owner와 중복 build | renewal interval을 lease 절반 이하로 제한, debounce·async executor heartbeat, completion 직전 renewal과 false mutation fail-closed |
-| concurrent publisher executor 진입 | 같은 generation·release filesystem 동시 변경 | executor 전 container-side `FileChannel.tryLock`, unavailable transient 처리, success/failure/exception/shutdown의 handle release |
+| concurrent publisher executor 진입 | 같은 generation·release filesystem 동시 변경 | executor 전 container-side `FileChannel.tryLock`, callable 진입·종료 별도 acknowledgment, interrupt 무시·shutdown timeout 중 lock 유지, actual body 종료 뒤에만 handle release |
 | publisher 오류 detail·lock file 노출 | credential·DB·filesystem 정보 유출 | fixed result code와 safe internal category, raw throwable/path 미기록, 빈 advisory lock file |
 | self-hosted runner 악용 | Mac mini 장악 | 전용 runner scope, untrusted PR 실행 금지, 최소 권한 |
 | build credential 탈취 | private snapshot·canonical media 노출 | 256-bit token·timing-safe 비교, stateless GET allowlist, admin session 분리, active generation·public relation scope, public Nginx deny, token 비기록 |

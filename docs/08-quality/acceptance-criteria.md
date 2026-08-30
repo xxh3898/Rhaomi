@@ -312,4 +312,8 @@ review_trigger: "제품 기능 변경 시"
 
 **Given** idle, debounce 또는 executor 중 shutdown이 요청될 때
 
-**Then** 새 claim을 시작하지 않고 bounded하게 worker/task를 중단하며 미완료 target의 terminal 결과나 ownership을 위조하지 않는다.
+**Then** 새 claim을 시작하지 않고 lifecycle caller는 bounded하게 worker 종료를 기다리며 미완료 target의 terminal 결과나 ownership을 위조하지 않는다. executor가 interrupt 뒤에도 살아 있으면 control worker는 physical termination acknowledgment까지 global lock을 유지하고 실행 중 상태로 남는다. process가 종료되면 executor와 OS file lock이 함께 정리된다.
+
+**Given** lease 상실 또는 shutdown cancellation 뒤 executor가 interrupt를 무시하고 계속 실행될 때
+
+**Then** `Future.cancel(true)`나 `Future.isDone()`을 종료로 간주하지 않고 두 번째 publisher의 lock 획득을 막는다. executor body의 실제 종료 뒤에만 lock을 다시 획득할 수 있으며 늦은 `SUCCESS`·`NO_PUBLIC_CHANGE` 결과는 completion으로 기록하지 않는다.

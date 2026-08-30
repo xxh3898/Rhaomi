@@ -213,8 +213,8 @@ Phase 1C-8f4는 독립 transformer library·filesystem CLI와 staging contract�
 - existing state service 기반 pending/due·retry·expired lease 반복 claim
 - 첫 accepted generation 기준 `T0 + 30s` 포함 fixed debounce와 highest-generation coalesce
 - debounce·executor 중 lease heartbeat, lost ownership의 completion 거부
-- container-side configurable `FileChannel.tryLock` global lock과 typed build executor/result port
-- idle/debounce/executor shutdown, PostgreSQL burst·stale·same-generation retry/recovery와 shared-lock contender 검증
+- container-side configurable `FileChannel.tryLock` global lock, physical executor termination acknowledgment와 typed build executor/result port
+- idle/debounce/executor shutdown, interrupt를 무시하는 actual async executor의 lock lifetime, PostgreSQL burst·stale·same-generation retry/recovery와 shared-lock contender 검증
 
 Phase 1C-8f5는 control plane만 구현한다. production executor는 release를 만들지 않는 fail-closed placeholder다. Build API HTTP client, transformer·Next 실행, manifest와 `current/previous` switch는 포함하지 않는다.
 

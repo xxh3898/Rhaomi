@@ -36,7 +36,7 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - 현재 internal state service가 immediate pending event와 `availableAt <= now`인 scheduled event를 single-claim하고 만료 lease·due retry를 같은 generation으로 복구할 수 있다.
 - exact opt-in으로 기동한 dedicated non-web publisher가 state service를 반복 호출하고 첫 accepted `PROCESSING` generation의 `claimedAt`부터 고정 30초 debounce한다. `T0 + 30s`에 due인 trigger는 포함하고 그 이후는 다음 window에 남긴다.
 - scheduled claim은 current Notice·Gallery의 published 상태와 expected boundary만 최소 검증한다. build API는 claim 뒤 current row가 다시 바뀔 수 있음을 전제로 전체 snapshot의 relation·media·file·`generatedAt` eligibility를 재검증하고, 후속 transformer도 response를 다시 검증한다.
-- executor 직전 container-side configurable `FileChannel.tryLock` global lock으로 build port 진입을 직렬화한다. planned production container target은 `/var/lib/rhaomi/locks`이며 이번 단계는 production host path를 만들지 않는다.
+- executor 직전 container-side configurable `FileChannel.tryLock` global lock을 획득하고, 해당 executor body가 종료됐거나 시작 불가능하다는 wrapper acknowledgment까지 같은 lock scope를 유지한다. planned production container target은 `/var/lib/rhaomi/locks`이며 이번 단계는 production host path를 만들지 않는다.
 - code release와 콘텐츠 release가 같은 검증·atomic switch 구현을 사용한다.
 
 ## 현재 producer 경계
@@ -84,6 +84,8 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - generation 없는 stale scheduled `NOOP`는 executor target이 아니다. fresh/retry/recovered generation은 같은 ordering으로 비교하며 lower claim은 highest target에 coalesce한다.
 - lock을 얻지 못하거나 safe internal executor failure가 나면 active ownership이 유지되는 경우에만 existing transient failure transition을 호출한다. raw exception·path·credential은 DB result와 log에 남기지 않는다.
 - executor 결과는 `SUCCESS | NO_PUBLIC_CHANGE | TRANSIENT_FAILURE | TERMINAL_FAILURE`이고 각각 기존 state service의 success/no-op/transient/terminal transition으로만 반영한다.
+- lease 상실·shutdown cancellation은 interrupt 요청만으로 완료하지 않는다. wrapper가 callable 진입·종료를 추적하고 실제 종료 acknowledgment 뒤에만 lock을 해제한다. `Future.cancel(true)`·cancelled/`isDone` 상태는 physical termination authority가 아니다.
+- shutdown timeout 뒤 executor가 계속 실행되면 non-daemon control worker가 lock scope 안에서 기다려 새 publisher 진입을 차단한다. 정상 종료가 불가능하면 process termination이 executor와 OS file lock을 함께 정리하는 fail-closed lifecycle을 사용한다.
 - 현재 placeholder executor는 `TRANSIENT_FAILURE`만 반환해 release 생성을 fail-closed한다. build API HTTP client와 transformer 실행은 Phase 1C-8f6 범위다.
 - default Compose에는 publisher service가 없고 normal backend에는 publisher loop/thread가 없다. publisher mode는 public port, Nginx route, Docker socket과 production bind를 추가하지 않는다.
 
@@ -122,7 +124,7 @@ sequenceDiagram
 
 1. immediate pending·due scheduled event poll, overdue recovery와 claim·`publishGeneration`·첫 attempt의 atomic transaction
 2. 첫 accepted generation 기준 fixed 30초 debounce와 가장 높은 `publishGeneration` coalescing — control plane 구현
-3. lease heartbeat와 global filesystem advisory lock — control plane 구현
+3. lease heartbeat와 physical executor termination acknowledgment까지 유지하는 global filesystem advisory lock — control plane 구현
 4. typed executor port 호출과 state result 반영 — placeholder만 구현
 5. release ID, target `contentRevision`·`publishGeneration`과 승인된 production code image digest 확인
 6. internal read-only build API로 일관된 snapshot 조회
