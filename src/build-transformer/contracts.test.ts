@@ -34,6 +34,53 @@ describe("BuildSnapshotV1 strict validator", () => {
     expect(snapshot.generatedAt).toBe("2026-08-30T00:00:00.123456Z");
   });
 
+  it("Breed와 Service description에 backend에 없는 길이 제한을 추가하지 않는다", () => {
+    const breedDescription = "견".repeat(10_001);
+    const serviceDescription = "서".repeat(10_001);
+    const source = snapshotFixture();
+
+    const snapshot = parseBuildSnapshotV1({
+      ...source,
+      breeds: source.breeds.map((item, index) =>
+        index === 0 ? { ...item, description: breedDescription } : item,
+      ),
+      services: source.services.map((item, index) =>
+        index === 0 ? { ...item, description: serviceDescription } : item,
+      ),
+    });
+
+    expect(Array.from(snapshot.breeds[0].description ?? "")).toHaveLength(
+      10_001,
+    );
+    expect(Array.from(snapshot.services[0].description)).toHaveLength(10_001);
+  });
+
+  it("Breed와 Service description의 nullable/nonblank canonical 계약을 유지한다", () => {
+    const source = snapshotFixture();
+    const nullableBreed = parseBuildSnapshotV1({
+      ...source,
+      breeds: source.breeds.map((item, index) =>
+        index === 0 ? { ...item, description: null } : item,
+      ),
+    });
+
+    expect(nullableBreed.breeds[0].description).toBeNull();
+    for (const description of ["   ", " 정규화되지 않은 설명 "]) {
+      expectInvalid({
+        ...source,
+        breeds: source.breeds.map((item, index) =>
+          index === 0 ? { ...item, description } : item,
+        ),
+      });
+    }
+    expectInvalid({
+      ...source,
+      services: source.services.map((item, index) =>
+        index === 0 ? { ...item, description: "\t\n" } : item,
+      ),
+    });
+  });
+
   it("unknown 또는 missing top-level/entity field를 거부한다", () => {
     const snapshot = snapshotFixture();
     const missing = Object.fromEntries(

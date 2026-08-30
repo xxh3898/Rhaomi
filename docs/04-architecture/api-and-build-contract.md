@@ -272,7 +272,7 @@ audit actor/timestamp, status, storage key/path, extension, persisted SHA-256, s
 ## build snapshot transformer — current
 
 - transformer는 backend HTTP·credential이나 Spring DTO class에 의존하지 않고 JSON 값과 `MediaContentProvider` port를 입력으로 받는다.
-- top-level·모든 entity exact key, `schemaVersion = 1`, safe integer revision/generation, canonical UUID·slug·microsecond Instant, 문자열·URL·number limit과 Shop/media pair를 fail-closed로 검증한다.
+- top-level·모든 entity exact key, `schemaVersion = 1`, safe integer revision/generation, canonical UUID·slug·microsecond Instant, backend/build API가 정의한 field별 문자열·URL·number limit과 Shop/media pair를 fail-closed로 검증한다. Breed·Service description은 canonical/nonblank 계약만 재검증하며 transformer 전용 길이 제한을 추가하지 않는다.
 - published/time eligibility, Breed·Service·Gallery·Notice 관계와 before/after·alt, exact distinct media manifest를 독립적으로 다시 확인한다. unknown/missing field나 explicit invalid relation은 silent omission하지 않는다.
 - Breed·Service는 snapshot의 canonical server order를 보존하고, media processing과 manifest는 media UUID·고정 profile·format·width 순서를 사용한다.
 - `MediaContentProvider`는 distinct media UUID당 한 번 호출한다. provider 결과의 content type, JPEG·PNG signature/decode, byte·dimension·pixel·single-image 조건을 manifest와 다시 대조한다.

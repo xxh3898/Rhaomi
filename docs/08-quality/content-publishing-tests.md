@@ -48,7 +48,8 @@ review_trigger: "관리 backend·배포 event 변경 시"
 
 ## Phase 1C-8f4 snapshot transformer 완료
 
-- [x] exact `BuildSnapshotV1` unknown/missing key, type·limit·unsafe integer, UUID·slug·Instant·HTTPS·Shop pair 검증
+- [x] exact `BuildSnapshotV1` unknown/missing key, backend field별 type·limit·unsafe integer, UUID·slug·Instant·HTTPS·Shop pair 검증
+- [x] published Breed·Service의 10,001자 description이 Build API snapshot과 transformer를 통과하고 nullable/nonblank canonical 계약은 유지
 - [x] published/time eligibility, relation, before/after, alt, duplicate와 exact media manifest 재검증
 - [x] Breed·Service source order 보존과 media/profile/format/width 결정 순서, 같은 입력의 byte-for-byte deterministic output
 - [x] distinct media fetch-once, JPEG·PNG content type/signature/decode와 30 MiB·12,000px·60MP·single-image/APNG 제한

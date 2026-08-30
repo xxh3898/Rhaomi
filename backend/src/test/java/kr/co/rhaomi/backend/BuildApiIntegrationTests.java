@@ -339,6 +339,32 @@ class BuildApiIntegrationTests {
     }
 
     @Test
+    void should_includeDescriptionsBeyondTenThousandCharacters_when_publishedContentIsValid()
+            throws Exception {
+        var breedDescription = "견".repeat(10_001);
+        var serviceDescription = "서".repeat(10_001);
+        putShop(null, null, null);
+        var breed = publishBreed(
+                "Long breed", "build-long-breed", breedDescription, 1);
+        var service = publishService(
+                "Long service", "build-long-service", serviceDescription, 1);
+        var generation = activateGeneration(63);
+
+        var response = getString("/api/build/snapshot?publishGeneration=" + generation);
+
+        assertEquals(200, response.statusCode(), response.body());
+        var root = objectMapper.readTree(response.body());
+        assertEquals(breed.toString(), root.get("breeds").get(0).get("id").asText());
+        assertEquals(
+                breedDescription,
+                root.get("breeds").get(0).get("description").asText());
+        assertEquals(service.toString(), root.get("services").get(0).get("id").asText());
+        assertEquals(
+                serviceDescription,
+                root.get("services").get(0).get("description").asText());
+    }
+
+    @Test
     void should_applyNoticeUpdatedAtOrdering_when_publishedAtAndPinnedAreEqual() throws Exception {
         putShop(null, null, null);
         var first = publishNotice(
@@ -678,13 +704,16 @@ class BuildApiIntegrationTests {
     }
 
     private UUID publishBreed(String name, String slug, int sortOrder) {
+        return publishBreed(name, slug, "공개 견종 설명", sortOrder);
+    }
+
+    private UUID publishBreed(String name, String slug, String description, int sortOrder) {
         var created = breedAdminService.create(
-                new BreedCreateRequest(name, slug, "공개 견종 설명", sortOrder), admin.getId());
+                new BreedCreateRequest(name, slug, description, sortOrder), admin.getId());
         return breedAdminService
                 .update(
                         created.id(),
-                        new BreedUpdateRequest(
-                                "published", name, "공개 견종 설명", sortOrder),
+                        new BreedUpdateRequest("published", name, description, sortOrder),
                         admin.getId())
                 .id();
     }
@@ -698,8 +727,12 @@ class BuildApiIntegrationTests {
     }
 
     private UUID publishService(String name, String slug, int sortOrder) {
+        return publishService(name, slug, "공개 서비스 설명", sortOrder);
+    }
+
+    private UUID publishService(String name, String slug, String description, int sortOrder) {
         var created = serviceAdminService.create(
-                new ServiceCreateRequest(name, slug, "공개 서비스 설명", "상담 후 안내", sortOrder),
+                new ServiceCreateRequest(name, slug, description, "상담 후 안내", sortOrder),
                 admin.getId());
         return serviceAdminService
                 .update(
@@ -707,7 +740,7 @@ class BuildApiIntegrationTests {
                         new ServiceUpdateRequest(
                                 "published",
                                 name,
-                                "공개 서비스 설명",
+                                description,
                                 "상담 후 안내",
                                 sortOrder),
                         admin.getId())

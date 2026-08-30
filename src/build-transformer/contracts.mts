@@ -212,21 +212,32 @@ function exact(
   }
 }
 
-function requiredText(value: unknown, maxCodePoints: number): string {
+function canonicalText(value: unknown): string {
   if (
     typeof value !== "string" ||
     value !== value.trim() ||
-    !/\S/u.test(value) ||
-    Array.from(value).length > maxCodePoints
+    !/\S/u.test(value)
   ) {
     fail("SNAPSHOT_INVALID");
   }
   return value;
 }
 
+function requiredText(value: unknown, maxCodePoints: number): string {
+  const text = canonicalText(value);
+  if (Array.from(text).length > maxCodePoints) {
+    fail("SNAPSHOT_INVALID");
+  }
+  return text;
+}
+
 function nullableText(value: unknown, maxCodePoints: number): string | null {
   if (value === null) return null;
   return requiredText(value, maxCodePoints);
+}
+
+function nullableCanonicalText(value: unknown): string | null {
+  return value === null ? null : canonicalText(value);
 }
 
 function uuid(value: unknown): string {
@@ -410,7 +421,7 @@ function parseBreed(value: unknown): BuildBreedV1 {
     id: uuid(input.id),
     name: requiredText(input.name, 100),
     slug: slug(input.slug, 120),
-    description: nullableText(input.description, 10_000),
+    description: nullableCanonicalText(input.description),
     sortOrder: nonNegativeInteger(input.sortOrder),
   };
 }
@@ -422,7 +433,7 @@ function parseService(value: unknown): BuildServiceV1 {
     id: uuid(input.id),
     name: requiredText(input.name, 100),
     slug: slug(input.slug, 120),
-    description: requiredText(input.description, 10_000),
+    description: canonicalText(input.description),
     priceText: requiredText(input.priceText, 100),
     sortOrder: nonNegativeInteger(input.sortOrder),
   };

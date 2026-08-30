@@ -294,6 +294,7 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 ## 현재 Phase 1C-8f4 transformer 자동 검증
 
 - strict snapshot exact key·schema·semantic·published/time/relation/media manifest와 typed safe error
+- Breed nullable description과 Service required description의 canonical/nonblank 재검증, backend에 없는 transformer 전용 길이 제한 부재
 - distinct media fetch-once와 source canonical order 보존, derivative manifest deterministic ordering
 - JPEG·PNG signature/decode·size/pixel/single-image/APNG 제한과 corrupt/type mismatch
 - EXIF/GPS/XMP·orientation을 넣은 synthetic source의 rotate·sRGB·metadata strip
