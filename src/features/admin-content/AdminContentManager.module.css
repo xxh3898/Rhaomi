@@ -1,0 +1,297 @@
+.manager {
+  display: grid;
+  gap: 1.2rem;
+}
+
+.topBar,
+.headerRow,
+.formActions,
+.cardHeading,
+.metadataRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.topBar button,
+.primaryButton,
+.secondaryButton,
+.editButton {
+  min-height: 2.75rem;
+  padding: 0.65rem 0.9rem;
+  color: #493428;
+  background: #fffaf6;
+  border: 1px solid #cbbbae;
+  border-radius: 0.7rem;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.topBar button:disabled,
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.editButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.primaryButton {
+  color: #fff;
+  background: #65432d;
+  border-color: #65432d;
+}
+
+.header {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.header p,
+.header h2,
+.header span,
+.headerRow h3,
+.headerRow p,
+.cardHeading h3,
+.cardHeading p,
+.emptyState,
+.statePanel,
+.alert,
+.success,
+.help,
+.description {
+  margin: 0;
+}
+
+.header > p {
+  color: #806957;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.header h2 {
+  color: #3b2c23;
+  font-size: clamp(1.4rem, 5vw, 1.9rem);
+}
+
+.header span,
+.help,
+.description,
+.metadataRow {
+  color: #716259;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.createPanel,
+.editPanel,
+.statePanel,
+.emptyState {
+  padding: 1rem;
+  background: #fffaf6;
+  border: 1px solid #ded2c8;
+  border-radius: 0.9rem;
+}
+
+.statePanel,
+.emptyState {
+  color: #65574e;
+  text-align: center;
+}
+
+.statePanel {
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+}
+
+.form {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(8rem, 1fr);
+  gap: 0.8rem;
+}
+
+.field,
+.wideField {
+  display: grid;
+  gap: 0.35rem;
+  color: #49382e;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.wideField {
+  grid-column: 1 / -1;
+}
+
+.field input,
+.field select,
+.wideField input,
+.wideField textarea {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.72rem;
+  color: #30231c;
+  background: #fff;
+  border: 1px solid #baaa9d;
+  border-radius: 0.6rem;
+  font: inherit;
+}
+
+.wideField textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.field input:disabled {
+  color: #75685f;
+  background: #eee8e2;
+}
+
+.topBar button:focus-visible,
+.primaryButton:focus-visible,
+.secondaryButton:focus-visible,
+.editButton:focus-visible,
+.field input:focus-visible,
+.field select:focus-visible,
+.wideField input:focus-visible,
+.wideField textarea:focus-visible {
+  outline: 3px solid #bf6b2e;
+  outline-offset: 2px;
+}
+
+.formActions {
+  justify-content: flex-end;
+}
+
+.alert,
+.success {
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.65rem;
+  line-height: 1.5;
+}
+
+.alert {
+  color: #7c251d;
+  background: #fff0ed;
+  border: 1px solid #e5b4ac;
+}
+
+.success {
+  color: #285a3f;
+  background: #edf8f1;
+  border: 1px solid #b4d8c0;
+}
+
+.contentList {
+  display: grid;
+  gap: 0.8rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contentList > li {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid #ded2c8;
+  border-radius: 0.9rem;
+  box-shadow: 0 0.35rem 1.1rem rgb(71 46 31 / 6%);
+}
+
+.cardHeading {
+  align-items: flex-start;
+}
+
+.cardHeading h3 {
+  color: #3b2c23;
+  font-size: 1.05rem;
+}
+
+.slug {
+  display: inline-block;
+  max-width: 100%;
+  margin-top: 0.25rem;
+  color: #76675d;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.8rem;
+  padding: 0.25rem 0.55rem;
+  color: #584337;
+  background: #f2ebe5;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.metadataRow {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.editPanel {
+  background: #fbf5f0;
+  border-color: #d4c3b6;
+}
+
+@media (max-width: 560px) {
+  .fieldGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .wideField {
+    grid-column: auto;
+  }
+
+  .cardHeading,
+  .headerRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .editButton,
+  .headerRow .primaryButton {
+    width: 100%;
+  }
+}
+
+@media (max-width: 359px) {
+  .topBar,
+  .formActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .topBar button,
+  .formActions button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .manager *,
+  .manager *::before,
+  .manager *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

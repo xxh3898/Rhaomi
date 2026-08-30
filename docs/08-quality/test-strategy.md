@@ -18,7 +18,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - 모바일 문의·검색 metadata 보호
 - 배포 실패 시 기존 사이트 보호
 
-## 현재 Phase 1C-8b 자동 검증
+## 현재 Phase 1C-8c 자동 검증
 
 ### Frontend
 
@@ -37,7 +37,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - logout 204/401/403, mutation non-retry와 authenticated API 401 session-expired 처리
 - visible label/autocomplete, Enter, pending 중복 방지, live alert, password focus, retry와 identity
 - browser storage·URL·log credential/token 비저장 정적 검사
-- 매장정보·미디어만 enabled인 dashboard navigation과 same-page 관리 홈 복귀
+- 매장정보·미디어·견종·서비스가 enabled이고 갤러리·공지만 disabled인 dashboard navigation과 same-page 관리 홈 복귀
 - media list loading/ready/empty/error/refreshing, server ordering 유지와 active/archived client filter
 - private image Blob GET의 JPEG/PNG 검증, bounded lazy fetch와 object URL refresh/unmount revoke
 - 단일 multipart `file`, 20 MiB client 차단, pending double-submit 차단과 success file state clear
@@ -54,6 +54,14 @@ review_trigger: "기술·기능 범위 변경 시"
 - Hero·미용사 image-alt pair와 300 code-point, archived/missing 현재 relation 가시화·새 선택 금지·clear/active 교체
 - picker private Blob bounded load·object URL revoke, media list retry와 preview/session expiry
 - shop ready 상태 background GET·auto-save 부재와 save snapshot/canonical response의 stale overwrite 방지
+- Breed/Service exact relative list·detail·POST·PUT path와 도메인별 strict list/item response validator, malformed·unexpected internal field 거부
+- `CONTENT_NOT_FOUND`, `SLUG_CONFLICT`, `PUBLISH_VALIDATION_FAILED` allowlist와 기존 media/shop error mapping 회귀
+- 견종·서비스 loading/ready/empty/error/refreshing, locale comparator 없이 GET list server array order 보존
+- create/update canonical item response 적용 뒤 post-mutation GET의 server ordering 반영, refresh failure의 저장 성공 분리·explicit recovery
+- 항상 draft인 생성, blank description·priceText·sortOrder의 null 변환, immutable slug와 update full representation
+- draft/published/archived 표시, archive를 delete로 표현하지 않는 복구 flow와 서비스 published description·priceText UX 보조
+- create/edit 첫 input focus와 취소 즉시 trigger 복귀, 성공 뒤 post-mutation GET pending 중 focus ref 보존 및 resolve/reject로 `ready` 복귀한 enabled trigger/item action에만 focus 복귀, pending ref의 중복 POST/PUT 방지와 pre-mutation stale GET·post-mutation generation 경쟁 차단
+- 401 session callback, 403/network/5xx mutation non-retry와 frontend-owned error 문구·raw detail 비노출
 - 320px CSS, 44px control, keyboard native control, aria status/alert/pressed와 archived text state
 
 ### Backend unit
@@ -240,7 +248,7 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 - 홈 → 공지 → 상세 → 홈
 - map/phone/external CTA
 - mobile sticky CTA, 404, keyboard only
-- `/admin` 갤러리·공지·견종·서비스 form/list와 gallery relation picker
+- `/admin` 갤러리·공지 form/list와 gallery relation picker
 - axe, heading/landmark/focus/dialog/contrast/reflow/reduced motion
 - 실제 iPhone Safari HEIC photo-library upload와 session cookie·object URL 동작
 

@@ -115,3 +115,35 @@ review_trigger: "제품 기능 변경 시"
 **Given** Hero 또는 미용사 이미지를 선택했을 때
 
 **Then** 300 code-point 이하의 공개 이미지 대체텍스트를 요구하고 OG에는 alt input을 만들지 않는다.
+
+## AC-14 관리자 견종·서비스 콘텐츠 편집
+
+**Given** 인증된 운영자가 `/admin/` 관리 홈을 열었을 때
+
+**Then** 매장정보·미디어·견종·서비스는 사용 가능하고 갤러리·공지는 준비 중으로 표시된다.
+
+**When** 운영자가 새 견종 또는 서비스를 만들면
+
+**Then** 이름과 직접 입력한 lowercase kebab slug, 선택 text, 빈 값이면 null인 sortOrder를 POST 한 번으로 보내고 strict하게 검증한 `draft` canonical response를 item state로 반영한 뒤 GET list의 server ordering을 적용한다.
+
+**When** 운영자가 기존 견종 또는 서비스를 편집하면
+
+**Then** slug는 읽기 전용이고 status와 mutable field 전체를 PUT 한 번으로 보내며 성공 response를 item state로 반영한 뒤 GET list가 반환한 `sortOrder`, `name`, `id` 순서를 그대로 적용한다.
+
+**Given** POST 또는 PUT은 성공했지만 후속 GET list가 실패했을 때
+
+**Then** mutation 실패로 표시하거나 자동 재전송하지 않고 저장 완료와 목록 순서 refresh 실패를 구분하며 explicit refresh로 복구할 수 있다.
+
+**Given** 서비스의 description 또는 priceText가 비어 있을 때
+
+**When** published를 선택해 저장하면
+
+**Then** client가 게시 필수값을 안내하고 backend `PUBLISH_VALIDATION_FAILED`를 최종 authority로 유지한다.
+
+**Given** keyboard 사용자가 create/edit panel을 열었을 때
+
+**Then** focus가 첫 이름 input으로 이동하고 취소 또는 성공 뒤 원래 trigger나 item 수정 action으로 복귀한다.
+
+**Given** 항목이 archived일 때
+
+**Then** 삭제된 것으로 표현하지 않고 draft 또는 published로 복구할 수 있으며 영구 삭제 action은 제공하지 않는다.

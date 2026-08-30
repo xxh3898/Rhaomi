@@ -256,7 +256,7 @@ describe("AdminAuthShell", () => {
     expect(getSession).toHaveBeenCalledTimes(2);
   });
 
-  it("dashboard에서 매장정보와 미디어를 같은 /admin state로 열고 나머지는 준비 중으로 유지한다", async () => {
+  it("dashboard에서 매장정보·미디어·견종·서비스를 열고 갤러리·공지 여정은 준비 중으로 유지한다", async () => {
     const user = userEvent.setup();
     const client = createClient({
       getSession: vi.fn().mockResolvedValue(ADMIN),
@@ -271,14 +271,16 @@ describe("AdminAuthShell", () => {
 
     expect(await screen.findByText(ADMIN.email)).toBeInTheDocument();
     expect(screen.getByText("역할: ADMIN")).toBeInTheDocument();
-    expect(screen.getAllByText("준비 중")).toHaveLength(4);
-    for (const area of ["갤러리", "공지", "견종", "서비스"]) {
+    expect(screen.getAllByText("준비 중")).toHaveLength(2);
+    for (const area of ["갤러리", "공지"]) {
       expect(screen.getByRole("button", { name: `${area}, 준비 중` })).toBeDisabled();
     }
     const shopButton = screen.getByRole("button", { name: "매장정보 관리 열기" });
     const mediaButton = screen.getByRole("button", { name: "미디어 관리 열기" });
     expect(shopButton).toBeEnabled();
     expect(mediaButton).toBeEnabled();
+    expect(screen.getByRole("button", { name: "견종 관리 열기" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "서비스 관리 열기" })).toBeEnabled();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
 
     shopButton.focus();
@@ -298,7 +300,14 @@ describe("AdminAuthShell", () => {
     expect(screen.getByText(/업로드된 미디어가 없습니다/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "관리 홈으로" }));
-    expect(screen.getByRole("button", { name: "미디어 관리 열기" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "견종 관리 열기" }));
+    expect(await screen.findByRole("heading", { name: "견종 관리" })).toBeInTheDocument();
+    expect(screen.getByText(/등록된 견종이 없습니다/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "관리 홈으로" }));
+    await user.click(screen.getByRole("button", { name: "서비스 관리 열기" }));
+    expect(await screen.findByRole("heading", { name: "서비스 관리" })).toBeInTheDocument();
+    expect(screen.getByText(/등록된 서비스가 없습니다/)).toBeInTheDocument();
   });
 
   it("keyboard로 logout하고 anonymous form으로 전환한다", async () => {

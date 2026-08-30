@@ -105,6 +105,22 @@ test("admin API client 경계를 relative same-origin과 no-store로 고정한�
     ),
     "utf8",
   );
+  const breedApi = await readFile(
+    join(sourceRoot, "features", "admin-breed", "api.ts"),
+    "utf8",
+  );
+  const serviceApi = await readFile(
+    join(sourceRoot, "features", "admin-service", "api.ts"),
+    "utf8",
+  );
+  const breedManager = await readFile(
+    join(sourceRoot, "features", "admin-breed", "AdminBreedManager.tsx"),
+    "utf8",
+  );
+  const serviceManager = await readFile(
+    join(sourceRoot, "features", "admin-service", "AdminServiceManager.tsx"),
+    "utf8",
+  );
 
   assert.match(source, /["']\/api\/admin\//);
   assert.match(source, /credentials:\s*["']same-origin["']/);
@@ -124,6 +140,14 @@ test("admin API client 경계를 relative same-origin과 no-store로 고정한�
   assert.doesNotMatch(shopManager, /(?:POST|PATCH|DELETE)["']/);
   assert.match(mediaPicker, /AdminMediaPreview/);
   assert.doesNotMatch(mediaPicker, /src=[{]?["']\/api\/admin\/media/);
+  assert.match(breedApi, /["']\/api\/admin\/breeds["']/);
+  assert.match(serviceApi, /["']\/api\/admin\/services["']/);
+  assert.match(breedApi, /requestAuthenticatedJson/);
+  assert.match(serviceApi, /requestAuthenticatedJson/);
+  assert.match(breedApi, /requestJsonMutation/);
+  assert.match(serviceApi, /requestJsonMutation/);
+  assert.doesNotMatch(breedManager, /(?:PATCH|DELETE)["']/);
+  assert.doesNotMatch(serviceManager, /(?:PATCH|DELETE)["']/);
 });
 
 test("admin content UI의 320px, touch target, focus와 reduced-motion 계약을 고정한다", async () => {
@@ -152,6 +176,15 @@ test("admin content UI의 320px, touch target, focus와 reduced-motion 계약을
     ),
     "utf8",
   );
+  const contentCss = await readFile(
+    join(
+      sourceRoot,
+      "features",
+      "admin-content",
+      "AdminContentManager.module.css",
+    ),
+    "utf8",
+  );
 
   assert.match(shellCss, /env\(safe-area-inset-top\)/);
   assert.match(shellCss, /env\(safe-area-inset-right\)/);
@@ -170,6 +203,10 @@ test("admin content UI의 320px, touch target, focus와 reduced-motion 계약을
   assert.match(shopCss, /@media \(max-width: 359px\)/);
   assert.match(shopCss, /:focus-visible/);
   assert.match(shopCss, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(contentCss, /min-height: 2\.75rem/);
+  assert.match(contentCss, /@media \(max-width: 359px\)/);
+  assert.match(contentCss, /:focus-visible/);
+  assert.match(contentCss, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
 test("gateway image, routing, HMR, upload limit과 proxy header 계약을 고정한다", async () => {
