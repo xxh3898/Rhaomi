@@ -487,6 +487,10 @@ test("build snapshot transformer dependency와 amd64/arm64 Compose smoke를 고�
   const manifest = JSON.parse(packageJson);
   const lock = JSON.parse(packageLock);
   assert.equal(manifest.dependencies.sharp, "0.35.4");
+  assert.equal(
+    manifest.scripts["test:orchestration"],
+    "vitest run src/build-orchestration",
+  );
   assert.equal(manifest.scripts["test:transformer"], "vitest run src/build-transformer");
   assert.equal(lock.packages["node_modules/sharp"].version, "0.35.4");
   for (const platform of [
@@ -506,10 +510,59 @@ test("build snapshot transformer dependency와 amd64/arm64 Compose smoke를 고�
   }
   assert.match(composeSmoke, /architecture=\$\(uname -m\)/);
   assert.match(composeSmoke, /x86_64 \| aarch64/);
+  assert.match(composeSmoke, /npm run test:orchestration/);
   assert.match(composeSmoke, /npm run test:transformer/);
   assert.match(transformer, /createHash\("sha256"\)/);
   assert.match(transformer, /\/generated\/media\/\$\{filename\}/);
   assert.doesNotMatch(transformer, /RHAOMI_BUILD_SERVICE_TOKEN|Authorization/);
+});
+
+test("Build API HTTP adapter와 staging-only orchestration 경계를 고정한다", async () => {
+  const [
+    packageJson,
+    environmentExample,
+    httpClient,
+    orchestrator,
+    cli,
+    publisherConfiguration,
+    compose,
+    nginx,
+  ] = await Promise.all([
+    source("package.json"),
+    source(".env.example"),
+    source("src/build-orchestration/http-client.mts"),
+    source("src/build-orchestration/orchestrator.mts"),
+    source("scripts/prepare-publication-staging.mts"),
+    source("backend/src/main/java/kr/co/rhaomi/publisher/PublisherConfiguration.java"),
+    source("compose.dev.yaml"),
+    source("infra/nginx/dev.conf"),
+  ]);
+  const manifest = JSON.parse(packageJson);
+
+  assert.equal(
+    manifest.scripts["prepare:publication-staging"],
+    "node scripts/prepare-publication-staging.mts",
+  );
+  assert.match(environmentExample, /BUILD_API_INTERNAL_URL=http:\/\/backend:8080/);
+  assert.match(environmentExample, /BUILD_API_CREDENTIAL=/);
+  assert.match(httpClient, /authorization: `Bearer \$\{config\.credential\}`/);
+  assert.match(httpClient, /redirect: "manual"/);
+  assert.match(httpClient, /credentials: "omit"/);
+  assert.match(httpClient, /publishGeneration/);
+  assert.match(httpClient, /new Map\(input\.assets\.map/);
+  assert.match(httpClient, /this\.#content\.set\(mediaId, pending\)/);
+  assert.match(orchestrator, /await mediaContentProvider\.prefetchAll\(\)/);
+  assert.match(orchestrator, /transformBuildSnapshot/);
+  assert.doesNotMatch(orchestrator, /completeSuccess|completeNoop|PublicationBuildResult/);
+  assert.match(cli, /--publish-generation/);
+  assert.match(cli, /--output/);
+  assert.doesNotMatch(cli, /--(?:url|credential|token)/i);
+  assert.match(
+    publisherConfiguration,
+    /unavailablePublicationBuildExecutor[\s\S]*?PublicationBuildResult\.TRANSIENT_FAILURE/,
+  );
+  assert.doesNotMatch(compose, /\n  publisher:\n/);
+  assert.match(nginx, /location \^~ \/api\/build\/\s*\{\s*return 404;/);
 });
 
 test("publisher control loop를 exact opt-in non-web process로 격리한다", async () => {

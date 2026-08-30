@@ -3,7 +3,7 @@ title: "이미지 파이프라인"
 status: "proposed"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "미디어 형식·저장소 변경 시"
 ---
 
@@ -26,14 +26,14 @@ JPEG / PNG / HEIC / HEIF upload
 → JPEG/PNG: 검증 원본 byte
 → HEIC/HEIF: orientation + sRGB + metadata-free quality 92 JPEG
 → backend private canonical master                         [implemented]
-→ internal build API + publisher HTTP client              [API implemented / client planned]
+→ internal build API + authenticated Node HTTP provider  [implemented staging data plane]
 → MediaContentProvider 입력·JPEG/PNG metadata 제거·재검증 [implemented]
 → no-upscale responsive variants + content-hashed filename [implemented]
 → atomic staging의 src/generated + public/generated       [implemented]
 → crop/focal point·Next static render·release switch       [planned]
 ```
 
-현재 완료 범위는 upload에서 private canonical master, 갤러리 relation과 매장정보 Hero·프로필·OG scalar relation, internal build API, transport-independent transformer staging과 dedicated publisher polling/debounce/coalesce/lock control plane까지다. build API를 호출하는 publisher HTTP adapter와 transformer orchestration, crop/focal-point 정책, Static Export render와 release 반영은 완료로 보지 않는다.
+현재 완료 범위는 upload에서 private canonical master, 갤러리 relation과 매장정보 Hero·프로필·OG scalar relation, internal build API, authenticated memory-only HTTP media provider, transport-independent transformer와 isolated atomic staging orchestration, dedicated publisher polling/debounce/coalesce/lock control plane까지다. crop/focal-point 정책, Static Export render, release manifest/switch와 real publisher success binding은 완료로 보지 않는다.
 
 ## 저장 정책
 
@@ -42,7 +42,7 @@ JPEG / PNG / HEIC / HEIF upload
 - backend 소유 filesystem storage와 PostgreSQL metadata 분리
 - 공개 Nginx root 밖
 - 백업 대상
-- 현재는 session 인증 ADMIN만 API 조회, 후속 publisher는 별도 read-only credential
+- session 인증 ADMIN과 별도로 Node staging adapter는 public relation scope에 한정된 read-only build credential 사용
 - 수정 시 새 파일 생성 권장
 - JPEG·PNG는 검증한 source byte를 유지하므로 private master에 source metadata가 남을 수 있음
 - HEIC·HEIF raw byte는 temp에서만 존재하고 canonical JPEG만 장기 보관
@@ -115,7 +115,7 @@ production decoder-only image는 아직 구현되지 않았다. 현재 local/CI 
 합성 HEIC의 backend 업로드·orientation·sRGB·metadata 제거는 amd64 CI와 arm64 container에서 자동 검증한다. 다만 은총쌤이 iPhone을 사용할 가능성이 높으므로 후속 `/admin` UI 통합에서 실제 iPhone Safari 원본 선택·전송을 반드시 시험한다.
 
 - 실제 Safari multipart 업로드 성공 여부
-- 후속 publisher download·decode 여부
+- implemented staging adapter download·decode와 후속 full publisher/release 반영 여부
 - orientation
 - 색상 프로파일
 - 변환 결과

@@ -3,7 +3,7 @@ title: "위협 모델"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "외부 노출·관리 기능·인증 변경 시"
 ---
 
@@ -16,7 +16,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - PostgreSQL 데이터
 - transactional content revision, publish generation과 publishing outbox state
 - 향후 원본 시술사진
-- internal build service credential과 향후 publisher 주입 경계
+- internal build service credential과 staging adapter·향후 production publisher 주입 경계
 - encrypted restic repository와 recovery key
 - 공개 도메인과 배포 권한
 - GitHub 저장소와 Actions 권한
@@ -80,12 +80,15 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | self-hosted runner 악용 | Mac mini 장악 | 전용 runner scope, untrusted PR 실행 금지, 최소 권한 |
 | build credential 탈취 | private snapshot·canonical media 노출 | 256-bit token·timing-safe 비교, stateless GET allowlist, admin session 분리, active generation·public relation scope, public Nginx deny, token 비기록 |
 | frontend filesystem credential 노출 | browser build·dependency lifecycle을 통한 build token·DB/admin credential 탈취 | frontend repository-root bind 금지, source/config allowlist mount, `.env*`·backend·local secret 제외, frontend env/file·token digest Compose smoke |
-| build credential 오구성 | internal endpoint의 fail-open 또는 production 미보호 기동 | non-production 503 fail-closed, production 누락·형식 오류 startup failure, browser/public env 주입 금지 |
+| build credential 오구성 | internal endpoint의 fail-open 또는 production 미보호 기동 | backend production 누락·형식 오류 startup failure, Node adapter의 request 전 exact URL/64자 lowercase hex 검증, browser/public env 주입 금지 |
+| Build API redirect·SSRF·credential 유출 | token이 다른 origin으로 전달되거나 internal topology 노출 | root absolute http/https origin allowlist, userinfo/query/fragment/path 거부, redirect manual·cookie omit, credential argv/query/path/log/generated output 금지 |
+| media 중복·protocol drift | 같은 private master 반복 유출, memory/resource 낭비, 잘못된 byte transform | strict manifest membership, UUID별 rejected/in-flight/result memoization, exact MIME·Content-Length·body length와 bounded body read |
 | build snapshot 혼합·내부 field 노출 | 서로 다른 revision 조합 또는 private metadata 유출 | read-only REPEATABLE READ, 단일 microsecond generatedAt, exact DTO allowlist, current revision과 relation/media/file 재검증 |
 | build API state mutation | lease·attempt·콘텐츠 ordering 오염 | GET-only chain, 모든 mutation deny, read-only transaction, 전후 publication state integration test |
 | snapshot parser drift·relation 우회 | draft·만료·missing relation 또는 private field의 공개 산출물 유입 | exact key·schema·semantic·generatedAt eligibility·relation·media manifest를 transport-independent transformer에서 재검증, unknown/missing field fail-closed |
 | canonical media 위조·metadata 노출 | 손상 image 처리, GPS·기기 정보 공개 | provider content type과 JPEG·PNG signature/decode/size/pixel/single-image 재검증, orientation·sRGB·metadata strip, output decode·format·metadata 검사 |
 | partial·nondeterministic staging 공개 | 혼합 revision, cache 불일치, 이전 성공 결과 훼손 | deterministic order와 output-byte SHA-256 filename, temp sibling 완성 뒤 rename, failure cleanup, existing target fail-closed 보존 |
+| staging 성공의 publication 성공 오판 | Next/release 검증 없이 outbox 완료·불완전 사이트 공개 | staging-only safe result를 Java executor/state와 분리, placeholder 유지, `completeSuccess`·`completeNoop`·active path/symlink 변경 금지 |
 | backup key 탈취·분실 | 민감 원본 노출 또는 복구 불가 | 별도 encrypted repository, 제한된 password source, password manager+offline recovery key |
 | PostgreSQL volume 오삭제 | 전체 운영 DB 손실 | project-scoped named volume, 일반 `down` 보존, production `down -v`·prune·direct delete 금지, logical backup·isolated `pg_restore` |
 | 자동 복구 오작동 | 장애 확대·data mutation | stateless web/backend 단일 restart allowlist, deploy/backup lock, 30분 cooldown, audit |

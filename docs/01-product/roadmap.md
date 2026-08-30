@@ -3,7 +3,7 @@ title: "로드맵"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "릴리스 범위 변경 시"
 ---
 
@@ -220,9 +220,11 @@ Phase 1C-8f5는 control plane만 구현한다. production executor는 release를
 
 ### Phase 1C-8f6 — Build API adapter·transformer orchestration
 
-- backend-only service credential을 쓰는 internal Build API HTTP client
-- 구현된 snapshot/media transformer port 연결과 staging 검증
-- safe transport/transform failure classification
+- backend-only service credential을 request 전 검증하는 no-redirect·bounded internal Build API HTTP client
+- raw snapshot strict parse, manifest-scoped in-flight/result memoized media provider와 기존 transformer port 연결
+- safe terminal/transient/generation failure와 machine-oriented CLI, isolated atomic staging 검증
+
+Phase 1C-8f6은 data-plane staging preparation까지만 구현한다. staging 성공은 public publication success나 outbox 완료가 아니며 production placeholder executor를 교체하지 않는다. Next/Markdown/SEO render, release manifest·stale guard·`current/previous` switch와 production secret/image provisioning은 포함하지 않는다.
 
 ### Phase 1C-8f7 — Next render·release manifest·atomic switch
 

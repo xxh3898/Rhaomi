@@ -3,7 +3,7 @@ title: "콘텐츠 배포 테스트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "관리 backend·배포 event 변경 시"
 ---
 
@@ -77,7 +77,21 @@ review_trigger: "관리 backend·배포 event 변경 시"
 - [x] PostgreSQL 18.6 burst·stale·same-generation retry·expired lease recovery·shared lock integration
 - [x] production Build API/transformer/Next/release adapter 없는 transient placeholder와 default Compose publisher service 부재
 
-아래 항목은 각 줄의 전체 범위를 기준으로 표시한다. producer, claim/generation, build API, 독립 transformer staging과 publisher control plane은 완료했고 실제 HTTP adapter·transformer/Next orchestration·release/public 결과를 포함한 항목은 미완료다.
+## Phase 1C-8f6 Build API adapter·staging orchestration 완료
+
+- [x] URL/credential/generation request 전 검증, redirect·cookie 금지와 body까지 bounded timeout
+- [x] exact Bearer와 generation query, raw snapshot strict parse, requested/parsed generation exact 일치
+- [x] 401/403 terminal, 409 generation, timeout/connection/429/5xx transient와 malformed 2xx terminal 분류
+- [x] manifest 밖 media network 전 거부와 UUID별 rejected/in-flight/result HTTP fetch 최대 1회
+- [x] media 200·exact Content-Type·Content-Length·actual body length와 404 terminal·503 transient 분류
+- [x] synthetic HTTP JPEG/PNG → existing Sharp transformer → content/media manifest·AVIF/WebP/JPEG hash staging
+- [x] corrupt media deterministic failure, partial temp 부재와 existing target 보존
+- [x] CLI fixed argv, environment-only credential, safe JSON/exit family와 token·URL/path·UUID·stack 비노출
+- [x] frontend/gateway credential environment/filesystem 0, public `/api/build/**` 404 유지
+- [x] Java `PublicationBuildExecutor` transient placeholder와 publication state·Flyway V1~V9 불변
+- [x] Linux amd64 Hosted와 Linux arm64 Mac Compose의 Node 24/Sharp orchestration suite 실행 계약
+
+아래 항목은 각 줄의 전체 범위를 기준으로 표시한다. producer, claim/generation, build API, transformer, HTTP adapter·isolated staging과 publisher control plane은 완료했다. Next orchestration·release/public 결과는 미완료다.
 
 ## 기본 게시
 
@@ -155,7 +169,7 @@ WebP source와 실제 iPhone HEIC는 canonical master transformer 입력 형식�
 - [ ] publisher content snapshot/release manifest의 위 세 field·승인 code image digest 일치
 - [ ] 낮거나 같은 `publishGeneration`의 old build가 newer current를 덮지 못함
 - [x] build service token disabled → fixed 503, production 누락·malformed → startup failure
-- [ ] Spring Boot/build API 중단 → 후속 publisher build 실패, current 유지
+- [x] Build API client timeout·5xx → staging adapter transient failure, public/current mutation 없음
 - [ ] PostgreSQL 중단 → build 실패, current 유지
 - [x] invalid snapshot → staging 실패, partial temp 부재와 기존 target 유지
 - [x] image decoder/transform 실패 → staging 실패, partial temp 부재와 기존 target 유지

@@ -3,7 +3,7 @@ title: "수용 기준"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "제품 기능 변경 시"
 ---
 
@@ -280,7 +280,7 @@ review_trigger: "제품 기능 변경 시"
 
 **Given** Phase 1C-8f4 transformer가 성공했을 때
 
-**Then** build API HTTP client, Markdown/HTML·SEO·Next render, release manifest와 `current` atomic switch가 완료된 것으로 간주하지 않는다. publisher polling/debounce/lock control plane은 AC-21의 별도 계약으로 검증한다.
+**Then** transformer 단독 성공으로 Build API transport, Markdown/HTML·SEO·Next render, release manifest와 `current` atomic switch가 완료된 것으로 간주하지 않는다. publisher polling/debounce/lock control plane은 AC-21, staging adapter는 AC-22의 별도 계약으로 검증한다.
 
 ## AC-21 publisher control loop
 
@@ -317,3 +317,23 @@ review_trigger: "제품 기능 변경 시"
 **Given** lease 상실 또는 shutdown cancellation 뒤 executor가 interrupt를 무시하고 계속 실행될 때
 
 **Then** `Future.cancel(true)`나 `Future.isDone()`을 종료로 간주하지 않고 두 번째 publisher의 lock 획득을 막는다. executor body의 실제 종료 뒤에만 lock을 다시 획득할 수 있으며 늦은 `SUCCESS`·`NO_PUBLIC_CHANGE` 결과는 completion으로 기록하지 않는다.
+
+## AC-22 Build API adapter·transformer staging orchestration
+
+**Given** root absolute internal URL, exact 64자 lowercase hex credential, positive Java long generation과 private staging target이 있을 때
+
+**When** Node staging adapter를 실행하면
+
+**Then** redirect·cookie 없이 bounded exact Bearer snapshot GET을 수행하고 raw JSON을 unknown field stripping 없이 기존 strict parser에 전달하며 요청 generation과 parsed generation을 exact 비교한다.
+
+**Given** parsed snapshot manifest의 JPEG·PNG media를 transformer가 요청할 때
+
+**Then** manifest 밖 UUID는 network 전에 거부하고 같은 UUID의 concurrent/duplicate request를 in-flight/result memoization으로 실제 HTTP 1회에 제한한다. HTTP 200, exact Content-Type·Content-Length·body length를 확인한 memory byte만 기존 transformer에 전달한다.
+
+**Given** 401/403, 409, timeout/connection/429/5xx, 404/503 media, malformed 2xx 또는 deterministic transformer/output failure가 있을 때
+
+**Then** credential·URL/path·media UUID·raw response/stack을 노출하지 않는 fixed code와 `TERMINAL | TRANSIENT | GENERATION` category로 실패하고 partial target을 success로 남기지 않는다.
+
+**Given** HTTP snapshot/media와 transformer staging이 모두 성공했을 때
+
+**Then** output의 `contentRevision`, `publishGeneration`, `generatedAt`은 fetched snapshot과 일치하지만 Java placeholder executor와 publication DB state는 변하지 않는다. Next/export/release/stale guard/current switch가 없으므로 `SUCCESS`나 `NO_PUBLIC_CHANGE`로 간주하지 않는다.

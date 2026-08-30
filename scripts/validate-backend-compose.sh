@@ -112,6 +112,7 @@ compose --profile validation run --rm --no-deps contract-check sh -c '
       ;;
   esac
   echo "Transformer container architecture: $architecture"
+  npm run test:orchestration
   npm run test:transformer
 '
 compose up -d --wait --wait-timeout 120 postgres

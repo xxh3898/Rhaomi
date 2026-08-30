@@ -3,7 +3,7 @@ title: "시스템 컨텍스트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-31"
 review_trigger: "외부 시스템·핵심 경계 변경 시"
 ---
 
@@ -31,7 +31,7 @@ flowchart LR
     Backend --> Uploads[(Mac host bind<br/>/private/var/lib/rhaomi/data/media)]
     Backend -. 후속 same-transaction .-> Outbox[(Immediate / scheduled publishing event)]
     Publisher[Single internal publisher] -->|pending/due poll·claim| Outbox
-    Publisher -. 후속 read-only build API .-> Backend
+    Publisher -. read-only build API staging data plane .-> Backend
     Publisher -. 후속 .-> Releases[(Mac host bind<br/>/private/var/lib/rhaomi/public)]
     Releases --> PublicSite
 
@@ -41,7 +41,7 @@ flowchart LR
     HomeOps -. 후속 상태 .-> Publisher
 ```
 
-실선은 현재 기반·control 경계 또는 공개 외부 연결이고, 점선은 후속 Issue에서 구현할 publisher data plane과 운영 경로다.
+실선은 현재 기반·control 경계 또는 공개 외부 연결이고, 점선은 아직 Java executor에 bind하지 않은 staging data plane과 후속 운영 경로다.
 
 ## 현재 구현 경계
 
@@ -50,10 +50,10 @@ flowchart LR
 - PostgreSQL과 Flyway V1~V9 publication producer·claim/generation state
 - local/test bootstrap과 `/admin/` 인증 셸·콘텐츠 CRUD UI
 - active generation에 묶인 stateless internal read-only build snapshot·public-scope media API
-- transport-independent snapshot transformer와 dedicated non-web publisher polling/debounce/coalesce/lock control plane
+- transport-independent snapshot transformer, authenticated Build API HTTP/media adapter·isolated staging orchestration과 dedicated non-web publisher polling/debounce/coalesce/lock control plane
 - `/api/build/**`를 먼저 거부하는 local same-origin gateway, 최소 health와 Hosted CI
 
-Build API HTTP adapter·transformer orchestration, Next render·release manifest·atomic switch와 public content route는 아직 없다. 현재 publisher placeholder는 release를 만들지 않는다.
+Build API HTTP adapter·transformer isolated staging orchestration까지 구현됐지만 Next render·release manifest·atomic switch, public content route와 full Java executor binding은 아직 없다. 현재 publisher placeholder는 release를 만들지 않는다.
 
 ## 신뢰 경계
 

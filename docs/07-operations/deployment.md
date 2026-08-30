@@ -3,7 +3,7 @@ title: "배포"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-29"
+last_updated: "2026-08-31"
 review_trigger: "호스트·파이프라인 변경 시"
 ---
 
@@ -50,7 +50,7 @@ Spring Boot 콘텐츠 transaction
 → 공통 build/validate/atomic switch pipeline
 ```
 
-두 경로는 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)의 build·검증·원자적 전환 구현을 공유한다. transactional outbox, generation state와 dedicated polling/debounce/lock control loop는 구현됐지만 Build API/transformer orchestration과 release·atomic switch adapter는 아직 구현되지 않았다.
+두 경로는 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)의 build·검증·원자적 전환 구현을 공유한다. transactional outbox, generation state, dedicated polling/debounce/lock control loop와 Build API→transformer isolated staging data plane은 구현됐지만 Java executor binding, Next/release manifest·stale guard·atomic switch adapter는 아직 구현되지 않았다.
 
 ## 최초 배포 사전 조건
 

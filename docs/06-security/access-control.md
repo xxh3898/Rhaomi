@@ -3,7 +3,7 @@ title: "접근제어"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "역할·권한·인증 방식 변경 시"
 ---
 
@@ -25,7 +25,7 @@ review_trigger: "역할·권한·인증 방식 변경 시"
 - 일반 고객 회원 기능 없음
 - 초기 단계에서 불필요한 다중 RBAC를 만들지 않음
 
-현재 `ADMIN` 업무 endpoint는 견종·서비스·공지·갤러리, private media relation을 포함한 매장정보 singleton과 private media master에 한정한다. `/admin/` 인증 셸은 있지만 콘텐츠 CRUD 화면과 public/build gallery·shop·media endpoint는 아직 없다.
+현재 `ADMIN` 업무 endpoint와 `/admin/` 화면은 견종·서비스·공지·갤러리, private media relation을 포함한 매장정보 singleton과 private media master에 한정한다. anonymous public gallery·shop·media endpoint는 아직 없다.
 
 ### Public customer
 
@@ -44,7 +44,7 @@ build-time 공개 콘텐츠 조회는 [ADR-011](../09-decisions/ADR-011-transact
 - publisher transformer가 같은 status·relation·file 조건을 다시 검증한다.
 - raw storage path, DB credential, admin session과 private metadata를 노출하지 않는다.
 
-build API와 stateless credential 경계, credential을 사용하지 않는 publisher control loop는 구현됐다. Build API HTTP adapter의 publisher credential 주입과 production secret provisioning은 아직 구현되지 않았다. local token은 backend environment에만 전달하고 frontend·gateway environment에는 key를 두지 않으며 frontend filesystem에는 `.env.dev.local`, backend source와 local secret/config를 mount하지 않는다. 관리자 session을 재사용하거나 실제 token을 이 문서·저장소에 만들지 않는다.
+build API와 stateless credential 경계, Node staging adapter와 credential을 사용하지 않는 publisher control loop는 구현됐다. adapter는 같은 secret source의 `BUILD_API_CREDENTIAL`을 environment로만 받고 URL/query/argv/output에는 넣지 않으며 no-redirect bounded GET과 manifest-scoped memory media provider만 사용한다. production publisher secret provisioning과 Java executor binding은 아직 구현되지 않았다. local token은 backend와 명시적인 staging validation process에만 전달하고 frontend·gateway environment에는 key를 두지 않으며 frontend filesystem에는 `.env.dev.local`, backend source와 local secret/config를 mount하지 않는다. 관리자 session을 재사용하거나 실제 token을 이 문서·저장소에 만들지 않는다.
 
 ### Static admin client
 

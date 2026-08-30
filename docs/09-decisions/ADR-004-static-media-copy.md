@@ -3,7 +3,7 @@ title: "ADR-004: 원본 미디어와 정적 파생본 분리"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "이미지 저장·제공 방식 변경 시"
 ---
 
@@ -12,6 +12,7 @@ review_trigger: "이미지 저장·제공 방식 변경 시"
 - 결정일: 2026-08-28
 - 개정일: 2026-08-29 — Issue #11 private upload/master 구간 구현 반영
 - 개정일: 2026-08-30 — Issue #37 public derivative transformer·staging 구간 구현 반영
+- 개정일: 2026-08-31 — Issue #41 authenticated HTTP media provider·staging orchestration 반영
 - 상태: Accepted
 
 ## 맥락
@@ -32,7 +33,7 @@ review_trigger: "이미지 저장·제공 방식 변경 시"
 - 공개 release에 responsive variants 포함
 - 공개 HTML은 backend 원본 asset URL을 사용하지 않음
 
-Issue #11에서 upload→private canonical master를 구현했고 Gallery·매장정보 relation과 internal build API가 후속 Issue에서 구현됐다. Issue #37은 API transport와 분리된 `MediaContentProvider` 기반으로 JPEG·PNG source를 다시 검증하고 orientation·sRGB·metadata 제거, no-upscale AVIF·WebP·JPEG responsive derivative, output-byte SHA-256 filename과 atomic staging을 구현했다. publisher의 authenticated HTTP download, Next Static Export 연결과 release/current switch는 planned 상태를 유지한다.
+Issue #11에서 upload→private canonical master를 구현했고 Gallery·매장정보 relation과 internal build API가 후속 Issue에서 구현됐다. Issue #37은 API transport와 분리된 `MediaContentProvider` 기반으로 JPEG·PNG source를 다시 검증하고 orientation·sRGB·metadata 제거, no-upscale AVIF·WebP·JPEG responsive derivative, output-byte SHA-256 filename과 atomic staging을 구현했다. Issue #41은 manifest-scoped authenticated HTTP provider가 canonical byte를 memory로 전달하는 isolated staging data plane을 구현했다. Next Static Export 연결과 release/current switch는 planned 상태를 유지한다.
 
 ## 결과
 

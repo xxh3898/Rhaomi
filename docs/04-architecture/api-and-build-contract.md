@@ -3,7 +3,7 @@ title: "API·빌드 계약"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "관리 API·build 입력 변경 시"
 ---
 
@@ -191,13 +191,13 @@ review_trigger: "관리 API·build 입력 변경 시"
 - lower active generation은 같은 owner가 claim한 실제 higher `PROCESSING` generation으로만 `COALESCED` 처리할 수 있다. dedicated publisher control loop가 첫 accepted generation 기준 고정 30초 동안 이 primitive를 호출해 실제 highest generation으로 수렴한다.
 - typed status read model은 publication package 내부에서만 제공하며 state service 자체는 HTTP endpoint·credential·환경 변수·background loop를 추가하지 않는다. 반복 실행 lifecycle은 별도 non-web publisher root가 소유한다.
 
-## publisher orchestration — current control / planned data plane
+## publisher orchestration — current control / staging data plane
 
 - exact mode argument로 선택한 dedicated non-web publisher는 current state service를 호출해 immediate pending, due scheduled, overdue lease와 due retry를 계속 처리한다.
 - 첫 accepted trigger의 `claimedAt`부터 `T0 + 30s`를 포함하는 fixed debounce를 적용하고 lower active generation을 highest live generation으로 즉시 coalesce한다. debounce와 executor 대기 중 lease를 갱신하고 container-side global advisory lock을 획득한 뒤에만 typed executor port를 호출한다. lease 상실·shutdown으로 cancellation을 요청해도 실제 executor body가 종료됐거나 시작 불가능하다는 acknowledgment 전에는 lock scope를 빠져나가지 않는다. `Future.cancel(true)`와 `Future.isDone()`은 이 acknowledgment가 아니다.
 - normal backend에는 publisher loop·lifecycle bean이 없고 publisher root에는 controller·web server가 없다. 현재 placeholder executor는 transient failure로 fail-closed하며 public artifact를 만들지 않는다.
 - claim 뒤 current row가 바뀔 수 있으므로 event 값을 public authority로 사용하지 않고 전체 build snapshot의 status·게시/만료·relation·media/file 조건을 다시 검증한다.
-- Build API HTTP client, transformer·Next 실행, release manifest·atomic switch와 운영 관제는 후속 Issue에서 구현한다.
+- Build API HTTP client와 transformer staging data plane은 별도 Node orchestration으로 구현됐다. Java control loop에는 아직 bind하지 않으며 Next 실행, release manifest·atomic switch와 운영 관제는 후속 Issue에서 구현한다.
 
 ## build API — current
 
@@ -285,6 +285,17 @@ audit actor/timestamp, status, storage key/path, extension, persisted SHA-256, s
 - `SNAPSHOT_INVALID`, `MEDIA_NOT_FOUND`, `MEDIA_INVALID`, `MEDIA_TRANSFORM_FAILED`, `OUTPUT_FAILED`의 fixed code/message만 호출 경계에 제공한다. UUID·path·decoder/exception detail을 포함하지 않는다.
 - filesystem CLI는 `<media-root>/<uuid>.jpg|png` fixture adapter일 뿐 build API HTTP client나 production publisher가 아니다.
 
+## Build API adapter·staging orchestration — current
+
+- `BUILD_API_INTERNAL_URL`은 root absolute `http|https` origin만, `BUILD_API_CREDENTIAL`은 exact 64자 lowercase hex만 request 전에 허용한다. userinfo/query/fragment/path, credential argv/query/path와 `NEXT_PUBLIC_*`는 거부한다.
+- snapshot은 redirect를 따르지 않는 bounded `GET /api/build/snapshot?publishGeneration=<positive-long>`의 `200 application/json` 응답만 허용하고 raw JSON을 unknown field 제거 없이 `parseBuildSnapshotV1()`에 직접 전달한다. parsed generation은 요청 decimal long과 exact 일치해야 한다.
+- parsed manifest를 authority로 `HttpMediaContentProvider`를 만들고 manifest 밖 UUID를 network 전에 거부한다. UUID별 in-flight/success/failure Promise를 memoize해 중복 relation과 concurrent `get()`도 실제 HTTP request 최대 1회다.
+- media response는 HTTP 200, manifest와 exact `Content-Type`, canonical `Content-Length`와 실제 body length를 모두 만족해야 한다. canonical raw byte는 durable input file 없이 memory cache에서 기존 transformer로 전달한다.
+- fixed runtime timeout은 snapshot/media headers와 body 완료까지 10초이며 redirect, 401/403, 409, 422, 429/5xx, malformed 2xx와 transformer code를 `TERMINAL | TRANSIENT | GENERATION`의 safe category로 분리한다. `BUILD_OUTPUT_FAILED`는 이번 staging-only 경계에서 terminal이다.
+- process entrypoint는 `--publish-generation`과 `--output`만 argv로 받고 safe one-line JSON과 exit `0 | 20 | 21 | 22`만 제공한다. token·Authorization·internal URL/path·media UUID·raw response/stack은 출력하지 않는다.
+- orchestration은 manifest media를 cache에 먼저 채워 HTTP retry category를 보존한 뒤 기존 transformer를 호출하고 configurable private target에 atomic staging을 만든다. output의 `contentRevision`, `publishGeneration`, `generatedAt`은 fetched snapshot과 같다.
+- 이 staging 성공은 public publication `SUCCESS`나 `NO_PUBLIC_CHANGE`가 아니다. `PublisherConfiguration` placeholder, outbox state, `current/previous`, active public path는 변경하지 않는다.
+
 ## publisher content snapshot·release manifest — planned
 
 후속 publisher가 Build API response를 승인된 production code image와 결합해 저장하는 최종 파일은 다음 정보를 포함한다.
@@ -323,7 +334,7 @@ backend-owned private canonical master
 → /generated/media/<output-sha256>.<format>      [implemented staging]
 ```
 
-원본 id·storage path·내부 URL을 public path에 남기지 않는다. authenticated build-time HTTP download와 실제 public release 설치·HTML binding은 후속 publisher/Static Export 범위다.
+원본 id·storage path·내부 URL을 public path에 남기지 않는다. authenticated build-time HTTP download와 staging 전달은 구현됐고 실제 public release 설치·HTML binding은 후속 publisher/Static Export 범위다.
 
 ## build API 오류 — current
 
@@ -350,10 +361,11 @@ backend-owned private canonical master
 
 어느 경우도 partial target을 성공으로 반환하지 않고 fixed typed error로 종료한다.
 
-## publisher·release 실패 조건 — planned
+## staging adapter 실패 조건 — current / release 실패 조건 — planned
 
 - build API 연결·인증 실패
 - transformer typed failure
+- snapshot/media response contract mismatch와 active generation mismatch
 - HTML sanitize·sitemap canonical·link·asset 검증 실패
 - target `publishGeneration`이 current generation 이하
 

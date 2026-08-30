@@ -3,7 +3,7 @@ title: "테스트 전략"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "기술·기능 범위 변경 시"
 ---
 
@@ -324,11 +324,23 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 - default backend/postgres와 frontend profile service 집합에 publisher 자동 추가 부재, normal backend HTTP 회귀
 - explicit publisher mode의 Java 25 non-web startup과 controller/port 부재
 
-## 후속 publisher adapter·정적 render 단위·통합 테스트
+## 현재 Phase 1C-8f6 Build API adapter·staging orchestration 자동 검증
+
+- absolute root http/https URL, exact lowercase-hex credential와 positive Java long의 request 전 fail-closed validation
+- exact Bearer·generation query, no redirect/cookie, snapshot/media body까지 bounded timeout
+- raw JSON strict parse, future/unknown schema·field와 generation mismatch safe failure, 10,001-char·Java Unicode whitespace 회귀
+- 401/403, 409, 422, 429/5xx/timeout, malformed JSON·unexpected snapshot MIME의 terminal/transient/generation category
+- manifest membership과 UUID별 concurrent duplicate fetch 1회, exact MIME·Content-Length·body length
+- media 404/503와 corrupt actual byte의 transport/deterministic transformer category 분리
+- synthetic loopback HTTP JPEG/PNG → existing transformer → atomic staging의 revision/generation/generatedAt·decode/hash/metadata 검증
+- CLI environment-only credential, fixed argv, safe one-line JSON과 exit `0/20/21/22`, secret/URL/path/UUID/stack leak 0
+- Linux amd64 Hosted와 Linux arm64 Mac Compose Node 24/Sharp 실행
+- Java placeholder executor, publication DB state, Flyway V1~V9, default Compose와 public/admin route 불변
+
+## 후속 정적 render·release 단위·통합 테스트
 
 - Build API URL/phone/source Markdown을 transformer가 링크·HTML로 안전하게 변환
 - slug/canonical, JSON-LD, alt validation과 content fixture → transformer → static snapshot
-- build API HTTP client의 authenticated snapshot/media acquisition과 구현된 transformer port 연결
 - additional admin mutation 없는 future Notice publish·expiry와 Gallery publish, publisher restart 뒤 overdue 처리
 - Notice·Gallery claim 뒤 변경까지 포함한 Build API 재검증 결과가 release까지 stale 공개를 막음
 - 구현된 30초 debounce·global lock·highest generation target과 실제 Build API/transformer 결과의 최종 snapshot 정확성
