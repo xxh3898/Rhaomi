@@ -3,7 +3,7 @@ title: "정적 퍼블리싱 파이프라인"
 status: "proposed"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "콘텐츠 배포 방식 변경 시"
 ---
 
@@ -11,7 +11,7 @@ review_trigger: "콘텐츠 배포 방식 변경 시"
 
 ## 구현 상태
 
-Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Flyway V8과 domain service 연동으로 `contentRevision`·publishing outbox producer는 구현됐지만 claim/lease·`publishGeneration`, build API, publisher와 public content route는 아직 구현되지 않았다. 이 문서는 현재 producer 경계와 후속 pipeline 계약을 함께 정의한다.
+Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Flyway V8과 domain service 연동으로 `contentRevision`·publishing outbox producer를 구현했고, Flyway V9과 internal Java service로 pending/due claim·lease recovery·`publishGeneration`·attempt/result state-machine 기반을 구현했다. 실제 polling loop, 30초 debounce orchestration, build API, publisher process와 public content route는 아직 구현되지 않았다. 이 문서는 현재 DB/state 경계와 후속 pipeline 계약을 함께 정의한다.
 
 ## 목적
 
@@ -25,7 +25,7 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - web container는 같은 Mac public source를 `/srv/rhaomi/public`에 read-only mount한다. publisher만 새 release 설치와 `current`·`previous` atomic switch를 수행한다.
 - actual Mac ownership·permission과 public/state bind·symlink atomicity는 production implementation gate에서 검증한다.
 
-## planned trigger
+## trigger·orchestration 계약
 
 - 공개 결과·eligibility에 영향을 주는 콘텐츠 변경과 publishing outbox를 같은 PostgreSQL transaction에 기록한다.
 - 새로 설정·변경된 `publishedAt`·`expiresAt`이 있는 Notice create/update transaction은 event kind, `availableAt`, Notice ID와 current revision/boundary를 가진 durable scheduled event도 같은 transaction에 기록한다. 이미 지난 값도 consumer가 `availableAt <= now`로 처리할 수 있게 기록한다.
@@ -33,8 +33,9 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - `contentRevision`은 지원되는 콘텐츠 mutation마다 증가한다. draft-only mutation은 revision만 전진하고 public trigger는 만들지 않는다. `publishGeneration`은 immediate public-impact mutation, due publish/expiry boundary, 승인된 code release와 manual rebuild/retry가 public trigger로 처리될 때 증가한다.
 - 공개 결과에 영향을 주지 않는 draft-only 변경은 불필요한 build를 만들지 않도록 분류한다.
 - hard delete는 일반 운영 경로에 포함하지 않는다.
-- 단일 internal publisher가 immediate pending event와 `availableAt <= now`인 scheduled event를 claim하고 첫 trigger 뒤 30초 debounce한다.
-- publisher restart 뒤에도 overdue event를 처리하며 scheduled event의 과거 기대값 대신 current Notice·Gallery row와 전체 snapshot을 재검증한다.
+- 현재 internal state service가 immediate pending event와 `availableAt <= now`인 scheduled event를 single-claim하고 만료 lease·due retry를 같은 generation으로 복구할 수 있다.
+- 후속 단일 publisher가 state service를 반복 호출하고 첫 accepted trigger 뒤 30초 debounce한다.
+- scheduled claim은 current Notice·Gallery의 published 상태와 expected boundary만 최소 검증한다. 후속 publisher는 claim 뒤 current row가 다시 바뀔 수 있음을 전제로 전체 snapshot의 relation·media·file·`generatedAt` eligibility를 재검증한다.
 - global filesystem lock으로 code·content build를 직렬화한다.
 - code release와 콘텐츠 release가 같은 검증·atomic switch 구현을 사용한다.
 
@@ -42,9 +43,18 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 
 - V8 `content_revision_state` row increment와 outbox insert는 domain row mutation과 같은 PostgreSQL transaction에 참여한다.
 - 한 성공 mutation은 save 횟수나 event 수와 무관하게 revision을 한 번만 할당한다. validation·DB·outbox failure와 rollback은 revision/event를 남기지 않는다.
-- event kind/source/boundary는 typed column과 DB CHECK로 제한한다. claim·상태 전환용 field나 JSON payload escape hatch는 없다.
+- event kind/source/boundary는 typed column과 DB CHECK로 제한하며 JSON payload escape hatch는 없다.
 - Media upload의 revision allocation이 실패하면 DB row와 이동한 final master를 함께 rollback/cleanup한다.
 - producer는 build API, service credential, public route, claim loop나 scheduler를 포함하지 않는다.
+
+## 현재 claim·generation state 경계
+
+- V9은 transactional generation singleton, 일곱 state, 최대 attempt 4회, fixed result code와 state별 nullability를 PostgreSQL constraint로 강제한다.
+- fresh pending/due claim은 `(availableAt, id)` 순서와 `FOR UPDATE SKIP LOCKED`를 사용하고 generation 할당·첫 attempt를 같은 transaction에서 기록한다. rollback은 event와 generation을 모두 원상태로 되돌린다.
+- scheduled source가 없거나 현재 draft·archived·rescheduled이면 generation 없이 terminal stale no-op으로 기록한다. claim layer는 relation·media·file을 판단하지 않는다.
+- active owner·generation·lease guard로 갱신·완료하고, expired lease와 1분·5분·15분 transient retry는 같은 generation을 유지한다. 네 번째 attempt 이후에는 retry exhausted로 종료한다.
+- lower active generation을 실제 higher active generation에 연결하는 coalesce primitive가 있지만 30초 timer와 highest target 선택은 아직 구현하지 않았다.
+- state service는 HTTP endpoint, service credential, polling/background execution, build와 filesystem 접근을 제공하지 않는다.
 
 ## planned pipeline
 

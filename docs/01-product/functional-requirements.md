@@ -81,3 +81,6 @@ review_trigger: "기능 범위 변경 시"
 | FR-DEP-005 | 배포 실패 시 기존 공개 릴리스를 유지해야 한다. |
 | FR-DEP-006 | 직전 정상 릴리스로 되돌릴 수 있어야 한다. |
 | FR-DEP-007 | future Notice 게시·만료와 Gallery 게시 시각은 추가 관리자 mutation 없이 due event가 후속 publisher에 의해 처리될 수 있어야 한다. |
+| FR-DEP-008 | immediate pending 또는 due event의 claim, `publishGeneration` 할당과 첫 attempt는 같은 PostgreSQL transaction이어야 하며 rollback은 generation을 소비하지 않아야 한다. 만료 lease와 자동 transient retry는 새 generation 없이 최대 총 4회까지 복구해야 한다. |
+| FR-DEP-009 | scheduled claim은 current Notice·Gallery의 published 상태와 expected boundary를 최소 검증하고 stale이면 generation 없이 terminal no-op이어야 한다. 관계·media·file을 포함한 전체 공개 eligibility는 후속 build API와 transformer가 다시 검증해야 한다. |
+| FR-DEP-010 | generation을 가진 active claim의 완료·lease 갱신은 current owner와 generation을 확인해야 하며, lower generation은 존재하는 higher active generation으로만 coalesce할 수 있어야 한다. 실제 30초 debounce와 build orchestration은 후속 publisher가 담당해야 한다. |

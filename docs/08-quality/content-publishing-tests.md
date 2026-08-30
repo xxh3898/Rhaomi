@@ -21,7 +21,18 @@ review_trigger: "관리 backend·배포 event 변경 시"
 - [x] published Gallery 진입·reschedule의 publishedAt scheduled event와 old event 보존
 - [x] Media revision allocation failure의 DB row·temp/final file orphan 부재
 
-아래 항목은 각 줄의 전체 범위를 기준으로 표시한다. producer-only transaction·typed event 항목은 완료했고 실제 공개 결과·consumer/build 범위를 포함한 항목은 미완료다.
+## Phase 1C-8f2 claim·generation state 완료
+
+- [x] 기존 V1→V8 database의 V9 upgrade, V8 event default `PENDING` 호환과 clean V1→V9·JPA validate
+- [x] generation singleton·state/result allowlist·state별 shape·unique generation·self-FK와 claim/retry/lease index
+- [x] pending/due `(availableAt, id)`·`FOR UPDATE SKIP LOCKED` single claim, generation·첫 attempt atomicity와 rollback non-consumption
+- [x] Notice 게시·만료와 Gallery 게시 boundary의 current published row 최소 검증, reschedule·draft/archive·missing source generation 없는 stale no-op
+- [x] active owner·generation lease renewal, expired lease same-generation recovery와 concurrent single winner·attempt 4 exhaustion
+- [x] transient failure 1분·5분·15분 due retry, total attempt 4와 success/no-op/terminal typed result
+- [x] 같은 content revision의 distinct generation과 lower→higher active coalesce primitive·ordering/owner guard
+- [x] 새 HTTP/build endpoint, scheduler, background loop, credential·환경 변수·Compose/workflow/dependency 변경 부재
+
+아래 항목은 각 줄의 전체 범위를 기준으로 표시한다. producer와 claim/generation DB state 항목은 완료했고 실제 polling publisher·build·공개 결과를 포함한 항목은 미완료다.
 
 ## 기본 게시
 
@@ -61,13 +72,14 @@ review_trigger: "관리 backend·배포 event 변경 시"
 
 - [x] notice transaction과 changed publishedAt·expiresAt scheduled event가 함께 commit/rollback
 - [x] scheduled event에 `availableAt`, source type·ID, current revision과 expected boundary 식별값 기록
-- [ ] Gallery publishedAt scheduled event 처리 시 current Gallery row·boundary 재검증
-- [ ] eligible event claim·`publishGeneration` 할당·첫 attempt가 atomic하고 claim crash 뒤 같은 generation으로 복구
-- [ ] publishedAt·expiresAt 변경 뒤 old event 처리 → current row 재검증, stale 공개 없음
-- [ ] future notice의 draft·archived 전환 뒤 old event 처리 → no-op 또는 최신 generation coalesce, 공개 없음
-- [ ] publisher가 boundary 동안 down → restart 후 overdue event claim·정확한 snapshot 공개/제거
+- [x] Gallery publishedAt scheduled event claim 시 current Gallery row·boundary 최소 재검증
+- [x] eligible event claim·`publishGeneration` 할당·첫 attempt가 atomic하고 lease 만료 뒤 같은 generation으로 복구
+- [x] publishedAt·expiresAt 변경 뒤 old event claim → current row 최소 재검증과 generation 없는 stale no-op
+- [x] future notice의 draft·archived 전환 뒤 old event claim → generation 없는 stale no-op
+- [ ] stale claim 뒤 후속 build snapshot 재검증 → stale 공개 없음
+- [ ] publisher가 boundary 동안 down → restart 후 overdue event 반복 처리·정확한 snapshot 공개/제거
 - [ ] 가까운 여러 publish/expiry boundary → 30초 debounce/coalesce 후 최종 `generatedAt` snapshot 정확
-- [ ] 같은 `contentRevision`의 publish boundary와 expiry boundary가 서로 다른 `publishGeneration` 생성
+- [x] 같은 `contentRevision`의 publish boundary와 expiry boundary claim이 서로 다른 `publishGeneration` 생성
 - [ ] 주간 notice expiry audit가 event drift를 탐지하되 correctness trigger를 대체하지 않음
 
 ## 이미지
@@ -98,10 +110,12 @@ review_trigger: "관리 backend·배포 event 변경 시"
 - [ ] build service credential 오류·public `/api/build/**` → 요청 거부
 - [ ] build API create/update/delete/share 모두 거부
 - [ ] 첫 변경 뒤 30초 debounce와 global filesystem lock
-- [ ] concurrent triggers → 가장 높은 accepted `publishGeneration`으로 coalesce하고 직렬 실행
-- [ ] 동일 `publishGeneration` transient failure → 1분·5분·15분 최대 3회
-- [ ] validation/data failure → 무한 retry 없이 실패 상태
-- [ ] 자동 attempt retry는 같은 generation, 승인된 manual rebuild/retry는 새 generation
+- [x] lower active generation → 실제 higher active generation coalesce primitive와 역방향·invalid target 거부
+- [ ] concurrent triggers → 30초 orchestration이 가장 높은 accepted `publishGeneration`을 선택하고 build 직렬 실행
+- [x] 동일 `publishGeneration` transient failure → 1분·5분·15분 최대 3회
+- [x] validation/data failure → 무한 retry 없이 terminal failure 상태
+- [x] 자동 attempt retry·lease recovery는 같은 generation
+- [ ] 승인된 manual rebuild/retry는 별도 event와 새 generation
 - [ ] build 중 새 변경·due boundary → 최신 generation 우선 후속 build
 - [ ] publisher public network·Docker socket 없음
 

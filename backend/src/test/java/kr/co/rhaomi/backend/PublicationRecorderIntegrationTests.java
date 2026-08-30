@@ -108,6 +108,8 @@ class PublicationRecorderIntegrationTests {
         assertEquals(1L, nextRevision);
         assertEquals(1L, currentRevision());
         assertEquals(1, eventCount());
+        assertEquals("PENDING", jdbcTemplate.queryForObject(
+                "SELECT state FROM publishing_outbox", String.class));
     }
 
     @Test

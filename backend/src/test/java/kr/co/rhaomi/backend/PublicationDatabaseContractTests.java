@@ -38,7 +38,7 @@ class PublicationDatabaseContractTests {
     }
 
     @Test
-    void should_createV8SchemaWithExactColumnsConstraintsAndIndexes_when_flywayMigrates() {
+    void should_preserveV8ProducerColumnsConstraintsAndIndexes_when_v9Migrates() {
         var versions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success = TRUE ORDER BY installed_rank",
                 String.class);
@@ -84,7 +84,7 @@ class PublicationDatabaseContractTests {
         assertTrue(versions.contains("8"));
         assertEquals(Set.of("singleton_key", "content_revision"), revisionColumns);
         assertEquals(Set.of("singleton_key", "content_revision"), revisionNonNullableColumns);
-        assertEquals(
+        assertTrue(outboxColumns.containsAll(
                 Set.of(
                         "id",
                         "kind",
@@ -93,9 +93,8 @@ class PublicationDatabaseContractTests {
                         "content_revision",
                         "available_at",
                         "expected_boundary_at",
-                        "created_at"),
-                outboxColumns);
-        assertEquals(
+                        "created_at")));
+        assertTrue(outboxNonNullableColumns.containsAll(
                 Set.of(
                         "id",
                         "kind",
@@ -103,8 +102,7 @@ class PublicationDatabaseContractTests {
                         "source_id",
                         "content_revision",
                         "available_at",
-                        "created_at"),
-                outboxNonNullableColumns);
+                        "created_at")));
         assertTrue(constraints.containsAll(Set.of(
                 "pk_content_revision_state",
                 "ck_content_revision_state_singleton",

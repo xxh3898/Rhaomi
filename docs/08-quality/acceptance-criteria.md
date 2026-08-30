@@ -211,3 +211,29 @@ review_trigger: "제품 기능 변경 시"
 **Given** 동시 mutation 또는 rollback 뒤 다음 mutation이 실행될 때
 
 **Then** duplicate·lost revision이 없고 rollback된 transaction이 revision을 영구 소비하지 않는다.
+
+## AC-18 publication claim·generation state
+
+**Given** immediate pending 또는 due scheduled event가 있을 때
+
+**When** internal state service가 다음 event를 claim하면
+
+**Then** PostgreSQL row lock으로 한 consumer만 선택되고 `publishGeneration` 증가·첫 attempt·active owner lease가 같은 transaction에 기록된다. transaction rollback이면 event는 `PENDING`이고 generation counter도 증가하지 않는다.
+
+**Given** scheduled Notice·Gallery의 current row가 없거나 draft·archived 또는 expected boundary와 다를 때
+
+**When** due claim을 시도하면
+
+**Then** generation 없이 `NOOP / STALE_TRIGGER`로 종료한다. 이 판정은 source 상태·경계의 최소 검증이며 relation·media·file을 포함한 전체 공개 eligibility는 후속 build API/transformer가 다시 검증한다.
+
+**Given** active processing lease가 만료되거나 transient attempt가 실패했을 때
+
+**When** recovery 또는 due retry를 claim하면
+
+**Then** 기존 generation을 유지하고 attempt를 증가시키며 1분·5분·15분 간격과 총 4회 제한 뒤 성공·no-op·terminal failure 중 하나로 고정된 결과를 기록한다.
+
+**Given** 같은 owner가 lower·higher active generation을 보유할 때
+
+**When** lower를 higher에 coalesce하면
+
+**Then** 실제 존재하는 higher `PROCESSING` generation만 target이 되고 higher→lower, terminal source, 잘못된 owner·generation은 거부된다. 실제 30초 debounce와 build orchestration은 실행되지 않는다.

@@ -41,12 +41,16 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 - scheduled event를 물리 삭제해야 correctness가 성립하는 계약으로 만들지 않는다. 처리 완료·stale no-op 상태를 내구적으로 기록할 수 있다.
 - 관리 API 저장 성공, publisher 처리 중, 공개 성공·실패 상태를 구분한다.
 
-#### 현재 구현 경계 — Phase 1C-8f1
+#### 현재 구현 경계 — Phase 1C-8f1·8f2
 
 - Flyway V8은 `(1, 0)` singleton `content_revision_state`와 immediate·Notice/Gallery scheduled kind를 제한한 `publishing_outbox`를 만든다.
 - application recorder는 기존 content transaction을 필수로 요구하며 row increment와 필요한 event insert를 최종 domain persistence 뒤 한 번 수행한다.
 - content·revision·event 중 하나라도 실패하면 모두 rollback되고, Media는 transaction completion cleanup으로 이동한 final master도 제거한다.
-- V8에는 processing/completed/failed, claim owner·lease, attempt count, `publishGeneration`이나 prune 정책이 없다. producer row를 HTTP response로 노출하는 endpoint나 credential도 없다.
+- Flyway V9은 `(1, 0)` transactional `publish_generation_state` singleton과 outbox `PENDING | PROCESSING | RETRY_WAIT | SUCCEEDED | NOOP | FAILED | COALESCED`, unique generation, owner·lease·attempt·fixed result·coalesced target을 추가한다.
+- internal Java state service는 `(availableAt, id)`·`FOR UPDATE SKIP LOCKED`로 fresh pending/due row를 claim하고 generation 할당·첫 attempt를 같은 transaction에 기록한다. rollback은 generation을 소비하지 않는다.
+- scheduled claim은 current Notice·Gallery의 published 상태와 expected boundary만 최소 확인한다. stale이면 generation 없이 `NOOP / STALE_TRIGGER`이며 relation·media·file·`generatedAt` eligibility는 후속 build API/transformer가 다시 검증한다.
+- active owner·generation·lease guard, same-generation expired lease recovery와 1분·5분·15분 retry, 총 attempt 4회, typed terminal result와 lower→higher active coalesce primitive를 구현했다.
+- producer/state row를 HTTP response로 노출하는 endpoint나 credential, actual polling loop·30초 debounce orchestration·build/release 처리는 없다. prune 정책도 후속 범위다.
 
 ### revision과 public ordering
 
@@ -140,9 +144,9 @@ backend 장애를 공개 사이트로 전파하고 정적 HTML·SEO 계약을 �
 ## 실행 계획
 
 - [x] Flyway V8 transactional `contentRevision`, immediate event 분류와 Notice·Gallery `availableAt` scheduled outbox producer 구현
-- [ ] pending/due claim·lease 복구, `publishGeneration`과 attempt/result state 구현
+- [x] pending/due claim·lease 복구, `publishGeneration`과 attempt/result DB/state-machine foundation 구현
 - [ ] internal read-only build API와 service credential 구현
-- [ ] single publisher의 pending/due poll, overdue recovery, debounce, lock, retry와 stale no-op 상태 기록 구현
+- [ ] single publisher의 반복 poll, 30초 debounce, global lock, build orchestration과 stale snapshot 방지 구현
 - [ ] snapshot·media transformer 이중 검증 구현
 - [ ] release manifest 3개 필드와 `publishGeneration` 기준 code/content 공통 build·validate·atomic switch 검증
 - [ ] 실제 Mac mini의 public/state/lock bind source ownership·permission과 publisher container mount·atomic symlink smoke 검증

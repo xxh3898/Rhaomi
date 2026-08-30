@@ -305,6 +305,75 @@ test("V8 transactional revision과 typed publishing outbox producer를 고정한
   );
 });
 
+test("V9 pending claim·lease·publishGeneration 상태 머신 기반을 고정한다", async () => {
+  const [migration, service, state, resultCode] = await Promise.all([
+    source(
+      "backend/src/main/resources/db/migration/V9__add_publishing_claim_and_generation_state.sql",
+    ),
+    source(
+      "backend/src/main/java/kr/co/rhaomi/backend/publication/PublicationStateService.java",
+    ),
+    source(
+      "backend/src/main/java/kr/co/rhaomi/backend/publication/PublicationState.java",
+    ),
+    source(
+      "backend/src/main/java/kr/co/rhaomi/backend/publication/PublicationResultCode.java",
+    ),
+  ]);
+
+  assert.match(migration, /CREATE TABLE publish_generation_state/);
+  assert.match(migration, /state VARCHAR\(16\) NOT NULL DEFAULT 'PENDING'/);
+  assert.match(migration, /publish_generation BIGINT/);
+  assert.match(migration, /attempt_count SMALLINT NOT NULL DEFAULT 0/);
+  assert.match(migration, /CONSTRAINT ck_publishing_outbox_state_shape CHECK/);
+  assert.match(migration, /UNIQUE \(publish_generation\)/);
+  assert.match(migration, /FOREIGN KEY \(coalesced_into_generation\)/);
+  assert.match(migration, /ON publishing_outbox \(state, available_at, id\)/);
+  assert.match(migration, /ON publishing_outbox \(state, next_attempt_at, id\)/);
+  assert.match(migration, /ON publishing_outbox \(state, lease_until, id\)/);
+  assert.doesNotMatch(migration, /CREATE SEQUENCE|raw_exception|error_message/i);
+
+  assert.match(
+    service,
+    /SET publish_generation = publish_generation \+ 1[\s\S]*?RETURNING publish_generation/,
+  );
+  assert.match(service, /FOR UPDATE SKIP LOCKED/);
+  assert.match(service, /available_at <= \?/);
+  assert.match(service, /next_attempt_at <= \?/);
+  assert.match(service, /lease_until <= \?/);
+  assert.match(service, /Duration\.ofMinutes\(1\)/);
+  assert.match(service, /Duration\.ofMinutes\(5\)/);
+  assert.match(service, /Duration\.ofMinutes\(15\)/);
+  assert.doesNotMatch(
+    service,
+    /@Scheduled|@(?:Rest)?Controller|EventListener|ExecutorService|TaskExecutor/,
+  );
+
+  for (const value of [
+    "PENDING",
+    "PROCESSING",
+    "RETRY_WAIT",
+    "SUCCEEDED",
+    "NOOP",
+    "FAILED",
+    "COALESCED",
+  ]) {
+    assert.match(state, new RegExp(`\\b${value}\\b`));
+  }
+  for (const value of [
+    "SUCCESS",
+    "STALE_TRIGGER",
+    "NO_PUBLIC_CHANGE",
+    "TRANSIENT_FAILURE",
+    "RETRY_EXHAUSTED",
+    "TERMINAL_FAILURE",
+    "COALESCED",
+    "LEASE_EXPIRED",
+  ]) {
+    assert.match(resultCode, new RegExp(`\\b${value}\\b`));
+  }
+});
+
 test("실행 경로에 Directus 설정을 남기지 않는다", async () => {
   const runtimeFiles = await Promise.all([
     source("compose.dev.yaml"),

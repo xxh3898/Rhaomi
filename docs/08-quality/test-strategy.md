@@ -18,7 +18,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - 모바일 문의·검색 metadata 보호
 - 배포 실패 시 기존 사이트 보호
 
-## 현재 Phase 1C-8f1 자동 검증
+## 현재 Phase 1C-8f2 자동 검증
 
 ### Frontend
 
@@ -209,6 +209,21 @@ review_trigger: "기술·기능 범위 변경 시"
 - media persistence 뒤 revision allocation 실패의 DB row·final/temp file orphan 부재
 - 새 HTTP/build endpoint·credential, API response field, Compose/workflow/dependency 변경 부재
 
+### publication claim·generation state
+
+- 기존 V1→V8 database의 V9 upgrade, 기존 V8 event의 default `PENDING` 호환과 clean V1→V9 migration·JPA validate
+- `publish_generation_state` singleton·nonnegative initial 0과 transactional row increment rollback non-consumption
+- outbox state/result allowlist, state별 generation·attempt·owner·lease·retry·completion shape, unique generation·coalesce self-FK와 required index
+- immediate pending·due scheduled `(availableAt, id)` ordering과 `FOR UPDATE SKIP LOCKED` single claim·locked-row skip·concurrent double-claim 방지
+- fresh generation·첫 attempt atomicity, future scheduled 미claim과 forced rollback 뒤 PENDING/counter 불변
+- Notice published/expiry와 Gallery published boundary exact claim, reschedule·boundary 제거·draft/archive·missing source의 generation 없는 stale no-op
+- claim layer가 relation·media·file/full eligibility를 복제하지 않고 current source status·expected boundary만 확인하는 계약
+- owner 형식, active lease renewal·wrong owner 거부, expired lease same-generation recovery·concurrent single winner와 attempt 4 exhaustion
+- transient failure 1분·5분·15분 schedule, due 이전 미claim, same-generation retry와 fourth failure exhaustion
+- success/no-op/terminal failure reclaim 부재와 owner·generation·active lease completion guard
+- 같은 content revision의 distinct fresh generation과 lower→higher active coalesce, higher→lower·missing/terminal/wrong-owner target 거부
+- typed internal status model과 controller·scheduler·background executor·service credential·환경 변수 부재
+
 H2 전용 통과는 DB contract 증거로 인정하지 않는다. Hosted CI Backend job은 실제 PostgreSQL service를 사용한다.
 Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 application context를 시작하기 전에 중단한다. fixture 정리는 지정된 test email에만 한정한다.
 
@@ -262,12 +277,9 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 - published 관계와 file scope
 - 매장정보 Hero·프로필·OG relation의 active status·private master·파생 file 재검증
 - build API read-only와 모든 mutation deny
-- eligible event claim·`publishGeneration`·첫 attempt atomicity와 claim crash recovery
 - additional admin mutation 없는 future Notice publish·expiry와 Gallery publish, publisher restart 뒤 overdue 처리
-- Notice·Gallery reschedule·draft/archive·boundary 변경 뒤 old event의 current-row/snapshot 재검증과 stale no-op
-- `contentRevision`·`publishGeneration` 분리, 같은 content revision의 여러 public generation
+- Notice·Gallery claim 뒤 변경까지 포함한 build snapshot 재검증과 stale 공개 방지
 - 30초 debounce·global lock·highest generation coalescing과 최종 snapshot 정확성
-- 동일 `publishGeneration` 1분·5분·15분 최대 3회 retry와 data error non-retry
 - 낮거나 같은 generation의 old build switch 거부와 승인된 manual rebuild/retry의 새 generation
 - snapshot schema와 image manifest
 - content fixture → transformer → static snapshot
