@@ -30,6 +30,7 @@ export type AdminApiErrorKind =
   | "shop-media-relation-invalid"
   | "slug-conflict"
   | "publish-validation-failed"
+  | "notice-window-invalid"
   | "gallery-item-not-found"
   | "gallery-relation-invalid"
   | "gallery-publish-invalid"
@@ -172,6 +173,9 @@ async function mapApiFailure(response: Response): Promise<AdminApiError> {
   }
   if (response.status === 422 && code === "PUBLISH_VALIDATION_FAILED") {
     return new AdminApiError("publish-validation-failed");
+  }
+  if (response.status === 422 && code === "NOTICE_WINDOW_INVALID") {
+    return new AdminApiError("notice-window-invalid");
   }
   if (response.status === 404 && code === "GALLERY_ITEM_NOT_FOUND") {
     return new AdminApiError("gallery-item-not-found");

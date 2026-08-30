@@ -6,6 +6,7 @@ import type { AdminApiTransport } from "@/features/admin-auth/types";
 import { AdminBreedManager } from "@/features/admin-breed/AdminBreedManager";
 import { AdminGalleryManager } from "@/features/admin-gallery/AdminGalleryManager";
 import { AdminMediaManager } from "@/features/admin-media/AdminMediaManager";
+import { AdminNoticeManager } from "@/features/admin-notice/AdminNoticeManager";
 import { AdminServiceManager } from "@/features/admin-service/AdminServiceManager";
 import { AdminShopSettingsManager } from "@/features/admin-shop-settings/AdminShopSettingsManager";
 
@@ -15,7 +16,7 @@ const MANAGEMENT_AREAS = [
   { name: "매장정보", view: "shop-settings" },
   { name: "갤러리", view: "gallery" },
   { name: "미디어", view: "media" },
-  { name: "공지", view: null },
+  { name: "공지", view: "notices" },
   { name: "견종", view: "breeds" },
   { name: "서비스", view: "services" },
 ] as const;
@@ -30,7 +31,13 @@ export function AdminDashboard({
   onSessionExpired,
 }: AdminDashboardProps) {
   const [view, setView] = useState<
-    "home" | "shop-settings" | "gallery" | "media" | "breeds" | "services"
+    | "home"
+    | "shop-settings"
+    | "gallery"
+    | "media"
+    | "notices"
+    | "breeds"
+    | "services"
   >("home");
 
   if (view === "shop-settings") {
@@ -56,6 +63,16 @@ export function AdminDashboard({
   if (view === "gallery") {
     return (
       <AdminGalleryManager
+        transport={transport}
+        onBack={() => setView("home")}
+        onSessionExpired={onSessionExpired}
+      />
+    );
+  }
+
+  if (view === "notices") {
+    return (
+      <AdminNoticeManager
         transport={transport}
         onBack={() => setView("home")}
         onSessionExpired={onSessionExpired}
@@ -90,25 +107,20 @@ export function AdminDashboard({
           <p>Content workspace</p>
           <h2 id="management-title">관리 영역</h2>
         </div>
-        <span>Phase 1C-8d</span>
+        <span>Phase 1C-8e</span>
       </div>
 
       <ul className={styles.areaList}>
         {MANAGEMENT_AREAS.map((area) => (
           <li key={area.name}>
             <button
-              className={area.view ? styles.enabledArea : styles.disabledArea}
+              className={styles.enabledArea}
               type="button"
-              disabled={!area.view}
-              aria-label={
-                area.view
-                  ? `${area.name} 관리 열기`
-                  : `${area.name}, 준비 중`
-              }
-              onClick={area.view ? () => setView(area.view) : undefined}
+              aria-label={`${area.name} 관리 열기`}
+              onClick={() => setView(area.view)}
             >
               <span>{area.name}</span>
-              <small>{area.view ? "사용 가능" : "준비 중"}</small>
+              <small>사용 가능</small>
             </button>
           </li>
         ))}

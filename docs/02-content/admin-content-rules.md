@@ -67,6 +67,8 @@ review_trigger: "관리 API field·운영 절차 변경 시"
 - 단순 예약 현황은 외부 채널과 불일치할 가능성이 크면 게시하지 않는다.
 - 정책 변경 공지는 기존 본문을 덮어쓰기보다 변경 날짜를 분명히 쓴다.
 
+현재 `/admin/` 공지 client는 모든 상태와 미래·만료 항목을 backend 배열 순서 그대로 표시한다. 생성은 status를 보내지 않고, 수정은 immutable slug를 제외한 mutable field 전체를 한 번의 `PUT`으로 보낸다. Markdown은 source textarea로만 편집하며 HTML preview·WYSIWYG·client sanitizer를 두지 않는다. local datetime input으로 표시할 때 숨겨지는 backend microsecond는 사용자가 값을 바꾸지 않은 full PUT에서 원본 Instant로 보존한다. mutation 성공 response를 먼저 반영한 뒤 canonical GET을 수행하고, 후속 GET 실패는 저장 실패와 분리해 explicit refresh로 복구한다.
+
 ## 갤러리
 
 - 생성은 status를 받지 않고 항상 `draft`이며 수정·상태 전환은 모든 mutable field를 포함한 `PUT`으로 수행한다. slug와 hard delete API는 없다.

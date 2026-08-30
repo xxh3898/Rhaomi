@@ -2,10 +2,19 @@ import {
   hasExactKeys,
   isContentStatus,
   isNonNegativeInteger,
-  isTimestamp,
   isUuid,
   type ContentStatus,
 } from "@/features/admin-content/types";
+import {
+  instantToLocalDateTimeValue,
+  isMicrosecondInstant,
+  localDateTimeDraftToInstant,
+} from "@/features/admin-content/timestamps";
+
+export {
+  instantToLocalDateTimeValue,
+  localDateTimeValueToInstant,
+} from "@/features/admin-content/timestamps";
 
 export type GalleryItem = Readonly<{
   id: string;
@@ -115,10 +124,6 @@ const RESPONSE_KEYS: ReadonlySet<string> = new Set([
   "createdBy",
   "updatedBy",
 ]);
-const LOCAL_DATE_TIME_PATTERN =
-  /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d)(?:\.(\d{1,6}))?)?$/;
-const MICROSECOND_INSTANT_PATTERN =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -141,16 +146,8 @@ function isNullableText(
   );
 }
 
-function isMicrosecondTimestamp(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    MICROSECOND_INSTANT_PATTERN.test(value) &&
-    isTimestamp(value)
-  );
-}
-
 function isNullableTimestamp(value: unknown): value is string | null {
-  return value === null || isMicrosecondTimestamp(value);
+  return value === null || isMicrosecondInstant(value);
 }
 
 export function isGalleryItem(value: unknown): value is GalleryItem {
@@ -171,8 +168,8 @@ export function isGalleryItem(value: unknown): value is GalleryItem {
     isNonNegativeInteger(value.sortOrder) &&
     isNullableTimestamp(value.performedAt) &&
     isNullableTimestamp(value.publishedAt) &&
-    isMicrosecondTimestamp(value.createdAt) &&
-    isMicrosecondTimestamp(value.updatedAt) &&
+    isMicrosecondInstant(value.createdAt) &&
+    isMicrosecondInstant(value.updatedAt) &&
     isUuid(value.createdBy) &&
     isUuid(value.updatedBy)
   );
@@ -184,56 +181,6 @@ export function isGalleryList(value: unknown): value is readonly GalleryItem[] {
 
 export function isCreatedGalleryItem(value: unknown): value is GalleryItem {
   return isGalleryItem(value) && value.status === "draft";
-}
-
-function pad(value: number, length = 2): string {
-  return String(value).padStart(length, "0");
-}
-
-export function instantToLocalDateTimeValue(value: string | null): string {
-  if (value === null || !isMicrosecondTimestamp(value)) {
-    return "";
-  }
-  const date = new Date(value);
-  const fraction = /\.(\d{1,6})Z$/.exec(value)?.[1]?.padEnd(3, "0").slice(0, 3) ?? "000";
-  return `${pad(date.getFullYear(), 4)}-${pad(date.getMonth() + 1)}-${pad(
-    date.getDate(),
-  )}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
-    date.getSeconds(),
-  )}.${fraction}`;
-}
-
-export function localDateTimeValueToInstant(
-  value: string,
-): string | null | undefined {
-  if (value.length === 0) {
-    return null;
-  }
-  const match = LOCAL_DATE_TIME_PATTERN.exec(value);
-  if (!match) {
-    return undefined;
-  }
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const hour = Number(match[4]);
-  const minute = Number(match[5]);
-  const second = Number(match[6] ?? "0");
-  const fraction = (match[7] ?? "").padEnd(6, "0");
-  const millisecond = Number(fraction.slice(0, 3));
-  const date = new Date(year, month - 1, day, hour, minute, second, millisecond);
-  if (
-    date.getFullYear() !== year ||
-    date.getMonth() + 1 !== month ||
-    date.getDate() !== day ||
-    date.getHours() !== hour ||
-    date.getMinutes() !== minute ||
-    date.getSeconds() !== second ||
-    date.getMilliseconds() !== millisecond
-  ) {
-    return undefined;
-  }
-  return date.toISOString().replace(/\.\d{3}Z$/, `.${fraction}Z`);
 }
 
 function normalizeOptionalText(
@@ -261,16 +208,14 @@ function buildCommonRequest(draft: GalleryDraft): CommonRequestFields | null {
   const dogName = normalizeOptionalText(draft.dogName, 100);
   const summary = normalizeOptionalText(draft.summary, 1_000);
   const altText = normalizeOptionalText(draft.altText, 300);
-  const performedAt =
-    draft.performedAtOriginal !== null &&
-    instantToLocalDateTimeValue(draft.performedAtOriginal) === draft.performedAt
-      ? draft.performedAtOriginal
-      : localDateTimeValueToInstant(draft.performedAt);
-  const publishedAt =
-    draft.publishedAtOriginal !== null &&
-    instantToLocalDateTimeValue(draft.publishedAtOriginal) === draft.publishedAt
-      ? draft.publishedAtOriginal
-      : localDateTimeValueToInstant(draft.publishedAt);
+  const performedAt = localDateTimeDraftToInstant(
+    draft.performedAt,
+    draft.performedAtOriginal,
+  );
+  const publishedAt = localDateTimeDraftToInstant(
+    draft.publishedAt,
+    draft.publishedAtOriginal,
+  );
   if (
     dogName === undefined ||
     summary === undefined ||

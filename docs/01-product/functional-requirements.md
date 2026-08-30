@@ -66,6 +66,7 @@ review_trigger: "기능 범위 변경 시"
 | FR-ADM-031 | 매장정보 media picker는 active private media만 Hero·미용사·OG의 새 관계로 선택하고 같은 media 재사용과 선택 해제를 허용해야 한다. archived/missing 기존 relation은 숨기지 않고 clear 또는 active 교체가 필요함을 표시해야 한다. |
 | FR-ADM-032 | `/admin/` 견종·서비스 UI는 strict response 검증 뒤 목록·생성·전체 수정을 제공하고 immutable slug, `draft | published | archived`, 0 이상 sortOrder를 유지해야 한다. list ordering은 backend response 배열이 authority이며 mutation 뒤 GET list로 canonical ordering을 다시 획득해야 한다. 후속 GET 실패는 저장 실패와 구분하고 사용자 action당 mutation은 한 번만 보내며 401 session expiry·403 CSRF 실패·network/5xx를 자동 재시도하지 않아야 한다. |
 | FR-ADM-033 | `/admin/` 갤러리 UI는 backend 목록 순서를 그대로 보존하고 항상 draft인 생성과 mutable field 전체 PUT을 제공해야 한다. draft·archived에서는 존재하는 breed·service·active/archived media를 관계로 선택할 수 있고 published에서는 게시된 breed·service와 active media만 허용해야 한다. mutation 뒤 canonical GET 실패는 저장 실패와 구분하고 stale GET·자동 mutation 재시도를 막아야 한다. |
+| FR-ADM-034 | `/admin/` 공지 UI는 backend의 pinned·publishedAt·updatedAt·id 목록 순서를 그대로 보존하고 status 없는 draft 생성과 immutable slug를 제외한 full PUT을 제공해야 한다. source Markdown을 HTML로 렌더링하지 않고, 변경하지 않은 microsecond Instant를 보존하며, mutation 뒤 canonical GET 실패를 저장 실패와 구분하고 stale GET·자동 mutation 재시도를 막아야 한다. |
 
 ## 배포
 

@@ -84,7 +84,7 @@ Client boundary는 가장 작은 상호작용 단위에 둔다.
 - admin API의 401은 in-memory 인증 상태를 비우고, 403 mutation은 자동 재시도하지 않는다.
 - 공통 admin transport는 authenticated JSON GET, CSRF-protected JSON·multipart mutation과 authenticated image Blob GET만 제공한다. media feature가 CSRF store나 인증 client를 별도로 만들지 않는다.
 - media preview는 authenticated GET의 JPEG/PNG content-type을 검증해 object URL을 만들고 item 교체·refresh·unmount에서 revoke한다. `IntersectionObserver`로 현재 viewport 근처 항목만 bounded fetch한다.
-- 현재 dashboard는 매장정보·갤러리·미디어·견종·서비스가 enabled이고 공지만 disabled placeholder다. 별도 route·query/hash authority나 fake data를 만들지 않는다.
+- 현재 dashboard는 매장정보·갤러리·미디어·견종·서비스·공지가 모두 enabled다. 별도 route·query/hash authority나 fake data를 만들지 않는다.
 - shop settings는 404를 빈 미초기화 form으로 처리하고 26개 mutable key를 명시한 full PUT 한 번만 보낸다. nullable input은 `null`로 보내며 server audit key는 form/request에 포함하지 않는다.
 - Hero·미용사·OG는 현재 활성 slot의 relation 바로 아래에 한 inline media picker만 공유한다. picker를 열면 첫 내부 control로 focus를 이동하고, 닫기·선택 완료 후에는 해당 slot의 원래 trigger로 복귀한다. active asset만 새 선택 option이며 archived/missing 기존 relation은 field에 남겨 clear/replace 필요 상태를 표시한다.
 - shop save 중 form과 picker를 잠그고 성공 response를 canonical state로 적용한다. ready form의 background refresh·auto-save·mutation retry는 없다.
@@ -98,7 +98,10 @@ Client boundary는 가장 작은 상호작용 단위에 둔다.
 - Gallery의 breed·service·media catalog는 목록과 독립적으로 로드한다. 관계 조회 장애가 card를 지우지 않으며 retry 전에는 form mutation을 막는다. draft·archived는 존재하는 모든 상태의 관계를, published는 게시된 breed/service와 active media를 유효하게 안내하되 backend validation이 최종 authority다.
 - Gallery cover/before/after control 바로 아래에는 active·archived 상태를 표시하는 inline picker 하나만 연다. open 시 첫 picker control로, close·selection 시 원 trigger로 focus를 이동하고 private Blob object URL을 교체·unmount에서 revoke한다.
 - Gallery performedAt·publishedAt은 local datetime input과 ISO Instant 사이를 변환한다. 사용자가 바꾸지 않은 backend microsecond 값은 full PUT에서 그대로 보존하고 성공 response를 form canonical state로 적용한다.
-- 현재 관리 홈 이동에는 unsaved-change 확인을 두지 않으므로 저장하지 않은 shop·견종·서비스·갤러리 form 변경은 화면 전환 시 폐기된다. router/blocker infrastructure 없이 유지하는 알려진 UX 제한이며 운영자는 저장 완료 feedback을 확인한 뒤 이동해야 한다.
+- 공지는 별도 adapter·strict validator와 inline manager를 사용한다. create에는 status를 보내지 않고 update에는 immutable slug·audit를 제외한 mutable field 전체를 보낸다. source Markdown을 HTML로 렌더링하지 않으며 published 필수값과 상태 공통 window를 client에서 보조 검증하되 backend가 최종 authority다.
+- Gallery와 Notice가 공유하는 `admin-content` timestamp helper는 local datetime과 UTC Instant를 변환하고, 사용자가 값을 바꾸지 않았을 때 backend microsecond 원본을 보존한다. Notice window 비교는 millisecond `Date` 비교가 아니라 canonical microsecond Instant를 사용한다.
+- 공지 목록도 backend GET 배열을 그대로 authority로 사용하고 mutation response 선적용, post-mutation canonical GET, failure warning·explicit refresh, stale generation·중복 mutation 차단과 ready/enabled trigger focus 복귀를 동일하게 적용한다.
+- 현재 관리 홈 이동에는 unsaved-change 확인을 두지 않으므로 저장하지 않은 shop·견종·서비스·갤러리·공지 form 변경은 화면 전환 시 폐기된다. router/blocker infrastructure 없이 유지하는 알려진 UX 제한이며 운영자는 저장 완료 feedback을 확인한 뒤 이동해야 한다.
 - upload `accept`와 20 MiB client check는 UX 보조이며 실제 type·size·decoder validation authority는 backend다.
 - mutation 403은 CSRF를 폐기하되 자동 재실행하지 않는다. 다음 명시적 사용자 action에서 fresh CSRF를 획득하고 mutation을 한 번만 보낸다.
 

@@ -43,6 +43,8 @@ review_trigger: "출시 기준 변경 시"
 - [ ] `/admin/` gallery strict list·draft create·full PUT·server order 보존·post-mutation canonical GET와 published/archive/restore
 - [ ] gallery breed/service/media catalog 독립 복구, draft/archived 모든 상태 관계와 published 관계·필수값 검증
 - [ ] gallery active/archived single media picker, cover 재사용·before/after 상호 배제, private Blob revoke와 keyboard focus lifecycle
+- [ ] `/admin/` notice strict list·draft create·immutable slug·source Markdown·pinned·full PUT·server order 보존·post-mutation canonical GET와 published/archive/restore
+- [ ] notice published body·publishedAt와 상태 공통 expiry window, unchanged microsecond 보존, 404/409/422 frontend-owned 오류와 401/403 non-retry
 - [ ] 공개 영향 transaction과 같은 PostgreSQL transaction의 immediate publishing event
 - [ ] future notice publishedAt·expiresAt의 `availableAt` durable scheduled event와 overdue recovery
 - [ ] scheduled event current-row/snapshot 재검증과 reschedule·draft/archive·window-change stale no-op/coalesce
@@ -55,6 +57,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] 실제 iPhone Safari HEIC 선택·upload·preview·archive/restore
 - [ ] 실제 iPhone Safari·VoiceOver 견종·서비스 form·status·sortOrder·긴 slug reflow
 - [ ] 실제 iPhone Safari·VoiceOver 갤러리 form·relation picker·datetime-local·긴 alt/summary reflow
+- [ ] 실제 iPhone Safari·VoiceOver 공지 form·pinned·datetime-local·긴 Markdown·게시/보관/복구 reflow
 
 ## 공개 사이트
 
