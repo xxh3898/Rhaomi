@@ -11,7 +11,7 @@ review_trigger: "관리 범위 변경 시"
 
 ## `/admin`에서 운영자가 관리
 
-아래 관리자 API와 private media master는 구현됐다. `/admin/`의 media upload·목록·private preview·archive/restore UI는 Phase 1C-8a, 매장정보 전체 편집과 Hero·미용사·OG single media picker는 Phase 1C-8b에서 구현됐다. 갤러리·공지·견종·서비스 UI는 planned다.
+아래 관리자 API와 private media master는 구현됐다. `/admin/`의 media upload·목록·private preview·archive/restore UI는 Phase 1C-8a, 매장정보 전체 편집과 Hero·미용사·OG single media picker는 Phase 1C-8b, 견종·서비스 목록·생성·전체 수정·게시·보관·복구 UI는 Phase 1C-8c에서 구현됐다. 갤러리·공지 UI는 planned다.
 
 | 콘텐츠 | 컬렉션 | 운영자 권한 |
 |---|---|---|
@@ -23,6 +23,8 @@ review_trigger: "관리 범위 변경 시"
 | 업로드 파일 | `media_assets` | 라오미펫 원본 생성·조회·보관 |
 
 미디어 UI와 picker는 storage path·hash·원본 파일명을 노출하지 않고 backend의 validation·archive authority를 그대로 사용한다. 매장정보 picker는 active asset만 새 관계로 선택하며 archived/missing 기존 UUID를 숨기지 않고 제거하거나 교체하도록 안내한다. 같은 asset을 Hero·미용사·OG에 재사용할 수 있고 Hero·미용사 alt는 선택한 공개 이미지 의미를 별도로 입력한다.
+
+견종·서비스 UI는 UUID와 audit를 핵심 카드 정보로 노출하지 않고 server response allowlist만 canonical state로 사용한다. slug는 생성 뒤 읽기 전용이며 archive를 삭제로 표현하지 않는다. 실제 라오미펫 견종·서비스 값은 코드 기본값이나 seed로 넣지 않고 운영 입력·검증을 별도로 수행한다.
 
 ## 코드에서 개발자가 관리
 

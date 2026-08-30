@@ -56,7 +56,7 @@ Static Export에서도 빌드 시 Server Component를 사용할 수 있다. 단,
 - 문의 channel bottom sheet
 - 제한적인 section reveal
 - `/admin/`의 session 확인·로그인·로그아웃 인증 셸
-- `/admin/`의 dashboard navigation, private media manager와 shop settings form
+- `/admin/`의 dashboard navigation, private media manager, shop settings form과 견종·서비스 manager
 - active private media를 선택하는 reusable single media picker
 
 Client boundary는 가장 작은 상호작용 단위에 둔다.
@@ -84,11 +84,16 @@ Client boundary는 가장 작은 상호작용 단위에 둔다.
 - admin API의 401은 in-memory 인증 상태를 비우고, 403 mutation은 자동 재시도하지 않는다.
 - 공통 admin transport는 authenticated JSON GET, CSRF-protected JSON·multipart mutation과 authenticated image Blob GET만 제공한다. media feature가 CSRF store나 인증 client를 별도로 만들지 않는다.
 - media preview는 authenticated GET의 JPEG/PNG content-type을 검증해 object URL을 만들고 item 교체·refresh·unmount에서 revoke한다. `IntersectionObserver`로 현재 viewport 근처 항목만 bounded fetch한다.
-- 현재 dashboard는 매장정보와 미디어가 enabled이고 갤러리·공지·견종·서비스는 disabled placeholder다. 별도 route·query/hash authority나 fake data를 만들지 않는다.
+- 현재 dashboard는 매장정보·미디어·견종·서비스가 enabled이고 갤러리·공지만 disabled placeholder다. 별도 route·query/hash authority나 fake data를 만들지 않는다.
 - shop settings는 404를 빈 미초기화 form으로 처리하고 26개 mutable key를 명시한 full PUT 한 번만 보낸다. nullable input은 `null`로 보내며 server audit key는 form/request에 포함하지 않는다.
 - Hero·미용사·OG는 현재 활성 slot의 relation 바로 아래에 한 inline media picker만 공유한다. picker를 열면 첫 내부 control로 focus를 이동하고, 닫기·선택 완료 후에는 해당 slot의 원래 trigger로 복귀한다. active asset만 새 선택 option이며 archived/missing 기존 relation은 field에 남겨 clear/replace 필요 상태를 표시한다.
 - shop save 중 form과 picker를 잠그고 성공 response를 canonical state로 적용한다. ready form의 background refresh·auto-save·mutation retry는 없다.
-- 현재 관리 홈 이동에는 unsaved-change 확인을 두지 않으므로 저장하지 않은 shop form 변경은 화면 전환 시 폐기된다. router/blocker infrastructure 없이 유지하는 알려진 UX 제한이며 운영자는 저장 완료 feedback을 확인한 뒤 이동해야 한다.
+- 견종·서비스 adapter와 strict response validator는 도메인별로 명시하고, shared `admin-content`에는 status·UUID·Instant·slug·정렬 검증과 CSS primitive만 둔다. runtime schema-driven form이나 route config 기반 meta-CRUD는 만들지 않는다.
+- 견종·서비스 생성은 빈 sortOrder를 null로 보내고 성공 response의 draft·backend default를 canonical state로 사용한다. 수정은 immutable slug를 읽기 전용으로 두고 status와 mutable field 전체를 저장 action 한 번의 PUT으로 보낸다.
+- 서비스 published 선택 시 description·priceText를 client에서 보조 확인하되 backend의 `PUBLISH_VALIDATION_FAILED`를 최종 authority로 유지한다. archive는 삭제가 아니며 draft/published로 복구할 수 있다.
+- 목록 refresh와 mutation은 서로 잠그고 request sequence를 무효화해 stale GET overwrite를 막는다. pending ref로 사용자 action당 POST/PUT 한 번만 허용하고 자동 저장·polling·mutation retry를 하지 않는다.
+- create/edit inline panel은 열릴 때 첫 이름 input으로 focus를 옮기고 취소·성공 뒤 원래 생성 trigger나 item 수정 action으로 되돌린다.
+- 현재 관리 홈 이동에는 unsaved-change 확인을 두지 않으므로 저장하지 않은 shop·견종·서비스 form 변경은 화면 전환 시 폐기된다. router/blocker infrastructure 없이 유지하는 알려진 UX 제한이며 운영자는 저장 완료 feedback을 확인한 뒤 이동해야 한다.
 - upload `accept`와 20 MiB client check는 UX 보조이며 실제 type·size·decoder validation authority는 backend다.
 - mutation 403은 CSRF를 폐기하되 자동 재실행하지 않는다. 다음 명시적 사용자 action에서 fresh CSRF를 획득하고 mutation을 한 번만 보낸다.
 
@@ -134,7 +139,7 @@ Spring Boot read-only build API
 - client hydration 뒤에만 session을 확인
 - 공개 navigation과 sitemap에 링크하지 않음
 - backend session이 없으면 업무 API 접근 불가
-- 같은 Static Export route 안에서 관리 홈·매장정보·미디어 화면을 전환하며 refresh 후에는 session 확인을 거쳐 관리 홈에서 다시 시작할 수 있음
+- 같은 Static Export route 안에서 관리 홈·매장정보·미디어·견종·서비스 화면을 전환하며 refresh 후에는 session 확인을 거쳐 관리 홈에서 다시 시작할 수 있음
 
 ## 데이터 검증
 

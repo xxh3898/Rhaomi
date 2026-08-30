@@ -3,7 +3,9 @@
 import { useState } from "react";
 
 import type { AdminApiTransport } from "@/features/admin-auth/types";
+import { AdminBreedManager } from "@/features/admin-breed/AdminBreedManager";
 import { AdminMediaManager } from "@/features/admin-media/AdminMediaManager";
+import { AdminServiceManager } from "@/features/admin-service/AdminServiceManager";
 import { AdminShopSettingsManager } from "@/features/admin-shop-settings/AdminShopSettingsManager";
 
 import styles from "./AdminDashboard.module.css";
@@ -13,8 +15,8 @@ const MANAGEMENT_AREAS = [
   { name: "갤러리", view: null },
   { name: "미디어", view: "media" },
   { name: "공지", view: null },
-  { name: "견종", view: null },
-  { name: "서비스", view: null },
+  { name: "견종", view: "breeds" },
+  { name: "서비스", view: "services" },
 ] as const;
 
 type AdminDashboardProps = Readonly<{
@@ -26,7 +28,9 @@ export function AdminDashboard({
   transport,
   onSessionExpired,
 }: AdminDashboardProps) {
-  const [view, setView] = useState<"home" | "shop-settings" | "media">("home");
+  const [view, setView] = useState<
+    "home" | "shop-settings" | "media" | "breeds" | "services"
+  >("home");
 
   if (view === "shop-settings") {
     return (
@@ -48,6 +52,26 @@ export function AdminDashboard({
     );
   }
 
+  if (view === "breeds") {
+    return (
+      <AdminBreedManager
+        transport={transport}
+        onBack={() => setView("home")}
+        onSessionExpired={onSessionExpired}
+      />
+    );
+  }
+
+  if (view === "services") {
+    return (
+      <AdminServiceManager
+        transport={transport}
+        onBack={() => setView("home")}
+        onSessionExpired={onSessionExpired}
+      />
+    );
+  }
+
   return (
     <section className={styles.home} aria-labelledby="management-title">
       <div className={styles.heading}>
@@ -55,7 +79,7 @@ export function AdminDashboard({
           <p>Content workspace</p>
           <h2 id="management-title">관리 영역</h2>
         </div>
-        <span>Phase 1C-8b</span>
+        <span>Phase 1C-8c</span>
       </div>
 
       <ul className={styles.areaList}>

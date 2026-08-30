@@ -71,6 +71,14 @@ review_trigger: "관리 API·build 입력 변경 시"
 
 서비스가 `published`가 되려면 name·slug·description·priceText가 모두 유효해야 한다. 검증 실패는 기존 row를 부분 변경하지 않는다. `archived` row는 삭제하지 않고 유효한 전체 값으로 `draft`나 `published`로 복구할 수 있다.
 
+현재 `/admin/` 견종·서비스 client는 위 계약을 다음처럼 소비한다.
+
+- 두 도메인의 API adapter와 response validator를 명시적으로 분리하고 UUID·status·slug·sortOrder·Instant·audit UUID와 exact response key를 runtime에서 검증한다. storage/path/internal 추가 field와 malformed response는 성공으로 처리하지 않는다.
+- 생성 form의 빈 sortOrder와 선택 text는 각각 `null`로 보내 backend default·정규화 authority를 유지한다. 수정 form은 slug를 전송하지 않고 status, name, nullable description, 서비스의 nullable priceText와 필수 sortOrder를 한 번의 full `PUT`으로 보낸다.
+- 성공 response를 canonical item으로 적용한 뒤 `sortOrder ASC, name ASC, id ASC` comparator로 목록을 재정렬한다. refresh 중 mutation과 mutation 중 refresh를 차단해 stale GET이 성공 response를 덮지 않게 한다.
+- `CONTENT_NOT_FOUND`, `SLUG_CONFLICT`, `PUBLISH_VALIDATION_FAILED`만 allowlisted frontend 문구로 표시하고 backend raw message를 출력하지 않는다. 401은 session expiry로 위임하고 403·network·5xx mutation을 자동 재전송하지 않는다.
+- archive는 reversible status로만 표현하며 `PATCH`, `DELETE`, public/build route를 client에 추가하지 않는다.
+
 공지가 `published`가 되려면 title·immutable slug·bodyMarkdown·publishedAt이 유효해야 한다. expiresAt이 있으면 모든 상태에서 publishedAt이 존재하고 expiresAt이 그보다 늦어야 한다. 미래 publishedAt은 허용하고 만료만으로 status를 자동 변경하지 않는다. 검증 실패는 mutable field와 audit를 모두 보존한다.
 
 ### 갤러리 collection

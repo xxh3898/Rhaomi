@@ -31,9 +31,9 @@ review_trigger: "페이지·섹션 순서 변경 시"
 
 | URL | 목적 | 생성 방식 |
 |---|---|---|
-| `/admin/` | session 기반 관리자 login·관리 홈·매장정보·미디어 UI | Static Export client shell |
+| `/admin/` | session 기반 관리자 login·관리 홈·매장정보·미디어·견종·서비스 UI | Static Export client shell |
 
-`/admin/`은 공개 navigation과 sitemap에 링크하지 않고 `noindex, nofollow, noarchive`를 유지한다. 관리 홈, 매장정보 form과 미디어 manager는 query/hash나 추가 route 없이 같은 client state에서 전환한다. 갤러리·공지·견종·서비스는 구현 전까지 `준비 중` disabled 상태다.
+`/admin/`은 공개 navigation과 sitemap에 링크하지 않고 `noindex, nofollow, noarchive`를 유지한다. 관리 홈, 매장정보 form, 미디어·견종·서비스 manager는 query/hash나 추가 route 없이 같은 client state에서 전환한다. 갤러리·공지만 `준비 중` disabled 상태다.
 
 ### 현재 관리자 화면 구조
 
@@ -47,10 +47,16 @@ review_trigger: "페이지·섹션 순서 변경 시"
 │   ├── 예약 안내
 │   ├── 외부 채널
 │   └── OG private media picker
-└── 미디어
+├── 미디어
     ├── 단일 upload
     ├── active/archived 목록·private preview
     └── archive/restore
+├── 견종
+│   ├── draft 생성과 immutable slug
+│   └── status/name/description/sortOrder 전체 수정
+└── 서비스
+    ├── draft 생성과 immutable slug
+    └── status/name/description/priceText/sortOrder 전체 수정
 ```
 
 private media picker는 별도 URL이나 public asset route를 만들지 않고 active asset의 authenticated Blob preview를 사용한다.

@@ -37,6 +37,9 @@ review_trigger: "출시 기준 변경 시"
 - [ ] `/admin/` media list·authenticated preview·single upload·archive/restore와 401/403 non-retry 계약
 - [ ] `/admin/` shop settings 404 미초기화·26-key full PUT·canonical response와 audit field 제외
 - [ ] Hero·미용사·OG active-only private media picker, image-alt pair와 archived/missing relation clear·replace
+- [ ] `/admin/` breed/service strict list·draft create·immutable slug·full PUT·canonical sort와 archive/restore
+- [ ] 서비스 published description·priceText 보조 검증과 404/409/422 frontend-owned 오류 문구
+- [ ] breed/service pending 중복 방지·stale GET 차단·401/403 mutation non-retry와 keyboard focus lifecycle
 - [ ] 공개 영향 transaction과 같은 PostgreSQL transaction의 immediate publishing event
 - [ ] future notice publishedAt·expiresAt의 `availableAt` durable scheduled event와 overdue recovery
 - [ ] scheduled event current-row/snapshot 재검증과 reschedule·draft/archive·window-change stale no-op/coalesce
@@ -47,6 +50,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] publisher 동일 generation 1분·5분·15분 최대 3회 retry, 승인된 manual rebuild/retry의 새 generation과 data 오류 중단
 - [ ] snapshot/release manifest의 `contentRevision`·`publishGeneration`·`generatedAt`과 generation 기준 stale switch 거부
 - [ ] 실제 iPhone Safari HEIC 선택·upload·preview·archive/restore
+- [ ] 실제 iPhone Safari·VoiceOver 견종·서비스 form·status·sortOrder·긴 slug reflow
 
 ## 공개 사이트
 
