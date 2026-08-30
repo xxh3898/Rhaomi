@@ -30,6 +30,9 @@ export type AdminApiErrorKind =
   | "shop-media-relation-invalid"
   | "slug-conflict"
   | "publish-validation-failed"
+  | "gallery-item-not-found"
+  | "gallery-relation-invalid"
+  | "gallery-publish-invalid"
   | "too-large"
   | "type-unsupported"
   | "invalid-image"
@@ -169,6 +172,15 @@ async function mapApiFailure(response: Response): Promise<AdminApiError> {
   }
   if (response.status === 422 && code === "PUBLISH_VALIDATION_FAILED") {
     return new AdminApiError("publish-validation-failed");
+  }
+  if (response.status === 404 && code === "GALLERY_ITEM_NOT_FOUND") {
+    return new AdminApiError("gallery-item-not-found");
+  }
+  if (response.status === 422 && code === "GALLERY_RELATION_INVALID") {
+    return new AdminApiError("gallery-relation-invalid");
+  }
+  if (response.status === 422 && code === "GALLERY_PUBLISH_INVALID") {
+    return new AdminApiError("gallery-publish-invalid");
   }
   if (response.status === 503 && code === "MEDIA_PROCESSOR_UNAVAILABLE") {
     return new AdminApiError("processor-unavailable");

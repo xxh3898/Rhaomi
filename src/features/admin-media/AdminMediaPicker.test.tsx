@@ -131,6 +131,41 @@ describe("AdminMediaPicker", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("Gallery explicit policy에서는 server order의 active와 archived asset을 모두 제공한다", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const items = [
+      mediaItem({ id: ARCHIVED_ID, status: "archived" }),
+      mediaItem(),
+    ];
+
+    render(
+      <AdminMediaPicker
+        api={createApi()}
+        id="gallery-cover-picker"
+        slotLabel="대표 이미지"
+        state={{ kind: "ready", items }}
+        selectedId={ARCHIVED_ID}
+        disabled={false}
+        selectionPolicy="all-existing"
+        onSelect={onSelect}
+        onRetry={vi.fn()}
+        onClose={vi.fn()}
+        onSessionExpired={vi.fn()}
+      />,
+    );
+
+    const listItems = screen.getAllByRole("listitem");
+    expect(listItems).toHaveLength(2);
+    expect(within(listItems[0]!).getByText(ARCHIVED_ID)).toBeInTheDocument();
+    expect(within(listItems[0]!).getByText(/보관됨/)).toBeInTheDocument();
+    expect(within(listItems[1]!).getByText(ACTIVE_ID)).toBeInTheDocument();
+    expect(screen.getByText(/활성·보관 미디어를 관계로 선택/)).toBeInTheDocument();
+
+    await user.click(within(listItems[0]!).getByRole("button", { name: "현재 선택됨" }));
+    expect(onSelect).toHaveBeenCalledWith(ARCHIVED_ID);
+  });
+
   it("없음 선택으로 현재 relation을 해제한다", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();

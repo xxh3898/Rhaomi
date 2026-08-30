@@ -143,9 +143,20 @@ Phase 1C-8b는 실제 운영값·사진 seed, 공개 Hero·소개·OG 렌더링,
 
 Phase 1C-8c는 실제 견종·서비스 seed, 공개 서비스·필터 렌더링, 갤러리·공지 UI, build API/publisher, 실제 iPhone Safari·VoiceOver나 운영 배포의 완료를 의미하지 않는다.
 
-### Phase 1C-8d 이후 — 나머지 콘텐츠 기능
+### Phase 1C-8d — 관리자 갤러리 콘텐츠·관계 편집 UI
 
-- `/admin` 갤러리·공지 관리 UI
+- `/admin/` dashboard에서 매장정보·갤러리·미디어·견종·서비스가 enabled이고 공지만 disabled인 same-page navigation
+- 모든 상태 갤러리 목록의 backend `featured DESC, sortOrder ASC, publishedAt DESC NULLS LAST, id ASC` 순서 보존과 mutation 뒤 canonical GET
+- 항상 draft인 생성과 status·관계·text·featured·sortOrder·performedAt·publishedAt 전체 PUT 편집
+- breed·service·media catalog 독립 로드·복구와 draft/archived의 존재 관계, published의 published/active 관계 UX 보조
+- active·archived private media를 구분해 선택하는 slot 인접 single picker, cover 재사용·before/after 상호 배제와 Blob preview lifecycle
+- strict response/error allowlist, stale GET·중복 mutation 차단, post-mutation GET 실패 분리·explicit recovery와 canonical refresh 뒤 focus 복귀
+
+Phase 1C-8d는 실제 갤러리 seed, 공개 responsive image·갤러리 렌더링, 공지 UI, build API/publisher, 실제 iPhone Safari·VoiceOver나 운영 배포의 완료를 의미하지 않는다.
+
+### Phase 1C-8e 이후 — 나머지 콘텐츠 기능
+
+- `/admin` 공지 관리 UI
 - build-time read-only API와 credential 분리
 - 샘플 콘텐츠
 

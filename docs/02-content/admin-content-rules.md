@@ -3,7 +3,7 @@ title: "관리자 콘텐츠 규칙"
 status: "approved"
 owner: "은총쌤"
 reviewers: "조치호"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "관리 API field·운영 절차 변경 시"
 ---
 
@@ -79,6 +79,9 @@ review_trigger: "관리 API field·운영 절차 변경 시"
 - dogName·summary·altText는 앞뒤 Unicode whitespace를 제거하고 비면 null로 저장한다. altText는 게시 상태에서 필수이고 filename·키워드 나열로 자동 생성하지 않는다.
 - performedAt·publishedAt은 microsecond로 절삭하며 미래 시각도 저장할 수 있다. 공개 build는 publishedAt이 도래한 항목만 포함한다.
 - 관리자 목록은 `featured DESC`, `sort_order ASC`, `published_at DESC NULLS LAST`, `id ASC` 순으로 정렬한다.
+- 관리자 UI는 backend 목록 순서를 다시 정렬하지 않고 그대로 표시하며 저장 성공 뒤 목록 GET으로 canonical 순서를 다시 받는다. 후속 GET 실패는 저장 실패와 구분하고 명시적 새로고침을 제공한다.
+- 관계 picker는 draft·archived 편집을 위해 active·archived media를 상태와 함께 표시한다. published 전환은 client가 게시된 견종·서비스와 active media를 선제 안내하되 backend 검증을 최종 authority로 유지한다.
+- performedAt·publishedAt 입력은 local datetime으로 편집하되 변경하지 않은 backend microsecond 값을 full PUT에서 보존하고 성공 response의 정규화 값을 다시 표시한다.
 - 관계 대상이 나중에 draft·archived가 되어도 gallery status·relation을 자동 변경하지 않는다. 후속 public snapshot이 gallery status, 관계 상태와 공개 파생 file 유효성을 다시 검사해 제외한다.
 - 동일 사진을 다시 업로드하기보다 기존 media relation을 재사용한다. backend는 SHA-256을 무결성 metadata로만 기록하며 자동 dedupe나 409를 수행하지 않는다.
 - id, actor, audit timestamp와 unknown/system field는 요청에서 받지 않으며 검증 실패 시 row와 audit 전체를 바꾸지 않는다.
