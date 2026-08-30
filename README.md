@@ -23,7 +23,7 @@ review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 
 ## 현재 구현 범위
 
-Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1에서 transactional `contentRevision`과 publishing outbox producer 기반을 추가했다. publisher claim·`publishGeneration`, 공개 responsive 파생본·build API와 실제 랜딩·SEO 렌더링은 후속 Issue에서 구현한다.
+Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1에서 transactional `contentRevision`과 publishing outbox producer를, Phase 1C-8f2에서 pending/due claim·lease recovery·`publishGeneration`·attempt/result 상태 머신 기반을 추가했다. 실제 polling publisher, 30초 debounce orchestration, 공개 responsive 파생본·build API와 랜딩·SEO 렌더링은 후속 Issue에서 구현한다.
 
 ```text
 .
@@ -35,7 +35,7 @@ Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Bo
 ├── src/
 │   ├── app/                 # 공개 홈과 /admin Static Export route
 │   └── features/            # admin auth/transport, dashboard, media·shop·breed·service·gallery UI
-├── backend/                 # Spring Boot 인증·콘텐츠·private media API, publication producer와 PostgreSQL contract test
+├── backend/                 # Spring Boot 인증·콘텐츠·private media API, publication producer/state와 PostgreSQL contract test
 ├── infra/nginx/dev.conf     # local same-origin gateway
 ├── scripts/                 # 정적 산출물·gateway·HEIC·Compose smoke 검증
 ├── tests/                   # frontend·runtime contract test
@@ -106,7 +106,9 @@ docker compose --env-file .env.dev.local -f compose.dev.yaml down
 
 현재 collection 관리 API는 `/api/admin/breeds`, `/api/admin/services`, `/api/admin/notices`, `/api/admin/gallery-items`에 `GET`, `POST`, `PUT`만 제공한다. 생성은 항상 `draft`이며 수정 요청은 전체 mutable representation을 보낸다. 공지는 게시·만료 시각을 microsecond로 정규화한 뒤 게시 본문·유효 기간을 application과 PostgreSQL에서 이중 검증한다. 갤러리는 slug 없이 scalar relation id만 반환하고 게시 필수값·관계 존재성·관계 대상 상태를 mutation 전에 검증한다.
 
-Flyway V8은 `content_revision_state` singleton과 typed `publishing_outbox`를 만든다. 지원 콘텐츠 mutation 성공 1회마다 같은 PostgreSQL transaction에서 `contentRevision`을 정확히 한 번 증가시키고, 공개 영향 변경은 `CONTENT_CHANGED`, 새로 설정·변경된 공지 게시·만료 경계와 게시 상태 갤러리의 게시 경계는 같은 revision의 durable scheduled event로 기록한다. validation·DB·outbox 실패는 콘텐츠·revision·event를 함께 rollback하며 media final file도 기존 transaction cleanup으로 제거한다. 이 producer는 새 HTTP endpoint나 credential을 추가하지 않는다.
+Flyway V8은 `content_revision_state` singleton과 typed `publishing_outbox` producer를 만든다. 지원 콘텐츠 mutation 성공 1회마다 같은 PostgreSQL transaction에서 `contentRevision`을 정확히 한 번 증가시키고, 공개 영향 변경은 `CONTENT_CHANGED`, 새로 설정·변경된 공지 게시·만료 경계와 게시 상태 갤러리의 게시 경계는 같은 revision의 durable scheduled event로 기록한다. validation·DB·outbox 실패는 콘텐츠·revision·event를 함께 rollback하며 media final file도 기존 transaction cleanup으로 제거한다. 이 producer는 새 HTTP endpoint나 credential을 추가하지 않는다.
+
+Flyway V9은 transactional `publish_generation_state` singleton과 outbox의 `PENDING | PROCESSING | RETRY_WAIT | SUCCEEDED | NOOP | FAILED | COALESCED` 상태를 추가한다. internal Java service가 `FOR UPDATE SKIP LOCKED`로 due row를 하나만 claim하고 generation 할당·첫 attempt를 같은 transaction으로 기록한다. 만료 lease와 1분·5분·15분 transient retry는 같은 generation으로 최대 네 번째 attempt까지 복구하며, scheduled stale event는 current Notice/Gallery의 published 상태와 expected boundary만 확인한 뒤 generation 없이 `NOOP` 처리한다. 관계·미디어·파일을 포함한 전체 공개 eligibility는 후속 build API/transformer가 다시 검증한다. 이 상태 기반도 HTTP endpoint, scheduler, polling loop, credential이나 환경 변수를 추가하지 않는다.
 
 매장정보는 상태나 공개 id가 없는 단일 현재값이다. `/api/admin/shop-settings`의 `GET`과 전체 `PUT`만 제공하며 최초 PUT은 `201`, 이후 PUT은 `200`이다. PostgreSQL UNIQUE/CHECK가 row를 하나로 제한하고 Hero·프로필 image/alt pair와 세 media FK를 방어한다. API는 핵심 NAP·영업시간·전화번호·HTTPS 외부 링크, nullable Hero·프로필·OG scalar media id, Hero·프로필 대체텍스트와 server-owned audit를 검증한다. non-null media는 존재하고 `active`여야 하며 관계가 나중에 archived돼도 자동 제거하지 않는다. 모든 state-changing 요청에는 관리자 session과 CSRF token이 필요하며 `PATCH`와 영구 `DELETE` endpoint는 제공하지 않는다. 실제 운영값과 실사진은 seed하지 않는다.
 
@@ -138,7 +140,8 @@ sh scripts/validate-backend-compose.sh .env.dev.local
 - 공지는 `/admin/`에서 항상 draft로 생성하고 immutable slug, source-only Markdown, 고정 여부, 미래 게시·만료 시각과 `draft | published | archived`를 full PUT으로 관리한다. 목록은 backend 배열 순서를 보존하고 변경하지 않은 microsecond Instant를 그대로 유지한다.
 - 관계 대상의 상태 변경은 갤러리나 매장정보에 cascade하지 않으며 후속 공개 snapshot이 published/relation/file 조건과 선택된 매장 이미지를 다시 검증한다.
 - 지원 콘텐츠 mutation은 transactional row counter로 `contentRevision`을 한 번만 전진시키고, 공개 영향 변경과 Notice·Gallery 시간 경계는 V8 typed outbox에 같은 transaction으로 기록한다.
-- outbox consumer, claim/lease, `publishGeneration`, build API와 static publisher는 아직 구현되지 않았다.
+- V9 internal state service는 pending/due claim, transactional `publishGeneration`, active lease·owner guard, same-generation recovery/retry, typed terminal result와 lower→higher coalesce primitive를 제공한다.
+- 실제 publisher polling loop·30초 debounce/coalesce orchestration, build API와 static build·release switch는 아직 구현되지 않았다.
 - 공개 responsive 파생본과 Builder API는 후속 Issue에서 구현한다.
 - 공개 콘텐츠 변경은 정적 사이트 재빌드·검증·원자적 교체를 유발한다.
 - 고객용 예약 시스템, 결제, 회원가입, 문의 폼은 만들지 않는다.

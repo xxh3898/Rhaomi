@@ -182,11 +182,20 @@ review_trigger: "관리 API·build 입력 변경 시"
 - reschedule·boundary 제거·draft/archive 전환 시 old row를 삭제하지 않는다. 후속 consumer가 current row와 snapshot을 다시 확인하는 stale no-op 계약을 유지한다.
 - content·revision·outbox insert는 같은 PostgreSQL transaction에서 commit/rollback된다. 새 HTTP endpoint, response field, credential이나 public route는 없다.
 
-## publisher consumer — planned
+## publication claim·generation state — current
 
-- publisher는 immediate pending event와 `availableAt <= now` event를 claim하고 restart 뒤 overdue event를 복구한다.
-- 처리 시 event 값을 public authority로 사용하지 않고 current Notice·Gallery row와 전체 build snapshot을 다시 검증한다. reschedule, draft·archived 전환 또는 boundary 변경으로 stale이면 no-op하거나 최신 pending generation에 합친다.
-- claim/lease, attempt/result, `publishGeneration`, debounce/coalesce와 retry state는 후속 Issue에서 구현한다.
+- Flyway V9은 `(1, 0)` transactional `publish_generation_state` singleton과 outbox의 `PENDING | PROCESSING | RETRY_WAIT | SUCCEEDED | NOOP | FAILED | COALESCED` 상태·고정 result code·state별 DB invariant를 추가한다.
+- internal `PublicationStateService`는 HTTP나 scheduler 없이 immediate pending 또는 `availableAt <= now` row를 `(availableAt, id)` 순서와 `FOR UPDATE SKIP LOCKED`로 claim한다. fresh claim의 `publishGeneration` 할당과 첫 attempt는 같은 PostgreSQL transaction이며 rollback은 generation을 소비하지 않는다.
+- scheduled claim은 current Notice·Gallery row의 `published` 상태와 expected boundary만 최소 검증한다. row가 없거나 draft·archived·rescheduled이면 generation 없이 `NOOP / STALE_TRIGGER`로 종료한다. relation·media·file과 build timestamp eligibility는 이 단계에서 복제하지 않는다.
+- active lease는 owner·generation으로 갱신·완료를 guard한다. 만료 lease와 1분·5분·15분 transient retry는 같은 generation을 유지하며 총 attempt를 4회로 제한한다.
+- lower active generation은 같은 owner가 claim한 실제 higher `PROCESSING` generation으로만 `COALESCED` 처리할 수 있다. 실제 30초 대기와 highest-generation 선택 orchestration은 아직 없다.
+- typed status read model은 publication package 내부에서만 제공하며 새 HTTP endpoint·credential·환경 변수·background loop를 추가하지 않는다.
+
+## publisher orchestration — planned
+
+- single publisher는 current state service를 호출해 immediate pending, due scheduled, overdue lease와 due retry를 계속 처리한다.
+- claim 뒤 current row가 바뀔 수 있으므로 event 값을 public authority로 사용하지 않고 전체 build snapshot의 status·게시/만료·relation·media/file 조건을 다시 검증한다.
+- 첫 accepted trigger 뒤 실제 30초 debounce, highest-generation coalesce 선택, build·release·atomic switch와 운영 관제는 후속 Issue에서 구현한다.
 
 ## build API — planned
 

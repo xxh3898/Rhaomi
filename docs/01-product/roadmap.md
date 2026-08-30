@@ -178,9 +178,13 @@ Phase 1C-8f1은 producer side foundation만 구현한다. outbox claim/lease, `p
 
 ### Phase 1C-8f2 — internal claim·publishGeneration state machine
 
-- pending/due event claim·lease와 restart 후 overdue recovery
-- trigger별 monotonic `publishGeneration`과 attempt/result 상태
-- stale scheduled event no-op, debounce/coalesce와 retry ordering
+- Flyway V9 transactional `publish_generation_state` singleton과 outbox state/result invariant
+- `FOR UPDATE SKIP LOCKED` 기반 pending/due single claim, generation·첫 attempt atomicity와 rollback non-consumption
+- current Notice·Gallery status/boundary가 달라진 scheduled event의 generation 없는 stale no-op
+- active owner·lease renewal, expired lease와 1분·5분·15분 transient failure의 same-generation recovery/retry, 총 attempt 4회 제한
+- typed success/no-op/failure와 lower→higher generation coalesce primitive
+
+Phase 1C-8f2는 HTTP 없는 DB/state-machine foundation만 구현한다. 실제 polling loop, 30초 debounce/coalesce orchestration, build API·service credential, snapshot transformer, static build와 release switch는 포함하지 않는다. claim의 scheduled stale 검사는 source status·expected boundary에 한정하고 relation·media·file을 포함한 전체 공개 eligibility는 후속 build API/transformer가 다시 검증한다.
 
 ### Phase 1C-8f3 — internal read-only build API·service credential
 

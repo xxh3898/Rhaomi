@@ -14,7 +14,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - 관리자 계정과 password hash
 - 관리자 session과 CSRF token
 - PostgreSQL 데이터
-- transactional content revision과 publishing outbox
+- transactional content revision, publish generation과 publishing outbox state
 - 향후 원본 시술사진
 - 향후 internal build/publisher service credential
 - encrypted restic repository와 recovery key
@@ -29,7 +29,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - Actuator health
 - local Nginx same-origin `/api/**` proxy와 production `/api/admin/**` edge
 - PostgreSQL 연결
-- 파일 upload·native image decoder, 내부 publication recorder와 향후 build API·publisher
+- 파일 upload·native image decoder, 내부 publication recorder·claim state service와 향후 build API·publisher
 - GitHub Actions·production environment·Tailscale deploy entrypoint
 - HomeOps health/status/event와 bounded restart
 - backup 파일과 운영자 휴대전화
@@ -67,7 +67,11 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | 콘텐츠 삭제 | 영업 자산 손실 | 후속 CRUD에서 archive, migration·backup gate |
 | revision 중복·event 유실 | 최신 snapshot 식별 실패, 공개 반영 누락 | singleton row lock 기반 allocator, content·revision·typed outbox same-transaction commit/rollback, sequence·best-effort hook 금지 |
 | outbox 위조·내부 상태 노출 | draft trigger 오분류, 내부 콘텐츠 식별자 노출 | kind/source/boundary DB allowlist, domain 내부 `MANDATORY` recorder, 관리자 response·public/build endpoint 비노출 |
-| stale scheduled event 오용 | 재예약·보관 콘텐츠의 잘못된 공개 | old event 삭제에 의존하지 않고 후속 consumer가 current Notice·Gallery row·expected boundary·전체 snapshot 재검증 |
+| concurrent outbox double claim·generation gap | 동일 trigger 중복 build, ordering 불일치 | `FOR UPDATE SKIP LOCKED`, transactional singleton row `UPDATE ... RETURNING`, claim·generation·첫 attempt same-transaction rollback |
+| claim 탈취·stale owner 완료 | active build 결과 오염, attempt 상태 손상 | owner·generation·`PROCESSING`·active lease guard, 만료 lease만 같은 generation으로 recovery, 최대 attempt 4회 |
+| publication 결과 detail 노출 | SQL·path·credential·내부 예외 노출 | fixed result code DB allowlist, arbitrary result text column·HTTP status endpoint 부재 |
+| stale scheduled event 오용 | 재예약·보관 콘텐츠의 잘못된 공개 | claim 시 current Notice·Gallery published 상태·expected boundary 최소 검증과 generation 없는 no-op, 후속 build API/transformer의 전체 snapshot·relation·media/file 재검증 |
+| generation coalesce 역전 | 낮은 trigger가 더 새로운 공개 결과를 덮음 | source보다 큰 실제 `PROCESSING` target self-reference, same-owner active claim guard, terminal source·higher→lower 거부 |
 | self-hosted runner 악용 | Mac mini 장악 | 전용 runner scope, untrusted PR 실행 금지, 최소 권한 |
 | publisher credential 탈취 | private snapshot·media 노출 | internal network, read-only endpoint, admin session 분리, public Nginx deny |
 | backup key 탈취·분실 | 민감 원본 노출 또는 복구 불가 | 별도 encrypted repository, 제한된 password source, password manager+offline recovery key |
@@ -87,7 +91,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - 미설계 `/api/**` anonymous 허용
 - backup 없음
 - public build/internal/actuator route 노출
-- publication outbox·revision table의 HTTP response 또는 외부 network 노출
+- publication outbox·revision/generation state의 HTTP response 또는 외부 network 노출
 - one-shot Flyway·manual digest deploy·restore drill 부재
 - Mac `/private/var/lib/rhaomi` ownership·bind smoke, PostgreSQL named-volume restart/일반 `down` persistence와 isolated `pg_restore` 증거 부재
 - HomeOps 자동 복구가 DB·volume·migration·backup을 변경할 수 있음

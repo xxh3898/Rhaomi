@@ -11,10 +11,10 @@ review_trigger: "PostgreSQL table·field·API 변경 시"
 
 ## 구현 상태
 
-- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`, Flyway V4·V7의 `shop_settings`, Flyway V5의 `media_assets`, Flyway V6의 `gallery_items`, Flyway V8의 `content_revision_state`·`publishing_outbox`
-- 후속 구현: outbox claim/lease·`publishGeneration`, public build snapshot, 공개 이미지 파생본과 Hero·프로필·OG 렌더링
+- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`, Flyway V4·V7의 `shop_settings`, Flyway V5의 `media_assets`, Flyway V6의 `gallery_items`, Flyway V8의 `content_revision_state`·`publishing_outbox` producer, Flyway V9의 `publish_generation_state`와 outbox claim·lease·attempt/result state
+- 후속 구현: polling publisher·30초 debounce orchestration, public build snapshot, 공개 이미지 파생본과 Hero·프로필·OG 렌더링
 
-`breeds`, `services`, `notices`, `shop_settings`, `media_assets`, `gallery_items`, publication producer table은 현재 schema 계약이고, public snapshot과 consumer state는 제품 방향을 위한 proposed 계약이다.
+`breeds`, `services`, `notices`, `shop_settings`, `media_assets`, `gallery_items`와 V8·V9 publication table은 현재 schema 계약이고, public snapshot과 publisher orchestration은 제품 방향을 위한 proposed 계약이다.
 
 ## 현재 `admin_users`
 
@@ -30,7 +30,7 @@ review_trigger: "PostgreSQL table·field·API 변경 시"
 
 schema source of truth는 `backend/src/main/resources/db/migration/V1__create_admin_users.sql`이다.
 
-## 현재 publication producer state
+## 현재 publication database state
 
 ### `content_revision_state`
 
@@ -55,12 +55,37 @@ schema source of truth는 `backend/src/main/resources/db/migration/V1__create_ad
 | `available_at` | timestamp(6) with time zone | Y | immediate 생성 시각 또는 scheduled due 시각 |
 | `expected_boundary_at` | timestamp(6) with time zone | N | scheduled event가 기대한 source boundary |
 | `created_at` | timestamp(6) with time zone | Y | event 생성 시각 |
+| `state` | varchar(16) | Y | 기본 `PENDING`, 승인 state allowlist |
+| `publish_generation` | bigint | N | fresh eligible claim에 할당하는 unique positive ordering |
+| `attempt_count` | smallint | Y | 기본 0, 최대 4 |
+| `claim_owner` | varchar(128) | N | nonblank·trimmed·제어문자 없는 internal instance identifier |
+| `claimed_at` | timestamp(6) with time zone | N | 현재·마지막 execution attempt 시작 시각 |
+| `lease_until` | timestamp(6) with time zone | N | active `PROCESSING` lease 만료 시각 |
+| `next_attempt_at` | timestamp(6) with time zone | N | `RETRY_WAIT` due 시각 |
+| `completed_at` | timestamp(6) with time zone | N | terminal 완료 시각 |
+| `last_result_code` | varchar(32) | N | fixed code allowlist, arbitrary error text 금지 |
+| `coalesced_into_generation` | bigint | N | source보다 큰 실제 target generation self reference |
 
 - immediate event는 `expected_boundary_at IS NULL`, scheduled event는 non-null이며 `available_at = expected_boundary_at`이다.
 - `kind`, `source_type`, scheduled kind/source 조합을 named CHECK로 제한하고 `(available_at, id)`, `(source_type, source_id, available_at)`, `(content_revision)` index를 둔다.
 - old scheduled event 보존과 stale 판정을 위해 source content FK나 cascade delete를 두지 않는다. event row는 current source authority가 아니며 후속 consumer가 source id·expected boundary로 current row를 재검증한다.
-- processing/completed/failed, claim owner·lease, attempt count와 `publishGeneration`은 V8에 없다.
-- schema source of truth는 `backend/src/main/resources/db/migration/V8__create_content_revision_and_publishing_outbox.sql`이다.
+- V9 state는 `PENDING`, `PROCESSING`, `RETRY_WAIT`, `SUCCEEDED`, `NOOP`, `FAILED`, `COALESCED`로 제한한다. state별 generation·attempt·owner·lease·retry·completion nullability와 fixed result code를 named CHECK로 강제한다.
+- scheduled stale event는 generation 할당 전 `NOOP / STALE_TRIGGER`, attempt 0으로 종료할 수 있다. generation이 있는 `NOOP`은 active attempt 뒤 `NO_PUBLIC_CHANGE` 또는 future stale 판정에 사용한다.
+- `publish_generation`은 nullable UNIQUE이며 `coalesced_into_generation`은 같은 table의 generation을 `ON UPDATE/DELETE RESTRICT`로 참조하고 source보다 큰 값만 허용한다.
+- claim/retry/lease selection용 `(state, available_at, id)`, `(state, next_attempt_at, id)`, `(state, lease_until, id)` index를 추가하고 V8 index를 보존한다.
+- schema source of truth는 V8 producer migration과 `backend/src/main/resources/db/migration/V9__add_publishing_claim_and_generation_state.sql`이다.
+
+### `publish_generation_state`
+
+| field | type | 필수 | 설명 |
+|---|---|---:|---|
+| `singleton_key` | smallint | Y | primary key, CHECK로 1만 허용 |
+| `publish_generation` | bigint | Y | 0 이상인 public trigger ordering authority |
+
+- 초기 row는 `(1, 0)` 한 건이다.
+- fresh eligible claim transaction이 `UPDATE ... + 1 RETURNING`으로 generation을 할당하고 같은 transaction에서 outbox를 첫 `PROCESSING` attempt로 전환한다.
+- PostgreSQL sequence가 아니므로 claim transaction rollback은 generation을 소비하지 않는다. 자동 retry와 lease recovery는 기존 generation을 유지한다.
+- 이 counter는 콘텐츠 mutation snapshot인 `content_revision_state`와 독립이다. 같은 `contentRevision`의 서로 다른 시간 경계도 각각 새 `publishGeneration`을 가질 수 있다.
 
 ## 콘텐츠 공통 규칙
 
