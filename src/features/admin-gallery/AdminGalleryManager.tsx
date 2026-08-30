@@ -41,6 +41,12 @@ type CatalogState<T> =
   | Readonly<{ kind: "error" }>
   | Readonly<{ kind: "ready"; items: readonly T[] }>;
 type PickerSlot = "cover" | "before" | "after";
+type CoverRelationState =
+  | Readonly<{ kind: "none" }>
+  | Readonly<{ kind: "loading" }>
+  | Readonly<{ kind: "error" }>
+  | Readonly<{ kind: "missing" }>
+  | Readonly<{ kind: "ready"; item: MediaItem }>;
 
 type AdminGalleryManagerProps = Readonly<{
   transport: AdminApiTransport;
@@ -142,6 +148,60 @@ function selectedMediaStatusText(
     : "보관된 미디어 선택됨 — 초안·보관 상태에서 유지할 수 있습니다.";
 }
 
+function resolveCoverRelation(
+  coverImageId: string | null,
+  state: AdminMediaPickerState,
+): CoverRelationState {
+  if (coverImageId === null) return { kind: "none" };
+  if (state.kind === "loading") return { kind: "loading" };
+  if (state.kind === "error") return { kind: "error" };
+  const item = state.items.find((candidate) => candidate.id === coverImageId);
+  return item ? { kind: "ready", item } : { kind: "missing" };
+}
+
+function GalleryCoverPreview({
+  relation,
+  displayName,
+  api,
+  onSessionExpired,
+}: Readonly<{
+  relation: CoverRelationState;
+  displayName: string;
+  api: AdminMediaApi;
+  onSessionExpired: () => void;
+}>) {
+  if (relation.kind === "ready") {
+    return (
+      <div className={styles.cardPreview}>
+        <AdminMediaPreview
+          api={api}
+          item={relation.item}
+          alt={`${displayName} 대표 이미지 미리보기`}
+          onSessionExpired={onSessionExpired}
+        />
+      </div>
+    );
+  }
+
+  const text = {
+    none: "대표 이미지 없음",
+    loading: "대표 이미지 관계 확인 중",
+    error: "대표 이미지 관계 정보를 확인할 수 없음",
+    missing: "대표 이미지 관계를 목록에서 찾을 수 없음",
+  }[relation.kind];
+  const loading = relation.kind === "loading";
+  const invalid = relation.kind === "error" || relation.kind === "missing";
+  return (
+    <p
+      className={styles.previewFallback}
+      role={loading ? "status" : invalid ? "alert" : undefined}
+      aria-live={loading ? "polite" : undefined}
+    >
+      {text}
+    </p>
+  );
+}
+
 function MediaRelationControl({
   id,
   label,
@@ -163,14 +223,21 @@ function MediaRelationControl({
     state,
     publishedTarget,
   );
+  const loading = selectedId !== null && state.kind === "loading";
   const invalid =
     selectedId !== null &&
-    (state.kind === "error" || !item || (publishedTarget && item.status !== "active"));
+    (state.kind === "error" ||
+      (state.kind === "ready" &&
+        (!item || (publishedTarget && item.status !== "active"))));
   return (
     <div className={styles.mediaSlot}>
       <fieldset className={styles.mediaRelation}>
         <legend>{label}</legend>
-        <p id={`${id}-status`} role={invalid ? "alert" : undefined}>
+        <p
+          id={`${id}-status`}
+          role={loading ? "status" : invalid ? "alert" : undefined}
+          aria-live={loading ? "polite" : undefined}
+        >
           {statusText}
         </p>
         {selectedId ? <code>{selectedId}</code> : null}
@@ -931,25 +998,16 @@ export function AdminGalleryManager({
           aria-busy={listState === "refreshing"}
         >
           {items.map((item) => {
-            const cover =
-              mediaState.kind === "ready"
-                ? mediaState.items.find((candidate) => candidate.id === item.coverImageId) ?? null
-                : null;
+            const coverRelation = resolveCoverRelation(item.coverImageId, mediaState);
             const displayName = item.dogName ?? "이름 없음";
             return (
               <li key={item.id}>
-                {cover ? (
-                  <div className={styles.cardPreview}>
-                    <AdminMediaPreview
-                      api={mediaApi}
-                      item={cover}
-                      alt={`${displayName} 대표 이미지 미리보기`}
-                      onSessionExpired={onSessionExpired}
-                    />
-                  </div>
-                ) : (
-                  <p className={styles.previewFallback}>대표 이미지 없음</p>
-                )}
+                <GalleryCoverPreview
+                  relation={coverRelation}
+                  displayName={displayName}
+                  api={mediaApi}
+                  onSessionExpired={onSessionExpired}
+                />
                 <div className={contentStyles.cardHeading}>
                   <div>
                     <h3>{displayName}</h3>

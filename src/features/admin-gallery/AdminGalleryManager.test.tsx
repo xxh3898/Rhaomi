@@ -236,6 +236,189 @@ describe("AdminGalleryManager", () => {
     );
   });
 
+  it("non-null cover 관계를 media catalog pending 동안 없음이 아닌 loading으로 유지한다", async () => {
+    let resolveMedia: ((items: readonly MediaItem[]) => void) | undefined;
+    const requestAuthenticatedJson = vi.fn().mockImplementation((path: string) => {
+      if (path === "/api/admin/gallery-items") return Promise.resolve([gallery()]);
+      if (path === "/api/admin/breeds") return Promise.resolve(BREEDS);
+      if (path === "/api/admin/services") return Promise.resolve(SERVICES);
+      if (path === "/api/admin/media") {
+        return new Promise<readonly MediaItem[]>((resolve) => {
+          resolveMedia = resolve;
+        });
+      }
+      return Promise.reject(new Error("unexpected path"));
+    });
+
+    render(
+      <AdminGalleryManager
+        transport={createTransport({ requestAuthenticatedJson })}
+        onBack={vi.fn()}
+        onSessionExpired={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "보리" })).toBeInTheDocument();
+    const relationStatus = screen.getByText("대표 이미지 관계 확인 중");
+    expect(relationStatus).toHaveAttribute("role", "status");
+    expect(relationStatus).toHaveAttribute("aria-live", "polite");
+    expect(screen.queryByText("대표 이미지 없음")).not.toBeInTheDocument();
+
+    resolveMedia?.(MEDIA);
+    expect(
+      await screen.findByRole("img", { name: "보리 대표 이미지 미리보기" }),
+    ).toBeInTheDocument();
+  });
+
+  it("media catalog failure를 unavailable로 표시하고 retry 성공 뒤 private cover preview를 복구한다", async () => {
+    const user = userEvent.setup();
+    const requestAuthenticatedJson = vi.fn().mockImplementation((path: string) => {
+      if (path === "/api/admin/gallery-items") return Promise.resolve([gallery()]);
+      if (path === "/api/admin/breeds") return Promise.resolve(BREEDS);
+      if (path === "/api/admin/services") return Promise.resolve(SERVICES);
+      if (path === "/api/admin/media") {
+        const mediaCalls = requestAuthenticatedJson.mock.calls.filter(
+          ([calledPath]) => calledPath === "/api/admin/media",
+        ).length;
+        return mediaCalls === 1
+          ? Promise.reject(new AdminApiError("unavailable"))
+          : Promise.resolve(MEDIA);
+      }
+      return Promise.reject(new Error("unexpected path"));
+    });
+    const transport = createTransport({ requestAuthenticatedJson });
+
+    render(
+      <AdminGalleryManager
+        transport={transport}
+        onBack={vi.fn()}
+        onSessionExpired={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: "보리" })).toBeInTheDocument();
+    expect(
+      await screen.findByText("대표 이미지 관계 정보를 확인할 수 없음"),
+    ).toHaveAttribute("role", "alert");
+    expect(screen.queryByText("대표 이미지 없음")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "보리 수정" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "관계 목록 다시 시도" }));
+    expect(
+      await screen.findByRole("img", { name: "보리 대표 이미지 미리보기" }),
+    ).toBeInTheDocument();
+    expect(transport.requestAuthenticatedBlob).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "보리 수정" })).toBeEnabled();
+  });
+
+  it("ready catalog의 미해결 cover 관계를 실제 null 관계와 구분한다", async () => {
+    const user = userEvent.setup();
+    const unresolvedCoverId = "a1cb940e-4ca2-4271-a020-4d1ee31f30f4";
+    render(
+      <AdminGalleryManager
+        transport={createTransport({
+          galleries: [gallery({ coverImageId: unresolvedCoverId })],
+          mediaItems: MEDIA.filter((item) => item.id !== unresolvedCoverId),
+        })}
+        onBack={vi.fn()}
+        onSessionExpired={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByText("대표 이미지 관계를 목록에서 찾을 수 없음"),
+    ).toHaveAttribute("role", "alert");
+    expect(screen.queryByText("대표 이미지 없음")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "보리 수정" }));
+    expect(
+      screen.getByText("선택된 미디어를 목록에서 찾을 수 없음"),
+    ).toHaveAttribute("role", "alert");
+  });
+
+  it("coverImageId가 null일 때만 대표 이미지 없음을 표시한다", async () => {
+    render(
+      <AdminGalleryManager
+        transport={createTransport({ galleries: [gallery({ coverImageId: null })] })}
+        onBack={vi.fn()}
+        onSessionExpired={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText("대표 이미지 없음")).toBeInTheDocument();
+    expect(screen.queryByText(/대표 이미지 관계/)).not.toBeInTheDocument();
+  });
+
+  it("선택 relation의 media catalog loading을 alert가 아닌 status로 알린다", async () => {
+    const user = userEvent.setup();
+    const onBack = vi.fn();
+    const onSessionExpired = vi.fn();
+    const view = render(
+      <AdminGalleryManager
+        transport={createTransport({ galleries: [gallery()] })}
+        onBack={onBack}
+        onSessionExpired={onSessionExpired}
+      />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "보리 수정" }));
+    let resolveMedia: ((items: readonly MediaItem[]) => void) | undefined;
+    const loadingTransport = createTransport({
+      requestAuthenticatedJson: vi.fn().mockImplementation((path: string) => {
+        if (path === "/api/admin/gallery-items") return Promise.resolve([gallery()]);
+        if (path === "/api/admin/breeds") return Promise.resolve(BREEDS);
+        if (path === "/api/admin/services") return Promise.resolve(SERVICES);
+        if (path === "/api/admin/media") {
+          return new Promise<readonly MediaItem[]>((resolve) => {
+            resolveMedia = resolve;
+          });
+        }
+        return Promise.reject(new Error("unexpected path"));
+      }),
+    });
+
+    view.rerender(
+      <AdminGalleryManager
+        transport={loadingTransport}
+        onBack={onBack}
+        onSessionExpired={onSessionExpired}
+      />,
+    );
+
+    const selectedStatus = await screen.findByText("선택된 미디어 상태 확인 중");
+    expect(selectedStatus).toHaveAttribute("role", "status");
+    expect(selectedStatus).toHaveAttribute("aria-live", "polite");
+    expect(selectedStatus).not.toHaveAttribute("role", "alert");
+
+    resolveMedia?.(MEDIA);
+    await waitFor(() =>
+      expect(screen.queryByText("선택된 미디어 상태 확인 중")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText(/보관된 미디어 선택됨/)).not.toHaveAttribute("role", "alert");
+
+    const errorTransport = createTransport({
+      requestAuthenticatedJson: vi.fn().mockImplementation((path: string) => {
+        if (path === "/api/admin/gallery-items") return Promise.resolve([gallery()]);
+        if (path === "/api/admin/breeds") return Promise.resolve(BREEDS);
+        if (path === "/api/admin/services") return Promise.resolve(SERVICES);
+        if (path === "/api/admin/media") {
+          return Promise.reject(new AdminApiError("unavailable"));
+        }
+        return Promise.reject(new Error("unexpected path"));
+      }),
+    });
+    view.rerender(
+      <AdminGalleryManager
+        transport={errorTransport}
+        onBack={onBack}
+        onSessionExpired={onSessionExpired}
+      />,
+    );
+    expect(
+      await screen.findByText("선택된 미디어 상태를 확인할 수 없음"),
+    ).toHaveAttribute("role", "alert");
+  });
+
   it("loading/error/retry와 server array ordering을 client comparator 없이 보존한다", async () => {
     const user = userEvent.setup();
     const serverOrdered = [
@@ -371,7 +554,10 @@ describe("AdminGalleryManager", () => {
     await user.selectOptions(screen.getByLabelText("상태"), "published");
     expect(screen.getByText(/게시하려면 게시됨 견종으로 교체/)).toBeInTheDocument();
     expect(screen.getByText(/게시하려면 게시됨 서비스로 교체/)).toBeInTheDocument();
-    expect(screen.getByText(/게시하려면 활성 미디어로 교체/)).toBeInTheDocument();
+    expect(screen.getByText(/게시하려면 활성 미디어로 교체/)).toHaveAttribute(
+      "role",
+      "alert",
+    );
     await user.click(screen.getByRole("button", { name: "변경 저장" }));
     expect(await screen.findByText(/게시 상태의 필수값과 관계 상태/)).toBeInTheDocument();
     expect(requestJsonMutation).not.toHaveBeenCalled();
