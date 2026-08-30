@@ -256,7 +256,7 @@ describe("AdminAuthShell", () => {
     expect(getSession).toHaveBeenCalledTimes(2);
   });
 
-  it("dashboard에서 갤러리를 포함한 관리 영역을 열고 공지만 준비 중으로 유지한다", async () => {
+  it("dashboard에서 여섯 관리 영역을 모두 같은 page state로 연다", async () => {
     const user = userEvent.setup();
     const client = createClient({
       getSession: vi.fn().mockResolvedValue(ADMIN),
@@ -271,8 +271,8 @@ describe("AdminAuthShell", () => {
 
     expect(await screen.findByText(ADMIN.email)).toBeInTheDocument();
     expect(screen.getByText("역할: ADMIN")).toBeInTheDocument();
-    expect(screen.getAllByText("준비 중")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "공지, 준비 중" })).toBeDisabled();
+    expect(screen.queryByText("준비 중")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "공지 관리 열기" })).toBeEnabled();
     const shopButton = screen.getByRole("button", { name: "매장정보 관리 열기" });
     const mediaButton = screen.getByRole("button", { name: "미디어 관리 열기" });
     expect(shopButton).toBeEnabled();
@@ -280,6 +280,7 @@ describe("AdminAuthShell", () => {
     expect(screen.getByRole("button", { name: "견종 관리 열기" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "서비스 관리 열기" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "갤러리 관리 열기" })).toBeEnabled();
+    expect(screen.getAllByText("사용 가능")).toHaveLength(6);
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
 
     shopButton.focus();
@@ -302,6 +303,11 @@ describe("AdminAuthShell", () => {
     await user.click(screen.getByRole("button", { name: "갤러리 관리 열기" }));
     expect(await screen.findByRole("heading", { name: "갤러리 관리" })).toBeInTheDocument();
     expect(screen.getByText(/등록된 갤러리 항목이 없습니다/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "관리 홈으로" }));
+    await user.click(screen.getByRole("button", { name: "공지 관리 열기" }));
+    expect(await screen.findByRole("heading", { name: "공지 관리" })).toBeInTheDocument();
+    expect(screen.getByText(/등록된 공지가 없습니다/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "관리 홈으로" }));
     await user.click(screen.getByRole("button", { name: "견종 관리 열기" }));

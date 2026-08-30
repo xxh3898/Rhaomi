@@ -154,9 +154,19 @@ Phase 1C-8c는 실제 견종·서비스 seed, 공개 서비스·필터 렌더링
 
 Phase 1C-8d는 실제 갤러리 seed, 공개 responsive image·갤러리 렌더링, 공지 UI, build API/publisher, 실제 iPhone Safari·VoiceOver나 운영 배포의 완료를 의미하지 않는다.
 
-### Phase 1C-8e 이후 — 나머지 콘텐츠 기능
+### Phase 1C-8e — 관리자 공지 콘텐츠·게시기간 편집 UI
 
-- `/admin` 공지 관리 UI
+- `/admin/` dashboard의 여섯 관리 영역 enabled same-page navigation
+- 모든 상태·미래·만료 공지 목록의 backend `pinned DESC, publishedAt DESC NULLS LAST, updatedAt DESC, id ASC` 순서 보존
+- status 없는 draft 생성과 immutable slug를 제외한 status·title·summary·bodyMarkdown·pinned·publishedAt·expiresAt full PUT 편집
+- source-only Markdown textarea, published body·publishedAt과 상태 공통 publish/expiry window UX 보조, backend 최종 validation authority 유지
+- Gallery와 공유하는 local datetime 경계, unchanged backend microsecond Instant 보존과 정확한 1µs window 비교
+- strict response/error allowlist, stale GET·중복 mutation 차단, post-mutation GET 실패 분리·explicit recovery와 canonical refresh 뒤 focus 복귀
+
+Phase 1C-8e는 실제 공지 seed, 공개 공지 route·Markdown sanitize/rendering, scheduler·polling·자동 상태 전환, build API/publisher, 실제 iPhone Safari·VoiceOver나 운영 배포의 완료를 의미하지 않는다.
+
+### Phase 1C-8f 이후 — 나머지 콘텐츠 기능
+
 - build-time read-only API와 credential 분리
 - 샘플 콘텐츠
 

@@ -54,6 +54,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | 매장정보 mass assignment·partial update | server audit 변조, 기존 field 유실 | exact 26-key full request builder, audit/unknown key 제외, strict response shape, backend DTO allowlist |
 | 견종·서비스 response drift·mass assignment | internal field 노출, 잘못된 canonical state | 도메인별 exact response validator, UUID·enum·slug·Instant 검증, update slug·audit 제외, backend DTO allowlist |
 | 갤러리 response drift·relation 오판 | storage metadata 노출, invalid 관계 게시 | exact response validator, scalar UUID만 허용, full PUT의 id·actor·audit 제외, backend relation·publish 최종 검증 |
+| 공지 response drift·게시기간 오판 | 내부 field 노출, 잘못된 공지 게시·만료 | exact response validator, immutable slug·audit request 제외, microsecond window 비교, backend publish/window 최종 검증 |
 | 콘텐츠 mutation 중복·stale GET 경쟁 | 중복 row, 최신 성공 상태 유실 | pending ref, refresh/mutation 상호 잠금, request sequence 무효화, 자동 retry·auto-save 부재 |
 | stale media relation 은폐 | archived/missing 원본의 공개 후보 오인 | active-only 새 선택, 기존 UUID 가시화, clear/replace 안내, backend relation 재검증 |
 | 갤러리 archived media의 게시 오용 | 보관 원본이 public 후보로 오인됨 | picker 상태 text, published client 안내, backend의 active media 강제, 후속 public snapshot 재검증 |
@@ -86,7 +87,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - Mac `/private/var/lib/rhaomi` ownership·bind smoke, PostgreSQL named-volume restart/일반 `down` persistence와 isolated `pg_restore` 증거 부재
 - HomeOps 자동 복구가 DB·volume·migration·backup을 변경할 수 있음
 
-현재 local backend·gateway와 `/admin/` 인증 셸·미디어·매장정보·견종·서비스·갤러리 관리 UI는 운영 배포 대상이 아니므로 2FA·TLS·운영 account provisioning을 구현하지 않는다. noindex와 client session 확인도 보안 통제로 간주하지 않으며, 실제 iPhone Safari HEIC upload·shop/견종/서비스/갤러리 form·VoiceOver 증거가 없는 상태를 운영 준비 완료로 표현하지 않는다.
+현재 local backend·gateway와 `/admin/` 인증 셸·미디어·매장정보·견종·서비스·갤러리·공지 관리 UI는 운영 배포 대상이 아니므로 2FA·TLS·운영 account provisioning을 구현하지 않는다. noindex와 client session 확인도 보안 통제로 간주하지 않으며, 실제 iPhone Safari HEIC upload·shop/견종/서비스/갤러리/공지 form·VoiceOver 증거가 없는 상태를 운영 준비 완료로 표현하지 않는다.
 
 ## 출시 후 개선
 

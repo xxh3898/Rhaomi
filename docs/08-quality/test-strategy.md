@@ -18,7 +18,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - 모바일 문의·검색 metadata 보호
 - 배포 실패 시 기존 사이트 보호
 
-## 현재 Phase 1C-8d 자동 검증
+## 현재 Phase 1C-8e 자동 검증
 
 ### Frontend
 
@@ -37,7 +37,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - logout 204/401/403, mutation non-retry와 authenticated API 401 session-expired 처리
 - visible label/autocomplete, Enter, pending 중복 방지, live alert, password focus, retry와 identity
 - browser storage·URL·log credential/token 비저장 정적 검사
-- 매장정보·갤러리·미디어·견종·서비스가 enabled이고 공지만 disabled인 dashboard navigation과 same-page 관리 홈 복귀
+- 매장정보·갤러리·미디어·견종·서비스·공지가 모두 enabled인 dashboard navigation과 same-page 관리 홈 복귀
 - media list loading/ready/empty/error/refreshing, server ordering 유지와 active/archived client filter
 - private image Blob GET의 JPEG/PNG 검증, bounded lazy fetch와 object URL refresh/unmount revoke
 - 단일 multipart `file`, 20 MiB client 차단, pending double-submit 차단과 success file state clear
@@ -73,6 +73,13 @@ review_trigger: "기술·기능 범위 변경 시"
 - cover/before/after relation 인접 all-existing single picker, Enter open·첫 control focus·close/selection trigger 복귀와 private Blob object URL revoke
 - `GALLERY_ITEM_NOT_FOUND`, `GALLERY_RELATION_INVALID`, `GALLERY_PUBLISH_INVALID` fixed mapping, 401 callback과 403/network/5xx non-retry·raw detail 비노출
 - Gallery create/edit 취소 즉시 focus, 성공 뒤 canonical GET resolve/reject로 ready가 된 enabled trigger focus, archive/restore와 delete action 부재
+- Notice exact relative list/detail/POST/PUT path, 13개 exact response key·UUID·status·slug·normalized nullable text·microsecond Instant·audit 검증과 internal field 거부
+- Notice loading/ready/empty/error/refreshing과 backend `pinned, publishedAt, updatedAt, id` 배열 순서 보존, always-draft POST와 immutable slug를 제외한 full PUT
+- source-only Markdown, pinned, published body·publishedAt과 상태 공통 expiry window, 미래·지난 유효 window와 정확히 1µs 경계 검증
+- Gallery·Notice 공통 local datetime helper의 invalid/null 처리와 unchanged backend microsecond Instant 보존
+- Notice create/update response 선적용과 post-mutation canonical GET, 저장 성공·refresh 실패 분리·explicit recovery, stale GET·중복 mutation 차단
+- `NOTICE_WINDOW_INVALID` 포함 400/404/409/422 frontend-owned 문구, raw detail 비노출, 401 callback과 403/network/5xx non-retry
+- Notice create/edit 첫 제목 focus, 취소 즉시 복귀, canonical GET resolve/reject 뒤 ready/enabled trigger focus와 archive/restore·delete action 부재
 
 ### Backend unit
 

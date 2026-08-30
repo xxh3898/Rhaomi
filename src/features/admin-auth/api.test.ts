@@ -447,6 +447,7 @@ describe("DefaultAdminAuthClient", () => {
     [404, "CONTENT_NOT_FOUND", "content-not-found"],
     [409, "SLUG_CONFLICT", "slug-conflict"],
     [422, "PUBLISH_VALIDATION_FAILED", "publish-validation-failed"],
+    [422, "NOTICE_WINDOW_INVALID", "notice-window-invalid"],
   ] as const)(
     "content status %i와 allowlisted code %s를 %s로 매핑한다",
     async (status, code, kind) => {

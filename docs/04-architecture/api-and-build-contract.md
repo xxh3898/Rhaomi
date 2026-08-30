@@ -83,6 +83,8 @@ review_trigger: "관리 API·build 입력 변경 시"
 
 공지가 `published`가 되려면 title·immutable slug·bodyMarkdown·publishedAt이 유효해야 한다. expiresAt이 있으면 모든 상태에서 publishedAt이 존재하고 expiresAt이 그보다 늦어야 한다. 미래 publishedAt은 허용하고 만료만으로 status를 자동 변경하지 않는다. 검증 실패는 mutable field와 audit를 모두 보존한다.
 
+현재 `/admin/` 공지 client는 response의 id, status, title, slug, summary, bodyMarkdown, pinned, publishedAt, expiresAt, createdAt, updatedAt, createdBy, updatedBy exact key를 검증한다. 목록 GET 배열을 재정렬하지 않고 create/update response를 해당 item canonical state로 먼저 적용한 뒤 GET list로 전체 ordering을 다시 받는다. create는 status를, update는 slug·id·actor·audit를 전송하지 않는다. `NOTICE_WINDOW_INVALID`를 별도 allowlisted 문구로 표시하되 backend raw detail을 사용하지 않으며 401은 session expiry, 403·network·5xx mutation은 자동 재전송하지 않는다. Gallery와 공유하는 local datetime helper가 unchanged backend microsecond Instant를 full PUT에 보존한다.
+
 ### 갤러리 collection
 
 - create allowlist는 dogName, breedId, primaryServiceId, coverImageId, beforeImageId, afterImageId, summary, altText, featured, sortOrder, performedAt, publishedAt이고 status를 받지 않는다. featured 누락·null은 false, sortOrder 누락·null은 100이다.

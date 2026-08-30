@@ -120,7 +120,7 @@ review_trigger: "제품 기능 변경 시"
 
 **Given** 인증된 운영자가 `/admin/` 관리 홈을 열었을 때
 
-**Then** 매장정보·갤러리·미디어·견종·서비스는 사용 가능하고 공지만 준비 중으로 표시된다.
+**Then** 매장정보·갤러리·미디어·견종·서비스·공지가 모두 사용 가능하다.
 
 **When** 운영자가 새 견종 또는 서비스를 만들면
 
@@ -152,7 +152,7 @@ review_trigger: "제품 기능 변경 시"
 
 **Given** 인증된 운영자가 `/admin/` 관리 홈을 열었을 때
 
-**Then** 갤러리는 사용 가능하고 공지만 준비 중으로 표시되며 같은 page state에서 관리 홈으로 복귀할 수 있다.
+**Then** 갤러리와 공지를 포함한 여섯 관리 영역이 사용 가능하고 같은 page state에서 관리 홈으로 복귀할 수 있다.
 
 **When** 운영자가 갤러리 초안을 생성하거나 기존 항목을 수정하면
 
@@ -173,3 +173,23 @@ review_trigger: "제품 기능 변경 시"
 **Given** keyboard 사용자가 cover·before·after picker를 열었을 때
 
 **Then** 해당 relation 바로 아래의 picker 하나로 focus가 이동하고 닫기·선택 뒤 원 trigger로 복귀하며 private Blob preview object URL은 교체·unmount에서 폐기된다.
+
+## AC-16 관리자 공지 콘텐츠·게시기간 편집
+
+**Given** 인증된 운영자가 `/admin/` 공지 화면을 열었을 때
+
+**Then** 모든 상태·미래·만료 공지를 backend가 반환한 고정·게시·수정 시각·id 순서 그대로 표시하고 Markdown 전체 본문을 목록 card에서 HTML로 렌더링하지 않는다.
+
+**When** 운영자가 새 공지를 만들면
+
+**Then** status 없는 title·slug·nullable summary·nullable bodyMarkdown·pinned·publishedAt·expiresAt을 POST 한 번 보내고 strict하게 검증한 draft response를 적용한 뒤 canonical GET을 수행한다.
+
+**When** 기존 공지를 게시·보관·복구하거나 고정·게시·만료 기간을 바꾸면
+
+**Then** immutable slug와 audit을 제외한 mutable field 전체를 PUT 한 번 보내며 published에는 nonblank body와 publishedAt을, expiresAt에는 상태와 무관하게 더 이른 publishedAt을 요구한다.
+
+**Given** 게시·만료 입력이 정규화 후 같은 시각일 때는 저장을 막고 정확히 1µs 차이는 허용하며, 이미 지난 유효 window와 미래 publishedAt에는 현재 시각 기반 추가 제한을 두지 않는다.
+
+**Given** 사용자가 backend의 microsecond 시각을 form에서 바꾸지 않았을 때
+
+**Then** full PUT은 원래 Instant를 보존한다. 저장 성공 뒤 canonical GET이 실패해도 mutation 실패로 표시하거나 자동 재전송하지 않고 explicit refresh를 제공하며, ready가 된 enabled 원 trigger로 focus를 복귀한다.

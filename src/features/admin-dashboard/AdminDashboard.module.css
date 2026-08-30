@@ -62,12 +62,6 @@
   margin-top: 0.65rem;
 }
 
-.disabledArea {
-  color: #75685e;
-  background: #f2ede8;
-  border: 1px solid #ded3c9;
-}
-
 .enabledArea {
   color: #fff;
   background: #65432d;
