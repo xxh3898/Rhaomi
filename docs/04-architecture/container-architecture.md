@@ -3,7 +3,7 @@ title: "컨테이너 구조"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "서비스 배치·network·image 변경 시"
 ---
 
@@ -81,7 +81,7 @@ flowchart TB
     HomeOps -. 상태 .-> Backup
 ```
 
-local private media volume·upload API, same-origin development gateway와 publisher control loop까지 구현됐다. 위 production topology는 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)에서 승인한 목표지만 production Compose·Nginx·publisher release adapter/service·backup·HomeOps와 decoder-only image는 아직 구현되지 않았다.
+local private media volume·upload API, same-origin development gateway, publisher control loop와 Node Build API→transformer private staging data plane까지 구현됐다. orchestration은 current `contract-check`의 network-disabled synthetic loopback HTTP에서 Node 24/Sharp amd64·arm64를 검증하며 default publisher service나 host port를 추가하지 않는다. 위 production topology는 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)에서 승인한 목표지만 production Compose·Nginx·publisher release adapter/service·secret provisioning·backup·HomeOps와 decoder-only image는 아직 구현되지 않았다.
 
 diagram의 iCloud repository는 Mac mini의 local iCloud Drive path다. [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)에 따라 Apple remote sync가 별도 검증되기 전에는 offsite 사본이나 offsite RPO `PASS`로 간주하지 않는다.
 

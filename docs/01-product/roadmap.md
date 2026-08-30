@@ -3,7 +3,7 @@ title: "로드맵"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "릴리스 범위 변경 시"
 ---
 
@@ -198,7 +198,7 @@ Phase 1C-8f3은 build 입력 조회 경계까지만 구현한다. publisher poll
 
 ### Phase 1C-8f4 — build snapshot transformer·responsive image derivative
 
-- Build API transport와 분리된 strict `BuildSnapshotV1` schema·semantic·relation·time/media manifest 재검증
+- Build API transport와 분리된 strict `BuildSnapshotV2` schema·semantic·relation·time/media manifest 재검증과 int64 canonical decimal string 보존
 - distinct `MediaContentProvider` fetch-once와 JPEG·PNG signature/decode/size/pixel/single-image fail-closed 검증
 - Gallery card·large와 Hero의 no-upscale AVIF·WebP·JPEG 파생본, Shop 미용사·OG의 임시 JPEG fallback
 - output-byte SHA-256 filename, 결정적 `content.json`·`media-manifest.json`과 `public/generated/media` staging 산출물
@@ -220,9 +220,11 @@ Phase 1C-8f5는 control plane만 구현한다. production executor는 release를
 
 ### Phase 1C-8f6 — Build API adapter·transformer orchestration
 
-- backend-only service credential을 쓰는 internal Build API HTTP client
-- 구현된 snapshot/media transformer port 연결과 staging 검증
-- safe transport/transform failure classification
+- backend-only service credential을 request 전 검증하는 no-redirect·bounded internal Build API HTTP client
+- raw snapshot strict parse, manifest-scoped in-flight/result memoized media provider와 기존 transformer port 연결
+- safe terminal/transient/generation failure와 machine-oriented CLI, isolated atomic staging 검증
+
+Phase 1C-8f6은 data-plane staging preparation까지만 구현한다. staging 성공은 public publication success나 outbox 완료가 아니며 production placeholder executor를 교체하지 않는다. Next/Markdown/SEO render, release manifest·stale guard·`current/previous` switch와 production secret/image provisioning은 포함하지 않는다.
 
 ### Phase 1C-8f7 — Next render·release manifest·atomic switch
 

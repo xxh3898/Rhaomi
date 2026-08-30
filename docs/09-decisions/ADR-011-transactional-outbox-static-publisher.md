@@ -3,7 +3,7 @@ title: "ADR-011: Transactional outbox와 정적 publisher"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 방식 변경 시"
 ---
 
@@ -11,7 +11,7 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 
 - 결정일: 2026-08-29
 - 상태: Accepted
-- 관련 결정: [ADR-003](ADR-003-static-publish-on-content-change.md), [ADR-004](ADR-004-static-media-copy.md), [ADR-008](ADR-008-runtime-independent-public-site.md), [ADR-010](ADR-010-production-topology-and-code-release.md)
+- 관련 결정: [ADR-003](ADR-003-static-publish-on-content-change.md), [ADR-004](ADR-004-static-media-copy.md), [ADR-008](ADR-008-runtime-independent-public-site.md), [ADR-010](ADR-010-production-topology-and-code-release.md), [ADR-015](ADR-015-lossless-int64-json-wire-contract.md)
 
 ## 맥락
 
@@ -41,7 +41,7 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 - scheduled event를 물리 삭제해야 correctness가 성립하는 계약으로 만들지 않는다. 처리 완료·stale no-op 상태를 내구적으로 기록할 수 있다.
 - 관리 API 저장 성공, publisher 처리 중, 공개 성공·실패 상태를 구분한다.
 
-#### 현재 구현 경계 — Phase 1C-8f1·8f2·8f3·8f4
+#### 현재 구현 경계 — Phase 1C-8f1~8f6
 
 - Flyway V8은 `(1, 0)` singleton `content_revision_state`와 immediate·Notice/Gallery scheduled kind를 제한한 `publishing_outbox`를 만든다.
 - application recorder는 기존 content transaction을 필수로 요구하며 row increment와 필요한 event insert를 최종 domain persistence 뒤 한 번 수행한다.
@@ -50,10 +50,11 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 - internal Java state service는 `(availableAt, id)`·`FOR UPDATE SKIP LOCKED`로 fresh pending/due row를 claim하고 generation 할당·첫 attempt를 같은 transaction에 기록한다. rollback은 generation을 소비하지 않는다.
 - scheduled claim은 current Notice·Gallery의 published 상태와 expected boundary만 최소 확인한다. stale이면 generation 없이 `NOOP / STALE_TRIGGER`이며 relation·media·file·`generatedAt` eligibility는 current build API와 독립 transformer가 다시 검증한다.
 - active owner·generation·lease guard, same-generation expired lease recovery와 1분·5분·15분 retry, 총 attempt 4회, typed terminal result와 lower→higher active coalesce primitive를 구현했다.
-- Phase 1C-8f3은 별도 stateless service credential로 active generation의 read-only `REPEATABLE READ` snapshot과 public-scope canonical media 조회를 구현했다. exact DTO에는 producer/outbox row, claim owner·lease·event ID를 노출하지 않는다.
-- Phase 1C-8f4는 exact snapshot·relation·eligibility·media manifest를 재검증하고 responsive public derivative와 deterministic content/media manifest를 새 atomic staging target에 만드는 transport-independent transformer를 구현했다.
+- Phase 1C-8f3은 별도 stateless service credential로 active generation의 read-only `REPEATABLE READ` Build Snapshot V2와 public-scope canonical media 조회를 구현했다. exact DTO에는 producer/outbox row, claim owner·lease·event ID를 노출하지 않고 revision/generation은 canonical decimal string으로 직렬화한다.
+- Phase 1C-8f4는 exact V2 snapshot·relation·eligibility·media manifest를 재검증하고 responsive public derivative와 deterministic V2 content/media manifest를 새 atomic staging target에 만드는 transport-independent transformer를 구현했다.
 - Phase 1C-8f5는 normal backend scan 밖의 dedicated non-web root, repeated claim, first accepted `claimedAt` 기준 fixed 30초 window, exact boundary 포함, highest-generation coalesce, debounce·executor lease renewal, physical executor termination acknowledgment까지 유지하는 filesystem advisory lock과 typed executor/result mapping을 구현했다.
-- production executor는 release를 만들지 않는 fail-closed placeholder다. Build API HTTP client·transformer·Next render와 build/release 처리는 없다. prune 정책도 후속 범위다.
+- Phase 1C-8f6은 environment-only backend credential, no-redirect bounded Build API HTTP client, manifest-scoped memoized media provider와 기존 transformer를 private atomic staging까지 연결한다. staging result와 machine CLI는 fetched canonical revision/generation string을 보존하고 safe terminal/transient/generation result는 DB에 기록하지 않는다.
+- production executor는 release를 만들지 않는 fail-closed placeholder다. 구현된 staging-only data plane은 Java control loop에 bind하지 않으며 Next render, release manifest·stale guard·switch와 prune 정책은 후속 범위다.
 
 ### revision과 public ordering
 
@@ -99,7 +100,7 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 - endpoint는 internal network에만 두고 dev/public Nginx가 `/api/build/**`를 일반 API proxy보다 먼저 거부한다. browser·`NEXT_PUBLIC_*`에 credential을 두지 않는다.
 - production token 누락·형식 오류는 startup failure이고 non-production 미설정은 build API만 503 fail-closed다.
 - snapshot은 active `PROCESSING` generation·live lease를 확인하고 하나의 read-only PostgreSQL `REPEATABLE READ` transaction에서 server-owned microsecond `generatedAt`, current `contentRevision`과 exact public DTO를 만든다.
-- response는 `schemaVersion`, 일관된 `contentRevision`, target `publishGeneration`, `generatedAt`, Shop·Service·Breed·Gallery·Notice와 distinct media manifest를 포함하며 `codeImageDigest`는 포함하지 않는다.
+- response는 `schemaVersion = 2`, 일관된 canonical decimal string `contentRevision`, target `publishGeneration`, `generatedAt`, Shop·Service·Breed·Gallery·Notice와 distinct media manifest를 포함하며 `codeImageDigest`는 포함하지 않는다. PostgreSQL `BIGINT`·Java `long`과 positive-long query 계약은 유지한다.
 - build API는 published status, notice `published_at`·`expires_at`, relation target status, media active status, 허용 file과 실제 byte를 재검증한다. transformer도 API response와 source/output file을 다시 검증한다.
 - 명시적으로 선택된 media가 archived, missing 또는 corrupt면 silent omission하지 않고 전체 build를 실패시킨다.
 - media content는 current Shop 또는 공개 가능한 Gallery relation scope만 허용하고 actual size·SHA를 검증해 private no-store로 반환한다.
@@ -112,7 +113,7 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 - scheduled event 처리 직전 current Notice·Gallery row와 전체 build snapshot을 다시 읽어 status, current boundary, relation, media/file과 `generatedAt` eligibility를 재검증한다.
 - reschedule, draft·archived 전환 또는 window 변경으로 event가 stale이면 공개 snapshot을 만들지 않고 no-op 처리하거나 최신 pending generation에 합친다. old event가 가진 과거 기대값은 공개 데이터 authority가 아니다.
 - 더 높은 `publishGeneration`이 도착하면 최신 snapshot을 우선하며 낮은 generation의 build가 최신 release를 덮지 못한다.
-- release manifest와 content snapshot에는 최소 `contentRevision`, `publishGeneration`, `generatedAt`을 기록한다. `current` atomic switch의 stale protection authority는 `publishGeneration`이다.
+- release manifest와 content snapshot에는 최소 canonical decimal string `contentRevision`, `publishGeneration`, `generatedAt`을 기록한다. `current` atomic switch의 stale protection authority는 validation 뒤 `BigInt`로 비교하는 `publishGeneration`이며 JSON number 변환은 금지한다.
 - build·validation 실패 시 `current`를 변경하지 않고 기존 공개 사이트를 유지한다.
 - 후속 `/admin/`은 마지막 성공·실패, 대상 content revision·publish generation과 명시적 수동 retry를 제공한다.
 - state-changing 관리 요청과 code deploy 자체는 publisher가 자동 재전송하지 않는다.
@@ -160,7 +161,7 @@ backend 장애를 공개 사이트로 전파하고 정적 HTML·SEO 계약을 �
 - [x] dedicated non-web publisher의 반복 poll, fixed 30초 debounce, highest-generation coalesce, lease renewal, global filesystem lock과 typed build executor control plane 구현
 - [x] build API의 current published/relation/media/file·canonical master 재검증 구현
 - [x] snapshot·media transformer의 response schema·source/output file 이중 검증, responsive derivative·atomic staging 구현
-- [ ] publisher의 build API HTTP client와 transformer orchestration 구현
+- [x] backend-only Build API HTTP client, authenticated memoized media provider와 transformer isolated staging orchestration 구현
 - [ ] release manifest 3개 필드와 `publishGeneration` 기준 code/content 공통 build·validate·atomic switch 검증
 - [ ] 실제 Mac mini의 public/state/lock bind source ownership·permission과 publisher container mount·atomic symlink smoke 검증
 - [ ] future Notice publish·expiry와 Gallery publish, reschedule/archive stale event, publisher downtime과 close-boundary coalesce 통합 테스트

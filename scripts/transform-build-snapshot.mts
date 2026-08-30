@@ -5,7 +5,7 @@ import {
   BuildTransformError,
   MediaContentNotFoundError,
   isBuildTransformError,
-  parseBuildSnapshotV1,
+  parseBuildSnapshotV2,
   transformBuildSnapshot,
   type BuildMediaAssetV1,
   type MediaContent,
@@ -82,7 +82,7 @@ async function main(): Promise<void> {
   } catch {
     throw new BuildTransformError("SNAPSHOT_INVALID");
   }
-  const snapshot = parseBuildSnapshotV1(rawSnapshot);
+  const snapshot = parseBuildSnapshotV2(rawSnapshot);
   const result = await transformBuildSnapshot({
     snapshot,
     mediaContentProvider: new FileSystemMediaContentProvider(

@@ -3,7 +3,7 @@ title: "저장소 구조"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "module·배포 구조 변경 시"
 ---
 
@@ -11,7 +11,7 @@ review_trigger: "module·배포 구조 변경 시"
 
 기존 Next.js source를 이동하지 않고 repository root에 `backend/`를 추가한다.
 
-## Phase 1C-8f4 현재 구조
+## Phase 1C-8f6 현재 구조
 
 ```text
 Rhaomi/
@@ -22,6 +22,7 @@ Rhaomi/
 │   ├── app/
 │   │   ├── page.tsx               # 공개 Static Export 홈
 │   │   └── admin/                 # Static Export auth shell·DOM test
+│   ├── build-orchestration/       # Build API HTTP client·media provider·staging orchestration/test
 │   ├── build-transformer/         # strict snapshot·responsive derivative·staging library/test
 │   ├── features/admin-auth/       # relative API client·shape/error test
 │   └── test/                      # Vitest DOM setup
@@ -77,8 +78,10 @@ Rhaomi/
 - `backend/.../publication`은 domain transaction 밖에서 호출할 수 없는 `MANDATORY` producer recorder와 deterministic JDBC state service를 둔다. state service는 due claim, source/boundary 최소 stale 판정, generation·lease·retry·terminal/coalesce primitive만 제공하며 HTTP controller, scheduler, background executor나 범용 queue framework를 제공하지 않는다.
 - `kr.co.rhaomi.publisher`는 exact mode argument 전용 non-web root와 state adapter, fixed debounce/highest coalesce, lease heartbeat, advisory lock, typed executor/result port를 둔다. 현재 placeholder는 public artifact를 만들지 않는다.
 - `backend/.../build`는 별도 stateless principal과 GET allowlist, active generation gate, read-only `REPEATABLE READ` snapshot, exact DTO와 current public relation media 조회만 제공한다. admin session을 재사용하거나 publication/content state를 변경하지 않는다.
-- `src/build-transformer`는 backend나 browser transport에 의존하지 않는 strict `BuildSnapshotV1` parser, `MediaContentProvider` port, responsive image transformer와 staging writer를 제공한다. publisher loop, HTTP client, Next route와 release/current switch는 포함하지 않는다.
+- `src/build-transformer`는 backend나 browser transport에 의존하지 않는 strict `BuildSnapshotV2` parser, lossless int64 canonical string validator, `MediaContentProvider` port, responsive image transformer와 staging writer를 제공한다. publisher loop, HTTP client, Next route와 release/current switch는 포함하지 않는다.
+- `src/build-orchestration`은 environment-only Build API config, bounded no-redirect snapshot client, manifest-scoped memory media provider와 staging-only transformer orchestration을 제공한다. frontend/browser import, DB state completion, Next render와 release/current switch는 포함하지 않는다.
 - `scripts/transform-build-snapshot.mts`는 test·수동 fixture 검증용 filesystem adapter다. media UUID나 local path를 성공·오류 출력에 기록하지 않는다.
+- `scripts/prepare-publication-staging.mts`는 generation과 private output path만 argv로 받고 URL/credential은 environment에서 읽으며 safe JSON/exit family만 출력한다.
 
 ## 전체 제품 목표 구조 — planned
 
@@ -129,7 +132,7 @@ planned 경로는 관련 Issue가 구현할 때만 추가한다.
 - publication state service는 전달받은 `now`·lease를 microsecond로 정규화하고 owner·generation·active lease를 확인한다. 실제 poll/debounce/build orchestration이나 full public eligibility를 이 package에 복제하지 않는다.
 - `kr.co.rhaomi.publisher`는 normal backend component scan 밖의 별도 root다. exact mode argument가 선택된 `WebApplicationType.NONE` process에서만 state adapter, fixed debounce/coalesce, lease heartbeat, filesystem lock과 typed executor port를 구성한다.
 - normal `BackendApplication`은 publisher mode argument가 없으면 기존 HTTP context만 기동한다. publisher root는 controller, servlet security chain, JPA repository, public route와 admin bootstrap을 scan하지 않는다.
-- publisher placeholder executor는 release를 만들지 않고 transient failure로 fail-closed한다. build API HTTP client·transformer·Next·release filesystem adapter는 후속 package 범위다.
+- publisher placeholder executor는 release를 만들지 않고 transient failure로 fail-closed한다. 구현된 Node staging orchestration은 이 executor와 분리돼 있고 Next·release filesystem adapter와 full success binding은 후속 package 범위다.
 - build package는 64자 lowercase hex service token을 timing-safe 비교하고 session을 만들지 않는다. snapshot/media response는 exact allowlist만 사용하며 raw entity·storage path·hash·audit·claim 내부 상태를 노출하지 않는다.
 - password hash, session id와 credential을 log에 남기지 않는다.
 

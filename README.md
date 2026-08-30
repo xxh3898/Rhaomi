@@ -3,7 +3,7 @@ title: "Rhaomi 프로젝트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 ---
 
@@ -23,7 +23,7 @@ review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 
 ## 현재 구현 범위
 
-Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1에서 transactional `contentRevision`과 publishing outbox producer를, Phase 1C-8f2에서 pending/due claim·lease recovery·`publishGeneration`·attempt/result 상태 머신 기반을 추가했다. Phase 1C-8f3은 별도 stateless service credential을 쓰는 internal read-only build snapshot·public-scope media API를 제공한다. Phase 1C-8f4는 API transport와 분리된 strict snapshot transformer, responsive public image 파생본과 원자적 staging 산출물을 제공한다. Phase 1C-8f5는 명시적으로 선택한 non-web process에서만 실행되는 polling control loop, 첫 accepted generation 기준 고정 30초 debounce, highest-generation coalesce, lease heartbeat, physical executor 종료까지 유지되는 global filesystem lock과 typed build executor port를 제공한다. 실제 build API HTTP client·transformer orchestration, Next 랜딩·SEO 렌더링과 release switch는 후속 Issue 범위다.
+Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1에서 transactional `contentRevision`과 publishing outbox producer를, Phase 1C-8f2에서 pending/due claim·lease recovery·`publishGeneration`·attempt/result 상태 머신 기반을 추가했다. Phase 1C-8f3은 별도 stateless service credential을 쓰는 internal read-only build snapshot·public-scope media API를 제공한다. Phase 1C-8f4는 API transport와 분리된 strict snapshot transformer, responsive public image 파생본과 원자적 staging 산출물을 제공한다. Phase 1C-8f5는 명시적으로 선택한 non-web process에서만 실행되는 polling control loop, 첫 accepted generation 기준 고정 30초 debounce, highest-generation coalesce, lease heartbeat, physical executor 종료까지 유지되는 global filesystem lock과 typed build executor port를 제공한다. Phase 1C-8f6은 backend-only credential을 쓰는 no-redirect Build API HTTP adapter, manifest-scoped memoized media provider, safe failure category와 isolated transformer staging orchestration을 제공한다. Next 랜딩·SEO 렌더링, release manifest·stale guard·`current/previous` switch와 real publisher success binding은 후속 Issue 범위다.
 
 ```text
 .
@@ -34,7 +34,8 @@ Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Bo
 │   └── ISSUE_TEMPLATE/
 ├── src/
 │   ├── app/                 # 공개 홈과 /admin Static Export route
-│   ├── build-transformer/   # strict BuildSnapshotV1·responsive derivative·staging library
+│   ├── build-orchestration/ # authenticated Build API adapter·private staging orchestration
+│   ├── build-transformer/   # strict BuildSnapshotV2·responsive derivative·staging library
 │   └── features/            # admin auth/transport, dashboard, media·shop·breed·service·gallery UI
 ├── backend/                 # Spring Boot admin/build API와 dedicated publisher control plane
 ├── infra/nginx/dev.conf     # local same-origin gateway와 /api/build 명시적 차단
@@ -114,9 +115,11 @@ Flyway V9은 transactional `publish_generation_state` singleton과 outbox의 `PE
 
 internal build API는 정확히 `GET /api/build/snapshot`과 `GET /api/build/media/{id}/content`만 허용한다. 64자 lowercase hex Bearer token은 관리자 session·CSRF와 분리되고 request를 session에 저장하지 않는다. local Compose에서도 token은 backend environment에만 전달하며 frontend·gateway에는 environment key나 credential file을 제공하지 않는다. snapshot은 active `PROCESSING` generation과 live lease를 확인한 뒤 하나의 read-only `REPEATABLE READ` transaction에서 server-owned microsecond `generatedAt`, current `contentRevision`, published/time/relation/media/file 조건과 exact DTO allowlist를 검증한다. media content는 현재 Shop 또는 공개 가능한 Gallery relation에 속한 active canonical master만 size·SHA 검증 후 `private, no-store`로 반환한다. build API는 revision, outbox, generation, lease, attempt나 콘텐츠를 변경하지 않으며 dev/public gateway는 이 namespace를 backend로 전달하지 않는다.
 
-build snapshot transformer는 `BuildSnapshotV1`의 exact key·schema·semantic·관계·게시 시각·media manifest를 다시 검증하고 `MediaContentProvider`로 distinct canonical media를 한 번씩만 읽는다. JPEG·PNG signature·decode·30 MiB·12,000px·60MP·단일 image 조건을 재검증한 뒤 orientation·sRGB·metadata 제거와 no-upscale responsive AVIF·WebP·JPEG 파생본을 만든다. 파생 byte SHA-256 파일명, 결정적 manifest 순서와 `src/generated/{content.json,media-manifest.json}`·`public/generated/media`를 임시 sibling에서 완성한 뒤 새 staging target으로 rename한다. 실패 시 partial temp를 제거하고 기존 성공 target은 교체하지 않는다. CLI filesystem adapter와 library port만 제공하며 build API HTTP client, publisher polling·release/current 전환, Next 렌더링은 포함하지 않는다.
+build snapshot transformer는 `BuildSnapshotV2`의 exact key·schema·semantic·관계·게시 시각·media manifest를 다시 검증하고 `MediaContentProvider`로 distinct canonical media를 한 번씩만 읽는다. `contentRevision`·`publishGeneration`은 PostgreSQL/Java `long`을 손실 없이 표현하는 canonical decimal string이며 Node는 range·equality·ordering에만 `BigInt`를 사용한다. JPEG·PNG signature·decode·30 MiB·12,000px·60MP·단일 image 조건을 재검증한 뒤 orientation·sRGB·metadata 제거와 no-upscale responsive AVIF·WebP·JPEG 파생본을 만든다. 파생 byte SHA-256 파일명, 결정적 manifest 순서와 V2 `src/generated/{content.json,media-manifest.json}`·`public/generated/media`를 임시 sibling에서 완성한 뒤 새 staging target으로 rename한다. 실패 시 partial temp를 제거하고 기존 성공 target은 교체하지 않는다. transformer core와 fixture filesystem CLI는 HTTP·credential을 계속 모른다.
 
-publisher control loop는 exact `--rhaomi.publisher.mode=control-loop` 인자가 있을 때만 별도 root context로 기동하고 `WebApplicationType.NONE`을 강제한다. 일반 backend process에는 loop·lifecycle bean이 없으며 publisher context에도 controller·web server가 없다. 기존 state service로 pending/due·retry·expired lease를 claim하고 첫 `claimedAt`부터 `T0 + 30s`를 포함하는 fixed window에서 lower generation을 highest target으로 즉시 coalesce한다. debounce와 executor 대기 중 lease를 갱신하고 `FileChannel.tryLock` 뒤에만 typed executor를 호출한다. lease 상실·shutdown의 cancellation은 interrupt 요청 뒤 실제 executor body의 종료를 별도 신호로 확인하며, 그 확인 전에는 lock을 해제하지 않는다. shutdown timeout 뒤에도 body가 살아 있으면 non-daemon control worker와 lock ownership을 유지하고, process 종료 시 executor와 OS lock이 함께 정리된다. 현재 placeholder executor는 release를 만들지 않고 transient failure를 반환하므로 build API HTTP adapter와 transformer orchestration을 구현하기 전에는 공개 결과를 만들 수 없다. default Compose service나 Nginx route도 추가하지 않는다.
+Build orchestration은 `BUILD_API_INTERNAL_URL`과 exact 64자 lowercase hex `BUILD_API_CREDENTIAL`을 request 전에 검증하고, redirect를 따르지 않는 bounded GET으로 raw snapshot을 strict parser에 직접 전달한다. parsed manifest 밖 media를 network 전에 거부하고 UUID별 in-flight/result를 memory에 memoize하며 response MIME·Content-Length·실제 byte length를 exact 대조한 뒤 기존 transformer에 전달한다. `scripts/prepare-publication-staging.mts`는 generation과 private output path만 argv로 받고 safe JSON result와 terminal/transient/generation failure를 구분한다. token·내부 URL·media UUID·path·raw exception은 출력이나 generated artifact에 넣지 않는다.
+
+publisher control loop는 exact `--rhaomi.publisher.mode=control-loop` 인자가 있을 때만 별도 root context로 기동하고 `WebApplicationType.NONE`을 강제한다. 일반 backend process에는 loop·lifecycle bean이 없으며 publisher context에도 controller·web server가 없다. 기존 state service로 pending/due·retry·expired lease를 claim하고 첫 `claimedAt`부터 `T0 + 30s`를 포함하는 fixed window에서 lower generation을 highest target으로 즉시 coalesce한다. debounce와 executor 대기 중 lease를 갱신하고 `FileChannel.tryLock` 뒤에만 typed executor를 호출한다. lease 상실·shutdown의 cancellation은 interrupt 요청 뒤 실제 executor body의 종료를 별도 신호로 확인하며, 그 확인 전에는 lock을 해제하지 않는다. shutdown timeout 뒤에도 body가 살아 있으면 non-daemon control worker와 lock ownership을 유지하고, process 종료 시 executor와 OS lock이 함께 정리된다. staging-only orchestration은 이 Java executor에 bind하지 않는다. 현재 placeholder executor는 계속 release를 만들지 않고 transient failure를 반환하며 default Compose publisher service나 Nginx route도 추가하지 않는다.
 
 매장정보는 상태나 공개 id가 없는 단일 현재값이다. `/api/admin/shop-settings`의 `GET`과 전체 `PUT`만 제공하며 최초 PUT은 `201`, 이후 PUT은 `200`이다. PostgreSQL UNIQUE/CHECK가 row를 하나로 제한하고 Hero·프로필 image/alt pair와 세 media FK를 방어한다. API는 핵심 NAP·영업시간·전화번호·HTTPS 외부 링크, nullable Hero·프로필·OG scalar media id, Hero·프로필 대체텍스트와 server-owned audit를 검증한다. non-null media는 존재하고 `active`여야 하며 관계가 나중에 archived돼도 자동 제거하지 않는다. 모든 state-changing 요청에는 관리자 session과 CSRF token이 필요하며 `PATCH`와 영구 `DELETE` endpoint는 제공하지 않는다. 실제 운영값과 실사진은 seed하지 않는다.
 
@@ -150,7 +153,8 @@ sh scripts/validate-backend-compose.sh .env.dev.local
 - 지원 콘텐츠 mutation은 transactional row counter로 `contentRevision`을 한 번만 전진시키고, 공개 영향 변경과 Notice·Gallery 시간 경계는 V8 typed outbox에 같은 transaction으로 기록한다.
 - V9 internal state service는 pending/due claim, transactional `publishGeneration`, active lease·owner guard, same-generation recovery/retry, typed terminal result와 lower→higher coalesce primitive를 제공한다.
 - 별도 stateless build credential과 active generation 기반 read-only snapshot·public-scope media content API를 제공하며 관리자 session이나 browser 경로와 공유하지 않는다. local frontend는 token environment뿐 아니라 `.env.dev.local`과 backend filesystem도 mount하지 않는다.
-- dedicated non-web publisher control loop, 고정 30초 debounce, highest generation coalesce, lease renewal, physical executor termination acknowledgment까지 보유하는 global advisory lock과 typed executor/result mapping까지 구현됐다. build API HTTP client·transformer orchestration·Next static build·manifest·release switch는 아직 구현되지 않았다.
+- dedicated non-web publisher control loop, 고정 30초 debounce, highest generation coalesce, lease renewal, physical executor termination acknowledgment까지 보유하는 global advisory lock과 typed executor/result mapping까지 구현됐다.
+- backend-only Build API HTTP adapter, memory-only authenticated media provider와 strict transformer의 isolated staging orchestration까지 구현됐다. staging 성공은 public publication success가 아니며 Next static build·manifest·stale guard·release switch와 real executor binding은 아직 구현되지 않았다.
 - 공개 콘텐츠 변경은 정적 사이트 재빌드·검증·원자적 교체를 유발한다.
 - 고객용 예약 시스템, 결제, 회원가입, 문의 폼은 만들지 않는다.
 - 전화, 인스타그램, 네이버톡톡 등 외부 문의 채널로 연결한다.

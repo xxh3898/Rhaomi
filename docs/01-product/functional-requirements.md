@@ -3,7 +3,7 @@ title: "기능 요구사항"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "기능 범위 변경 시"
 ---
 
@@ -85,5 +85,5 @@ review_trigger: "기능 범위 변경 시"
 | FR-DEP-009 | scheduled claim은 current Notice·Gallery의 published 상태와 expected boundary를 최소 검증하고 stale이면 generation 없이 terminal no-op이어야 한다. build API는 current snapshot의 relation·media·file을 포함한 전체 공개 eligibility를 다시 검증해야 하며 후속 transformer도 이를 재검증해야 한다. |
 | FR-DEP-010 | generation을 가진 active claim의 완료·lease 갱신은 current owner와 generation을 확인해야 하며, lower generation은 존재하는 higher active generation으로만 coalesce할 수 있어야 한다. 실제 30초 debounce와 build orchestration은 후속 publisher가 담당해야 한다. |
 | FR-DEP-011 | build API는 관리자 session·CSRF와 분리된 256-bit lowercase hex service token으로만 인증하고 stateless GET allowlist 외 모든 요청과 dev/public gateway 접근을 거부해야 한다. production token 누락·형식 오류는 기동 실패여야 한다. |
-| FR-DEP-012 | build snapshot은 active PROCESSING generation과 live lease를 확인하고 하나의 read-only REPEATABLE READ transaction에서 server-owned microsecond `generatedAt`, current `contentRevision`, exact public DTO와 published/time/relation/media/file 조건을 검증해야 한다. |
+| FR-DEP-012 | Build Snapshot V2는 active PROCESSING generation과 live lease를 확인하고 하나의 read-only REPEATABLE READ transaction에서 server-owned microsecond `generatedAt`, current `contentRevision`, exact public DTO와 published/time/relation/media/file 조건을 검증해야 한다. revision/generation은 PostgreSQL `BIGINT`·Java `long` domain을 유지하면서 JSON/generated artifact에서는 canonical decimal string으로 손실 없이 보존해야 한다. |
 | FR-DEP-013 | build media 조회는 current Shop 또는 공개 가능한 Gallery relation에 속한 active canonical master만 실제 size·SHA 검증 후 고정 private header로 반환해야 하며 build 호출은 content/publication state를 변경하지 않아야 한다. |

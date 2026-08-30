@@ -112,6 +112,7 @@ compose --profile validation run --rm --no-deps contract-check sh -c '
       ;;
   esac
   echo "Transformer container architecture: $architecture"
+  npm run test:orchestration
   npm run test:transformer
 '
 compose up -d --wait --wait-timeout 120 postgres
@@ -121,6 +122,8 @@ compose run --rm --no-deps \
   --tests 'kr.co.rhaomi.publisher.*' \
   --tests 'kr.co.rhaomi.backend.PublisherIsolationIntegrationTests' \
   --no-daemon
+compose down
+sh "$repo_dir/scripts/validate-build-int64-e2e.sh"
 compose --profile frontend up -d --wait --wait-timeout 300 postgres backend frontend gateway
 compose ps
 

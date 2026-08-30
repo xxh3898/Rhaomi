@@ -12,9 +12,9 @@ import sharp from "sharp";
 
 import {
   BUILD_MEDIA_LIMITS,
-  parseBuildSnapshotV1,
+  parseBuildSnapshotV2,
   type BuildMediaAssetV1,
-  type BuildSnapshotV1,
+  type BuildSnapshotV2,
 } from "./contracts.mts";
 import {
   BuildTransformError,
@@ -52,18 +52,18 @@ export type PublicMediaManifestItem = Readonly<{
   variants: readonly PublicMediaVariant[];
 }>;
 
-export type PublicMediaManifestV1 = Readonly<{
-  schemaVersion: 1;
-  contentRevision: number;
-  publishGeneration: number;
+export type PublicMediaManifestV2 = Readonly<{
+  schemaVersion: 2;
+  contentRevision: string;
+  publishGeneration: string;
   items: readonly PublicMediaManifestItem[];
 }>;
 
-export type GeneratedContentV1 = Omit<BuildSnapshotV1, "mediaAssets">;
+export type GeneratedContentV2 = Omit<BuildSnapshotV2, "mediaAssets">;
 
 export type TransformResult = Readonly<{
-  content: GeneratedContentV1;
-  mediaManifest: PublicMediaManifestV1;
+  content: GeneratedContentV2;
+  mediaManifest: PublicMediaManifestV2;
   publicFileCount: number;
 }>;
 
@@ -282,7 +282,7 @@ async function encodeVariant(
 }
 
 function profileBindings(
-  snapshot: BuildSnapshotV1,
+  snapshot: BuildSnapshotV2,
 ): ReadonlyMap<string, ReadonlySet<DerivativeProfile>> {
   const bindings = new Map<string, Set<DerivativeProfile>>();
   const add = (mediaId: string | null, profile: DerivativeProfile): void => {
@@ -304,7 +304,7 @@ function profileBindings(
   return bindings;
 }
 
-function generatedContent(snapshot: BuildSnapshotV1): GeneratedContentV1 {
+function generatedContent(snapshot: BuildSnapshotV2): GeneratedContentV2 {
   return {
     schemaVersion: snapshot.schemaVersion,
     contentRevision: snapshot.contentRevision,
@@ -348,7 +348,7 @@ function safeTarget(value: string): string {
 }
 
 async function createArtifacts(
-  snapshot: BuildSnapshotV1,
+  snapshot: BuildSnapshotV2,
   mediaContentProvider: MediaContentProvider,
   tempRoot: string,
 ): Promise<TransformResult> {
@@ -406,8 +406,8 @@ async function createArtifacts(
   }
 
   const content = generatedContent(snapshot);
-  const mediaManifest: PublicMediaManifestV1 = {
-    schemaVersion: 1,
+  const mediaManifest: PublicMediaManifestV2 = {
+    schemaVersion: 2,
     contentRevision: snapshot.contentRevision,
     publishGeneration: snapshot.publishGeneration,
     items: mediaItems,
@@ -428,7 +428,7 @@ export async function transformBuildSnapshot(input: Readonly<{
   mediaContentProvider: MediaContentProvider;
   stagingOutputRoot: string;
 }>): Promise<TransformResult> {
-  const snapshot = parseBuildSnapshotV1(input.snapshot);
+  const snapshot = parseBuildSnapshotV2(input.snapshot);
   const target = safeTarget(input.stagingOutputRoot);
   const parent = dirname(target);
   const tempRoot = join(parent, `.${basename(target)}.tmp-${randomUUID()}`);

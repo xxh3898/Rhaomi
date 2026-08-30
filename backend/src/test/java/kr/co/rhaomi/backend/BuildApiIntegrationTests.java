@@ -81,6 +81,7 @@ class BuildApiIntegrationTests {
     private static final String ADMIN_EMAIL = "build.integration@example.com";
     private static final String ADMIN_PASSWORD = "local-build-integration-password-123!";
     private static final Instant GENERATED_AT = Instant.parse("2035-01-01T00:00:00.123456Z");
+    private static final long JS_MAX_SAFE_INTEGER_PLUS_TWO = 9_007_199_254_740_993L;
 
     @LocalServerPort
     private int port;
@@ -242,9 +243,11 @@ class BuildApiIntegrationTests {
                         "notices",
                         "mediaAssets"),
                 fieldNames(root));
-        assertEquals(1, root.get("schemaVersion").asInt());
-        assertEquals(expectedRevision, root.get("contentRevision").asLong());
-        assertEquals(generation, root.get("publishGeneration").asLong());
+        assertEquals(2, root.get("schemaVersion").asInt());
+        assertTrue(root.get("contentRevision").isString());
+        assertEquals(Long.toString(expectedRevision), root.get("contentRevision").asText());
+        assertTrue(root.get("publishGeneration").isString());
+        assertEquals(Long.toString(generation), root.get("publishGeneration").asText());
         assertEquals(GENERATED_AT, Instant.parse(root.get("generatedAt").asText()));
         assertEquals(0, Instant.parse(root.get("generatedAt").asText()).getNano() % 1_000);
         assertFalse(root.has("gpublishGeneration"));
@@ -336,6 +339,92 @@ class BuildApiIntegrationTests {
                 fieldNames(root.get("mediaAssets").get(0)));
         assertFalse(response.body().contains(unlinkedMedia.toString()));
         assertPrivateFieldsAbsent(response.body());
+    }
+
+    @Test
+    void should_returnExactCanonicalStrings_when_revisionAndActiveGenerationExceedJavaScriptSafeInteger()
+            throws Exception {
+        putShop(null, null, null);
+        setRevision(JS_MAX_SAFE_INTEGER_PLUS_TWO);
+        var generation = activateGeneration(JS_MAX_SAFE_INTEGER_PLUS_TWO);
+
+        assertEquals(
+                generation,
+                jdbcTemplate.queryForObject(
+                        "SELECT publish_generation FROM publish_generation_state WHERE singleton_key = 1",
+                        Long.class));
+        assertEquals(
+                generation,
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT publish_generation
+                        FROM publishing_outbox
+                        WHERE state = 'PROCESSING'
+                          AND lease_until > ?
+                        """,
+                        Long.class,
+                        GENERATED_AT.atOffset(ZoneOffset.UTC)));
+
+        var response = getString("/api/build/snapshot?publishGeneration=" + generation);
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertTrue(
+                response.body().contains("\"schemaVersion\":2"), response.body());
+        assertTrue(
+                response.body().contains("\"contentRevision\":\"" + generation + "\""),
+                response.body());
+        assertEquals(
+                Long.toString(generation),
+                objectMapper.readTree(response.body()).get("contentRevision").asText());
+        assertTrue(
+                response.body().contains("\"publishGeneration\":\"" + generation + "\""),
+                response.body());
+        assertEquals(
+                Long.toString(generation),
+                objectMapper.readTree(response.body()).get("publishGeneration").asText());
+    }
+
+    @Test
+    void should_returnExactCanonicalStrings_when_revisionAndActiveGenerationReachLongMaxValue()
+            throws Exception {
+        putShop(null, null, null);
+        setRevision(Long.MAX_VALUE);
+        var generation = activateGeneration(Long.MAX_VALUE);
+
+        assertEquals(Long.MAX_VALUE, currentRevision());
+
+        var response = getString("/api/build/snapshot?publishGeneration=" + generation);
+
+        assertEquals(200, response.statusCode(), response.body());
+        assertTrue(
+                response.body().contains("\"contentRevision\":\"9223372036854775807\""),
+                response.body());
+        assertTrue(
+                response.body().contains("\"publishGeneration\":\"9223372036854775807\""),
+                response.body());
+        assertEquals(
+                "9223372036854775807",
+                objectMapper.readTree(response.body()).get("contentRevision").asText());
+        assertEquals(
+                "9223372036854775807",
+                objectMapper.readTree(response.body()).get("publishGeneration").asText());
+    }
+
+    @Test
+    void should_returnZeroContentRevisionAsCanonicalString_when_currentRevisionIsZero()
+            throws Exception {
+        putShop(null, null, null);
+        setRevision(0);
+        var generation = activateGeneration(65);
+
+        var response = getString("/api/build/snapshot?publishGeneration=" + generation);
+
+        assertEquals(200, response.statusCode(), response.body());
+        var root = objectMapper.readTree(response.body());
+        assertTrue(root.get("contentRevision").isString());
+        assertEquals("0", root.get("contentRevision").asText());
+        assertTrue(root.get("publishGeneration").isString());
+        assertEquals("65", root.get("publishGeneration").asText());
     }
 
     @Test
@@ -701,11 +790,11 @@ class BuildApiIntegrationTests {
             resumeReader.countDown();
 
             var first = firstSnapshot.get(10, TimeUnit.SECONDS);
-            assertEquals(beforeRevision, first.contentRevision());
+            assertEquals(Long.toString(beforeRevision), first.contentRevision());
             assertEquals("Before mutation", first.services().getFirst().name());
 
             var second = snapshotService.snapshot(generation);
-            assertEquals(beforeRevision + 1, second.contentRevision());
+            assertEquals(Long.toString(beforeRevision + 1), second.contentRevision());
             assertEquals("After mutation", second.services().getFirst().name());
         } finally {
             resumeReader.countDown();

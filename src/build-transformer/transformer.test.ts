@@ -16,7 +16,7 @@ import { join, resolve } from "node:path";
 import sharp from "sharp";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { BuildSnapshotV1 } from "./contracts.mts";
+import type { BuildSnapshotV2 } from "./contracts.mts";
 import {
   BuildTransformError,
   MediaContentNotFoundError,
@@ -131,7 +131,7 @@ function pngWithAnimationControl(png: Buffer): Buffer {
   return Buffer.concat([png.subarray(0, 33), animationControl, png.subarray(33)]);
 }
 
-function mediaSnapshot(jpeg: Buffer, png: Buffer): BuildSnapshotV1 {
+function mediaSnapshot(jpeg: Buffer, png: Buffer): BuildSnapshotV2 {
   const base = snapshotFixture();
   return snapshotFixture({
     shop: {
@@ -166,7 +166,7 @@ function singleJpegSnapshot(
   jpeg: Buffer,
   width = 640,
   height = 360,
-): BuildSnapshotV1 {
+): BuildSnapshotV2 {
   const base = snapshotFixture();
   return snapshotFixture({
     shop: {
@@ -201,7 +201,7 @@ async function expectSafeFailure(
 }
 
 async function transform(
-  snapshot: BuildSnapshotV1,
+  snapshot: BuildSnapshotV2,
   provider: MediaContentProvider,
   stagingRoot: string,
 ): Promise<TransformResult> {
@@ -233,6 +233,12 @@ describe("build snapshot media transformer", () => {
     const outputA = join(root, "staging-a");
     const first = await transform(snapshot, providerA, outputA);
 
+    expect(first.content.schemaVersion).toBe(2);
+    expect(first.content.contentRevision).toBe("14");
+    expect(first.content.publishGeneration).toBe("7");
+    expect(first.mediaManifest.schemaVersion).toBe(2);
+    expect(first.mediaManifest.contentRevision).toBe("14");
+    expect(first.mediaManifest.publishGeneration).toBe("7");
     expect(providerA.counts.get(IDS.mediaJpeg)).toBe(1);
     expect(providerA.counts.get(IDS.mediaPng)).toBe(1);
     expect(first.content.services.map((item) => item.id)).toEqual([
@@ -349,6 +355,53 @@ describe("build snapshot media transformer", () => {
       );
     }
   }, 120_000);
+
+  it("int64 canonical string을 content와 media manifest V2에 byte-for-byte 보존한다", async () => {
+    const root = await taskRoot();
+    const jpeg = await syntheticJpeg(640, 360);
+    const decimal = "9007199254740993";
+    const snapshot = {
+      ...singleJpegSnapshot(jpeg),
+      contentRevision: decimal,
+      publishGeneration: decimal,
+    };
+    const output = join(root, "int64-staging");
+
+    const result = await transform(
+      snapshot,
+      new CountingProvider(
+        new Map([[IDS.mediaJpeg, { contentType: "image/jpeg", bytes: jpeg }]]),
+      ),
+      output,
+    );
+
+    expect(result.content).toEqual(
+      expect.objectContaining({
+        schemaVersion: 2,
+        contentRevision: decimal,
+        publishGeneration: decimal,
+      }),
+    );
+    expect(result.mediaManifest).toEqual(
+      expect.objectContaining({
+        schemaVersion: 2,
+        contentRevision: decimal,
+        publishGeneration: decimal,
+      }),
+    );
+    const content = await readFile(
+      join(output, "src/generated/content.json"),
+      "utf8",
+    );
+    const manifest = await readFile(
+      join(output, "src/generated/media-manifest.json"),
+      "utf8",
+    );
+    expect(content).toContain(`"contentRevision": "${decimal}"`);
+    expect(content).toContain(`"publishGeneration": "${decimal}"`);
+    expect(manifest).toContain(`"contentRevision": "${decimal}"`);
+    expect(manifest).toContain(`"publishGeneration": "${decimal}"`);
+  });
 
   it("EXIF orientation을 적용한 뒤 sRGB·metadata-free output으로 고정한다", async () => {
     const root = await taskRoot();

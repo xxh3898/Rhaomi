@@ -3,7 +3,7 @@ title: "수용 기준"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "제품 기능 변경 시"
 ---
 
@@ -246,6 +246,10 @@ review_trigger: "제품 기능 변경 시"
 
 **Then** 관리자 session과 분리된 stateless principal로 인증하고 하나의 read-only PostgreSQL `REPEATABLE READ` transaction에서 server-owned microsecond `generatedAt`, current `contentRevision`, exact DTO allowlist와 published/time/relation/media/file 조건을 검증한다.
 
+**Given** active generation과 current revision이 `9007199254740993` 또는 `9223372036854775807`일 때
+
+**Then** Build Snapshot V2 HTTP 200은 두 값을 canonical decimal JSON string으로 exact 보존한다. PostgreSQL `BIGINT`·Java `long`과 positive-long query 계약은 유지하고 numeric V1 wire를 만들지 않는다.
+
 **Given** admin session만 있거나 build token이 missing·wrong·malformed·disabled이고, 또는 build token으로 admin API를 호출할 때
 
 **Then** 각 namespace는 서로 권한을 부여하지 않고 fixed 401 또는 disabled build service의 503으로 fail-closed한다. production token 누락·형식 오류는 startup failure다.
@@ -266,13 +270,17 @@ review_trigger: "제품 기능 변경 시"
 
 ## AC-20 build snapshot transformer·responsive derivative
 
-**Given** exact `BuildSnapshotV1`과 manifest에 일치하는 JPEG·PNG canonical media가 `MediaContentProvider`로 제공될 때
+**Given** exact `BuildSnapshotV2`와 manifest에 일치하는 JPEG·PNG canonical media가 `MediaContentProvider`로 제공될 때
 
 **When** 독립 transformer가 새 staging target을 만들면
 
 **Then** unknown/missing field·schema·semantic·게시 시각·relation·media manifest를 다시 검증하고 distinct media를 한 번씩만 읽으며, source보다 업스케일하지 않은 Gallery card `360/640/960`, Gallery large `768/1200/1600`, Hero `768/1280/1920` AVIF·WebP·JPEG 파생본을 생성한다.
 
-**Then** orientation·sRGB와 metadata 제거를 적용하고 output byte SHA-256 filename, 결정적 `content.json`·`media-manifest.json`과 `public/generated/media`를 기록한다. 같은 입력은 byte-for-byte 같은 산출물과 순서를 만든다.
+**Then** orientation·sRGB와 metadata 제거를 적용하고 output byte SHA-256 filename, 결정적 V2 `content.json`·`media-manifest.json`과 `public/generated/media`를 기록한다. revision/generation canonical decimal string은 fetched snapshot과 byte-for-byte 같고 같은 입력은 byte-for-byte 같은 산출물과 순서를 만든다.
+
+**Given** content revision `0` 또는 safe integer 경계를 넘는 `9007199254740993`·`9223372036854775807`의 유효한 V2 snapshot일 때
+
+**Then** Node는 string representation을 유지하고 validation/equality에만 `BigInt`를 사용한다. zero generation, leading zero, overflow와 JSON numeric revision/generation은 `SNAPSHOT_INVALID`로 거부한다.
 
 **Given** snapshot drift, missing media, MIME/signature mismatch, corrupt·APNG·oversized image, transform 또는 filesystem 실패가 있을 때
 
@@ -280,7 +288,7 @@ review_trigger: "제품 기능 변경 시"
 
 **Given** Phase 1C-8f4 transformer가 성공했을 때
 
-**Then** build API HTTP client, Markdown/HTML·SEO·Next render, release manifest와 `current` atomic switch가 완료된 것으로 간주하지 않는다. publisher polling/debounce/lock control plane은 AC-21의 별도 계약으로 검증한다.
+**Then** transformer 단독 성공으로 Build API transport, Markdown/HTML·SEO·Next render, release manifest와 `current` atomic switch가 완료된 것으로 간주하지 않는다. publisher polling/debounce/lock control plane은 AC-21, staging adapter는 AC-22의 별도 계약으로 검증한다.
 
 ## AC-21 publisher control loop
 
@@ -317,3 +325,23 @@ review_trigger: "제품 기능 변경 시"
 **Given** lease 상실 또는 shutdown cancellation 뒤 executor가 interrupt를 무시하고 계속 실행될 때
 
 **Then** `Future.cancel(true)`나 `Future.isDone()`을 종료로 간주하지 않고 두 번째 publisher의 lock 획득을 막는다. executor body의 실제 종료 뒤에만 lock을 다시 획득할 수 있으며 늦은 `SUCCESS`·`NO_PUBLIC_CHANGE` 결과는 completion으로 기록하지 않는다.
+
+## AC-22 Build API adapter·transformer staging orchestration
+
+**Given** root absolute internal URL, exact 64자 lowercase hex credential, positive Java long generation과 private staging target이 있을 때
+
+**When** Node staging adapter를 실행하면
+
+**Then** redirect·cookie 없이 bounded exact Bearer snapshot GET을 수행하고 raw JSON을 unknown field stripping 없이 기존 strict parser에 전달하며 요청 generation과 parsed generation을 exact 비교한다.
+
+**Given** parsed snapshot manifest의 JPEG·PNG media를 transformer가 요청할 때
+
+**Then** manifest 밖 UUID는 network 전에 거부하고 같은 UUID의 concurrent/duplicate request를 in-flight/result memoization으로 실제 HTTP 1회에 제한한다. HTTP 200, exact Content-Type·Content-Length·body length를 확인한 memory byte만 기존 transformer에 전달한다.
+
+**Given** 401/403, 409, timeout/connection/429/5xx, 404/503 media, malformed 2xx 또는 deterministic transformer/output failure가 있을 때
+
+**Then** credential·URL/path·media UUID·raw response/stack을 노출하지 않는 fixed code와 `TERMINAL | TRANSIENT | GENERATION` category로 실패하고 partial target을 success로 남기지 않는다.
+
+**Given** HTTP snapshot/media와 transformer staging이 모두 성공했을 때
+
+**Then** output의 `contentRevision`, `publishGeneration`, `generatedAt`은 fetched snapshot과 일치하지만 Java placeholder executor와 publication DB state는 변하지 않는다. Next/export/release/stale guard/current switch가 없으므로 `SUCCESS`나 `NO_PUBLIC_CHANGE`로 간주하지 않는다.

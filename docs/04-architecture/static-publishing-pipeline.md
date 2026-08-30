@@ -3,7 +3,7 @@ title: "정적 퍼블리싱 파이프라인"
 status: "proposed"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "콘텐츠 배포 방식 변경 시"
 ---
 
@@ -11,7 +11,7 @@ review_trigger: "콘텐츠 배포 방식 변경 시"
 
 ## 구현 상태
 
-Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Flyway V8과 domain service 연동으로 `contentRevision`·publishing outbox producer를 구현했고, Flyway V9과 internal Java service로 pending/due claim·lease recovery·`publishGeneration`·attempt/result state-machine 기반을 구현했다. Phase 1C-8f3은 active generation에 묶인 stateless read-only build snapshot·public-scope media API를, Phase 1C-8f4는 transport-independent strict snapshot transformer·responsive public derivative·atomic staging 산출물을 구현한다. Phase 1C-8f5는 dedicated non-web polling process, fixed 30초 debounce, highest-generation coalesce, lease heartbeat, global filesystem lock과 typed build executor control plane을 구현한다. 실제 Build API HTTP client·transformer orchestration, Next render, release switch와 public content route는 아직 구현되지 않았다. 이 문서는 현재 DB/state/build/transformer/control 경계와 후속 pipeline 계약을 함께 정의한다.
+Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Flyway V8과 domain service 연동으로 `contentRevision`·publishing outbox producer를 구현했고, Flyway V9과 internal Java service로 pending/due claim·lease recovery·`publishGeneration`·attempt/result state-machine 기반을 구현했다. Phase 1C-8f3은 active generation에 묶인 stateless read-only build snapshot·public-scope media API를, Phase 1C-8f4는 transport-independent strict snapshot transformer·responsive public derivative·atomic staging 산출물을 구현한다. Phase 1C-8f5는 dedicated non-web polling process, fixed 30초 debounce, highest-generation coalesce, lease heartbeat, global filesystem lock과 typed build executor control plane을 구현한다. Phase 1C-8f6은 backend-only credential의 Build API HTTP adapter, memoized media provider와 isolated transformer staging orchestration을 구현한다. Next render, release manifest·stale guard·switch, real executor binding과 public content route는 아직 구현되지 않았다. 이 문서는 현재 DB/state/build/transformer/control 경계와 후속 pipeline 계약을 함께 정의한다.
 
 ## 목적
 
@@ -61,21 +61,30 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 
 - `GET /api/build/snapshot?publishGeneration=<positive-long>`과 `GET /api/build/media/{id}/content?publishGeneration=<positive-long>`만 허용한다.
 - 관리자 session과 분리된 64자 lowercase hex Bearer token을 timing-safe 비교하며 build chain은 stateless이고 session·request cache를 만들지 않는다.
-- snapshot은 active `PROCESSING` generation과 live lease를 확인한 뒤 하나의 read-only `REPEATABLE READ` transaction에서 current `contentRevision`과 server-owned microsecond `generatedAt`을 읽는다.
+- snapshot은 active `PROCESSING` generation과 live lease를 확인한 뒤 하나의 read-only `REPEATABLE READ` transaction에서 current `contentRevision`과 server-owned microsecond `generatedAt`을 읽는다. PostgreSQL `BIGINT`와 Java `long`은 유지하고 Build Snapshot V2 wire에서 revision/generation만 canonical decimal string으로 직렬화한다.
 - exact DTO allowlist와 published/time/relation/media/file 조건을 검증하고 Shop·공개 가능한 Gallery가 참조한 distinct active media manifest만 반환한다.
 - media content는 current public relation scope를 다시 확인하고 canonical master의 실제 size·SHA를 검증한 뒤 `private, no-store`·`nosniff`로 반환한다.
 - build 호출은 revision·outbox·generation·lease·attempt·콘텐츠를 변경하지 않는다. dev/public Nginx는 `/api/build/**`를 backend로 proxy하지 않는다.
 
 ## 현재 transformer 경계
 
-- exact `BuildSnapshotV1` top-level·entity key와 UUID·slug·microsecond Instant·URL, backend/build API가 정의한 field별 text/number limit, uniqueness, relation, published/time eligibility와 exact media manifest를 fail-closed로 다시 검증한다. Breed·Service description에는 publication-only 길이 제한을 두지 않는다.
+- exact `BuildSnapshotV2` top-level·entity key와 UUID·slug·microsecond Instant·URL, canonical int64 decimal string revision/generation, backend/build API가 정의한 field별 text/number limit, uniqueness, relation, published/time eligibility와 exact media manifest를 fail-closed로 다시 검증한다. Breed·Service description에는 publication-only 길이 제한을 두지 않는다.
 - 문자열 canonical 검증은 JS `trim()` 공통 규칙이 아니다. Breed·Service·Notice는 Java `String.strip()`/`isBlank()`와 UTF-16 length, Shop은 `Character.isWhitespace() || Character.isSpaceChar()` strip과 code-point length, Gallery는 같은 strip과 Build API UTF-16 length를 각각 재현한다.
 - source 배열의 Breed·Service canonical server order는 보존하고 media 처리·manifest는 UUID, profile, format, width의 고정 순서로 만든다.
 - `MediaContentProvider`는 distinct media UUID당 한 번만 호출한다. HTTP·Bearer credential·session과 backend storage path는 transformer에 포함하지 않는다.
 - JPEG·PNG signature/content type·decode·30 MiB·12,000px·60MP·single-image 조건을 확인한 뒤 orientation·sRGB·metadata 제거와 no-upscale AVIF·WebP·JPEG 파생본을 생성하고 결과도 decode·format·metadata로 재검증한다.
-- output byte SHA-256 파일명으로 중복 file을 합치고 `src/generated/content.json`, `src/generated/media-manifest.json`, `public/generated/media`를 deterministic하게 생성한다.
+- output byte SHA-256 파일명으로 중복 file을 합치고 V2 `src/generated/content.json`, V2 `src/generated/media-manifest.json`, `public/generated/media`를 deterministic하게 생성한다. 두 JSON artifact와 staging result·machine CLI는 fetched revision/generation string을 byte-for-byte 보존하고 Node는 범위·equality·ordering에만 `BigInt`를 사용한다.
 - 새 staging target과 같은 parent의 임시 directory를 완성한 뒤 rename한다. 실패 시 임시 산출물을 제거하며 이미 존재하는 성공 target을 교체하거나 current/previous를 조작하지 않는다.
 - `SNAPSHOT_INVALID`, `MEDIA_NOT_FOUND`, `MEDIA_INVALID`, `MEDIA_TRANSFORM_FAILED`, `OUTPUT_FAILED`만 외부 오류 계약으로 사용하고 path·UUID·decoder detail을 출력하지 않는다.
+
+## 현재 Build API adapter·staging orchestration 경계
+
+- environment-only internal origin과 64자 lowercase hex credential을 request 전에 검증한다. CLI argv는 positive Java long generation과 private staging path만 허용한다.
+- redirect를 따르지 않는 fixed 10초 bounded GET의 `200 application/json` raw snapshot만 strict parser에 직접 전달하고 요청 generation과 parsed generation을 exact 비교한다.
+- snapshot manifest 밖 media를 network 전에 거부하고 UUID별 in-flight/result를 memoize한다. HTTP MIME·Content-Length·실제 body length를 exact 대조하며 raw canonical media는 memory에만 유지한다.
+- HTTP media를 먼저 cache에 채워 401/403, 409, 429/5xx·timeout, 404/503와 malformed response의 retry 의미를 보존한 뒤 기존 transformer의 deterministic validation을 실행한다.
+- safe result는 terminal/transient/generation category와 고정 code만 노출한다. token·Authorization·internal URL/path·media UUID·response body·stack을 출력 또는 generated artifact에 기록하지 않는다.
+- 새 configurable staging target만 만들고 release directory, active public path와 `current/previous`를 조작하지 않는다. staging 성공은 publisher completion이 아니다.
 
 ## 현재 publisher control 경계
 
@@ -86,7 +95,7 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - executor 결과는 `SUCCESS | NO_PUBLIC_CHANGE | TRANSIENT_FAILURE | TERMINAL_FAILURE`이고 각각 기존 state service의 success/no-op/transient/terminal transition으로만 반영한다.
 - lease 상실·shutdown cancellation은 interrupt 요청만으로 완료하지 않는다. wrapper가 callable 진입·종료를 추적하고 실제 종료 acknowledgment 뒤에만 lock을 해제한다. `Future.cancel(true)`·cancelled/`isDone` 상태는 physical termination authority가 아니다.
 - shutdown timeout 뒤 executor가 계속 실행되면 non-daemon control worker가 lock scope 안에서 기다려 새 publisher 진입을 차단한다. 정상 종료가 불가능하면 process termination이 executor와 OS file lock을 함께 정리하는 fail-closed lifecycle을 사용한다.
-- 현재 placeholder executor는 `TRANSIENT_FAILURE`만 반환해 release 생성을 fail-closed한다. build API HTTP client와 transformer 실행은 Phase 1C-8f6 범위다.
+- 현재 placeholder executor는 `TRANSIENT_FAILURE`만 반환해 release 생성을 fail-closed한다. 구현된 Node staging orchestration은 이 executor에 bind하지 않으며 full Next/release pipeline만 후속 범위다.
 - default Compose에는 publisher service가 없고 normal backend에는 publisher loop/thread가 없다. publisher mode는 public port, Nginx route, Docker socket과 production bind를 추가하지 않는다.
 
 ## planned pipeline
@@ -129,7 +138,7 @@ sequenceDiagram
 5. release ID, target `contentRevision`·`publishGeneration`과 승인된 production code image digest 확인
 6. internal read-only build API로 일관된 snapshot 조회
 7. scheduled event라면 current Notice·Gallery row를 다시 읽고, snapshot schema, `generatedAt` 기준 published·게시/만료, 관계·media 상태와 실제 file scope 재검증
-8. build API HTTP client로 image 획득 후 구현된 transformer의 validation·metadata 제거·responsive derivative·staging 생성
+8. build API HTTP client로 image 획득 후 구현된 transformer의 validation·metadata 제거·responsive derivative·staging 생성 — isolated data plane 구현
 9. Next.js build/export
 10. HTML, link, canonical, sitemap, robots와 asset 검증
 11. 새 release directory smoke
@@ -147,16 +156,16 @@ sequenceDiagram
 - 현재 API query가 `published`, notice `published_at <= generatedAt < expires_at`, relation target, media `active`와 실제 file을 검증하고 구현된 transformer가 response를 독립적으로 다시 검증한다.
 - 선택된 media가 archived, missing 또는 corrupt면 silent omission하지 않고 build 전체를 실패시킨다.
 - raw storage path, DB credential, admin session과 private metadata를 snapshot에 넣지 않는다.
-- transformer는 credential이나 URL을 모르며 `MediaContentProvider` 호출만 한다. build API HTTP adapter와 publisher의 credential 주입은 후속 범위다.
+- transformer는 credential이나 URL을 모르며 `MediaContentProvider` 호출만 한다. Node adapter가 environment-only credential로 이 port를 구현하지만 production publisher process 주입·binding은 후속 범위다.
 
 ## 원자성·일관성
 
 - publisher container의 활성 `current` 안에서 build하지 않는다.
 - 모든 입력 조회가 성공하기 전 snapshot을 확정하지 않는다.
 - 일부 최신/일부 과거 콘텐츠를 혼합하지 않는다.
-- release manifest와 content snapshot에 `contentRevision`, `publishGeneration`, `generatedAt`을 함께 기록한다.
+- release manifest와 content snapshot에 canonical decimal string `contentRevision`, `publishGeneration`, `generatedAt`을 함께 기록한다.
 - 검증 성공 전 symlink를 바꾸지 않는다.
-- target `publishGeneration`을 `current` manifest의 generation과 비교하고, 낮거나 같은 generation의 build는 최신 release를 덮지 못한다.
+- target `publishGeneration` string을 `BigInt`로 검증·비교하고, 낮거나 같은 generation의 build는 최신 release를 덮지 못한다. string을 JSON number로 변환하지 않는다.
 - 같은 `contentRevision`도 게시·만료 경계마다 서로 다른 generation과 공개 snapshot을 가질 수 있다.
 
 ## scheduled event 안전성

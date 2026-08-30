@@ -3,7 +3,7 @@ title: "환경설정"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "환경변수·domain·version 변경 시"
 ---
 
@@ -118,8 +118,8 @@ production release manifest에는 exact `main` SHA, image tag·digest, Flyway ve
 |---|---:|---|
 | `PUBLIC_SITE_URL` | N | canonical 기준 absolute URL |
 | `SITE_ENV` | N | local/development/production |
-| `BUILD_API_INTERNAL_URL` | N | Docker 내부 read-only build API URL |
-| `BUILD_API_CREDENTIAL` | Y | 후속 publisher가 `RHAOMI_BUILD_SERVICE_TOKEN`과 같은 secret source에서 주입받을 read-only service credential |
+| `BUILD_API_INTERNAL_URL` | N | Node staging adapter가 사용하는 absolute `http|https` backend origin; userinfo/query/fragment/path 금지 |
+| `BUILD_API_CREDENTIAL` | Y | `RHAOMI_BUILD_SERVICE_TOKEN`과 같은 secret source에서 Node staging adapter에만 주입하는 64자 lowercase hex credential |
 | `CONTENT_SNAPSHOT_PATH` | N | 생성 파일 경로 |
 | `MEDIA_OUTPUT_PATH` | N | 공개 파생본 경로 |
 | `BUILD_RELEASE_ID` | N | release 식별자 |
@@ -127,7 +127,7 @@ production release manifest에는 exact `main` SHA, image tag·digest, Flyway ve
 | `BUILD_PUBLISH_GENERATION` | N | public trigger의 monotonic sequence와 stale switch authority |
 | `BUILD_TIMESTAMP` | N | snapshot `generatedAt`, notice published·expiry 판정 기준 시각 |
 
-backend의 `RHAOMI_BUILD_SERVICE_TOKEN`과 internal read-only API는 구현됐다. token은 64자 lowercase hex만 허용하고 production 누락·형식 오류는 startup failure다. browser/frontend에는 build credential이나 `NEXT_PUBLIC_` 변수를 주입하지 않고 credential file도 mount하지 않으며 dev/public Nginx가 build namespace를 차단한다. 위 `BUILD_API_INTERNAL_URL`·`BUILD_API_CREDENTIAL` 이름을 포함한 실제 publisher 주입과 production secret provisioning은 아직 구현되지 않았다.
+backend의 `RHAOMI_BUILD_SERVICE_TOKEN`과 internal read-only API, 위 두 변수로 실행하는 Node staging adapter는 구현됐다. adapter는 URL/credential과 generation을 request 전에 fail-closed 검증하고 credential을 argv·query·path·출력에 넣지 않으며 request body까지 fixed 10초 runtime default 안에 완료한다. browser/frontend/gateway에는 build credential이나 `NEXT_PUBLIC_` 변수를 주입하지 않고 credential file도 mount하지 않으며 dev/public Nginx가 build namespace를 차단한다. 실제 production publisher process의 environment·secret provisioning은 아직 구현되지 않았다.
 
 ## Static publisher control loop
 
@@ -147,7 +147,7 @@ publisher는 normal backend profile이나 환경변수만으로 시작하지 않
 
 현재 control loop는 immediate pending, due scheduled, same-generation retry와 expired lease recovery를 처리하고 highest generation coalesce·lease heartbeat·global lock·typed result mapping을 제공한다. cancellation은 executor wrapper의 실제 진입·종료 상태를 추적하며, interrupt 뒤에도 body가 살아 있으면 lock과 non-daemon control worker를 유지한다. shutdown timeout은 lifecycle caller의 대기만 제한하고 lock을 먼저 넘기지 않으며, 외부 process termination 때 executor와 OS lock이 함께 정리된다. placeholder executor는 항상 transient failure를 반환해 public release를 만들지 않는다. default `compose.dev.yaml`은 publisher service를 자동 기동하지 않으며 public/dev Nginx route와 Docker socket도 추가하지 않는다.
 
-아래 release adapter 변수는 후속 Phase 1C-8f6~8f7 planned contract다.
+아래 release filesystem 변수는 후속 Phase 1C-8f7 planned contract다. `BUILD_API_CREDENTIAL`은 현재 Node staging adapter의 environment contract지만 production secret provisioning은 후속 gate다.
 
 | planned 변수 | 비밀 | 설명 |
 |---|---:|---|

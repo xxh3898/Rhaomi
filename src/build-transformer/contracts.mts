@@ -8,6 +8,9 @@ const PHONE_PATTERN = /^[0-9+() -]+$/;
 const ISO_CONTROL_PATTERN = /[\u0000-\u001f\u007f-\u009f]/u;
 const MICROSECOND_INSTANT_PATTERN =
   /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(?:\.(\d{1,6}))?Z$/;
+const NON_NEGATIVE_INT64_DECIMAL_PATTERN = /^(?:0|[1-9][0-9]*)$/u;
+const POSITIVE_INT64_DECIMAL_PATTERN = /^[1-9][0-9]*$/u;
+const JAVA_LONG_MAX = BigInt("9223372036854775807");
 const MAX_JAVA_INTEGER = 2_147_483_647;
 const MAX_MEDIA_BYTES = 30 * 1024 * 1024;
 const MAX_MEDIA_AXIS = 12_000;
@@ -102,10 +105,10 @@ export type BuildMediaAssetV1 = Readonly<{
   height: number;
 }>;
 
-export type BuildSnapshotV1 = Readonly<{
-  schemaVersion: 1;
-  contentRevision: number;
-  publishGeneration: number;
+export type BuildSnapshotV2 = Readonly<{
+  schemaVersion: 2;
+  contentRevision: string;
+  publishGeneration: string;
   generatedAt: string;
   shop: BuildShopV1;
   services: readonly BuildServiceV1[];
@@ -381,6 +384,33 @@ function positiveInteger(value: unknown): number {
   return parsed;
 }
 
+function canonicalInt64Decimal(
+  value: unknown,
+  pattern: RegExp,
+): string {
+  if (typeof value !== "string" || !pattern.test(value)) {
+    fail("SNAPSHOT_INVALID");
+  }
+  let numericValue: bigint;
+  try {
+    numericValue = BigInt(value);
+  } catch {
+    fail("SNAPSHOT_INVALID");
+  }
+  if (numericValue > JAVA_LONG_MAX) {
+    fail("SNAPSHOT_INVALID");
+  }
+  return value;
+}
+
+function nonNegativeInt64Decimal(value: unknown): string {
+  return canonicalInt64Decimal(value, NON_NEGATIVE_INT64_DECIMAL_PATTERN);
+}
+
+function positiveInt64Decimal(value: unknown): string {
+  return canonicalInt64Decimal(value, POSITIVE_INT64_DECIMAL_PATTERN);
+}
+
 function booleanValue(value: unknown): boolean {
   if (typeof value !== "boolean") fail("SNAPSHOT_INVALID");
   return value;
@@ -617,7 +647,7 @@ function uniqueIds(items: readonly Readonly<{ id: string }>[]): Set<string> {
   return ids;
 }
 
-function referencedMedia(snapshot: BuildSnapshotV1): Set<string> {
+function referencedMedia(snapshot: BuildSnapshotV2): Set<string> {
   const ids = new Set<string>();
   const add = (id: string | null): void => {
     if (id !== null) ids.add(id);
@@ -633,7 +663,7 @@ function referencedMedia(snapshot: BuildSnapshotV1): Set<string> {
   return ids;
 }
 
-function validateSemantics(snapshot: BuildSnapshotV1): void {
+function validateSemantics(snapshot: BuildSnapshotV2): void {
   const breedIds = uniqueIds(snapshot.breeds);
   const serviceIds = uniqueIds(snapshot.services);
   uniqueIds(snapshot.galleryItems);
@@ -670,17 +700,14 @@ function validateSemantics(snapshot: BuildSnapshotV1): void {
   }
 }
 
-export function parseBuildSnapshotV1(value: unknown): BuildSnapshotV1 {
+export function parseBuildSnapshotV2(value: unknown): BuildSnapshotV2 {
   const input = record(value);
   exact(input, TOP_LEVEL_KEYS);
-  if (input.schemaVersion !== 1) fail("SNAPSHOT_INVALID");
-  const snapshot: BuildSnapshotV1 = {
-    schemaVersion: 1,
-    contentRevision: nonNegativeInteger(
-      input.contentRevision,
-      Number.MAX_SAFE_INTEGER,
-    ),
-    publishGeneration: positiveInteger(input.publishGeneration),
+  if (input.schemaVersion !== 2) fail("SNAPSHOT_INVALID");
+  const snapshot: BuildSnapshotV2 = {
+    schemaVersion: 2,
+    contentRevision: nonNegativeInt64Decimal(input.contentRevision),
+    publishGeneration: positiveInt64Decimal(input.publishGeneration),
     generatedAt: instant(input.generatedAt),
     shop: parseShop(input.shop),
     services: parseArray(input.services, parseService),

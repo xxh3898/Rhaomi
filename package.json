@@ -13,8 +13,10 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "npm run test:contracts && npm run test:unit",
     "test:contracts": "node --test tests/*.test.mjs",
+    "test:orchestration": "vitest run src/build-orchestration",
     "test:transformer": "vitest run src/build-transformer",
     "test:unit": "vitest run",
+    "prepare:publication-staging": "node scripts/prepare-publication-staging.mts",
     "transform:snapshot": "node scripts/transform-build-snapshot.mts",
     "validate:export": "node scripts/validate-export.mjs"
   },

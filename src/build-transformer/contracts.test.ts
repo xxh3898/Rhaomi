@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { parseBuildSnapshotV1 } from "./contracts.mts";
+import { parseBuildSnapshotV2 } from "./contracts.mts";
 import { BuildTransformError } from "./errors.mts";
 import {
   IDS,
@@ -12,16 +12,16 @@ import {
 } from "./test-fixtures";
 
 function expectInvalid(value: unknown): void {
-  expect(() => parseBuildSnapshotV1(value)).toThrowError(
+  expect(() => parseBuildSnapshotV2(value)).toThrowError(
     expect.objectContaining<Partial<BuildTransformError>>({
       code: "SNAPSHOT_INVALID",
     }),
   );
 }
 
-describe("BuildSnapshotV1 strict validator", () => {
-  it("exact v1 shape를 통과시키고 server array ordering을 보존한다", () => {
-    const snapshot = parseBuildSnapshotV1(snapshotFixture());
+describe("BuildSnapshotV2 strict validator", () => {
+  it("exact v2 shape를 통과시키고 server array ordering을 보존한다", () => {
+    const snapshot = parseBuildSnapshotV2(snapshotFixture());
 
     expect(snapshot.services.map((item) => item.id)).toEqual([
       IDS.serviceB,
@@ -39,7 +39,7 @@ describe("BuildSnapshotV1 strict validator", () => {
     const serviceDescription = "서".repeat(10_001);
     const source = snapshotFixture();
 
-    const snapshot = parseBuildSnapshotV1({
+    const snapshot = parseBuildSnapshotV2({
       ...source,
       breeds: source.breeds.map((item, index) =>
         index === 0 ? { ...item, description: breedDescription } : item,
@@ -59,7 +59,7 @@ describe("BuildSnapshotV1 strict validator", () => {
     for (const separator of ["\u00a0", "\u2007", "\u202f", "\ufeff"]) {
       const source = snapshotFixture();
       const wrapped = `${separator}내용${separator}`;
-      const snapshot = parseBuildSnapshotV1({
+      const snapshot = parseBuildSnapshotV2({
         ...source,
         breeds: source.breeds.map((item, index) =>
           index === 0
@@ -93,7 +93,7 @@ describe("BuildSnapshotV1 strict validator", () => {
   it("Shop과 Gallery가 보존하는 U+FEFF edge text를 허용한다", () => {
     const source = snapshotFixture();
     const wrapped = "\ufeff내용\ufeff";
-    const snapshot = parseBuildSnapshotV1({
+    const snapshot = parseBuildSnapshotV2({
       ...source,
       shop: {
         ...source.shop,
@@ -145,7 +145,7 @@ describe("BuildSnapshotV1 strict validator", () => {
       })),
     });
 
-    const parsed = parseBuildSnapshotV1({
+    const parsed = parseBuildSnapshotV2({
       ...source,
       shop: { ...source.shop, heroTitle: "🐶".repeat(200) },
     });
@@ -154,7 +154,7 @@ describe("BuildSnapshotV1 strict validator", () => {
 
   it("Breed와 Service description의 nullable/nonblank canonical 계약을 유지한다", () => {
     const source = snapshotFixture();
-    const nullableBreed = parseBuildSnapshotV1({
+    const nullableBreed = parseBuildSnapshotV2({
       ...source,
       breeds: source.breeds.map((item, index) =>
         index === 0 ? { ...item, description: null } : item,
@@ -199,13 +199,50 @@ describe("BuildSnapshotV1 strict validator", () => {
     });
   });
 
-  it("future schemaVersion과 unsafe revision/generation을 거부한다", () => {
-    expectInvalid({ ...snapshotFixture(), schemaVersion: 2 });
-    expectInvalid({
+  it("canonical int64 string boundary를 full Java long 범위에서 검증한다", () => {
+    for (const value of [
+      "9007199254740991",
+      "9007199254740992",
+      "9007199254740993",
+      "9223372036854775807",
+    ]) {
+      const parsed = parseBuildSnapshotV2({
+        ...snapshotFixture(),
+        contentRevision: value,
+        publishGeneration: value,
+      });
+      expect(parsed.contentRevision).toBe(value);
+      expect(parsed.publishGeneration).toBe(value);
+    }
+
+    expect(parseBuildSnapshotV2({
       ...snapshotFixture(),
-      contentRevision: Number.MAX_SAFE_INTEGER + 1,
-    });
-    expectInvalid({ ...snapshotFixture(), publishGeneration: 0 });
+      contentRevision: "0",
+    }).contentRevision).toBe("0");
+    expectInvalid({ ...snapshotFixture(), publishGeneration: "0" });
+  });
+
+  it.each([
+    "",
+    "00",
+    "01",
+    "+1",
+    "-1",
+    " 1",
+    "1 ",
+    "1.0",
+    "1e3",
+    "9223372036854775808",
+  ])("noncanonical 또는 overflow int64 string %j을 거부한다", (value) => {
+    expectInvalid({ ...snapshotFixture(), contentRevision: value });
+    expectInvalid({ ...snapshotFixture(), publishGeneration: value });
+  });
+
+  it("V1 schema와 revision/generation JSON number를 거부한다", () => {
+    expectInvalid({ ...snapshotFixture(), schemaVersion: 1 });
+    expectInvalid({ ...snapshotFixture(), schemaVersion: 3 });
+    expectInvalid({ ...snapshotFixture(), contentRevision: 14 });
+    expectInvalid({ ...snapshotFixture(), publishGeneration: 7 });
   });
 
   it("collection duplicate id와 invalid UUID/sortOrder를 거부한다", () => {
