@@ -57,7 +57,7 @@ Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Bo
 
 ## 로컬 개발
 
-host에 Node.js나 Java를 설치하지 않고 `compose.dev.yaml`의 고정된 runtime image를 사용한다. 먼저 example을 복사하고 placeholder를 local 개발 전용 값으로 교체한다.
+host에 Node.js나 Java를 설치하지 않고 `compose.dev.yaml`의 고정된 runtime image를 사용한다. 먼저 example을 복사하고 placeholder를 local 개발 전용 값으로 교체한다. 이 파일은 host Compose 보간과 backend 주입에만 쓰며 frontend container에는 mount하지 않는다.
 
 ```bash
 cp .env.example .env.dev.local
@@ -67,12 +67,13 @@ cp .env.example .env.dev.local
 
 ```bash
 docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend run --rm frontend npm ci
-docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend run --rm frontend npm run lint
-docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend run --rm frontend npm run typecheck
-docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend run --rm frontend npm test
-docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend run --rm frontend npm run build
-docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend run --rm frontend npm run validate:export
+docker compose --env-file .env.dev.local -f compose.dev.yaml --profile validation run --rm --no-deps contract-check npm run lint
+docker compose --env-file .env.dev.local -f compose.dev.yaml --profile validation run --rm --no-deps contract-check npm run typecheck
+docker compose --env-file .env.dev.local -f compose.dev.yaml --profile validation run --rm --no-deps contract-check npm test
+docker compose --env-file .env.dev.local -f compose.dev.yaml --profile validation run --rm --no-deps contract-check sh -c 'npm run build && npm run validate:export'
 ```
+
+frontend의 dependency install과 dev runtime은 `src`, package manifest와 Next·TypeScript config만 read-only allowlist로 받는다. repository root, `.env*`, `backend/`, local secret/config와 private runtime data는 frontend filesystem에 없다. repository-wide contract test에 필요한 backend source는 실제 env file을 mount하지 않고 network도 끈 `contract-check`에만 제공한다.
 
 브라우저 진입점은 gateway의 `http://127.0.0.1:3000` 하나다. frontend dev server는 host port를 열지 않는다. gateway는 일반 `/api/**`를 backend로 전달하지만 `/api/build/**`는 먼저 404로 차단한다.
 
@@ -110,13 +111,13 @@ Flyway V8은 `content_revision_state` singleton과 typed `publishing_outbox` pro
 
 Flyway V9은 transactional `publish_generation_state` singleton과 outbox의 `PENDING | PROCESSING | RETRY_WAIT | SUCCEEDED | NOOP | FAILED | COALESCED` 상태를 추가한다. internal Java service가 `FOR UPDATE SKIP LOCKED`로 due row를 하나만 claim하고 generation 할당·첫 attempt를 같은 transaction으로 기록한다. 만료 lease와 1분·5분·15분 transient retry는 같은 generation으로 최대 네 번째 attempt까지 복구하며, scheduled stale event는 current Notice/Gallery의 published 상태와 expected boundary만 확인한 뒤 generation 없이 `NOOP` 처리한다. 이 상태 기반 자체는 HTTP endpoint, scheduler, polling loop나 credential을 추가하지 않는다.
 
-internal build API는 정확히 `GET /api/build/snapshot`과 `GET /api/build/media/{id}/content`만 허용한다. 64자 lowercase hex Bearer token은 관리자 session·CSRF와 분리되고 request를 session에 저장하지 않는다. snapshot은 active `PROCESSING` generation과 live lease를 확인한 뒤 하나의 read-only `REPEATABLE READ` transaction에서 server-owned microsecond `generatedAt`, current `contentRevision`, published/time/relation/media/file 조건과 exact DTO allowlist를 검증한다. media content는 현재 Shop 또는 공개 가능한 Gallery relation에 속한 active canonical master만 size·SHA 검증 후 `private, no-store`로 반환한다. build API는 revision, outbox, generation, lease, attempt나 콘텐츠를 변경하지 않으며 dev/public gateway는 이 namespace를 backend로 전달하지 않는다.
+internal build API는 정확히 `GET /api/build/snapshot`과 `GET /api/build/media/{id}/content`만 허용한다. 64자 lowercase hex Bearer token은 관리자 session·CSRF와 분리되고 request를 session에 저장하지 않는다. local Compose에서도 token은 backend environment에만 전달하며 frontend·gateway에는 environment key나 credential file을 제공하지 않는다. snapshot은 active `PROCESSING` generation과 live lease를 확인한 뒤 하나의 read-only `REPEATABLE READ` transaction에서 server-owned microsecond `generatedAt`, current `contentRevision`, published/time/relation/media/file 조건과 exact DTO allowlist를 검증한다. media content는 현재 Shop 또는 공개 가능한 Gallery relation에 속한 active canonical master만 size·SHA 검증 후 `private, no-store`로 반환한다. build API는 revision, outbox, generation, lease, attempt나 콘텐츠를 변경하지 않으며 dev/public gateway는 이 namespace를 backend로 전달하지 않는다.
 
 매장정보는 상태나 공개 id가 없는 단일 현재값이다. `/api/admin/shop-settings`의 `GET`과 전체 `PUT`만 제공하며 최초 PUT은 `201`, 이후 PUT은 `200`이다. PostgreSQL UNIQUE/CHECK가 row를 하나로 제한하고 Hero·프로필 image/alt pair와 세 media FK를 방어한다. API는 핵심 NAP·영업시간·전화번호·HTTPS 외부 링크, nullable Hero·프로필·OG scalar media id, Hero·프로필 대체텍스트와 server-owned audit를 검증한다. non-null media는 존재하고 `active`여야 하며 관계가 나중에 archived돼도 자동 제거하지 않는다. 모든 state-changing 요청에는 관리자 session과 CSRF token이 필요하며 `PATCH`와 영구 `DELETE` endpoint는 제공하지 않는다. 실제 운영값과 실사진은 seed하지 않는다.
 
 미디어는 `/api/admin/media`의 목록·단건·private content 조회, multipart upload와 status `PUT`을 제공한다. 20 MiB source, 30 MiB stored, 12,000px, 60MP 제한을 실제 byte signature와 decoder로 검증하며 client MIME·확장자·파일명을 신뢰하지 않는다. server-owned UUID storage key와 SHA-256 무결성 metadata를 사용하고 `active | archived` row와 master file을 유지한다. original filename·storage key·filesystem path·SHA-256은 관리자 또는 build DTO에 노출하지 않는다. anonymous/public media endpoint와 physical delete는 없으며 build service만 current public relation scope의 검증된 canonical master를 읽을 수 있다.
 
-gateway routing, health, local/test bootstrap, CSRF login/me/logout, 20 MiB request 경계와 재기동 후 persistent volume을 한 번에 검증하려면 다음처럼 명시적 test credential을 process 환경으로 전달한다. 실제 운영 email/password를 사용하지 않는다.
+gateway routing, credential filesystem 격리, health, local/test bootstrap, CSRF login/me/logout, 20 MiB request 경계와 재기동 후 persistent volume을 한 번에 검증하려면 다음처럼 명시적 test credential을 process 환경으로 전달한다. script는 smoke 전용 build token을 memory에서 생성해 backend에만 전달하고 raw 값을 출력하지 않는다. 실제 운영 email/password/token을 사용하지 않는다.
 
 ```bash
 RHAOMI_BOOTSTRAP_ADMIN_ENABLED=true \
@@ -143,7 +144,7 @@ sh scripts/validate-backend-compose.sh .env.dev.local
 - 관계 대상의 상태 변경은 갤러리나 매장정보에 cascade하지 않으며 build snapshot이 published/relation/file 조건과 선택된 매장 이미지를 다시 검증한다.
 - 지원 콘텐츠 mutation은 transactional row counter로 `contentRevision`을 한 번만 전진시키고, 공개 영향 변경과 Notice·Gallery 시간 경계는 V8 typed outbox에 같은 transaction으로 기록한다.
 - V9 internal state service는 pending/due claim, transactional `publishGeneration`, active lease·owner guard, same-generation recovery/retry, typed terminal result와 lower→higher coalesce primitive를 제공한다.
-- 별도 stateless build credential과 active generation 기반 read-only snapshot·public-scope media content API를 제공하며 관리자 session이나 browser 경로와 공유하지 않는다.
+- 별도 stateless build credential과 active generation 기반 read-only snapshot·public-scope media content API를 제공하며 관리자 session이나 browser 경로와 공유하지 않는다. local frontend는 token environment뿐 아니라 `.env.dev.local`과 backend filesystem도 mount하지 않는다.
 - 실제 publisher polling loop·30초 debounce/coalesce orchestration, transformer·static build·release switch는 아직 구현되지 않았다.
 - 공개 responsive 파생본과 build transformer는 후속 Issue에서 구현한다.
 - 공개 콘텐츠 변경은 정적 사이트 재빌드·검증·원자적 교체를 유발한다.

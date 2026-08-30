@@ -3,7 +3,7 @@ title: "접근제어"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "역할·권한·인증 방식 변경 시"
 ---
 
@@ -44,7 +44,7 @@ build-time 공개 콘텐츠 조회는 [ADR-011](../09-decisions/ADR-011-transact
 - publisher transformer가 같은 status·relation·file 조건을 다시 검증한다.
 - raw storage path, DB credential, admin session과 private metadata를 노출하지 않는다.
 
-build API와 stateless credential 경계는 구현됐고 publisher·production secret provisioning은 아직 구현되지 않았다. 관리자 session을 재사용하거나 실제 token을 이 문서·저장소에 만들지 않는다.
+build API와 stateless credential 경계는 구현됐고 publisher·production secret provisioning은 아직 구현되지 않았다. local token은 backend environment에만 전달하고 frontend·gateway environment에는 key를 두지 않으며 frontend filesystem에는 `.env.dev.local`, backend source와 local secret/config를 mount하지 않는다. 관리자 session을 재사용하거나 실제 token을 이 문서·저장소에 만들지 않는다.
 
 ### Static admin client
 

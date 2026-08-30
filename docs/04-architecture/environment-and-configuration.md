@@ -3,7 +3,7 @@ title: "환경설정"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "환경변수·domain·version 변경 시"
 ---
 
@@ -42,6 +42,8 @@ production
 
 관리자 browser API base 환경변수는 만들지 않는다. `/admin/` client는 현재 origin의 상대경로 `/api/admin/**`만 사용하며 `NEXT_PUBLIC_` credential·backend host·port를 주입하지 않는다.
 
+host Compose CLI는 Git 제외 `.env.dev.local`을 interpolation source로 읽지만 frontend container는 repository root를 mount하지 않는다. frontend dependency install·runtime에는 `src`, package manifest와 Next·TypeScript config만 allowlist mount하고 `.env*`, `backend/`, local secret/config와 private runtime data를 제외한다. repository contract 검증용 `contract-check`도 actual env file 없이 명시적 tracked source만 read-only mount하고 network를 끈다.
+
 ## backend·PostgreSQL
 
 | 변수 | 비밀 | 설명 |
@@ -53,8 +55,9 @@ production
 | `SPRING_DATASOURCE_USERNAME` | Y 취급 | backend DB user |
 | `SPRING_DATASOURCE_PASSWORD` | Y | backend DB password |
 | `RHAOMI_SESSION_COOKIE_SECURE` | N | local HTTP는 `false`, production TLS는 `true` |
+| `RHAOMI_BUILD_SERVICE_TOKEN` | Y | backend-only internal build API의 64자 lowercase hex Bearer credential |
 
-Compose는 `POSTGRES_*`에서 backend의 `SPRING_DATASOURCE_*`를 내부 service hostname으로 구성한다. production에서는 운영 전용 Secret과 정확한 runtime contract를 별도 Compose에서 사용한다.
+Compose는 `POSTGRES_*`에서 backend의 `SPRING_DATASOURCE_*`를 내부 service hostname으로 구성한다. `RHAOMI_BUILD_SERVICE_TOKEN`도 backend environment에만 전달하며 frontend·gateway environment와 filesystem에는 전달하지 않는다. production에서는 운영 전용 Secret과 정확한 runtime contract를 별도 Compose에서 사용한다.
 
 ## private media
 
@@ -124,7 +127,7 @@ production release manifest에는 exact `main` SHA, image tag·digest, Flyway ve
 | `BUILD_PUBLISH_GENERATION` | N | public trigger의 monotonic sequence와 stale switch authority |
 | `BUILD_TIMESTAMP` | N | snapshot `generatedAt`, notice published·expiry 판정 기준 시각 |
 
-backend의 `RHAOMI_BUILD_SERVICE_TOKEN`과 internal read-only API는 구현됐다. token은 64자 lowercase hex만 허용하고 production 누락·형식 오류는 startup failure다. browser/frontend에는 build credential이나 `NEXT_PUBLIC_` 변수를 주입하지 않으며 dev/public Nginx가 build namespace를 차단한다. 위 `BUILD_API_INTERNAL_URL`·`BUILD_API_CREDENTIAL` 이름을 포함한 실제 publisher 주입과 production secret provisioning은 아직 구현되지 않았다.
+backend의 `RHAOMI_BUILD_SERVICE_TOKEN`과 internal read-only API는 구현됐다. token은 64자 lowercase hex만 허용하고 production 누락·형식 오류는 startup failure다. browser/frontend에는 build credential이나 `NEXT_PUBLIC_` 변수를 주입하지 않고 credential file도 mount하지 않으며 dev/public Nginx가 build namespace를 차단한다. 위 `BUILD_API_INTERNAL_URL`·`BUILD_API_CREDENTIAL` 이름을 포함한 실제 publisher 주입과 production secret provisioning은 아직 구현되지 않았다.
 
 ## Static publisher — planned
 
@@ -174,7 +177,7 @@ backup repository, key와 HomeOps 설정은 아직 생성·변경하지 않았�
 - 실제 key, password, 실사용 email 금지
 - 운영 `.env`와 credential source를 참조하지 않음
 
-현재 example에는 PostgreSQL, session cookie, 비활성 local/test bootstrap과 local-safe private media root만 둔다. planned production deploy, publisher, backup와 HomeOps secret은 implementation Issue 전까지 추가하지 않는다.
+현재 example에는 PostgreSQL, session cookie, 비활성 local/test bootstrap, 빈 backend-only build token과 local-safe private media root만 둔다. actual `.env.dev.local`은 frontend filesystem에 mount하지 않는다. planned production deploy, publisher, backup와 HomeOps secret은 implementation Issue 전까지 추가하지 않는다.
 
 ## domain — 후속
 

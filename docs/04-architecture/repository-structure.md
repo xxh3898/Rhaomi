@@ -51,6 +51,7 @@ Rhaomi/
 │   ├── validate-backend-media.mjs
 │   ├── validate-gateway.mjs
 │   ├── validate-backend-compose.sh
+│   ├── validate-frontend-credential-isolation.mjs
 │   └── validate-export.mjs
 ├── tests/                         # frontend·runtime contract
 ├── docs/
@@ -62,7 +63,7 @@ Rhaomi/
 └── README.md
 ```
 
-- `compose.dev.yaml`은 `dev-rhaomi` project와 개발 전용 network/volume만 사용한다.
+- `compose.dev.yaml`은 `dev-rhaomi` project와 개발 전용 network/volume만 사용한다. frontend는 repository root나 `.env*`를 mount하지 않고 runtime source/config allowlist만 받으며, network-disabled `contract-check`도 actual local env file 없이 tracked 검증 source만 받는다.
 - `backend/build`, `.gradle`, `.next`, `out`, `node_modules`는 생성 파일이므로 Git에 포함하지 않는다.
 - Directus runtime, schema snapshot, permission artifact와 provisioning script는 현재 구조에 없다.
 - 관리자 collection controller는 견종·서비스·공지·갤러리의 `GET`, `POST`, `PUT`을 제공한다. 매장정보 singleton은 `GET`, `PUT`, private media는 list/detail/content `GET`, upload `POST`, status `PUT`만 제공하며 모든 domain에서 `PATCH`·`DELETE`를 제공하지 않는다.
@@ -157,3 +158,4 @@ planned 경로는 관련 Issue가 구현할 때만 추가한다.
 - local과 CI가 공유하는 검증 진입점
 - GitHub Actions에 긴 shell을 중복 작성하지 않음
 - 실제 credential 출력 금지
+- frontend filesystem token 검증은 raw token 대신 SHA-256 digest를 비교하고 match된 literal을 출력하지 않음

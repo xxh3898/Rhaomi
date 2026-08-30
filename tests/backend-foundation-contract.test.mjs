@@ -20,7 +20,7 @@ test("개발 Compose를 same-origin gateway, backend와 비공개 PostgreSQL로 
   assert.match(compose, /postgres:\n/);
   assert.match(compose, /127\.0\.0\.1:8080:8080/);
   assert.match(compose, /127\.0\.0\.1:3000:3000/);
-  assert.equal((compose.match(/@sha256:/g) ?? []).length, 4);
+  assert.equal((compose.match(/@sha256:/g) ?? []).length, 5);
   assert.match(compose, /nginx:1\.31\.4-alpine3\.24@sha256:/);
   assert.match(
     backendDockerfile,
@@ -432,6 +432,48 @@ test("internal read-only build API와 service credential 경계를 고정한다"
   const backendBlock = compose.match(/\n  backend:\n([\s\S]*?)\n  postgres:/)?.[1] ?? "";
   assert.doesNotMatch(frontendBlock, /RHAOMI_BUILD_SERVICE_TOKEN|NEXT_PUBLIC/i);
   assert.match(backendBlock, /RHAOMI_BUILD_SERVICE_TOKEN/);
+});
+
+test("frontend runtime과 dependency에서 local credential filesystem을 격리한다", async () => {
+  const [compose, environmentExample, composeSmoke, isolationCheck] = await Promise.all([
+    source("compose.dev.yaml"),
+    source(".env.example"),
+    source("scripts/validate-backend-compose.sh"),
+    source("scripts/validate-frontend-credential-isolation.mjs"),
+  ]);
+
+  const frontendBlock = compose.match(/\n  frontend:\n([\s\S]*?)\n  gateway:/)?.[1] ?? "";
+  const gatewayBlock = compose.match(/\n  gateway:\n([\s\S]*?)\n  backend:/)?.[1] ?? "";
+  const backendBlock = compose.match(/\n  backend:\n([\s\S]*?)\n  postgres:/)?.[1] ?? "";
+  const contractCheckBlock =
+    compose.match(/\n  contract-check:\n([\s\S]*?)\nvolumes:/)?.[1] ?? "";
+
+  assert.doesNotMatch(frontendBlock, /- \.:\/workspace(?:\s|$)/);
+  assert.doesNotMatch(frontendBlock, /\.env|\.\/backend|RHAOMI_BUILD_SERVICE_TOKEN/i);
+  assert.match(frontendBlock, /\.\/src:\/workspace\/src:ro/);
+  assert.match(frontendBlock, /\.\/package\.json:\/workspace\/package\.json:ro/);
+  assert.match(
+    frontendBlock,
+    /validate-frontend-credential-isolation\.mjs:\/workspace\/scripts\/validate-frontend-credential-isolation\.mjs:ro/,
+  );
+  assert.doesNotMatch(gatewayBlock, /RHAOMI_BUILD_SERVICE_TOKEN|\.env/i);
+  assert.match(backendBlock, /RHAOMI_BUILD_SERVICE_TOKEN/);
+
+  assert.match(contractCheckBlock, /profiles: \["validation"\]/);
+  assert.match(contractCheckBlock, /network_mode: "none"/);
+  assert.match(contractCheckBlock, /\.\/backend\/src:\/workspace\/backend\/src:ro/);
+  assert.match(contractCheckBlock, /\.\/tests:\/workspace\/tests:ro/);
+  assert.doesNotMatch(contractCheckBlock, /- \.:\/workspace(?:\s|$)|\.env\.dev\.local/);
+  assert.doesNotMatch(contractCheckBlock, /RHAOMI_BUILD_SERVICE_TOKEN|NEXT_PUBLIC/i);
+
+  assert.match(environmentExample, /frontend container에는 이 파일을 mount하지 않습니다/);
+  assert.match(composeSmoke, /backend_token_digest/);
+  assert.match(composeSmoke, /validate-frontend-credential-isolation\.mjs/);
+  assert.match(composeSmoke, /--header @-/);
+  assert.match(isolationCheck, /Object\.hasOwn\(process\.env, "RHAOMI_BUILD_SERVICE_TOKEN"\)/);
+  assert.match(isolationCheck, /entry\.name\.startsWith\("\.env"\)/);
+  assert.match(isolationCheck, /createHash\("sha256"\)/);
+  assert.doesNotMatch(isolationCheck, /console\.log\([^)]*match\[0\]/s);
 });
 
 test("실행 경로에 Directus 설정을 남기지 않는다", async () => {

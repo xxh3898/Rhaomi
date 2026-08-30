@@ -28,6 +28,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - local/test 관리자 bootstrap
 - Actuator health
 - local Nginx same-origin `/api/**` proxy와 production `/api/admin/**` edge
+- local Compose env file과 frontend dependency/runtime mount 경계
 - PostgreSQL 연결
 - 파일 upload·native image decoder, 내부 publication recorder·claim state service·build API와 향후 publisher
 - GitHub Actions·production environment·Tailscale deploy entrypoint
@@ -74,6 +75,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | generation coalesce 역전 | 낮은 trigger가 더 새로운 공개 결과를 덮음 | source보다 큰 실제 `PROCESSING` target self-reference, same-owner active claim guard, terminal source·higher→lower 거부 |
 | self-hosted runner 악용 | Mac mini 장악 | 전용 runner scope, untrusted PR 실행 금지, 최소 권한 |
 | build credential 탈취 | private snapshot·canonical media 노출 | 256-bit token·timing-safe 비교, stateless GET allowlist, admin session 분리, active generation·public relation scope, public Nginx deny, token 비기록 |
+| frontend filesystem credential 노출 | browser build·dependency lifecycle을 통한 build token·DB/admin credential 탈취 | frontend repository-root bind 금지, source/config allowlist mount, `.env*`·backend·local secret 제외, frontend env/file·token digest Compose smoke |
 | build credential 오구성 | internal endpoint의 fail-open 또는 production 미보호 기동 | non-production 503 fail-closed, production 누락·형식 오류 startup failure, browser/public env 주입 금지 |
 | build snapshot 혼합·내부 field 노출 | 서로 다른 revision 조합 또는 private metadata 유출 | read-only REPEATABLE READ, 단일 microsecond generatedAt, exact DTO allowlist, current revision과 relation/media/file 재검증 |
 | build API state mutation | lease·attempt·콘텐츠 ordering 오염 | GET-only chain, 모든 mutation deny, read-only transaction, 전후 publication state integration test |

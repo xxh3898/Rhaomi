@@ -248,6 +248,10 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 - exact service/image와 config validation
 - exact Nginx tag/digest와 `127.0.0.1:3000` gateway-only browser bind
 - frontend host port 부재와 gateway/PostgreSQL network 비공유
+- frontend repository-root bind와 `.env.dev.local` 부재, source/config read-only allowlist mount
+- frontend·gateway environment의 `RHAOMI_BUILD_SERVICE_TOKEN` 부재와 frontend `/workspace`의 backend token literal digest match 0건
+- backend environment token digest 일치, raw token 비출력, backend loopback valid Bearer의 인증 단계 통과와 gateway same Bearer 404
+- network-disabled `contract-check`의 actual env file 부재와 repository-wide frontend contract 검증
 - exact Temurin 25 image의 Java 25 `bootRun` 확인
 - gateway/frontend/backend/PostgreSQL health
 - backend loopback bind와 PostgreSQL host port 부재
