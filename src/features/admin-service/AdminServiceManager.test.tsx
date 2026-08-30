@@ -171,7 +171,7 @@ describe("AdminServiceManager", () => {
         .getAllByRole("listitem")
         .map((item) => within(item).getByRole("heading", { level: 3 }).textContent),
     ).toEqual(canonicalList.map((item) => item.name));
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("optional description과 자유 텍스트 priceText blank를 null로 전송한다", async () => {
@@ -280,7 +280,7 @@ describe("AdminServiceManager", () => {
         .getAllByRole("listitem")
         .map((item) => within(item).getByRole("heading", { level: 3 }).textContent),
     ).toEqual(canonicalList.map((item) => item.name));
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("create 뒤 canonical GET reject 후 warning과 trigger focus를 복구하고 explicit refresh도 허용한다", async () => {
@@ -325,7 +325,7 @@ describe("AdminServiceManager", () => {
       "저장은 완료됐지만 목록 순서를 새로고침하지 못했습니다",
     );
     await waitFor(() => expect(trigger).toBeEnabled());
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
     expect(screen.getByText("basic-grooming")).toBeInTheDocument();
     expect(screen.queryByText(/서비스를 생성하지 못했습니다/)).not.toBeInTheDocument();
     expect(requestJsonMutation).toHaveBeenCalledTimes(1);

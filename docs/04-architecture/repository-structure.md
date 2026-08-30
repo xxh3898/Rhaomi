@@ -3,7 +3,7 @@ title: "저장소 구조"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "module·배포 구조 변경 시"
 ---
 
@@ -11,7 +11,7 @@ review_trigger: "module·배포 구조 변경 시"
 
 기존 Next.js source를 이동하지 않고 repository root에 `backend/`를 추가한다.
 
-## Phase 1C-7 현재 구조
+## Phase 1C-8f1 현재 구조
 
 ```text
 Rhaomi/
@@ -35,10 +35,11 @@ Rhaomi/
 │   │   ├── gallery/               # 갤러리 CRUD·관계·게시 검증 domain/API
 │   │   ├── notice/                # 공지 관리 domain/API와 게시·기간 검증
 │   │   ├── media/                 # private upload·HEIC 정규화·storage domain/API
+│   │   ├── publication/           # transactional revision allocator·typed outbox recorder
 │   │   ├── service/               # 미용 서비스 관리 domain/API
 │   │   └── shop/                  # 매장정보 singleton·media relation domain/API와 검증
 │   ├── src/main/resources/
-│   │   ├── db/migration/          # Flyway V1~V7, V7 shop media relation
+│   │   ├── db/migration/          # Flyway V1~V8, V8 revision·publishing outbox
 │   │   └── application.yml
 │   ├── src/test/                  # PostgreSQL auth·콘텐츠·media·gallery·shop relation 계약
 │   └── Dockerfile.dev             # exact Java 25 + libheif runtime
@@ -64,9 +65,10 @@ Rhaomi/
 - `backend/build`, `.gradle`, `.next`, `out`, `node_modules`는 생성 파일이므로 Git에 포함하지 않는다.
 - Directus runtime, schema snapshot, permission artifact와 provisioning script는 현재 구조에 없다.
 - 관리자 collection controller는 견종·서비스·공지·갤러리의 `GET`, `POST`, `PUT`을 제공한다. 매장정보 singleton은 `GET`, `PUT`, private media는 list/detail/content `GET`, upload `POST`, status `PUT`만 제공하며 모든 domain에서 `PATCH`·`DELETE`를 제공하지 않는다.
-- `/admin/`은 인증 상태·로그인·로그아웃과 disabled 관리 영역만 제공한다. 실제 콘텐츠 CRUD component와 route는 아직 없다.
+- `/admin/`은 인증 상태·로그인·로그아웃과 매장정보·미디어·견종·서비스·갤러리·공지 관리 component를 same-page Static Export shell에서 제공한다.
 - `src/features/admin-auth`는 relative `/api/admin/**`, same-origin credential, GET no-store, response shape와 고정 오류 mapping을 한 경계에서 처리한다.
 - `infra/nginx/dev.conf`는 local 개발 전용이며 production Nginx·TLS 설정이 아니다.
+- `backend/.../publication`은 domain transaction 밖에서 호출할 수 없는 `MANDATORY` recorder다. 새 HTTP controller나 범용 application event framework를 제공하지 않는다.
 
 ## 전체 제품 목표 구조 — planned
 
@@ -113,6 +115,7 @@ planned 경로는 관련 Issue가 구현할 때만 추가한다.
 - controller는 entity를 직접 response로 반환하지 않는다.
 - 관리자 request DTO는 명시적 field allowlist를 사용한다.
 - 인증·인가·domain·persistence 경계를 package로 구분하되 불필요한 layer를 만들지 않는다.
+- publication recorder는 최종 domain persistence와 같은 transaction에서 한 mutation당 한 번만 호출한다.
 - password hash, session id와 credential을 log에 남기지 않는다.
 
 ### `backend/src/main/resources/db/migration`

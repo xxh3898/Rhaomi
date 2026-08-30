@@ -172,13 +172,21 @@ review_trigger: "관리 API·build 입력 변경 시"
 - media request의 401은 in-memory CSRF와 dashboard state를 제거하고 login 화면으로 돌아간다. mutation 403은 CSRF를 폐기하고 다음 사용자 action에서만 fresh token을 준비한다.
 - UI 오류 문구는 allowlisted status/code로 소유하며 backend raw message·exception detail을 출력하지 않는다.
 
-## publisher event — planned
+## publication producer — current
 
-- 공개 영향 콘텐츠 transaction은 same-transaction immediate publishing event를 기록한다.
-- notice create/update/publish transaction이 미래 `publishedAt` 또는 `expiresAt`을 만들면 같은 PostgreSQL transaction에 각 boundary의 durable scheduled event를 기록한다.
-- scheduled event는 최소 event kind, `availableAt` 또는 동등한 `notBefore`, notice ID, event 생성 시점의 current notice/content revision과 boundary 값을 가진다.
-- publisher는 immediate pending event와 `availableAt <= now` event를 처리하고 restart 뒤 overdue event를 다시 claim한다.
-- 처리 시 event payload를 public authority로 사용하지 않고 current notice row와 전체 build snapshot을 다시 검증한다. reschedule, draft·archived 전환 또는 window 변경으로 stale이면 no-op하거나 최신 pending generation에 합친다.
+- Flyway V8의 transactional singleton row가 지원 콘텐츠 mutation 성공 1회당 `contentRevision`을 정확히 한 번 증가시킨다. PostgreSQL sequence를 authority로 사용하지 않아 rollback된 mutation은 revision을 소비하지 않는다.
+- ShopSettings 모든 PUT, published 진입·수정·이탈 Breed·Service·Notice·Gallery, Media archive/restore는 같은 revision의 `CONTENT_CHANGED`를 기록한다. draft-only create/update와 Media upload는 revision만 증가한다.
+- Notice create/update가 non-null `publishedAt` 또는 `expiresAt`을 새로 설정·변경하면 status·현재 시각과 무관하게 해당 boundary의 typed scheduled event를 기록한다.
+- Gallery가 published로 진입하거나 published 상태에서 non-null `publishedAt`을 변경하면 `GALLERY_PUBLISHED_AT_DUE`를 기록한다.
+- scheduled event는 `sourceType`, `sourceId`, `contentRevision`, `availableAt`, `expectedBoundaryAt`을 typed column으로 보존하고 `availableAt = expectedBoundaryAt`을 DB constraint로 강제한다.
+- reschedule·boundary 제거·draft/archive 전환 시 old row를 삭제하지 않는다. 후속 consumer가 current row와 snapshot을 다시 확인하는 stale no-op 계약을 유지한다.
+- content·revision·outbox insert는 같은 PostgreSQL transaction에서 commit/rollback된다. 새 HTTP endpoint, response field, credential이나 public route는 없다.
+
+## publisher consumer — planned
+
+- publisher는 immediate pending event와 `availableAt <= now` event를 claim하고 restart 뒤 overdue event를 복구한다.
+- 처리 시 event 값을 public authority로 사용하지 않고 current Notice·Gallery row와 전체 build snapshot을 다시 검증한다. reschedule, draft·archived 전환 또는 boundary 변경으로 stale이면 no-op하거나 최신 pending generation에 합친다.
+- claim/lease, attempt/result, `publishGeneration`, debounce/coalesce와 retry state는 후속 Issue에서 구현한다.
 
 ## build API — planned
 

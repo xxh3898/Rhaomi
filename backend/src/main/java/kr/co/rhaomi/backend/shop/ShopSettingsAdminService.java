@@ -7,6 +7,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import kr.co.rhaomi.backend.media.MediaAssetRepository;
 import kr.co.rhaomi.backend.media.MediaStatus;
+import kr.co.rhaomi.backend.publication.PublicationRecorder;
+import kr.co.rhaomi.backend.publication.PublicationSourceType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,12 +17,15 @@ public class ShopSettingsAdminService {
 
     private final ShopSettingsRepository shopSettingsRepository;
     private final MediaAssetRepository mediaAssetRepository;
+    private final PublicationRecorder publicationRecorder;
 
     public ShopSettingsAdminService(
             ShopSettingsRepository shopSettingsRepository,
-            MediaAssetRepository mediaAssetRepository) {
+            MediaAssetRepository mediaAssetRepository,
+            PublicationRecorder publicationRecorder) {
         this.shopSettingsRepository = shopSettingsRepository;
         this.mediaAssetRepository = mediaAssetRepository;
+        this.publicationRecorder = publicationRecorder;
     }
 
     @Transactional(readOnly = true)
@@ -39,12 +44,16 @@ public class ShopSettingsAdminService {
 
         if (existing.isEmpty()) {
             var created = shopSettingsRepository.saveAndFlush(ShopSettings.create(values, actorId));
+            publicationRecorder.record(
+                    PublicationSourceType.SHOP_SETTINGS, created.getId(), true);
             return new PutResult(ShopSettingsResponse.from(created), true);
         }
 
         var settings = existing.orElseThrow();
         settings.update(values, actorId);
         var updated = shopSettingsRepository.saveAndFlush(settings);
+        publicationRecorder.record(
+                PublicationSourceType.SHOP_SETTINGS, updated.getId(), true);
         return new PutResult(ShopSettingsResponse.from(updated), false);
     }
 

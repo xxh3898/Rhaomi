@@ -3,7 +3,7 @@ title: "ADR-003: 콘텐츠 변경 시 정적 재빌드"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "콘텐츠 반영 방식 변경 시"
 ---
 
@@ -19,7 +19,9 @@ review_trigger: "콘텐츠 반영 방식 변경 시"
 
 ## 결정
 
-공개 결과에 영향을 주는 콘텐츠 변경과 publishing outbox를 같은 PostgreSQL transaction에 기록한다. 미래 게시·만료 경계를 가진 notice는 저장 transaction에서 durable scheduled publishing event도 함께 기록한다. single internal publisher는 immediate pending event와 due scheduled event를 처리해 현재 승인된 production code image/digest로 정적 사이트를 다시 생성한다. outbox, build API와 publisher는 후속 Issue에서 구현한다.
+공개 결과에 영향을 주는 콘텐츠 변경과 publishing outbox를 같은 PostgreSQL transaction에 기록한다. 새로 설정·변경된 게시·만료 경계를 가진 Notice와 published Gallery 게시 경계는 저장 transaction에서 durable scheduled publishing event도 함께 기록한다. single internal publisher는 immediate pending event와 due scheduled event를 처리해 현재 승인된 production code image/digest로 정적 사이트를 다시 생성한다.
+
+현재 Phase 1C-8f1은 Flyway V8 transactional `contentRevision`과 immediate·Notice/Gallery scheduled outbox producer까지 구현했다. claim/lease·`publishGeneration`, build API와 publisher는 후속 Issue다.
 
 ```text
 Spring Boot content transaction
@@ -36,8 +38,8 @@ Spring Boot content transaction
 
 - build API와 publisher는 외부 공개하지 않음
 - 관리자 session과 분리된 read-only service credential
-- future `publishedAt`·`expiresAt`의 durable `availableAt` event와 restart 후 overdue 처리
-- scheduled event 처리 시 current notice row·snapshot 재검증과 stale no-op/coalesce
+- Notice `publishedAt`·`expiresAt`, Gallery `publishedAt`의 durable `availableAt` event와 restart 후 overdue 처리
+- scheduled event 처리 시 current Notice·Gallery row·snapshot 재검증과 stale no-op/coalesce
 - 콘텐츠 mutation `contentRevision`과 public trigger `publishGeneration` 분리
 - 30초 debounce
 - global build lock

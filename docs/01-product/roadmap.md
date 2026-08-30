@@ -165,9 +165,33 @@ Phase 1C-8d는 실제 갤러리 seed, 공개 responsive image·갤러리 렌더�
 
 Phase 1C-8e는 실제 공지 seed, 공개 공지 route·Markdown sanitize/rendering, scheduler·polling·자동 상태 전환, build API/publisher, 실제 iPhone Safari·VoiceOver나 운영 배포의 완료를 의미하지 않는다.
 
-### Phase 1C-8f 이후 — 나머지 콘텐츠 기능
+### Phase 1C-8f1 — 콘텐츠 revision·publishing outbox producer 기반
 
-- build-time read-only API와 credential 분리
+- Flyway V8 `content_revision_state` singleton과 typed `publishing_outbox`
+- 지원 콘텐츠 mutation 성공 1회당 transactional row 기반 `contentRevision` 정확히 1회 증가
+- Shop·Breed·Service·Notice·Gallery·Media의 공개 영향 immediate trigger 분류
+- Notice `publishedAt`·`expiresAt`과 published Gallery `publishedAt`의 durable scheduled event
+- validation·DB·outbox failure의 content/revision/event rollback과 media final file orphan cleanup
+- PostgreSQL 동시 allocator·rollback·V1~V7→V8·clean V1→V8 계약 테스트
+
+Phase 1C-8f1은 producer side foundation만 구현한다. outbox claim/lease, `publishGeneration`, build API·service credential, snapshot transformer, static publisher와 공개 반영은 포함하지 않는다.
+
+### Phase 1C-8f2 — internal claim·publishGeneration state machine
+
+- pending/due event claim·lease와 restart 후 overdue recovery
+- trigger별 monotonic `publishGeneration`과 attempt/result 상태
+- stale scheduled event no-op, debounce/coalesce와 retry ordering
+
+### Phase 1C-8f3 — internal read-only build API·service credential
+
+- 관리자 session과 분리된 internal read-only namespace·credential
+- 일관된 `contentRevision`·`publishGeneration`·`generatedAt` snapshot
+- published·relation·media/file 이중 검증과 모든 mutation/public route 거부
+
+### Phase 1C-8f 후속 — transformer·publisher와 샘플 콘텐츠
+
+- 공개 image derivative와 content transformer
+- single static publisher, validation과 atomic switch
 - 샘플 콘텐츠
 
 ### Phase 1D — Production 운영 아키텍처 계약
@@ -197,7 +221,7 @@ Phase 1D는 문서·계약 확정만 의미한다. 실제 Mac directory ownershi
 - content snapshot
 - 이미지 최적화 파생본
 - 정적 route 생성
-- backend 콘텐츠 transaction과 같은 PostgreSQL transaction의 immediate·future notice boundary publishing event
+- backend 콘텐츠 transaction과 같은 PostgreSQL transaction의 immediate event와 Notice 게시·만료·Gallery 게시 boundary event
 - `contentRevision`·`publishGeneration`, overdue recovery와 30초 debounce를 처리하는 단일 internal publisher
 - internal read-only build API와 build transformer 이중 검증
 - `publishGeneration` 기준 원자적 배포·rollback

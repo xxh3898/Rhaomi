@@ -4,6 +4,8 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import kr.co.rhaomi.backend.publication.PublicationRecorder;
+import kr.co.rhaomi.backend.publication.PublicationSourceType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -15,14 +17,17 @@ public class MediaAdminService {
     private final MediaAssetRepository mediaAssetRepository;
     private final MediaStorage mediaStorage;
     private final MediaImageProcessor mediaImageProcessor;
+    private final PublicationRecorder publicationRecorder;
 
     public MediaAdminService(
             MediaAssetRepository mediaAssetRepository,
             MediaStorage mediaStorage,
-            MediaImageProcessor mediaImageProcessor) {
+            MediaImageProcessor mediaImageProcessor,
+            PublicationRecorder publicationRecorder) {
         this.mediaAssetRepository = mediaAssetRepository;
         this.mediaStorage = mediaStorage;
         this.mediaImageProcessor = mediaImageProcessor;
+        this.publicationRecorder = publicationRecorder;
     }
 
     @Transactional(readOnly = true)
@@ -77,6 +82,7 @@ public class MediaAdminService {
                     processed.height(),
                     processed.sha256());
             var asset = mediaAssetRepository.saveAndFlush(MediaAsset.create(assetId, stored, actorId));
+            publicationRecorder.record(PublicationSourceType.MEDIA_ASSET, asset.getId(), false);
             return MediaResponse.from(asset);
         } catch (RuntimeException exception) {
             if (storageKey != null) {
@@ -98,7 +104,9 @@ public class MediaAdminService {
         Objects.requireNonNull(actorId, "actorId");
         var asset = find(id);
         asset.changeStatus(status, actorId);
-        return MediaResponse.from(mediaAssetRepository.saveAndFlush(asset));
+        var saved = mediaAssetRepository.saveAndFlush(asset);
+        publicationRecorder.record(PublicationSourceType.MEDIA_ASSET, saved.getId(), true);
+        return MediaResponse.from(saved);
     }
 
     private MediaAsset find(UUID id) {

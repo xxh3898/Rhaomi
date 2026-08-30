@@ -259,6 +259,52 @@ test("갤러리 V6와 관계 상태 검증 관리자 API 계약을 고정한다"
   assert.doesNotMatch(response, /storageKey|sha256|MediaAsset|\bBreed\b|GroomingService/);
 });
 
+test("V8 transactional revision과 typed publishing outbox producer를 고정한다", async () => {
+  const [migration, recorder, eventKinds, noticeService, galleryService, mediaService] =
+    await Promise.all([
+      source(
+        "backend/src/main/resources/db/migration/V8__create_content_revision_and_publishing_outbox.sql",
+      ),
+      source(
+        "backend/src/main/java/kr/co/rhaomi/backend/publication/PublicationRecorder.java",
+      ),
+      source(
+        "backend/src/main/java/kr/co/rhaomi/backend/publication/PublicationEventKind.java",
+      ),
+      source("backend/src/main/java/kr/co/rhaomi/backend/notice/NoticeAdminService.java"),
+      source("backend/src/main/java/kr/co/rhaomi/backend/gallery/GalleryAdminService.java"),
+      source("backend/src/main/java/kr/co/rhaomi/backend/media/MediaAdminService.java"),
+    ]);
+
+  assert.match(migration, /CREATE TABLE content_revision_state/);
+  assert.match(migration, /CREATE TABLE publishing_outbox/);
+  assert.match(migration, /content_revision BIGINT NOT NULL/);
+  assert.match(migration, /available_at TIMESTAMP\(6\) WITH TIME ZONE NOT NULL/);
+  assert.match(migration, /expected_boundary_at TIMESTAMP\(6\) WITH TIME ZONE/);
+  assert.match(migration, /CONSTRAINT ck_publishing_outbox_boundary CHECK/);
+  assert.match(migration, /CONSTRAINT ck_publishing_outbox_source_kind CHECK/);
+  assert.match(migration, /ON publishing_outbox \(available_at, id\)/);
+  assert.match(migration, /ON publishing_outbox \(content_revision\)/);
+  assert.doesNotMatch(migration, /CREATE SEQUENCE|processing|claim_owner|publish_generation/i);
+
+  assert.match(recorder, /Propagation\.MANDATORY/);
+  assert.match(
+    recorder,
+    /SET content_revision = content_revision \+ 1[\s\S]*?RETURNING content_revision/,
+  );
+  assert.match(recorder, /CURRENT_TIMESTAMP, NULL/);
+  assert.doesNotMatch(recorder, /EventListener|Controller/);
+  assert.match(eventKinds, /NOTICE_PUBLISHED_AT_DUE/);
+  assert.match(eventKinds, /NOTICE_EXPIRES_AT_DUE/);
+  assert.match(eventKinds, /GALLERY_PUBLISHED_AT_DUE/);
+  assert.match(noticeService, /changedBoundaries\(beforePublishedAt, beforeExpiresAt, saved\)/);
+  assert.match(galleryService, /GALLERY_PUBLISHED_AT_DUE/);
+  assert.match(
+    mediaService,
+    /mediaAssetRepository\.saveAndFlush[\s\S]*?publicationRecorder\.record/,
+  );
+});
+
 test("실행 경로에 Directus 설정을 남기지 않는다", async () => {
   const runtimeFiles = await Promise.all([
     source("compose.dev.yaml"),
