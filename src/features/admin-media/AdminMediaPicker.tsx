@@ -12,6 +12,8 @@ export type AdminMediaPickerState =
   | Readonly<{ kind: "error" }>
   | Readonly<{ kind: "ready"; items: readonly MediaItem[] }>;
 
+export type AdminMediaSelectionPolicy = "active-only" | "all-existing";
+
 type AdminMediaPickerProps = Readonly<{
   api: AdminMediaApi;
   id: string;
@@ -19,6 +21,7 @@ type AdminMediaPickerProps = Readonly<{
   state: AdminMediaPickerState;
   selectedId: string | null;
   disabled: boolean;
+  selectionPolicy?: AdminMediaSelectionPolicy;
   initialFocusRef?: Ref<HTMLButtonElement>;
   onSelect: (id: string | null) => void;
   onRetry: () => void;
@@ -33,6 +36,7 @@ export function AdminMediaPicker({
   state,
   selectedId,
   disabled,
+  selectionPolicy = "active-only",
   initialFocusRef,
   onSelect,
   onRetry,
@@ -40,9 +44,11 @@ export function AdminMediaPicker({
   onSessionExpired,
 }: AdminMediaPickerProps) {
   const titleId = `${id}-title`;
-  const activeItems =
+  const selectableItems =
     state.kind === "ready"
-      ? state.items.filter((item) => item.status === "active")
+      ? state.items.filter(
+          (item) => selectionPolicy === "all-existing" || item.status === "active",
+        )
       : [];
 
   function select(idValue: string | null) {
@@ -71,8 +77,9 @@ export function AdminMediaPicker({
       </div>
 
       <p className={styles.help}>
-        활성 미디어만 새 관계로 선택할 수 있습니다. 새 파일은 미디어 관리에서 먼저
-        업로드해 주세요.
+        {selectionPolicy === "active-only"
+          ? "활성 미디어만 새 관계로 선택할 수 있습니다. 새 파일은 미디어 관리에서 먼저 업로드해 주세요."
+          : "활성·보관 미디어를 관계로 선택할 수 있습니다. 게시 전에는 활성 미디어로 교체해 주세요."}
       </p>
 
       {state.kind === "loading" ? (
@@ -102,14 +109,15 @@ export function AdminMediaPicker({
             없음 — 현재 이미지 관계 해제
           </button>
 
-          {activeItems.length === 0 ? (
+          {selectableItems.length === 0 ? (
             <p className={styles.state}>
-              선택할 수 있는 활성 미디어가 없습니다. 미디어 관리에서 먼저 업로드하거나
-              복구해 주세요.
+              {selectionPolicy === "active-only"
+                ? "선택할 수 있는 활성 미디어가 없습니다. 미디어 관리에서 먼저 업로드하거나 복구해 주세요."
+                : "선택할 수 있는 미디어가 없습니다. 미디어 관리에서 먼저 업로드해 주세요."}
             </p>
           ) : (
             <ul className={styles.grid}>
-              {activeItems.map((item, index) => (
+              {selectableItems.map((item, index) => (
                 <li key={item.id}>
                   <AdminMediaPreview
                     api={api}
@@ -118,7 +126,9 @@ export function AdminMediaPicker({
                     onSessionExpired={onSessionExpired}
                   />
                   <div className={styles.cardBody}>
-                    <span>활성 · {item.contentType}</span>
+                    <span>
+                      {item.status === "active" ? "활성" : "보관됨"} · {item.contentType}
+                    </span>
                     <code>{item.id}</code>
                     <button
                       type="button"

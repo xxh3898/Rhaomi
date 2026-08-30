@@ -472,6 +472,35 @@ describe("DefaultAdminAuthClient", () => {
     },
   );
 
+  it.each([
+    [404, "GALLERY_ITEM_NOT_FOUND", "gallery-item-not-found"],
+    [422, "GALLERY_RELATION_INVALID", "gallery-relation-invalid"],
+    [422, "GALLERY_PUBLISH_INVALID", "gallery-publish-invalid"],
+  ] as const)(
+    "gallery status %i와 allowlisted code %s를 %s로 매핑한다",
+    async (status, code, kind) => {
+      const fetcher = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({ headerName: "X-CSRF-TOKEN", token: "session-csrf" }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({ code, message: "backend raw gallery detail" }, status),
+        );
+      const client = new DefaultAdminAuthClient({ fetcher });
+
+      await expect(
+        client.requestJsonMutation(
+          "/api/admin/gallery-items/d64047ee-93fe-4f87-949f-493d47ad6ee4",
+          "PUT",
+          { status: "published" },
+          acceptsRecord,
+        ),
+      ).rejects.toEqual(new AdminApiError(kind));
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    },
+  );
+
   it.each([200, 201])("JSON mutation의 %i success response를 검증한다", async (status) => {
     const fetcher = vi
       .fn()

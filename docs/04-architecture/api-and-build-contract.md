@@ -97,6 +97,17 @@ review_trigger: "관리 API·build 입력 변경 시"
 - 관계 대상의 후속 상태 변경은 gallery status·relation을 cascade하지 않는다. 후속 public snapshot이 publishedAt 도래, relation status와 master/파생 file 유효성을 다시 확인한다.
 - 모든 validation·relation 실패는 mutation 전에 종료해 기존 row와 created/updated audit 전체를 보존한다. DB/repository 장애는 내부 constraint·path·SQL detail 없는 generic `5xx`다.
 
+현재 `/admin/` 갤러리 client는 같은 계약을 다음처럼 소비한다.
+
+- strict adapter는 response exact key, UUID·status·boolean·0 이상 sortOrder·nullable text·ISO Instant·audit를 검증하고 relation 객체나 storage metadata가 섞인 응답을 거부한다.
+- 초기·명시적 목록 GET은 backend 배열을 재정렬하지 않고 그대로 사용한다. create/update 성공 response를 해당 item의 canonical state로 먼저 적용한 뒤 post-mutation GET으로 전체 server ordering을 다시 획득한다.
+- POST는 status를 보내지 않고 빈 선택값과 sortOrder를 `null`로 보내 backend draft·default authority를 유지한다. PUT은 status와 nullable key를 포함한 mutable field 전체를 정확히 한 번 전송하며 id·actor·audit를 포함하지 않는다.
+- breed·service·media catalog는 Gallery 목록과 독립적으로 로드한다. draft·archived 편집에서는 존재하는 모든 상태의 관계를 선택할 수 있고 published 목표에서는 게시된 breed/service와 active media만 유효하다고 안내하되 backend를 최종 authority로 유지한다.
+- cover/before/after picker는 관계 control 바로 아래에 한 개만 열고 active·archived private media를 상태와 함께 표시한다. authenticated Blob preview의 object URL을 교체·unmount에서 revoke한다.
+- performedAt·publishedAt은 local datetime input으로 편집한다. 변경하지 않은 canonical microsecond Instant는 full PUT에서 보존하고 변경값과 성공 response는 backend 정규화 결과를 canonical state로 사용한다.
+- mutation 전 이전 GET sequence를 무효화하고 post-mutation GET을 현재 generation authority로 삼는다. 후속 GET 실패는 저장 실패로 바꾸지 않으며 warning·explicit refresh를 제공하고 mutation을 자동 재전송하지 않는다.
+- `GALLERY_ITEM_NOT_FOUND`, `GALLERY_RELATION_INVALID`, `GALLERY_PUBLISH_INVALID`만 frontend-owned 문구로 표시하고 raw backend detail을 노출하지 않는다. 401은 session expiry로 위임하고 403·network·5xx는 자동 retry하지 않는다.
+
 ### 매장정보 singleton
 
 - `shop_settings`에는 status와 공개 id가 없으며 URL에도 DB id를 사용하지 않는다.

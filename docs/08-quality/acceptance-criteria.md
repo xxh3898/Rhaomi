@@ -120,7 +120,7 @@ review_trigger: "제품 기능 변경 시"
 
 **Given** 인증된 운영자가 `/admin/` 관리 홈을 열었을 때
 
-**Then** 매장정보·미디어·견종·서비스는 사용 가능하고 갤러리·공지는 준비 중으로 표시된다.
+**Then** 매장정보·갤러리·미디어·견종·서비스는 사용 가능하고 공지만 준비 중으로 표시된다.
 
 **When** 운영자가 새 견종 또는 서비스를 만들면
 
@@ -147,3 +147,29 @@ review_trigger: "제품 기능 변경 시"
 **Given** 항목이 archived일 때
 
 **Then** 삭제된 것으로 표현하지 않고 draft 또는 published로 복구할 수 있으며 영구 삭제 action은 제공하지 않는다.
+
+## AC-15 관리자 갤러리 콘텐츠·관계 편집
+
+**Given** 인증된 운영자가 `/admin/` 관리 홈을 열었을 때
+
+**Then** 갤러리는 사용 가능하고 공지만 준비 중으로 표시되며 같은 page state에서 관리 홈으로 복귀할 수 있다.
+
+**When** 운영자가 갤러리 초안을 생성하거나 기존 항목을 수정하면
+
+**Then** 생성은 status 없이 POST 한 번, 수정은 status와 nullable key를 포함한 mutable field 전체를 PUT 한 번 보내고 성공 response 적용 뒤 GET list의 server ordering을 그대로 사용한다.
+
+**Given** draft 또는 archived 항목을 편집할 때
+
+**Then** 존재하는 모든 상태의 견종·서비스와 active·archived media를 상태와 함께 선택할 수 있고 cover는 before/after와 재사용할 수 있지만 before와 after는 같을 수 없다.
+
+**When** published 상태로 저장할 때
+
+**Then** 게시된 견종·서비스, active cover와 선택한 before/after, 사실 기반 alt text와 publishedAt을 요구하고 backend의 관계·게시 검증을 최종 authority로 유지한다.
+
+**Given** 저장은 성공했지만 후속 canonical GET이 실패했을 때
+
+**Then** 저장 실패로 표시하거나 mutation을 자동 재전송하지 않고 warning과 explicit refresh를 제공하며 목록이 ready가 된 뒤 enabled 원 trigger로 focus를 복귀한다.
+
+**Given** keyboard 사용자가 cover·before·after picker를 열었을 때
+
+**Then** 해당 relation 바로 아래의 picker 하나로 focus가 이동하고 닫기·선택 뒤 원 trigger로 복귀하며 private Blob preview object URL은 교체·unmount에서 폐기된다.

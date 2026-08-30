@@ -18,7 +18,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - 모바일 문의·검색 metadata 보호
 - 배포 실패 시 기존 사이트 보호
 
-## 현재 Phase 1C-8c 자동 검증
+## 현재 Phase 1C-8d 자동 검증
 
 ### Frontend
 
@@ -37,7 +37,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - logout 204/401/403, mutation non-retry와 authenticated API 401 session-expired 처리
 - visible label/autocomplete, Enter, pending 중복 방지, live alert, password focus, retry와 identity
 - browser storage·URL·log credential/token 비저장 정적 검사
-- 매장정보·미디어·견종·서비스가 enabled이고 갤러리·공지만 disabled인 dashboard navigation과 same-page 관리 홈 복귀
+- 매장정보·갤러리·미디어·견종·서비스가 enabled이고 공지만 disabled인 dashboard navigation과 same-page 관리 홈 복귀
 - media list loading/ready/empty/error/refreshing, server ordering 유지와 active/archived client filter
 - private image Blob GET의 JPEG/PNG 검증, bounded lazy fetch와 object URL refresh/unmount revoke
 - 단일 multipart `file`, 20 MiB client 차단, pending double-submit 차단과 success file state clear
@@ -63,6 +63,16 @@ review_trigger: "기술·기능 범위 변경 시"
 - create/edit 첫 input focus와 취소 즉시 trigger 복귀, 성공 뒤 post-mutation GET pending 중 focus ref 보존 및 resolve/reject로 `ready` 복귀한 enabled trigger/item action에만 focus 복귀, pending ref의 중복 POST/PUT 방지와 pre-mutation stale GET·post-mutation generation 경쟁 차단
 - 401 session callback, 403/network/5xx mutation non-retry와 frontend-owned error 문구·raw detail 비노출
 - 320px CSS, 44px control, keyboard native control, aria status/alert/pressed와 archived text state
+- Gallery exact relative list/detail/POST/PUT path, strict response key·UUID·status·nullable text·Instant·audit 검증과 internal/relation object field 거부
+- Gallery loading/ready/empty/error/refreshing, locale comparator 없는 backend `featured, sortOrder, publishedAt, id` 배열 순서 보존
+- always-draft POST와 nullable/default 변환, status·관계·text·featured·sortOrder·timestamp 전체 PUT, unchanged microsecond Instant 보존과 canonical response 적용
+- create/update 성공 뒤 post-mutation GET ordering, 저장 성공과 후속 GET 실패 분리·explicit refresh, pre-mutation stale GET·pending 중복 mutation 차단
+- Gallery 목록과 breed/service/media catalog 독립 load/error/retry, 관계 오류 중 기존 card 보존과 mutation gate
+- draft/archived의 모든 상태 existing relation·active/archived media 선택, published의 published breed/service·active media·altText·publishedAt 안내와 backend 최종 authority
+- cover=before/after 허용, before=after 상태 무관 차단, archived/missing relation의 상태 text와 clear/replace
+- cover/before/after relation 인접 all-existing single picker, Enter open·첫 control focus·close/selection trigger 복귀와 private Blob object URL revoke
+- `GALLERY_ITEM_NOT_FOUND`, `GALLERY_RELATION_INVALID`, `GALLERY_PUBLISH_INVALID` fixed mapping, 401 callback과 403/network/5xx non-retry·raw detail 비노출
+- Gallery create/edit 취소 즉시 focus, 성공 뒤 canonical GET resolve/reject로 ready가 된 enabled trigger focus, archive/restore와 delete action 부재
 
 ### Backend unit
 
@@ -248,7 +258,7 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 - 홈 → 공지 → 상세 → 홈
 - map/phone/external CTA
 - mobile sticky CTA, 404, keyboard only
-- `/admin` 갤러리·공지 form/list와 gallery relation picker
+- `/admin` 공지 form/list
 - axe, heading/landmark/focus/dialog/contrast/reflow/reduced motion
 - 실제 iPhone Safari HEIC photo-library upload와 session cookie·object URL 동작
 
