@@ -157,7 +157,7 @@ review_trigger: "관리 API·build 입력 변경 시"
 - JPEG·PNG는 검증 원본 byte, HEIC·HEIF는 orientation 적용·sRGB 변환·metadata 제거 뒤 quality 92 JPEG master로 저장한다.
 - source 20 MiB, stored 30 MiB, 폭·높이 12,000px, 총 60MP 제한을 application과 DB 역할에 맞게 강제한다.
 - response는 id, status, source/stored content type, source/stored byte size, display dimension과 actor/audit만 반환한다. original filename, storage key, filesystem path, extension, SHA-256은 반환하지 않는다.
-- update DTO는 status 하나만 허용한다. `PATCH`, `DELETE`, public read와 `/api/build/**` media endpoint는 없다.
+- update DTO는 status 하나만 허용한다. `PATCH`, `DELETE`와 anonymous public read는 없다. 별도 build principal의 `/api/build/media/{id}/content`는 current public relation scope만 읽으며 관리자 media endpoint 권한을 재사용하지 않는다.
 - validation·normalization 실패 시 temp·final·DB orphan을 남기지 않고, DB rollback/commit 실패 시 이동한 final master를 transaction completion에서 제거한다.
 
 오류는 missing/empty/malformed/unknown field `400 INVALID_REQUEST`, source 초과 `413 MEDIA_TOO_LARGE`, unsupported byte·AVIF 또는 명시 MIME·extension 충돌 `415 MEDIA_TYPE_UNSUPPORTED`, 손상·decode 불가·APNG·multi-image/sequence·dimension/pixel/output limit `422 MEDIA_INVALID_IMAGE`, 없는 id `404 MEDIA_NOT_FOUND`, codec unavailable `503 MEDIA_PROCESSOR_UNAVAILABLE`를 사용한다. `heim | heis`는 format detector에서 HEIC still로 인식하며 현재 decoder가 처리하지 못하면 unsupported가 아니라 `422 MEDIA_INVALID_IMAGE`로 종료한다. filesystem·DB 장애는 내부 path·constraint detail 없는 generic `5xx`다.
@@ -197,50 +197,86 @@ review_trigger: "관리 API·build 입력 변경 시"
 - claim 뒤 current row가 바뀔 수 있으므로 event 값을 public authority로 사용하지 않고 전체 build snapshot의 status·게시/만료·relation·media/file 조건을 다시 검증한다.
 - 첫 accepted trigger 뒤 실제 30초 debounce, highest-generation coalesce 선택, build·release·atomic switch와 운영 관제는 후속 Issue에서 구현한다.
 
-## build API — planned
+## build API — current
 
-후속 Issue에서 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에 따른 관리자 session과 분리된 internal namespace·service credential을 구현한다.
-
-- 예: `/api/build/**`
-- API-only service credential
-- published 콘텐츠와 연결된 공개용 file metadata만 read
-- create/update/delete/share 금지
-- 관리자 cookie/session 재사용 금지
-- credential은 single publisher에만 주입하고 `NEXT_PUBLIC_*` 금지
-- public Nginx에서 `/api/build/**` 명시적 거부
-- response에 `contentRevision`, target `publishGeneration`과 `generatedAt` 포함
-
-현재 repository에는 build API나 build credential이 없다.
-
-## 조회 범위 — planned
+[ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에 따라 관리자 session과 분리된 internal namespace와 service credential을 구현했다.
 
 ```text
-shop_settings
-services
-breeds
-gallery_items
-notices
-public media metadata
+GET /api/build/snapshot?publishGeneration=<positive-long>
+GET /api/build/media/{id}/content?publishGeneration=<positive-long>
+Authorization: Bearer <64 lowercase hex token>
 ```
 
-조회와 transformer는 모두 다음을 검증한다.
+- `RHAOMI_BUILD_SERVICE_TOKEN`은 256-bit random token의 lowercase hex 표현인 `^[0-9a-f]{64}$`만 허용한다. test 외 실제 값은 repository에 기록하지 않는다.
+- 정확히 하나의 `Authorization` header와 exact `Bearer ` scheme만 받고 유효 형식 token은 timing-safe 비교한다. raw token·header·hash를 log, response, error에 넣지 않는다.
+- build principal·SecurityFilterChain은 관리자 principal·session·CSRF와 분리되며 stateless, null security-context repository와 null request cache를 사용한다.
+- build token은 `/api/admin/**` 권한이 아니고 관리자 session은 `/api/build/**` 권한이 아니다. GET allowlist 밖 mutation·unknown route는 모두 거부한다.
+- non-production에서 token이 비어 있거나 잘못되면 build API만 503 fail-closed이고, production profile은 application startup을 거부한다.
+- credential은 후속 single publisher에만 주입하고 browser storage, `NEXT_PUBLIC_*`, URL에 넣지 않는다.
+- dev/public Nginx는 `/api/build/**`를 일반 `/api/**` proxy보다 먼저 404로 거부한다.
 
-- `shop_settings` singleton 존재와 필수 매장정보 유효성
-- non-null Hero·프로필·OG media가 active이고 private master·공개 파생 대상이 유효함
-- collection은 `status = published`
-- 갤러리는 `published_at <= build_time`
-- 공지는 `published_at <= build_time`
-- 공지는 `expires_at IS NULL OR expires_at > build_time`
-- 갤러리 breed·service는 published이고 연결 media는 active
-- 파일이 라오미펫 공개 콘텐츠에 연결됐고 공개 파생 대상임
-- 정렬은 도메인 데이터 모델 기준
+## snapshot transaction과 generation gate — current
 
-## content snapshot — planned
+- request는 `publishGeneration`만 받는다. `generatedAt`, `contentRevision`, event ID는 backend가 외부 입력으로 받지 않는다.
+- 요청 generation은 실제 outbox row의 `state = PROCESSING`, `leaseUntil > generatedAt`을 만족해야 한다. unknown·pending·retry-wait·terminal·expired lease는 409다.
+- `generatedAt`은 UTC system clock에서 한 번 읽고 microsecond로 절삭한다.
+- active generation 확인, current `contentRevision`, Shop·Breed·Service·Gallery·Notice와 relation/media/file 검증을 하나의 read-only PostgreSQL `REPEATABLE READ` transaction에서 수행한다.
+- response `contentRevision`은 event가 생성될 때의 revision이 아니라 같은 database snapshot의 current singleton 값이다.
+- build API는 generation 상태 확인만 하며 claim, lease renewal, attempt·terminal transition, revision/outbox/content/media mutation을 수행하지 않는다.
+
+## build snapshot response v1 — current
 
 ```json
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-29T00:00:00Z",
+  "contentRevision": 123,
+  "publishGeneration": 128,
+  "generatedAt": "2035-01-01T00:00:00.123456Z",
+  "shop": {},
+  "services": [],
+  "breeds": [],
+  "galleryItems": [],
+  "notices": [],
+  "mediaAssets": []
+}
+```
+
+Build API response에는 `codeImageDigest`를 넣지 않는다. top-level과 item DTO는 다음 exact allowlist만 사용한다.
+
+- Shop: `shopName`, `regionLabel`, `businessType`, `phone`, `address`, `openingTime`, `closingTime`, `closedWeekday`, `parkingAvailable`, `parkingNote`, `heroTitle`, `heroDescription`, `groomerName`, `groomerIntro`, `reservationNotice`, `heroImageId`, `heroImageAltText`, `groomerImageId`, `groomerImageAltText`, `ogImageId`, 여섯 HTTPS 외부 URL
+- Breed: `id`, `name`, `slug`, `description`, `sortOrder`
+- Service: `id`, `name`, `slug`, `description`, `priceText`, `sortOrder`
+- Gallery: `id`, `dogName`, `breedId`, `primaryServiceId`, `coverImageId`, `beforeImageId`, `afterImageId`, `summary`, `altText`, `featured`, `sortOrder`, `performedAt`, `publishedAt`
+- Notice: `id`, `title`, `slug`, `summary`, source `bodyMarkdown`, `pinned`, `publishedAt`, `expiresAt`
+- Media: `id`, `contentType`, `byteSize`, `width`, `height`
+
+audit actor/timestamp, status, storage key/path, extension, persisted SHA-256, source content type·filename, claim owner·lease·event ID, password/session/CSRF는 response에 없다.
+
+조회 조건과 정렬은 다음과 같다.
+
+- Shop singleton과 기존 NAP·phone·time·HTTPS URL·image/alt final-state가 유효해야 한다.
+- Breed·Service는 `published`만 포함하고 `sortOrder ASC, name ASC, id ASC`다. published Service의 description·price final-state를 다시 검증한다.
+- Gallery는 `published`이면서 `publishedAt <= generatedAt`만 포함하고 `featured DESC, sortOrder ASC, publishedAt DESC, id ASC`다. breed·service published, cover required, optional before/after active와 서로 다름, alt, 실제 file을 검증한다.
+- Notice는 `publishedAt <= generatedAt < expiresAt` 또는 expiresAt null인 `published`만 포함하고 `pinned DESC, publishedAt DESC, updatedAt DESC, id ASC`다. Markdown은 변환하지 않은 source string이다.
+- `mediaAssets`는 유효한 Shop/Gallery가 참조하는 active canonical master의 distinct union이며 `id ASC`다. 실제 file size·SHA를 검증한다.
+- 명시적 relation이나 file이 missing·archived·corrupt면 해당 item만 생략하지 않고 전체 snapshot을 422로 거부한다.
+
+## build media content — current
+
+- media content 요청도 active generation과 live lease를 다시 확인한다.
+- active media 가운데 current Shop Hero/Groomer/OG relation 또는 현재 시각에 공개 가능한 Gallery의 cover/before/after relation만 허용한다. Gallery breed·service도 published여야 한다.
+- unlinked active upload, draft·archived·future Gallery-only relation, archived·missing media는 존재 여부를 구분하지 않는 404다.
+- canonical master를 `verifiedContent()`로 실제 size·SHA 검증하고 `Content-Type`, exact `Content-Length`, `Cache-Control: private, no-store`, `X-Content-Type-Options: nosniff`만 반환한다.
+- Range, ETag, original filename, path, SHA header는 제공하지 않는다. snapshot 뒤 scope가 바뀌면 안전하게 거부하며 과거 file로 fallback하지 않는다.
+
+## publisher content snapshot·release manifest — planned
+
+후속 publisher가 Build API response를 승인된 production code image와 결합해 저장하는 최종 파일은 다음 정보를 포함한다.
+
+```json
+{
+  "schemaVersion": 1,
+  "generatedAt": "2035-01-01T00:00:00.123456Z",
   "contentRevision": 123,
   "publishGeneration": 128,
   "codeImageDigest": "sha256:<digest>",
@@ -248,20 +284,17 @@ public media metadata
   "services": [],
   "breeds": [],
   "galleryItems": [],
-  "notices": []
+  "notices": [],
+  "mediaAssets": []
 }
 ```
 
-- 모든 조회가 성공한 뒤 임시 file과 atomic rename으로 기록한다.
-- `generatedAt`을 notice 게시·만료 eligibility의 build timestamp로 사용한다.
-- `contentRevision`은 지원되는 콘텐츠 domain mutation snapshot의 monotonic revision이다. draft-only mutation에도 증가하지만 public trigger는 만들지 않으며, mutation이 없는 게시·만료 경계에서는 같은 값으로 새 snapshot을 만들 수 있다.
-- `publishGeneration`은 immediate 콘텐츠 mutation, due 게시·만료 boundary, 승인된 code release와 manual rebuild/retry를 포함하는 public trigger의 monotonic sequence다.
-- transient failure의 자동 attempt retry는 같은 generation을 유지하고 운영자가 승인한 새 rebuild/retry만 새 generation을 만든다.
-- release manifest도 `contentRevision`, `publishGeneration`, `generatedAt`을 기록하고 `current` atomic switch는 `publishGeneration`을 stale protection authority로 사용한다.
-- 일부 collection만 과거 data로 fallback하지 않는다.
-- raw persistence/API response를 component에 직접 전달하지 않는다.
-- runtime schema와 published/relation/file 조건을 transformer에서 다시 검증한다.
-- scheduled event의 notice ID나 과거 boundary는 snapshot filter를 우회하는 입력으로 사용하지 않는다.
+- 모든 조회·transform이 성공한 뒤 임시 file과 atomic rename으로 기록한다.
+- `contentRevision`은 지원되는 콘텐츠 domain mutation snapshot revision이고 `publishGeneration`은 immediate mutation, due boundary, 승인된 code release와 manual rebuild/retry를 포함하는 public trigger sequence다.
+- 같은 `contentRevision`에서도 publish/expiry boundary별 generation과 snapshot을 만들 수 있다. 자동 attempt retry는 같은 generation을 유지한다.
+- release manifest도 `contentRevision`, `publishGeneration`, `generatedAt`, 승인된 `codeImageDigest`를 기록하고 `current` atomic switch는 generation을 stale protection authority로 사용한다.
+- 일부 collection만 과거 data로 fallback하거나 scheduled event ID·과거 boundary로 current snapshot filter를 우회하지 않는다.
+- transformer는 API response schema와 published/relation/file 조건을 다시 검증하고 raw response를 component에 직접 전달하지 않는다.
 
 ## 공개 media 파생 — planned
 
@@ -276,20 +309,28 @@ backend-owned private canonical master
 
 원본 id·storage path·내부 URL을 공개 HTML에 남기지 않는다.
 
-## build 실패 조건 — planned
+## build API 오류 — current
+
+```text
+400 INVALID_REQUEST
+401 BUILD_UNAUTHORIZED
+403 BUILD_FORBIDDEN
+404 BUILD_MEDIA_NOT_FOUND
+409 BUILD_GENERATION_NOT_ACTIVE
+422 BUILD_SNAPSHOT_INVALID
+503 BUILD_SERVICE_UNAVAILABLE
+503 BUILD_MEDIA_UNAVAILABLE
+500 BUILD_INTERNAL_ERROR
+```
+
+고정 JSON은 SQL, constraint, filesystem path, token, private metadata나 내부 exception detail을 포함하지 않는다. partial snapshot 성공 response는 없다.
+
+## transformer·release 실패 조건 — planned
 
 - build API 연결·인증 실패
-- singleton 없음
-- 필수 field 누락
-- duplicate slug
-- draft/archived/만료 콘텐츠 포함
-- 관계 대상 없음 또는 비공개
-- file scope·다운로드·decode 실패
-- 지원하지 않는 image 형식
-- 잘못된 외부 URL
-- snapshot schema mismatch
-- HTML sanitize 실패
-- sitemap duplicate canonical
+- snapshot schema mismatch 또는 build API가 거부한 invalid singleton/content/relation/file
+- file download·decode·지원 형식 실패
+- HTML sanitize·sitemap canonical·link·asset 검증 실패
 - target `publishGeneration`이 current generation 이하
 
 ## 호환성

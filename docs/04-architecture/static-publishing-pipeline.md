@@ -11,7 +11,7 @@ review_trigger: "콘텐츠 배포 방식 변경 시"
 
 ## 구현 상태
 
-Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Flyway V8과 domain service 연동으로 `contentRevision`·publishing outbox producer를 구현했고, Flyway V9과 internal Java service로 pending/due claim·lease recovery·`publishGeneration`·attempt/result state-machine 기반을 구현했다. 실제 polling loop, 30초 debounce orchestration, build API, publisher process와 public content route는 아직 구현되지 않았다. 이 문서는 현재 DB/state 경계와 후속 pipeline 계약을 함께 정의한다.
+Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Flyway V8과 domain service 연동으로 `contentRevision`·publishing outbox producer를 구현했고, Flyway V9과 internal Java service로 pending/due claim·lease recovery·`publishGeneration`·attempt/result state-machine 기반을 구현했다. Phase 1C-8f3은 active generation에 묶인 stateless read-only build snapshot·public-scope media API를 구현한다. 실제 polling loop, 30초 debounce orchestration, transformer, publisher process와 public content route는 아직 구현되지 않았다. 이 문서는 현재 DB/state/build API 경계와 후속 pipeline 계약을 함께 정의한다.
 
 ## 목적
 
@@ -35,7 +35,7 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - hard delete는 일반 운영 경로에 포함하지 않는다.
 - 현재 internal state service가 immediate pending event와 `availableAt <= now`인 scheduled event를 single-claim하고 만료 lease·due retry를 같은 generation으로 복구할 수 있다.
 - 후속 단일 publisher가 state service를 반복 호출하고 첫 accepted trigger 뒤 30초 debounce한다.
-- scheduled claim은 current Notice·Gallery의 published 상태와 expected boundary만 최소 검증한다. 후속 publisher는 claim 뒤 current row가 다시 바뀔 수 있음을 전제로 전체 snapshot의 relation·media·file·`generatedAt` eligibility를 재검증한다.
+- scheduled claim은 current Notice·Gallery의 published 상태와 expected boundary만 최소 검증한다. build API는 claim 뒤 current row가 다시 바뀔 수 있음을 전제로 전체 snapshot의 relation·media·file·`generatedAt` eligibility를 재검증하고, 후속 transformer도 response를 다시 검증한다.
 - global filesystem lock으로 code·content build를 직렬화한다.
 - code release와 콘텐츠 release가 같은 검증·atomic switch 구현을 사용한다.
 
@@ -45,7 +45,7 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - 한 성공 mutation은 save 횟수나 event 수와 무관하게 revision을 한 번만 할당한다. validation·DB·outbox failure와 rollback은 revision/event를 남기지 않는다.
 - event kind/source/boundary는 typed column과 DB CHECK로 제한하며 JSON payload escape hatch는 없다.
 - Media upload의 revision allocation이 실패하면 DB row와 이동한 final master를 함께 rollback/cleanup한다.
-- producer는 build API, service credential, public route, claim loop나 scheduler를 포함하지 않는다.
+- producer 자체는 build API, service credential, public route, claim loop나 scheduler를 포함하지 않는다.
 
 ## 현재 claim·generation state 경계
 
@@ -55,6 +55,15 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - active owner·generation·lease guard로 갱신·완료하고, expired lease와 1분·5분·15분 transient retry는 같은 generation을 유지한다. 네 번째 attempt 이후에는 retry exhausted로 종료한다.
 - lower active generation을 실제 higher active generation에 연결하는 coalesce primitive가 있지만 30초 timer와 highest target 선택은 아직 구현하지 않았다.
 - state service는 HTTP endpoint, service credential, polling/background execution, build와 filesystem 접근을 제공하지 않는다.
+
+## 현재 build API 경계
+
+- `GET /api/build/snapshot?publishGeneration=<positive-long>`과 `GET /api/build/media/{id}/content?publishGeneration=<positive-long>`만 허용한다.
+- 관리자 session과 분리된 64자 lowercase hex Bearer token을 timing-safe 비교하며 build chain은 stateless이고 session·request cache를 만들지 않는다.
+- snapshot은 active `PROCESSING` generation과 live lease를 확인한 뒤 하나의 read-only `REPEATABLE READ` transaction에서 current `contentRevision`과 server-owned microsecond `generatedAt`을 읽는다.
+- exact DTO allowlist와 published/time/relation/media/file 조건을 검증하고 Shop·공개 가능한 Gallery가 참조한 distinct active media manifest만 반환한다.
+- media content는 current public relation scope를 다시 확인하고 canonical master의 실제 size·SHA를 검증한 뒤 `private, no-store`·`nosniff`로 반환한다.
+- build 호출은 revision·outbox·generation·lease·attempt·콘텐츠를 변경하지 않는다. dev/public Nginx는 `/api/build/**`를 backend로 proxy하지 않는다.
 
 ## planned pipeline
 
@@ -106,11 +115,11 @@ sequenceDiagram
 
 ## build API와 transformer 경계
 
-- build credential은 관리자 session과 분리한다.
-- build API는 internal network의 read-only snapshot·media endpoint만 제공한다.
+- 구현된 build credential은 관리자 session과 분리한다.
+- 구현된 build API는 internal network의 read-only snapshot·media endpoint만 제공한다.
 - create, update, delete와 share는 모두 금지한다.
 - public Nginx는 `/api/build/**`를 거부한다.
-- API query와 transformer가 `published`, notice `published_at <= build timestamp < expires_at`, relation target, media `active`와 실제 file을 각각 검증한다.
+- 현재 API query가 `published`, notice `published_at <= generatedAt < expires_at`, relation target, media `active`와 실제 file을 검증하고 후속 transformer가 response를 다시 검증한다.
 - 선택된 media가 archived, missing 또는 corrupt면 silent omission하지 않고 build 전체를 실패시킨다.
 - raw storage path, DB credential, admin session과 private metadata를 snapshot에 넣지 않는다.
 

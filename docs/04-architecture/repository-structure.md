@@ -11,7 +11,7 @@ review_trigger: "module·배포 구조 변경 시"
 
 기존 Next.js source를 이동하지 않고 repository root에 `backend/`를 추가한다.
 
-## Phase 1C-8f2 현재 구조
+## Phase 1C-8f3 현재 구조
 
 ```text
 Rhaomi/
@@ -29,6 +29,7 @@ Rhaomi/
 │   ├── src/main/java/kr/co/rhaomi/backend/
 │   │   ├── admin/                 # admin_users domain
 │   │   ├── auth/                  # login/me/logout/csrf API
+│   │   ├── build/                 # stateless read-only snapshot·public-scope media API
 │   │   ├── breed/                 # 견종 관리 domain/API
 │   │   ├── content/               # 상태·audit·공통 오류 계약
 │   │   ├── config/                # security와 bootstrap
@@ -41,9 +42,9 @@ Rhaomi/
 │   ├── src/main/resources/
 │   │   ├── db/migration/          # Flyway V1~V9, V8 producer·V9 claim/generation state
 │   │   └── application.yml
-│   ├── src/test/                  # PostgreSQL auth·콘텐츠·media·gallery·shop relation 계약
+│   ├── src/test/                  # PostgreSQL auth·콘텐츠·build snapshot/media 계약
 │   └── Dockerfile.dev             # exact Java 25 + libheif runtime
-├── infra/nginx/dev.conf           # local same-origin reverse proxy
+├── infra/nginx/dev.conf           # local same-origin proxy와 /api/build 명시적 404
 ├── scripts/
 │   ├── generate-synthetic-media-fixtures.mjs
 │   ├── validate-backend-auth.mjs
@@ -69,6 +70,7 @@ Rhaomi/
 - `src/features/admin-auth`는 relative `/api/admin/**`, same-origin credential, GET no-store, response shape와 고정 오류 mapping을 한 경계에서 처리한다.
 - `infra/nginx/dev.conf`는 local 개발 전용이며 production Nginx·TLS 설정이 아니다.
 - `backend/.../publication`은 domain transaction 밖에서 호출할 수 없는 `MANDATORY` producer recorder와 deterministic JDBC state service를 둔다. state service는 due claim, source/boundary 최소 stale 판정, generation·lease·retry·terminal/coalesce primitive만 제공하며 HTTP controller, scheduler, background executor나 범용 queue framework를 제공하지 않는다.
+- `backend/.../build`는 별도 stateless principal과 GET allowlist, active generation gate, read-only `REPEATABLE READ` snapshot, exact DTO와 current public relation media 조회만 제공한다. admin session을 재사용하거나 publication/content state를 변경하지 않는다.
 
 ## 전체 제품 목표 구조 — planned
 
@@ -91,7 +93,7 @@ Rhaomi/
 │   └── types/
 ├── backend/
 │   └── src/main/
-│       ├── java/                  # 후속 콘텐츠·build API
+│       ├── java/                  # 현재 admin/build API와 후속 publisher orchestration
 │       └── resources/db/migration/
 ├── public/
 │   ├── brand/
@@ -117,6 +119,7 @@ planned 경로는 관련 Issue가 구현할 때만 추가한다.
 - 인증·인가·domain·persistence 경계를 package로 구분하되 불필요한 layer를 만들지 않는다.
 - publication recorder는 최종 domain persistence와 같은 transaction에서 한 mutation당 한 번만 호출한다.
 - publication state service는 전달받은 `now`·lease를 microsecond로 정규화하고 owner·generation·active lease를 확인한다. 실제 poll/debounce/build orchestration이나 full public eligibility를 이 package에 복제하지 않는다.
+- build package는 64자 lowercase hex service token을 timing-safe 비교하고 session을 만들지 않는다. snapshot/media response는 exact allowlist만 사용하며 raw entity·storage path·hash·audit·claim 내부 상태를 노출하지 않는다.
 - password hash, session id와 credential을 log에 남기지 않는다.
 
 ### `backend/src/main/resources/db/migration`
@@ -128,7 +131,7 @@ planned 경로는 관련 Issue가 구현할 때만 추가한다.
 
 ### `src/generated` — 후속
 
-- build API 동기화가 만든 고정 입력
+- 후속 publisher가 build API response와 승인된 code image를 결합해 만드는 고정 입력
 - 수동 수정 금지
 - schema version 포함
 - 일부 실패에서 과거 데이터와 혼합 금지

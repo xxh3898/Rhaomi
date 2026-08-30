@@ -188,9 +188,13 @@ Phase 1C-8f2는 HTTP 없는 DB/state-machine foundation만 구현한다. 실제 
 
 ### Phase 1C-8f3 — internal read-only build API·service credential
 
-- 관리자 session과 분리된 internal read-only namespace·credential
-- 일관된 `contentRevision`·`publishGeneration`·`generatedAt` snapshot
-- published·relation·media/file 이중 검증과 모든 mutation/public route 거부
+- 관리자 session과 분리된 64자 lowercase hex Bearer credential, stateless 전용 SecurityFilterChain과 internal read-only namespace
+- active `PROCESSING` generation·live lease gate와 `REPEATABLE READ` 기반 current `contentRevision`·`publishGeneration`·server-owned microsecond `generatedAt` snapshot
+- exact public DTO allowlist, published/time/relation/media/file 이중 검증과 read-only 불변식
+- Shop·공개 가능 Gallery relation의 distinct media manifest와 검증된 canonical master content 조회
+- 모든 build mutation·unknown route와 dev/public gateway 접근 거부
+
+Phase 1C-8f3은 build 입력 조회 경계까지만 구현한다. publisher polling loop, 30초 debounce, image derivative, Markdown/HTML transform, Next build, filesystem lock, release manifest와 atomic switch는 포함하지 않는다.
 
 ### Phase 1C-8f 후속 — transformer·publisher와 샘플 콘텐츠
 
@@ -206,7 +210,7 @@ Phase 1C-8f2는 HTTP 없는 DB/state-machine foundation만 구현한다. 실제 
 - ADR-013 HomeOps 단일 관제·제한된 stateless restart
 - ADR-014 pinned source HEIC decoder-only production runtime
 
-Phase 1D는 문서·계약 확정만 의미한다. 실제 Mac directory ownership·bind smoke, PostgreSQL restart·일반 Compose `down` persistence·isolated `pg_restore`, production Compose/Nginx, GitHub Environment, publisher/outbox/build API, backup repository, HomeOps 설정과 production image는 후속 Issue에서 구현·검증한다.
+Phase 1D는 문서·계약 확정만 의미한다. 실제 Mac directory ownership·bind smoke, PostgreSQL restart·일반 Compose `down` persistence·isolated `pg_restore`, production Compose/Nginx, GitHub Environment, publisher와 production build credential 주입, backup repository, HomeOps 설정과 production image는 후속 Issue에서 구현·검증한다.
 
 ## Phase 2 — 공개 랜딩 MVP
 

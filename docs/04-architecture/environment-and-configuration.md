@@ -116,7 +116,7 @@ production release manifest에는 exact `main` SHA, image tag·digest, Flyway ve
 | `PUBLIC_SITE_URL` | N | canonical 기준 absolute URL |
 | `SITE_ENV` | N | local/development/production |
 | `BUILD_API_INTERNAL_URL` | N | Docker 내부 read-only build API URL |
-| `BUILD_API_CREDENTIAL` | Y | 후속 publisher 전용 read-only service credential |
+| `BUILD_API_CREDENTIAL` | Y | 후속 publisher가 `RHAOMI_BUILD_SERVICE_TOKEN`과 같은 secret source에서 주입받을 read-only service credential |
 | `CONTENT_SNAPSHOT_PATH` | N | 생성 파일 경로 |
 | `MEDIA_OUTPUT_PATH` | N | 공개 파생본 경로 |
 | `BUILD_RELEASE_ID` | N | release 식별자 |
@@ -124,7 +124,7 @@ production release manifest에는 exact `main` SHA, image tag·digest, Flyway ve
 | `BUILD_PUBLISH_GENERATION` | N | public trigger의 monotonic sequence와 stale switch authority |
 | `BUILD_TIMESTAMP` | N | snapshot `generatedAt`, notice published·expiry 판정 기준 시각 |
 
-build credential은 관리자 session과 분리하고 절대 `NEXT_PUBLIC_` 접두사를 사용하지 않는다. public Nginx가 build API를 차단하고 publisher만 internal read-only endpoint를 사용한다. 이 변수와 API는 아직 구현되지 않았다.
+backend의 `RHAOMI_BUILD_SERVICE_TOKEN`과 internal read-only API는 구현됐다. token은 64자 lowercase hex만 허용하고 production 누락·형식 오류는 startup failure다. browser/frontend에는 build credential이나 `NEXT_PUBLIC_` 변수를 주입하지 않으며 dev/public Nginx가 build namespace를 차단한다. 위 `BUILD_API_INTERNAL_URL`·`BUILD_API_CREDENTIAL` 이름을 포함한 실제 publisher 주입과 production secret provisioning은 아직 구현되지 않았다.
 
 ## Static publisher — planned
 

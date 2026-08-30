@@ -23,7 +23,7 @@ review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 
 ## 현재 구현 범위
 
-Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1에서 transactional `contentRevision`과 publishing outbox producer를, Phase 1C-8f2에서 pending/due claim·lease recovery·`publishGeneration`·attempt/result 상태 머신 기반을 추가했다. 실제 polling publisher, 30초 debounce orchestration, 공개 responsive 파생본·build API와 랜딩·SEO 렌더링은 후속 Issue에서 구현한다.
+Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1에서 transactional `contentRevision`과 publishing outbox producer를, Phase 1C-8f2에서 pending/due claim·lease recovery·`publishGeneration`·attempt/result 상태 머신 기반을 추가했다. Phase 1C-8f3은 별도 stateless service credential을 쓰는 internal read-only build snapshot·public-scope media API를 제공한다. 실제 polling publisher, 30초 debounce orchestration, 공개 responsive 파생본·transformer와 랜딩·SEO 렌더링은 후속 Issue에서 구현한다.
 
 ```text
 .
@@ -35,8 +35,8 @@ Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Bo
 ├── src/
 │   ├── app/                 # 공개 홈과 /admin Static Export route
 │   └── features/            # admin auth/transport, dashboard, media·shop·breed·service·gallery UI
-├── backend/                 # Spring Boot 인증·콘텐츠·private media API, publication producer/state와 PostgreSQL contract test
-├── infra/nginx/dev.conf     # local same-origin gateway
+├── backend/                 # Spring Boot admin/build API, publication producer/state와 PostgreSQL contract test
+├── infra/nginx/dev.conf     # local same-origin gateway와 /api/build 명시적 차단
 ├── scripts/                 # 정적 산출물·gateway·HEIC·Compose smoke 검증
 ├── tests/                   # frontend·runtime contract test
 ├── docs/                    # 제품·아키텍처·운영 기준 문서
@@ -74,13 +74,13 @@ docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend 
 docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend run --rm frontend npm run validate:export
 ```
 
-브라우저 진입점은 gateway의 `http://127.0.0.1:3000` 하나다. frontend dev server는 host port를 열지 않으며 `/api/**`만 backend로 전달한다.
+브라우저 진입점은 gateway의 `http://127.0.0.1:3000` 하나다. frontend dev server는 host port를 열지 않는다. gateway는 일반 `/api/**`를 backend로 전달하지만 `/api/build/**`는 먼저 404로 차단한다.
 
 ```bash
 docker compose --env-file .env.dev.local -f compose.dev.yaml --profile frontend up -d --wait frontend gateway
 ```
 
-`/`, `/admin/`, `/api/admin/auth/**`는 모두 위 same-origin으로 확인한다. backend의 `127.0.0.1:8080`은 local 진단용 loopback 경계다.
+`/`, `/admin/`, `/api/admin/auth/**`는 모두 위 same-origin으로 확인한다. backend의 `127.0.0.1:8080`은 local 진단·build API 통합 검증용 loopback 경계다.
 
 ### Spring Boot와 PostgreSQL
 
@@ -108,11 +108,13 @@ docker compose --env-file .env.dev.local -f compose.dev.yaml down
 
 Flyway V8은 `content_revision_state` singleton과 typed `publishing_outbox` producer를 만든다. 지원 콘텐츠 mutation 성공 1회마다 같은 PostgreSQL transaction에서 `contentRevision`을 정확히 한 번 증가시키고, 공개 영향 변경은 `CONTENT_CHANGED`, 새로 설정·변경된 공지 게시·만료 경계와 게시 상태 갤러리의 게시 경계는 같은 revision의 durable scheduled event로 기록한다. validation·DB·outbox 실패는 콘텐츠·revision·event를 함께 rollback하며 media final file도 기존 transaction cleanup으로 제거한다. 이 producer는 새 HTTP endpoint나 credential을 추가하지 않는다.
 
-Flyway V9은 transactional `publish_generation_state` singleton과 outbox의 `PENDING | PROCESSING | RETRY_WAIT | SUCCEEDED | NOOP | FAILED | COALESCED` 상태를 추가한다. internal Java service가 `FOR UPDATE SKIP LOCKED`로 due row를 하나만 claim하고 generation 할당·첫 attempt를 같은 transaction으로 기록한다. 만료 lease와 1분·5분·15분 transient retry는 같은 generation으로 최대 네 번째 attempt까지 복구하며, scheduled stale event는 current Notice/Gallery의 published 상태와 expected boundary만 확인한 뒤 generation 없이 `NOOP` 처리한다. 관계·미디어·파일을 포함한 전체 공개 eligibility는 후속 build API/transformer가 다시 검증한다. 이 상태 기반도 HTTP endpoint, scheduler, polling loop, credential이나 환경 변수를 추가하지 않는다.
+Flyway V9은 transactional `publish_generation_state` singleton과 outbox의 `PENDING | PROCESSING | RETRY_WAIT | SUCCEEDED | NOOP | FAILED | COALESCED` 상태를 추가한다. internal Java service가 `FOR UPDATE SKIP LOCKED`로 due row를 하나만 claim하고 generation 할당·첫 attempt를 같은 transaction으로 기록한다. 만료 lease와 1분·5분·15분 transient retry는 같은 generation으로 최대 네 번째 attempt까지 복구하며, scheduled stale event는 current Notice/Gallery의 published 상태와 expected boundary만 확인한 뒤 generation 없이 `NOOP` 처리한다. 이 상태 기반 자체는 HTTP endpoint, scheduler, polling loop나 credential을 추가하지 않는다.
+
+internal build API는 정확히 `GET /api/build/snapshot`과 `GET /api/build/media/{id}/content`만 허용한다. 64자 lowercase hex Bearer token은 관리자 session·CSRF와 분리되고 request를 session에 저장하지 않는다. snapshot은 active `PROCESSING` generation과 live lease를 확인한 뒤 하나의 read-only `REPEATABLE READ` transaction에서 server-owned microsecond `generatedAt`, current `contentRevision`, published/time/relation/media/file 조건과 exact DTO allowlist를 검증한다. media content는 현재 Shop 또는 공개 가능한 Gallery relation에 속한 active canonical master만 size·SHA 검증 후 `private, no-store`로 반환한다. build API는 revision, outbox, generation, lease, attempt나 콘텐츠를 변경하지 않으며 dev/public gateway는 이 namespace를 backend로 전달하지 않는다.
 
 매장정보는 상태나 공개 id가 없는 단일 현재값이다. `/api/admin/shop-settings`의 `GET`과 전체 `PUT`만 제공하며 최초 PUT은 `201`, 이후 PUT은 `200`이다. PostgreSQL UNIQUE/CHECK가 row를 하나로 제한하고 Hero·프로필 image/alt pair와 세 media FK를 방어한다. API는 핵심 NAP·영업시간·전화번호·HTTPS 외부 링크, nullable Hero·프로필·OG scalar media id, Hero·프로필 대체텍스트와 server-owned audit를 검증한다. non-null media는 존재하고 `active`여야 하며 관계가 나중에 archived돼도 자동 제거하지 않는다. 모든 state-changing 요청에는 관리자 session과 CSRF token이 필요하며 `PATCH`와 영구 `DELETE` endpoint는 제공하지 않는다. 실제 운영값과 실사진은 seed하지 않는다.
 
-미디어는 `/api/admin/media`의 목록·단건·private content 조회, multipart upload와 status `PUT`만 제공한다. 20 MiB source, 30 MiB stored, 12,000px, 60MP 제한을 실제 byte signature와 decoder로 검증하며 client MIME·확장자·파일명을 신뢰하지 않는다. server-owned UUID storage key와 SHA-256 무결성 metadata를 사용하고 `active | archived` row와 master file을 유지한다. original filename·storage key·filesystem path·SHA-256은 API response에 노출하지 않으며 public/build media endpoint와 physical delete는 없다.
+미디어는 `/api/admin/media`의 목록·단건·private content 조회, multipart upload와 status `PUT`을 제공한다. 20 MiB source, 30 MiB stored, 12,000px, 60MP 제한을 실제 byte signature와 decoder로 검증하며 client MIME·확장자·파일명을 신뢰하지 않는다. server-owned UUID storage key와 SHA-256 무결성 metadata를 사용하고 `active | archived` row와 master file을 유지한다. original filename·storage key·filesystem path·SHA-256은 관리자 또는 build DTO에 노출하지 않는다. anonymous/public media endpoint와 physical delete는 없으며 build service만 current public relation scope의 검증된 canonical master를 읽을 수 있다.
 
 gateway routing, health, local/test bootstrap, CSRF login/me/logout, 20 MiB request 경계와 재기동 후 persistent volume을 한 번에 검증하려면 다음처럼 명시적 test credential을 process 환경으로 전달한다. 실제 운영 email/password를 사용하지 않는다.
 
@@ -138,11 +140,12 @@ sh scripts/validate-backend-compose.sh .env.dev.local
 - Hero·미용사·OG는 active private media를 한 개씩 선택·해제할 수 있고, archived/missing 기존 relation은 숨기지 않고 clear/replace가 필요한 상태로 표시한다.
 - 갤러리는 실제 견종·대표 서비스·private media를 FK로 참조하고 같은 인증 경계와 `/admin/` UI에서 생성·조회·전체 수정·게시·보관·복구한다. draft·archived 편집에서는 존재하는 보관 media도 선택할 수 있지만 published 전환은 게시된 견종·서비스와 active media를 요구한다.
 - 공지는 `/admin/`에서 항상 draft로 생성하고 immutable slug, source-only Markdown, 고정 여부, 미래 게시·만료 시각과 `draft | published | archived`를 full PUT으로 관리한다. 목록은 backend 배열 순서를 보존하고 변경하지 않은 microsecond Instant를 그대로 유지한다.
-- 관계 대상의 상태 변경은 갤러리나 매장정보에 cascade하지 않으며 후속 공개 snapshot이 published/relation/file 조건과 선택된 매장 이미지를 다시 검증한다.
+- 관계 대상의 상태 변경은 갤러리나 매장정보에 cascade하지 않으며 build snapshot이 published/relation/file 조건과 선택된 매장 이미지를 다시 검증한다.
 - 지원 콘텐츠 mutation은 transactional row counter로 `contentRevision`을 한 번만 전진시키고, 공개 영향 변경과 Notice·Gallery 시간 경계는 V8 typed outbox에 같은 transaction으로 기록한다.
 - V9 internal state service는 pending/due claim, transactional `publishGeneration`, active lease·owner guard, same-generation recovery/retry, typed terminal result와 lower→higher coalesce primitive를 제공한다.
-- 실제 publisher polling loop·30초 debounce/coalesce orchestration, build API와 static build·release switch는 아직 구현되지 않았다.
-- 공개 responsive 파생본과 Builder API는 후속 Issue에서 구현한다.
+- 별도 stateless build credential과 active generation 기반 read-only snapshot·public-scope media content API를 제공하며 관리자 session이나 browser 경로와 공유하지 않는다.
+- 실제 publisher polling loop·30초 debounce/coalesce orchestration, transformer·static build·release switch는 아직 구현되지 않았다.
+- 공개 responsive 파생본과 build transformer는 후속 Issue에서 구현한다.
 - 공개 콘텐츠 변경은 정적 사이트 재빌드·검증·원자적 교체를 유발한다.
 - 고객용 예약 시스템, 결제, 회원가입, 문의 폼은 만들지 않는다.
 - 전화, 인스타그램, 네이버톡톡 등 외부 문의 채널로 연결한다.

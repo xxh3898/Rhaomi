@@ -44,7 +44,7 @@ build-time 공개 콘텐츠 조회는 [ADR-011](../09-decisions/ADR-011-transact
 - publisher transformer가 같은 status·relation·file 조건을 다시 검증한다.
 - raw storage path, DB credential, admin session과 private metadata를 노출하지 않는다.
 
-build API, credential과 publisher는 아직 구현되지 않았다. 관리자 session을 재사용하거나 실제 token을 이 문서·저장소에 만들지 않는다.
+build API와 stateless credential 경계는 구현됐고 publisher·production secret provisioning은 아직 구현되지 않았다. 관리자 session을 재사용하거나 실제 token을 이 문서·저장소에 만들지 않는다.
 
 ### Static admin client
 

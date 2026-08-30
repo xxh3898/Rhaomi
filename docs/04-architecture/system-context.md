@@ -47,11 +47,12 @@ flowchart LR
 
 - Next.js Static Export 공개 frontend
 - Spring Boot session auth와 견종·서비스·공지·갤러리·매장정보·private media 관리자 API
-- PostgreSQL과 Flyway V1~V7
-- local/test bootstrap과 `/admin/` 인증 셸
-- local same-origin gateway, 최소 health와 Hosted CI
+- PostgreSQL과 Flyway V1~V9 publication producer·claim/generation state
+- local/test bootstrap과 `/admin/` 인증 셸·콘텐츠 CRUD UI
+- active generation에 묶인 stateless internal read-only build snapshot·public-scope media API
+- `/api/build/**`를 먼저 거부하는 local same-origin gateway, 최소 health와 Hosted CI
 
-콘텐츠 CRUD 화면, build API, immediate·scheduled publishing event, publisher와 public content route는 아직 없다.
+publisher polling·30초 debounce, transformer·responsive derivative·release manifest·atomic switch와 public content route는 아직 없다.
 
 ## 신뢰 경계
 

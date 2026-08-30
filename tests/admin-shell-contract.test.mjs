@@ -257,7 +257,12 @@ test("gateway image, routing, HMR, upload limit과 proxy header 계약을 고정
   assert.match(gatewaySection, /127\.0\.0\.1:3000:3000/);
   assert.match(nginx, /server_tokens\s+off;/);
   assert.match(nginx, /client_max_body_size\s+21m;/);
+  assert.match(nginx, /location \^~ \/api\/build\/\s*\{\s*return 404;/);
   assert.match(nginx, /location \^~ \/api\//);
+  assert(
+    nginx.indexOf("location ^~ /api/build/") < nginx.indexOf("location ^~ /api/ {"),
+    "build namespace deny가 일반 API proxy보다 먼저 선언돼야 합니다.",
+  );
   assert.match(nginx, /proxy_pass http:\/\/rhaomi_backend;/);
   assert.match(nginx, /proxy_set_header Host \$http_host;/);
   assert.match(nginx, /proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;/);

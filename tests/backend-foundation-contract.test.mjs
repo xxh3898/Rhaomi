@@ -374,6 +374,66 @@ test("V9 pending claim·lease·publishGeneration 상태 머신 기반을 고정�
   }
 });
 
+test("internal read-only build API와 service credential 경계를 고정한다", async () => {
+  const [
+    application,
+    compose,
+    environmentExample,
+    buildSecurity,
+    buildProperties,
+    buildFilter,
+    snapshotService,
+    mediaService,
+    snapshotResponse,
+    nginx,
+  ] = await Promise.all([
+    source("backend/src/main/resources/application.yml"),
+    source("compose.dev.yaml"),
+    source(".env.example"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/build/BuildSecurityConfig.java"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/build/BuildServiceProperties.java"),
+    source(
+      "backend/src/main/java/kr/co/rhaomi/backend/build/BuildServiceAuthenticationFilter.java",
+    ),
+    source("backend/src/main/java/kr/co/rhaomi/backend/build/BuildSnapshotService.java"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/build/BuildMediaService.java"),
+    source("backend/src/main/java/kr/co/rhaomi/backend/build/BuildSnapshotResponse.java"),
+    source("infra/nginx/dev.conf"),
+  ]);
+
+  assert.match(application, /build-service:\s*\n\s+token: \$\{RHAOMI_BUILD_SERVICE_TOKEN:\}/);
+  assert.match(environmentExample, /RHAOMI_BUILD_SERVICE_TOKEN=/);
+  assert.match(environmentExample, /openssl rand -hex 32/);
+  assert.match(buildSecurity, /securityMatcher\("\/api\/build\/\*\*"\)/);
+  assert.match(buildSecurity, /SessionCreationPolicy\.STATELESS/);
+  assert.match(buildSecurity, /NullSecurityContextRepository/);
+  assert.match(buildSecurity, /HttpMethod\.GET/);
+  assert.match(buildSecurity, /\.anyRequest\(\)\s*\.denyAll\(\)/);
+  assert.match(buildProperties, /\^\[0-9a-f\]\{64\}\$/);
+  assert.match(buildProperties, /MessageDigest\.isEqual/);
+  assert.doesNotMatch(buildProperties, /String token\(\)|getToken/);
+  assert.doesNotMatch(buildFilter, /@Component/);
+  assert.match(
+    snapshotService,
+    /@Transactional\(readOnly = true, isolation = Isolation\.REPEATABLE_READ\)/,
+  );
+  assert.match(mediaService, /MediaStorage/);
+  assert.match(snapshotResponse, /publishGeneration/);
+  assert.doesNotMatch(
+    snapshotResponse,
+    /createdBy|updatedBy|storageKey|fileExtension|sha256|sourceContentType|claimOwner|leaseUntil|eventId/,
+  );
+  assert.match(nginx, /location \^~ \/api\/build\/\s*\{\s*return 404;/);
+  assert(
+    nginx.indexOf("location ^~ /api/build/") < nginx.indexOf("location ^~ /api/ {"),
+  );
+
+  const frontendBlock = compose.match(/\n  frontend:\n([\s\S]*?)\n  gateway:/)?.[1] ?? "";
+  const backendBlock = compose.match(/\n  backend:\n([\s\S]*?)\n  postgres:/)?.[1] ?? "";
+  assert.doesNotMatch(frontendBlock, /RHAOMI_BUILD_SERVICE_TOKEN|NEXT_PUBLIC/i);
+  assert.match(backendBlock, /RHAOMI_BUILD_SERVICE_TOKEN/);
+});
+
 test("실행 경로에 Directus 설정을 남기지 않는다", async () => {
   const runtimeFiles = await Promise.all([
     source("compose.dev.yaml"),

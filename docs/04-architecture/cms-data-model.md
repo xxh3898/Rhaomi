@@ -12,9 +12,10 @@ review_trigger: "PostgreSQL table·field·API 변경 시"
 ## 구현 상태
 
 - 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`, Flyway V4·V7의 `shop_settings`, Flyway V5의 `media_assets`, Flyway V6의 `gallery_items`, Flyway V8의 `content_revision_state`·`publishing_outbox` producer, Flyway V9의 `publish_generation_state`와 outbox claim·lease·attempt/result state
-- 후속 구현: polling publisher·30초 debounce orchestration, public build snapshot, 공개 이미지 파생본과 Hero·프로필·OG 렌더링
+- 현재 read model: active generation 기반 internal build snapshot·public-scope canonical media content
+- 후속 구현: polling publisher·30초 debounce orchestration, persisted public snapshot/release manifest, 공개 이미지 파생본과 Hero·프로필·OG 렌더링
 
-`breeds`, `services`, `notices`, `shop_settings`, `media_assets`, `gallery_items`와 V8·V9 publication table은 현재 schema 계약이고, public snapshot과 publisher orchestration은 제품 방향을 위한 proposed 계약이다.
+`breeds`, `services`, `notices`, `shop_settings`, `media_assets`, `gallery_items`와 V8·V9 publication table은 현재 schema 계약이다. Build API response는 이 schema를 변경하지 않는 current read model이고, publisher가 저장하는 최종 public snapshot과 orchestration은 proposed 계약이다.
 
 ## 현재 `admin_users`
 
@@ -86,6 +87,16 @@ schema source of truth는 `backend/src/main/resources/db/migration/V1__create_ad
 - fresh eligible claim transaction이 `UPDATE ... + 1 RETURNING`으로 generation을 할당하고 같은 transaction에서 outbox를 첫 `PROCESSING` attempt로 전환한다.
 - PostgreSQL sequence가 아니므로 claim transaction rollback은 generation을 소비하지 않는다. 자동 retry와 lease recovery는 기존 generation을 유지한다.
 - 이 counter는 콘텐츠 mutation snapshot인 `content_revision_state`와 독립이다. 같은 `contentRevision`의 서로 다른 시간 경계도 각각 새 `publishGeneration`을 가질 수 있다.
+
+## 현재 build snapshot read model
+
+- Build API는 새 table·column 없이 V1~V9 current row를 하나의 read-only PostgreSQL `REPEATABLE READ` transaction에서 조회한다.
+- active `PROCESSING` generation과 live lease가 request gate이고, response `contentRevision`은 해당 event의 과거 값이 아니라 같은 snapshot에서 읽은 current singleton 값이다.
+- top-level은 `schemaVersion`, `contentRevision`, `publishGeneration`, server-owned microsecond `generatedAt`, `shop`, `services`, `breeds`, `galleryItems`, `notices`, `mediaAssets`만 허용한다.
+- Shop은 공개 business field 26개만, Breed·Service·Gallery·Notice는 각 public field allowlist만, media manifest는 `id`, `contentType`, `byteSize`, `width`, `height`만 반환한다.
+- audit, status, storage key/path, persisted hash, source filename/type, claim owner·lease·event ID는 ordering·validation input일 수 있지만 DTO에는 노출하지 않는다.
+- collection은 published/time 조건으로 filter하고 relation target·active media·실제 canonical master size/hash를 다시 검증한다. 명시적 invalid relation/file은 silent omission 없이 전체 snapshot 오류다.
+- `codeImageDigest`는 Build API response가 아니라 후속 publisher가 승인된 production image와 결합해 저장할 content snapshot/release manifest field다.
 
 ## 콘텐츠 공통 규칙
 
@@ -160,7 +171,7 @@ erDiagram
 - 세 image FK는 `media_assets(id) ON DELETE RESTRICT`이고 같은 asset의 다중 역할 재사용을 허용한다. 임시 path나 private storage metadata는 저장하지 않는다.
 - Hero·프로필은 image와 Unicode trim·nonblank·최대 300 code-point alt가 함께 있거나 모두 null이어야 하며 DB CHECK와 application이 이중 검증한다. OG에는 alt field가 없다.
 - PUT의 non-null image는 mutation 전에 존재와 `active` 상태를 확인한다. 후속 archive는 relation·audit에 cascade하지 않고 GET은 저장 UUID를 유지한다.
-- 후속 public build는 세 relation의 active status와 private master·공개 파생 file 유효성을 다시 검증한다.
+- build snapshot은 세 relation의 active status와 private canonical master 유효성을 다시 검증한다. 공개 파생 file은 후속 transformer가 생성·검증한다.
 - schema source of truth는 `backend/src/main/resources/db/migration/V4__create_shop_settings.sql`과 `V7__add_shop_settings_media_relations.sql`이다.
 
 ## 현재 `media_assets`
@@ -231,7 +242,7 @@ erDiagram
 - 모든 breed·service·media FK는 `ON DELETE RESTRICT`이며 같은 media를 여러 항목이 참조할 수 있다. cover는 before 또는 after와 같아도 된다.
 - `draft`·`archived`는 null이 아닌 relation row의 존재만 요구한다. `published`는 breed/service가 `published`, cover와 선택한 before/after media가 `active`여야 한다.
 - relation 검증과 published 필수값 검증을 완료한 뒤 entity와 updated audit를 한 번에 반영한다. 실패 시 기존 row와 audit를 보존한다.
-- 관계 대상이 나중에 draft·archived가 되어도 gallery status와 relation을 cascade 변경하지 않는다. 후속 public snapshot이 gallery status, relation status, master/파생 file 유효성을 다시 검증한다.
+- 관계 대상이 나중에 draft·archived가 되어도 gallery status와 relation을 cascade 변경하지 않는다. build snapshot이 gallery status, relation status와 canonical master를 다시 검증하고 후속 transformer가 파생 file을 검증한다.
 - schema source of truth는 `backend/src/main/resources/db/migration/V6__create_gallery_items.sql`이다.
 
 ## 현재 `notices`
@@ -262,6 +273,6 @@ notices: pinned DESC, published_at DESC NULLS LAST, updated_at DESC, id ASC
 - PostgreSQL constraint와 application validation을 역할에 맞게 이중 적용한다.
 - publish validation은 `PUT`으로 받은 전체 mutable representation을 적용할 최종 entity 상태를 기준으로 수행한다.
 - API request DTO allowlist로 id/audit/system field mass assignment를 차단한다.
-- 공개 build query와 transformer가 published/relation/file 조건을 각각 검증한다.
+- 현재 build query와 후속 transformer가 published/relation/file 조건을 각각 검증한다.
 - relation 대상의 후속 상태 변경을 gallery나 shop row에 cascade하지 않고 DB FK는 존재성과 hard delete 차단만 담당한다.
 - 지원 콘텐츠 mutation은 최종 persistence 뒤 같은 transaction에서 revision을 한 번 할당한다. public impact와 새 Notice·Gallery boundary만 typed outbox event로 기록하며 event insert 실패를 무시하지 않는다.
