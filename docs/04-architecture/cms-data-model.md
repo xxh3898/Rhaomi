@@ -3,7 +3,7 @@ title: "도메인 데이터 모델"
 status: "proposed"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "PostgreSQL table·field·API 변경 시"
 ---
 
@@ -11,10 +11,10 @@ review_trigger: "PostgreSQL table·field·API 변경 시"
 
 ## 구현 상태
 
-- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`, Flyway V4·V7의 `shop_settings`, Flyway V5의 `media_assets`, Flyway V6의 `gallery_items`
-- 후속 구현: public build snapshot, 공개 이미지 파생본과 Hero·프로필·OG 렌더링
+- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`, Flyway V4·V7의 `shop_settings`, Flyway V5의 `media_assets`, Flyway V6의 `gallery_items`, Flyway V8의 `content_revision_state`·`publishing_outbox`
+- 후속 구현: outbox claim/lease·`publishGeneration`, public build snapshot, 공개 이미지 파생본과 Hero·프로필·OG 렌더링
 
-`breeds`, `services`, `notices`, `shop_settings`, `media_assets`, `gallery_items`는 현재 schema와 관리 API 계약이고, public snapshot과 나머지 콘텐츠 모델은 제품 방향을 위한 proposed 계약이다.
+`breeds`, `services`, `notices`, `shop_settings`, `media_assets`, `gallery_items`, publication producer table은 현재 schema 계약이고, public snapshot과 consumer state는 제품 방향을 위한 proposed 계약이다.
 
 ## 현재 `admin_users`
 
@@ -29,6 +29,38 @@ review_trigger: "PostgreSQL table·field·API 변경 시"
 | `updated_at` | timestamptz | Y | audit timestamp |
 
 schema source of truth는 `backend/src/main/resources/db/migration/V1__create_admin_users.sql`이다.
+
+## 현재 publication producer state
+
+### `content_revision_state`
+
+| field | type | 필수 | 설명 |
+|---|---|---:|---|
+| `singleton_key` | smallint | Y | primary key, CHECK로 1만 허용 |
+| `content_revision` | bigint | Y | 0 이상인 콘텐츠 mutation snapshot revision |
+
+- 초기 row는 `(1, 0)` 한 건이다.
+- 지원 콘텐츠 mutation transaction이 `UPDATE ... SET content_revision = content_revision + 1 ... RETURNING`으로 한 번만 할당한다.
+- PostgreSQL sequence가 아니므로 transaction rollback은 revision을 영구 소비하지 않는다. singleton row lock이 동시 mutation을 직렬화해 duplicate·lost revision을 막는다.
+
+### `publishing_outbox`
+
+| field | type | 필수 | 설명 |
+|---|---|---:|---|
+| `id` | UUID | Y | application-generated event primary key |
+| `kind` | varchar(32) | Y | `CONTENT_CHANGED` 또는 Notice·Gallery scheduled kind |
+| `source_type` | varchar(32) | Y | Shop·Breed·Service·Notice·Gallery·Media allowlist |
+| `source_id` | UUID | Y | mutation source 식별자 |
+| `content_revision` | bigint | Y | event를 만든 동일 mutation revision, 0 초과 |
+| `available_at` | timestamp(6) with time zone | Y | immediate 생성 시각 또는 scheduled due 시각 |
+| `expected_boundary_at` | timestamp(6) with time zone | N | scheduled event가 기대한 source boundary |
+| `created_at` | timestamp(6) with time zone | Y | event 생성 시각 |
+
+- immediate event는 `expected_boundary_at IS NULL`, scheduled event는 non-null이며 `available_at = expected_boundary_at`이다.
+- `kind`, `source_type`, scheduled kind/source 조합을 named CHECK로 제한하고 `(available_at, id)`, `(source_type, source_id, available_at)`, `(content_revision)` index를 둔다.
+- old scheduled event 보존과 stale 판정을 위해 source content FK나 cascade delete를 두지 않는다. event row는 current source authority가 아니며 후속 consumer가 source id·expected boundary로 current row를 재검증한다.
+- processing/completed/failed, claim owner·lease, attempt count와 `publishGeneration`은 V8에 없다.
+- schema source of truth는 `backend/src/main/resources/db/migration/V8__create_content_revision_and_publishing_outbox.sql`이다.
 
 ## 콘텐츠 공통 규칙
 
@@ -207,3 +239,4 @@ notices: pinned DESC, published_at DESC NULLS LAST, updated_at DESC, id ASC
 - API request DTO allowlist로 id/audit/system field mass assignment를 차단한다.
 - 공개 build query와 transformer가 published/relation/file 조건을 각각 검증한다.
 - relation 대상의 후속 상태 변경을 gallery나 shop row에 cascade하지 않고 DB FK는 존재성과 hard delete 차단만 담당한다.
+- 지원 콘텐츠 mutation은 최종 persistence 뒤 같은 transaction에서 revision을 한 번 할당한다. public impact와 새 Notice·Gallery boundary만 typed outbox event로 기록하며 event insert 실패를 무시하지 않는다.

@@ -14,6 +14,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - 관리자 계정과 password hash
 - 관리자 session과 CSRF token
 - PostgreSQL 데이터
+- transactional content revision과 publishing outbox
 - 향후 원본 시술사진
 - 향후 internal build/publisher service credential
 - encrypted restic repository와 recovery key
@@ -28,7 +29,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - Actuator health
 - local Nginx same-origin `/api/**` proxy와 production `/api/admin/**` edge
 - PostgreSQL 연결
-- 파일 upload·native image decoder와 향후 build API·publisher
+- 파일 upload·native image decoder, 내부 publication recorder와 향후 build API·publisher
 - GitHub Actions·production environment·Tailscale deploy entrypoint
 - HomeOps health/status/event와 bounded restart
 - backup 파일과 운영자 휴대전화
@@ -64,6 +65,9 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | 공급망 취약점 | 코드 실행 | exact version, Wrapper/lockfile, scanner, 별도 upgrade 검증 |
 | backend 장애 | 관리자 작업 중단 | 공개 Static Export와 runtime 분리 |
 | 콘텐츠 삭제 | 영업 자산 손실 | 후속 CRUD에서 archive, migration·backup gate |
+| revision 중복·event 유실 | 최신 snapshot 식별 실패, 공개 반영 누락 | singleton row lock 기반 allocator, content·revision·typed outbox same-transaction commit/rollback, sequence·best-effort hook 금지 |
+| outbox 위조·내부 상태 노출 | draft trigger 오분류, 내부 콘텐츠 식별자 노출 | kind/source/boundary DB allowlist, domain 내부 `MANDATORY` recorder, 관리자 response·public/build endpoint 비노출 |
+| stale scheduled event 오용 | 재예약·보관 콘텐츠의 잘못된 공개 | old event 삭제에 의존하지 않고 후속 consumer가 current Notice·Gallery row·expected boundary·전체 snapshot 재검증 |
 | self-hosted runner 악용 | Mac mini 장악 | 전용 runner scope, untrusted PR 실행 금지, 최소 권한 |
 | publisher credential 탈취 | private snapshot·media 노출 | internal network, read-only endpoint, admin session 분리, public Nginx deny |
 | backup key 탈취·분실 | 민감 원본 노출 또는 복구 불가 | 별도 encrypted repository, 제한된 password source, password manager+offline recovery key |
@@ -83,6 +87,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - 미설계 `/api/**` anonymous 허용
 - backup 없음
 - public build/internal/actuator route 노출
+- publication outbox·revision table의 HTTP response 또는 외부 network 노출
 - one-shot Flyway·manual digest deploy·restore drill 부재
 - Mac `/private/var/lib/rhaomi` ownership·bind smoke, PostgreSQL named-volume restart/일반 `down` persistence와 isolated `pg_restore` 증거 부재
 - HomeOps 자동 복구가 DB·volume·migration·backup을 변경할 수 있음

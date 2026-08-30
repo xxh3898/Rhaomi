@@ -9,6 +9,10 @@ import kr.co.rhaomi.backend.content.ContentStatus;
 import kr.co.rhaomi.backend.media.MediaAsset;
 import kr.co.rhaomi.backend.media.MediaAssetRepository;
 import kr.co.rhaomi.backend.media.MediaStatus;
+import kr.co.rhaomi.backend.publication.PublicationEventKind;
+import kr.co.rhaomi.backend.publication.PublicationRecorder;
+import kr.co.rhaomi.backend.publication.PublicationSourceType;
+import kr.co.rhaomi.backend.publication.ScheduledPublicationEvent;
 import kr.co.rhaomi.backend.service.GroomingService;
 import kr.co.rhaomi.backend.service.GroomingServiceRepository;
 import org.springframework.stereotype.Service;
@@ -21,16 +25,19 @@ public class GalleryAdminService {
     private final BreedRepository breedRepository;
     private final GroomingServiceRepository serviceRepository;
     private final MediaAssetRepository mediaRepository;
+    private final PublicationRecorder publicationRecorder;
 
     public GalleryAdminService(
             GalleryRepository galleryRepository,
             BreedRepository breedRepository,
             GroomingServiceRepository serviceRepository,
-            MediaAssetRepository mediaRepository) {
+            MediaAssetRepository mediaRepository,
+            PublicationRecorder publicationRecorder) {
         this.galleryRepository = galleryRepository;
         this.breedRepository = breedRepository;
         this.serviceRepository = serviceRepository;
         this.mediaRepository = mediaRepository;
+        this.publicationRecorder = publicationRecorder;
     }
 
     @Transactional(readOnly = true)
@@ -48,18 +55,40 @@ public class GalleryAdminService {
         Objects.requireNonNull(actorId, "actorId");
         var values = GalleryValues.fromCreate(request);
         validateRelations(values);
-        return GalleryResponse.from(
-                galleryRepository.saveAndFlush(GalleryItem.create(values, actorId)));
+        var saved = galleryRepository.saveAndFlush(GalleryItem.create(values, actorId));
+        publicationRecorder.record(PublicationSourceType.GALLERY_ITEM, saved.getId(), false);
+        return GalleryResponse.from(saved);
     }
 
     @Transactional
     public GalleryResponse update(UUID id, GalleryUpdateRequest request, UUID actorId) {
         Objects.requireNonNull(actorId, "actorId");
         var item = find(id);
+        var beforeStatus = item.getStatus();
+        var beforePublishedAt = item.getPublishedAt();
         var values = GalleryValues.fromUpdate(request);
         validateRelations(values);
         item.update(values, actorId);
-        return GalleryResponse.from(galleryRepository.saveAndFlush(item));
+        var saved = galleryRepository.saveAndFlush(item);
+        var contentChanged = beforeStatus == ContentStatus.PUBLISHED
+                || saved.getStatus() == ContentStatus.PUBLISHED;
+        var publishBoundaryChanged = saved.getStatus() == ContentStatus.PUBLISHED
+                && saved.getPublishedAt() != null
+                && (beforeStatus != ContentStatus.PUBLISHED
+                        || !Objects.equals(beforePublishedAt, saved.getPublishedAt()));
+        if (publishBoundaryChanged) {
+            publicationRecorder.record(
+                    PublicationSourceType.GALLERY_ITEM,
+                    saved.getId(),
+                    contentChanged,
+                    new ScheduledPublicationEvent(
+                            PublicationEventKind.GALLERY_PUBLISHED_AT_DUE,
+                            saved.getPublishedAt()));
+        } else {
+            publicationRecorder.record(
+                    PublicationSourceType.GALLERY_ITEM, saved.getId(), contentChanged);
+        }
+        return GalleryResponse.from(saved);
     }
 
     private GalleryItem find(UUID id) {

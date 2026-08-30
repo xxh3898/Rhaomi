@@ -67,6 +67,8 @@ review_trigger: "기능 범위 변경 시"
 | FR-ADM-032 | `/admin/` 견종·서비스 UI는 strict response 검증 뒤 목록·생성·전체 수정을 제공하고 immutable slug, `draft | published | archived`, 0 이상 sortOrder를 유지해야 한다. list ordering은 backend response 배열이 authority이며 mutation 뒤 GET list로 canonical ordering을 다시 획득해야 한다. 후속 GET 실패는 저장 실패와 구분하고 사용자 action당 mutation은 한 번만 보내며 401 session expiry·403 CSRF 실패·network/5xx를 자동 재시도하지 않아야 한다. |
 | FR-ADM-033 | `/admin/` 갤러리 UI는 backend 목록 순서를 그대로 보존하고 항상 draft인 생성과 mutable field 전체 PUT을 제공해야 한다. draft·archived에서는 존재하는 breed·service·active/archived media를 관계로 선택할 수 있고 published에서는 게시된 breed·service와 active media만 허용해야 한다. mutation 뒤 canonical GET 실패는 저장 실패와 구분하고 stale GET·자동 mutation 재시도를 막아야 한다. |
 | FR-ADM-034 | `/admin/` 공지 UI는 backend의 pinned·publishedAt·updatedAt·id 목록 순서를 그대로 보존하고 status 없는 draft 생성과 immutable slug를 제외한 full PUT을 제공해야 한다. source Markdown을 HTML로 렌더링하지 않고, 변경하지 않은 microsecond Instant를 보존하며, mutation 뒤 canonical GET 실패를 저장 실패와 구분하고 stale GET·자동 mutation 재시도를 막아야 한다. |
+| FR-ADM-035 | Breed·Service·Notice·ShopSettings·Gallery·Media의 성공 mutation은 같은 PostgreSQL transaction에서 row 기반 `contentRevision`을 정확히 한 번 증가시켜야 한다. validation·repository·outbox 실패와 rollback은 revision을 소비하거나 event를 남기지 않아야 한다. |
+| FR-ADM-036 | 공개 결과에 영향을 주는 mutation은 같은 revision의 `CONTENT_CHANGED`를 기록하고, 새로 설정·변경된 Notice 게시·만료 경계와 published Gallery 게시 경계는 typed `availableAt`·expected boundary scheduled event로 내구적으로 기록해야 한다. old event 삭제에 correctness를 의존하지 않아야 한다. |
 
 ## 배포
 
@@ -78,3 +80,4 @@ review_trigger: "기능 범위 변경 시"
 | FR-DEP-004 | 정적 빌드·링크·SEO·스모크 검증이 성공한 산출물만 공개해야 한다. |
 | FR-DEP-005 | 배포 실패 시 기존 공개 릴리스를 유지해야 한다. |
 | FR-DEP-006 | 직전 정상 릴리스로 되돌릴 수 있어야 한다. |
+| FR-DEP-007 | future Notice 게시·만료와 Gallery 게시 시각은 추가 관리자 mutation 없이 due event가 후속 publisher에 의해 처리될 수 있어야 한다. |

@@ -3,11 +3,25 @@ title: "콘텐츠 배포 테스트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-30"
 review_trigger: "관리 backend·배포 event 변경 시"
 ---
 
 # 콘텐츠 배포 테스트
+
+## Phase 1C-8f1 producer 완료
+
+- [x] V8 `content_revision_state` 초기 0·singleton·nonnegative constraint와 transactional row allocator
+- [x] V8 typed `publishing_outbox` kind/source/revision/boundary constraint와 required index
+- [x] 기존 V1→V7 database의 V8 upgrade와 clean V1→V8 migration
+- [x] 지원 콘텐츠 성공 mutation당 revision 정확히 1회, 동시 transaction duplicate·lost revision 없음
+- [x] rollback·validation·outbox insert failure의 content/revision/event 원자적 rollback
+- [x] Breed·Service·Notice·Gallery status matrix, Shop 모든 PUT, Media upload·archive·restore immediate 분류
+- [x] Notice create/update의 changed publishedAt·expiresAt scheduled event와 old event 보존
+- [x] published Gallery 진입·reschedule의 publishedAt scheduled event와 old event 보존
+- [x] Media revision allocation failure의 DB row·temp/final file orphan 부재
+
+아래 항목은 각 줄의 전체 범위를 기준으로 표시한다. producer-only transaction·typed event 항목은 완료했고 실제 공개 결과·consumer/build 범위를 포함한 항목은 미완료다.
 
 ## 기본 게시
 
@@ -45,8 +59,9 @@ review_trigger: "관리 backend·배포 event 변경 시"
 
 ## 예약 event·stale 안전성
 
-- [ ] notice transaction과 future publishedAt·expiresAt scheduled event가 함께 commit/rollback
-- [ ] scheduled event에 `availableAt`/`notBefore`, notice ID, current revision과 boundary 식별값 기록
+- [x] notice transaction과 changed publishedAt·expiresAt scheduled event가 함께 commit/rollback
+- [x] scheduled event에 `availableAt`, source type·ID, current revision과 expected boundary 식별값 기록
+- [ ] Gallery publishedAt scheduled event 처리 시 current Gallery row·boundary 재검증
 - [ ] eligible event claim·`publishGeneration` 할당·첫 attempt가 atomic하고 claim crash 뒤 같은 generation으로 복구
 - [ ] publishedAt·expiresAt 변경 뒤 old event 처리 → current row 재검증, stale 공개 없음
 - [ ] future notice의 draft·archived 전환 뒤 old event 처리 → no-op 또는 최신 generation coalesce, 공개 없음
@@ -72,7 +87,7 @@ review_trigger: "관리 backend·배포 event 변경 시"
 
 ## 실패 안전성
 
-- [ ] 콘텐츠 변경과 publishing outbox가 같은 PostgreSQL transaction에서 commit/rollback
+- [x] 콘텐츠 변경과 publishing outbox가 같은 PostgreSQL transaction에서 commit/rollback
 - [ ] snapshot/release manifest의 `contentRevision`·`publishGeneration`·`generatedAt` 일치
 - [ ] 낮거나 같은 `publishGeneration`의 old build가 newer current를 덮지 못함
 - [ ] Spring Boot/build API 중단 → build 실패, current 유지

@@ -11,7 +11,7 @@ review_trigger: "콘텐츠 배포 방식 변경 시"
 
 ## 구현 상태
 
-Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. 관리자 콘텐츠 API는 일부 구현됐지만 publishing outbox, build API, publisher와 public content route는 아직 구현되지 않았다. 이 문서는 후속 Issue가 따라야 할 목표 계약이다.
+Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Flyway V8과 domain service 연동으로 `contentRevision`·publishing outbox producer는 구현됐지만 claim/lease·`publishGeneration`, build API, publisher와 public content route는 아직 구현되지 않았다. 이 문서는 현재 producer 경계와 후속 pipeline 계약을 함께 정의한다.
 
 ## 목적
 
@@ -28,14 +28,23 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 ## planned trigger
 
 - 공개 결과·eligibility에 영향을 주는 콘텐츠 변경과 publishing outbox를 같은 PostgreSQL transaction에 기록한다.
-- 미래 `publishedAt`·`expiresAt`이 있는 notice create/update/publish transaction은 event kind, `availableAt` 또는 `notBefore`, notice ID와 current revision/boundary를 가진 durable scheduled event도 같은 transaction에 기록한다.
+- 새로 설정·변경된 `publishedAt`·`expiresAt`이 있는 Notice create/update transaction은 event kind, `availableAt`, Notice ID와 current revision/boundary를 가진 durable scheduled event도 같은 transaction에 기록한다. 이미 지난 값도 consumer가 `availableAt <= now`로 처리할 수 있게 기록한다.
+- Gallery가 published로 진입하거나 published 상태에서 non-null `publishedAt`이 변경되면 같은 transaction에 `GALLERY_PUBLISHED_AT_DUE`를 기록한다.
 - `contentRevision`은 지원되는 콘텐츠 mutation마다 증가한다. draft-only mutation은 revision만 전진하고 public trigger는 만들지 않는다. `publishGeneration`은 immediate public-impact mutation, due publish/expiry boundary, 승인된 code release와 manual rebuild/retry가 public trigger로 처리될 때 증가한다.
 - 공개 결과에 영향을 주지 않는 draft-only 변경은 불필요한 build를 만들지 않도록 분류한다.
 - hard delete는 일반 운영 경로에 포함하지 않는다.
 - 단일 internal publisher가 immediate pending event와 `availableAt <= now`인 scheduled event를 claim하고 첫 trigger 뒤 30초 debounce한다.
-- publisher restart 뒤에도 overdue event를 처리하며 scheduled event의 과거 기대값 대신 current notice row와 전체 snapshot을 재검증한다.
+- publisher restart 뒤에도 overdue event를 처리하며 scheduled event의 과거 기대값 대신 current Notice·Gallery row와 전체 snapshot을 재검증한다.
 - global filesystem lock으로 code·content build를 직렬화한다.
 - code release와 콘텐츠 release가 같은 검증·atomic switch 구현을 사용한다.
+
+## 현재 producer 경계
+
+- V8 `content_revision_state` row increment와 outbox insert는 domain row mutation과 같은 PostgreSQL transaction에 참여한다.
+- 한 성공 mutation은 save 횟수나 event 수와 무관하게 revision을 한 번만 할당한다. validation·DB·outbox failure와 rollback은 revision/event를 남기지 않는다.
+- event kind/source/boundary는 typed column과 DB CHECK로 제한한다. claim·상태 전환용 field나 JSON payload escape hatch는 없다.
+- Media upload의 revision allocation이 실패하면 DB row와 이동한 final master를 함께 rollback/cleanup한다.
+- producer는 build API, service credential, public route, claim loop나 scheduler를 포함하지 않는다.
 
 ## planned pipeline
 
@@ -75,7 +84,7 @@ sequenceDiagram
 3. global filesystem lock
 4. release ID, target `contentRevision`·`publishGeneration`과 승인된 production code image digest 확인
 5. internal read-only build API로 일관된 snapshot 조회
-6. scheduled event라면 current notice row를 다시 읽고, snapshot schema, `generatedAt` 기준 published·notice 게시/만료, 관계·media 상태와 실제 file scope 재검증
+6. scheduled event라면 current Notice·Gallery row를 다시 읽고, snapshot schema, `generatedAt` 기준 published·게시/만료, 관계·media 상태와 실제 file scope 재검증
 7. image download·validation·metadata 제거·responsive derivative 생성
 8. Next.js build/export
 9. HTML, link, canonical, sitemap, robots와 asset 검증
@@ -107,7 +116,7 @@ sequenceDiagram
 
 ## scheduled event 안전성
 
-- notice가 reschedule, draft·archived 전환 또는 window 변경된 뒤 old scheduled event가 도착해도 current row와 `generatedAt` snapshot이 authority다.
+- Notice·Gallery가 reschedule, draft·archived 전환 또는 boundary 변경된 뒤 old scheduled event가 도착해도 current row와 `generatedAt` snapshot이 authority다.
 - old event가 더 이상 공개 결과를 바꾸지 않으면 terminal no-op으로 기록하거나 가장 높은 pending generation에 합친다. correctness를 위해 old row를 물리 삭제할 필요는 없다.
 - 가까운 여러 boundary를 debounce/coalesce해도 가장 높은 accepted generation의 최종 snapshot이 해당 `generatedAt`의 정확한 eligibility를 반영해야 한다.
 - 주간 notice expiry 점검은 누락·drift를 찾는 audit/reconciliation이다. 예약 공개·만료 제거의 correctness trigger로 사용하지 않는다.

@@ -193,3 +193,21 @@ review_trigger: "제품 기능 변경 시"
 **Given** 사용자가 backend의 microsecond 시각을 form에서 바꾸지 않았을 때
 
 **Then** full PUT은 원래 Instant를 보존한다. 저장 성공 뒤 canonical GET이 실패해도 mutation 실패로 표시하거나 자동 재전송하지 않고 explicit refresh를 제공하며, ready가 된 enabled 원 trigger로 focus를 복귀한다.
+
+## AC-17 transactional publication producer
+
+**Given** 지원되는 Breed·Service·Notice·ShopSettings·Gallery·Media mutation이 성공했을 때
+
+**Then** 같은 PostgreSQL transaction에서 `contentRevision`이 정확히 한 번 증가하고 공개 영향 분류에 맞는 immediate event만 같은 revision으로 기록된다.
+
+**Given** Notice 게시·만료 boundary가 새로 설정·변경되거나 published Gallery의 게시 boundary가 생성·변경됐을 때
+
+**Then** `availableAt = expectedBoundaryAt`인 typed scheduled event가 같은 revision으로 기록되며 이전 scheduled event를 삭제하지 않는다.
+
+**Given** validation·repository·outbox insert 또는 media revision allocation이 실패했을 때
+
+**Then** content row·revision·event가 함께 rollback되고 media temp·final orphan이 남지 않는다.
+
+**Given** 동시 mutation 또는 rollback 뒤 다음 mutation이 실행될 때
+
+**Then** duplicate·lost revision이 없고 rollback된 transaction이 revision을 영구 소비하지 않는다.

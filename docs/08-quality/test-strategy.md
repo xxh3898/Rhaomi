@@ -18,7 +18,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - 모바일 문의·검색 metadata 보호
 - 배포 실패 시 기존 사이트 보호
 
-## 현재 Phase 1C-8e 자동 검증
+## 현재 Phase 1C-8f1 자동 검증
 
 ### Frontend
 
@@ -195,6 +195,20 @@ review_trigger: "기술·기능 범위 변경 시"
 - response의 scalar relation id만 노출하고 media storage key/path/hash와 relation 객체를 embed하지 않음
 - `PATCH`, `DELETE`, publish action, public/build endpoint 부재와 domain별 고정 404/422/generic 5xx 계약
 
+### publication revision·outbox producer
+
+- 기존 V1→V7 database의 V8 upgrade와 clean V1→V8 migration, JPA validate
+- `content_revision_state` singleton·nonnegative guard와 초기 revision 0
+- `publishing_outbox` exact typed column, `TIMESTAMP(6) WITH TIME ZONE`, kind/source/revision/boundary/source-kind named CHECK와 required index
+- transaction 필수 recorder와 PostgreSQL row increment 기반 동시 allocator의 unique·gapless revision
+- rollback된 transaction의 revision/event 부재와 다음 성공 mutation revision 재사용
+- Breed·Service draft-only와 published 진입·수정·이탈, Shop 모든 PUT, Notice·Gallery 상태 matrix, Media upload·archive·restore 분류
+- Notice create/update의 changed publishedAt·expiresAt과 published Gallery 진입/reschedule scheduled event, 동일 mutation event의 같은 revision과 old row 보존
+- Notice·Gallery·Shop·Media validation 실패의 revision/event/content/file 불변
+- outbox insert 강제 실패의 content·revision rollback과 다음 mutation 복구
+- media persistence 뒤 revision allocation 실패의 DB row·final/temp file orphan 부재
+- 새 HTTP/build endpoint·credential, API response field, Compose/workflow/dependency 변경 부재
+
 H2 전용 통과는 DB contract 증거로 인정하지 않는다. Hosted CI Backend job은 실제 PostgreSQL service를 사용한다.
 Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 application context를 시작하기 전에 중단한다. fixture 정리는 지정된 test email에만 한정한다.
 
@@ -248,10 +262,9 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 - published 관계와 file scope
 - 매장정보 Hero·프로필·OG relation의 active status·private master·파생 file 재검증
 - build API read-only와 모든 mutation deny
-- same-transaction immediate event와 future publishedAt·expiresAt `availableAt` scheduled event, draft-only trigger 분류
 - eligible event claim·`publishGeneration`·첫 attempt atomicity와 claim crash recovery
-- additional admin mutation 없는 future publish·expiry와 publisher restart 뒤 overdue 처리
-- reschedule·draft/archive·window 변경 뒤 old event의 current-row/snapshot 재검증과 stale no-op
+- additional admin mutation 없는 future Notice publish·expiry와 Gallery publish, publisher restart 뒤 overdue 처리
+- Notice·Gallery reschedule·draft/archive·boundary 변경 뒤 old event의 current-row/snapshot 재검증과 stale no-op
 - `contentRevision`·`publishGeneration` 분리, 같은 content revision의 여러 public generation
 - 30초 debounce·global lock·highest generation coalescing과 최종 snapshot 정확성
 - 동일 `publishGeneration` 1분·5분·15분 최대 3회 retry와 data error non-retry

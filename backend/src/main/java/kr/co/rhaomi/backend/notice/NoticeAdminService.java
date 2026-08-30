@@ -1,5 +1,7 @@
 package kr.co.rhaomi.backend.notice;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -7,6 +9,10 @@ import kr.co.rhaomi.backend.content.ContentNotFoundException;
 import kr.co.rhaomi.backend.content.ContentPersistenceErrors;
 import kr.co.rhaomi.backend.content.ContentStatus;
 import kr.co.rhaomi.backend.content.SlugConflictException;
+import kr.co.rhaomi.backend.publication.PublicationEventKind;
+import kr.co.rhaomi.backend.publication.PublicationRecorder;
+import kr.co.rhaomi.backend.publication.PublicationSourceType;
+import kr.co.rhaomi.backend.publication.ScheduledPublicationEvent;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,9 +23,12 @@ public class NoticeAdminService {
     private static final String SLUG_CONSTRAINT = "uk_notices_slug";
 
     private final NoticeRepository noticeRepository;
+    private final PublicationRecorder publicationRecorder;
 
-    public NoticeAdminService(NoticeRepository noticeRepository) {
+    public NoticeAdminService(
+            NoticeRepository noticeRepository, PublicationRecorder publicationRecorder) {
         this.noticeRepository = noticeRepository;
+        this.publicationRecorder = publicationRecorder;
     }
 
     @Transactional(readOnly = true)
@@ -47,13 +56,22 @@ public class NoticeAdminService {
                 request.publishedAt(),
                 request.expiresAt(),
                 actorId);
-        return NoticeResponse.from(save(notice));
+        var saved = save(notice);
+        publicationRecorder.record(
+                PublicationSourceType.NOTICE,
+                saved.getId(),
+                false,
+                changedBoundaries(null, null, saved));
+        return NoticeResponse.from(saved);
     }
 
     @Transactional
     public NoticeResponse update(UUID id, NoticeUpdateRequest request, UUID actorId) {
         Objects.requireNonNull(actorId, "actorId");
         var notice = find(id);
+        var beforeStatus = notice.getStatus();
+        var beforePublishedAt = notice.getPublishedAt();
+        var beforeExpiresAt = notice.getExpiresAt();
         notice.update(
                 ContentStatus.fromApiValue(request.status()),
                 request.title(),
@@ -63,7 +81,15 @@ public class NoticeAdminService {
                 request.publishedAt(),
                 request.expiresAt(),
                 actorId);
-        return NoticeResponse.from(noticeRepository.saveAndFlush(notice));
+        var saved = noticeRepository.saveAndFlush(notice);
+        var contentChanged = beforeStatus == ContentStatus.PUBLISHED
+                || saved.getStatus() == ContentStatus.PUBLISHED;
+        publicationRecorder.record(
+                PublicationSourceType.NOTICE,
+                saved.getId(),
+                contentChanged,
+                changedBoundaries(beforePublishedAt, beforeExpiresAt, saved));
+        return NoticeResponse.from(saved);
     }
 
     private Notice find(UUID id) {
@@ -79,5 +105,23 @@ public class NoticeAdminService {
             }
             throw exception;
         }
+    }
+
+    private ScheduledPublicationEvent[] changedBoundaries(
+            Instant beforePublishedAt, Instant beforeExpiresAt, Notice notice) {
+        var events = new ArrayList<ScheduledPublicationEvent>(2);
+        if (notice.getPublishedAt() != null
+                && !Objects.equals(beforePublishedAt, notice.getPublishedAt())) {
+            events.add(new ScheduledPublicationEvent(
+                    PublicationEventKind.NOTICE_PUBLISHED_AT_DUE,
+                    notice.getPublishedAt()));
+        }
+        if (notice.getExpiresAt() != null
+                && !Objects.equals(beforeExpiresAt, notice.getExpiresAt())) {
+            events.add(new ScheduledPublicationEvent(
+                    PublicationEventKind.NOTICE_EXPIRES_AT_DUE,
+                    notice.getExpiresAt()));
+        }
+        return events.toArray(ScheduledPublicationEvent[]::new);
     }
 }

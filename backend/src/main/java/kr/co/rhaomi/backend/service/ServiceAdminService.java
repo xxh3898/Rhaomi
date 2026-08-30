@@ -7,6 +7,8 @@ import kr.co.rhaomi.backend.content.ContentNotFoundException;
 import kr.co.rhaomi.backend.content.ContentPersistenceErrors;
 import kr.co.rhaomi.backend.content.ContentStatus;
 import kr.co.rhaomi.backend.content.SlugConflictException;
+import kr.co.rhaomi.backend.publication.PublicationRecorder;
+import kr.co.rhaomi.backend.publication.PublicationSourceType;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,9 +19,13 @@ public class ServiceAdminService {
     private static final String SLUG_CONSTRAINT = "uk_services_slug";
 
     private final GroomingServiceRepository serviceRepository;
+    private final PublicationRecorder publicationRecorder;
 
-    public ServiceAdminService(GroomingServiceRepository serviceRepository) {
+    public ServiceAdminService(
+            GroomingServiceRepository serviceRepository,
+            PublicationRecorder publicationRecorder) {
         this.serviceRepository = serviceRepository;
+        this.publicationRecorder = publicationRecorder;
     }
 
     @Transactional(readOnly = true)
@@ -47,13 +53,16 @@ public class ServiceAdminService {
                 request.priceText(),
                 request.sortOrder(),
                 actorId);
-        return ServiceResponse.from(save(service));
+        var saved = save(service);
+        publicationRecorder.record(PublicationSourceType.SERVICE, saved.getId(), false);
+        return ServiceResponse.from(saved);
     }
 
     @Transactional
     public ServiceResponse update(UUID id, ServiceUpdateRequest request, UUID actorId) {
         Objects.requireNonNull(actorId, "actorId");
         var service = find(id);
+        var beforeStatus = service.getStatus();
         service.update(
                 ContentStatus.fromApiValue(request.status()),
                 request.name(),
@@ -61,7 +70,12 @@ public class ServiceAdminService {
                 request.priceText(),
                 request.sortOrder(),
                 actorId);
-        return ServiceResponse.from(serviceRepository.saveAndFlush(service));
+        var saved = serviceRepository.saveAndFlush(service);
+        var contentChanged = beforeStatus == ContentStatus.PUBLISHED
+                || saved.getStatus() == ContentStatus.PUBLISHED;
+        publicationRecorder.record(
+                PublicationSourceType.SERVICE, saved.getId(), contentChanged);
+        return ServiceResponse.from(saved);
     }
 
     private GroomingService find(UUID id) {

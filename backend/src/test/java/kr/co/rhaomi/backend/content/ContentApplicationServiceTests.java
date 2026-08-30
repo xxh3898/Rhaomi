@@ -12,6 +12,7 @@ import kr.co.rhaomi.backend.notice.NoticeAdminService;
 import kr.co.rhaomi.backend.notice.NoticeCreateRequest;
 import kr.co.rhaomi.backend.notice.NoticeRepository;
 import kr.co.rhaomi.backend.media.MediaAssetRepository;
+import kr.co.rhaomi.backend.publication.PublicationRecorder;
 import kr.co.rhaomi.backend.service.GroomingServiceRepository;
 import kr.co.rhaomi.backend.service.ServiceAdminService;
 import kr.co.rhaomi.backend.service.ServiceUpdateRequest;
@@ -25,42 +26,50 @@ class ContentApplicationServiceTests {
     @Test
     void should_rejectBeforeRepositoryAccess_when_createActorIsMissing() {
         var repository = mock(BreedRepository.class);
-        var service = new BreedAdminService(repository);
+        var publicationRecorder = mock(PublicationRecorder.class);
+        var service = new BreedAdminService(repository, publicationRecorder);
         var request = new BreedCreateRequest("푸들", "poodle", null, 100);
 
         assertThrows(NullPointerException.class, () -> service.create(request, null));
 
         verifyNoInteractions(repository);
+        verifyNoInteractions(publicationRecorder);
     }
 
     @Test
     void should_rejectBeforeRepositoryAccess_when_updateActorIsMissing() {
         var repository = mock(GroomingServiceRepository.class);
-        var service = new ServiceAdminService(repository);
+        var publicationRecorder = mock(PublicationRecorder.class);
+        var service = new ServiceAdminService(repository, publicationRecorder);
         var request = new ServiceUpdateRequest("draft", "전체미용", null, null, 100);
 
         assertThrows(NullPointerException.class, () -> service.update(UUID.randomUUID(), request, null));
 
         verifyNoInteractions(repository);
+        verifyNoInteractions(publicationRecorder);
     }
 
     @Test
     void should_rejectBeforeRepositoryAccess_when_noticeCreateActorIsMissing() {
         var repository = mock(NoticeRepository.class);
-        var service = new NoticeAdminService(repository);
+        var publicationRecorder = mock(PublicationRecorder.class);
+        var service = new NoticeAdminService(repository, publicationRecorder);
         var request = new NoticeCreateRequest(
                 "휴무 안내", "holiday-notice", null, null, false, null, null);
 
         assertThrows(NullPointerException.class, () -> service.create(request, null));
 
         verifyNoInteractions(repository);
+        verifyNoInteractions(publicationRecorder);
     }
 
     @Test
     void should_rejectBeforeRepositoryAccess_when_shopSettingsActorIsMissing() {
         var repository = mock(ShopSettingsRepository.class);
         var mediaAssetRepository = mock(MediaAssetRepository.class);
-        var service = new ShopSettingsAdminService(repository, mediaAssetRepository);
+        var publicationRecorder = mock(PublicationRecorder.class);
+        var service = new ShopSettingsAdminService(
+                repository, mediaAssetRepository, publicationRecorder);
         var request = new ShopSettingsRequest(
                 "라오미펫",
                 "서울",
@@ -93,5 +102,6 @@ class ContentApplicationServiceTests {
 
         verifyNoInteractions(repository);
         verifyNoInteractions(mediaAssetRepository);
+        verifyNoInteractions(publicationRecorder);
     }
 }

@@ -153,6 +153,10 @@ public class ShopSettings {
         kakaoChannelUrl = values.kakaoChannelUrl();
     }
 
+    public UUID getId() {
+        return id;
+    }
+
     public String getShopName() {
         return shopName;
     }
