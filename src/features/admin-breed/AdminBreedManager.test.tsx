@@ -142,7 +142,7 @@ describe("AdminBreedManager", () => {
         .getAllByRole("listitem")
         .map((item) => within(item).getByRole("heading", { level: 3 }).textContent),
     ).toEqual(canonicalList.map((item) => item.name));
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("update 뒤 canonical GET pending 동안 focus를 보류하고 resolve 뒤 item action으로 복귀한다", async () => {
@@ -265,7 +265,7 @@ describe("AdminBreedManager", () => {
       "저장은 완료됐지만 목록 순서를 새로고침하지 못했습니다",
     );
     await waitFor(() => expect(trigger).toBeEnabled());
-    expect(trigger).toHaveFocus();
+    await waitFor(() => expect(trigger).toHaveFocus());
     expect(screen.getByText("bichon-frise")).toBeInTheDocument();
     expect(screen.queryByText(/견종을 생성하지 못했습니다/)).not.toBeInTheDocument();
     expect(requestJsonMutation).toHaveBeenCalledTimes(1);
