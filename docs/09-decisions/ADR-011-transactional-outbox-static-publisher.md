@@ -52,7 +52,8 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 - active owner·generation·lease guard, same-generation expired lease recovery와 1분·5분·15분 retry, 총 attempt 4회, typed terminal result와 lower→higher active coalesce primitive를 구현했다.
 - Phase 1C-8f3은 별도 stateless service credential로 active generation의 read-only `REPEATABLE READ` snapshot과 public-scope canonical media 조회를 구현했다. exact DTO에는 producer/outbox row, claim owner·lease·event ID를 노출하지 않는다.
 - Phase 1C-8f4는 exact snapshot·relation·eligibility·media manifest를 재검증하고 responsive public derivative와 deterministic content/media manifest를 새 atomic staging target에 만드는 transport-independent transformer를 구현했다.
-- actual polling loop·build API HTTP client·30초 debounce orchestration·Next render와 build/release 처리는 없다. prune 정책도 후속 범위다.
+- Phase 1C-8f5는 normal backend scan 밖의 dedicated non-web root, repeated claim, first accepted `claimedAt` 기준 fixed 30초 window, exact boundary 포함, highest-generation coalesce, debounce·executor lease renewal, physical executor termination acknowledgment까지 유지하는 filesystem advisory lock과 typed executor/result mapping을 구현했다.
+- production executor는 release를 만들지 않는 fail-closed placeholder다. Build API HTTP client·transformer·Next render와 build/release 처리는 없다. prune 정책도 후속 범위다.
 
 ### revision과 public ordering
 
@@ -69,7 +70,7 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 초기 규모에서는 deploy hook과 builder를 분리하지 않고 internal publisher 하나가 다음을 담당한다.
 
 1. immediate pending event와 due scheduled event poll·claim, generation·attempt 기록
-2. 첫 변경 뒤 30초 debounce
+2. 첫 accepted generation의 `claimedAt`부터 `T0 + 30s`를 포함하는 fixed debounce
 3. Mac `/private/var/lib/rhaomi/state/locks`를 bind한 publisher container `/var/lib/rhaomi/locks`의 global filesystem lock
 4. 대기 trigger를 가장 높은 `publishGeneration`으로 coalesce
 5. 일관된 read-only 콘텐츠·media snapshot 획득
@@ -80,6 +81,11 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 10. attempt/result, `contentRevision`, `publishGeneration`, `generatedAt`, release ID 기록
 
 - publisher는 public network와 Docker socket을 사용하지 않는다.
+- normal backend에는 publisher loop가 없고 exact publisher mode만 `WebApplicationType.NONE` process를 기동한다. profile 이름만으로 HTTP process에 background loop를 추가하지 않는다.
+- debounce와 executor 동안 target lease를 갱신하고 ownership을 잃으면 success/no-op completion을 기록하지 않는다. shutdown은 새 claim을 중단하고 active result를 위조하지 않는다.
+- lease 상실·shutdown cancellation은 `Future.cancel(true)`나 `Future.isDone()`을 physical termination으로 취급하지 않는다. task wrapper가 callable의 진입·종료를 별도 신호로 추적하고, body가 시작 불가능하거나 실제 종료된 뒤에만 global lock scope를 벗어난다.
+- shutdown timeout은 lifecycle caller의 join 시간만 제한한다. executor body가 interrupt를 무시하면 non-daemon control worker가 lock을 계속 보유해 다른 publisher를 막으며, 외부 process termination이 executor와 OS lock을 함께 정리한다.
+- global lock을 얻지 못하면 silent success가 아니라 active target의 transient failure로 처리한다. lock file에는 credential·path·exception detail을 쓰지 않는다.
 - publisher의 filesystem 접근은 필요한 read-only media와 release/state/lock write 경로로 제한한다.
 - release host source는 `/private/var/lib/rhaomi/public`이고 publisher container target은 `/srv/rhaomi/public`이다. `releases`, `current`, `previous` 조작은 container target에서 수행되지만 Mac host authority는 `/private/var/lib/rhaomi/public`이다.
 - publisher state host source는 `/private/var/lib/rhaomi/state/publisher`, lock source는 `/private/var/lib/rhaomi/state/locks`다. 둘을 각각 publisher container `/var/lib/rhaomi/publisher`, `/var/lib/rhaomi/locks`로 read-write mount한다.
@@ -151,7 +157,7 @@ backend 장애를 공개 사이트로 전파하고 정적 HTML·SEO 계약을 �
 - [x] Flyway V8 transactional `contentRevision`, immediate event 분류와 Notice·Gallery `availableAt` scheduled outbox producer 구현
 - [x] pending/due claim·lease 복구, `publishGeneration`과 attempt/result DB/state-machine foundation 구현
 - [x] internal read-only build API와 stateless service credential, active generation gate, REPEATABLE READ snapshot·public-scope media 구현
-- [ ] single publisher의 반복 poll, 30초 debounce, global lock, build orchestration과 stale snapshot 방지 구현
+- [x] dedicated non-web publisher의 반복 poll, fixed 30초 debounce, highest-generation coalesce, lease renewal, global filesystem lock과 typed build executor control plane 구현
 - [x] build API의 current published/relation/media/file·canonical master 재검증 구현
 - [x] snapshot·media transformer의 response schema·source/output file 이중 검증, responsive derivative·atomic staging 구현
 - [ ] publisher의 build API HTTP client와 transformer orchestration 구현

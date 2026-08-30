@@ -280,4 +280,40 @@ review_trigger: "제품 기능 변경 시"
 
 **Given** Phase 1C-8f4 transformer가 성공했을 때
 
-**Then** build API HTTP client, publisher polling/debounce, Markdown/HTML·SEO·Next render, global lock, release manifest와 `current` atomic switch가 완료된 것으로 간주하지 않는다.
+**Then** build API HTTP client, Markdown/HTML·SEO·Next render, release manifest와 `current` atomic switch가 완료된 것으로 간주하지 않는다. publisher polling/debounce/lock control plane은 AC-21의 별도 계약으로 검증한다.
+
+## AC-21 publisher control loop
+
+**Given** normal backend가 publisher mode argument 없이 시작될 때
+
+**Then** 기존 HTTP API만 기동하고 publisher loop·lifecycle bean이나 background claim thread를 만들지 않는다.
+
+**Given** exact `--rhaomi.publisher.mode=control-loop`이 선택될 때
+
+**Then** publisher는 `WebApplicationType.NONE` 전용 root로 기동하고 controller·web server·admin bootstrap을 구성하지 않으며 stable non-secret owner와 bounded poll/lease/renew/shutdown 설정만 사용한다.
+
+**Given** 첫 실제 `PROCESSING` generation을 `T0`에 accepted하고 `T0 + 30s`까지 fresh·retry·recovered generation이 도착할 때
+
+**When** fixed debounce window가 닫히면
+
+**Then** exact boundary trigger를 포함하고 이후 trigger는 제외하며, lower active claim을 실제 highest live generation으로 coalesce하고 highest만 executor target으로 사용한다. generation 없는 stale no-op은 executor를 호출하지 않는다.
+
+**Given** debounce 또는 executor가 lease renewal interval보다 오래 걸릴 때
+
+**Then** lease를 expiry 전에 반복 갱신하고 completion 직전 ownership을 다시 확인한다. renewal·coalesce·result mutation이 false이거나 lease를 잃으면 success/no-op을 기록하지 않는다.
+
+**Given** global filesystem lock이 다른 publisher에 잡혀 있거나 executor가 safe internal failure를 반환할 때
+
+**Then** executor 동시 진입 없이 active target을 existing transient failure state로 전환하고 raw exception·credential·path를 durable result나 lock file에 남기지 않는다.
+
+**Given** executor가 `SUCCESS | NO_PUBLIC_CHANGE | TRANSIENT_FAILURE | TERMINAL_FAILURE`를 반환할 때
+
+**Then** control loop만 기존 state service의 success·no-op·transient·terminal transition에 각각 매핑한다. 현재 placeholder는 transient failure로 fail-closed하며 public release를 만들지 않는다.
+
+**Given** idle, debounce 또는 executor 중 shutdown이 요청될 때
+
+**Then** 새 claim을 시작하지 않고 lifecycle caller는 bounded하게 worker 종료를 기다리며 미완료 target의 terminal 결과나 ownership을 위조하지 않는다. executor가 interrupt 뒤에도 살아 있으면 control worker는 physical termination acknowledgment까지 global lock을 유지하고 실행 중 상태로 남는다. process가 종료되면 executor와 OS file lock이 함께 정리된다.
+
+**Given** lease 상실 또는 shutdown cancellation 뒤 executor가 interrupt를 무시하고 계속 실행될 때
+
+**Then** `Future.cancel(true)`나 `Future.isDone()`을 종료로 간주하지 않고 두 번째 publisher의 lock 획득을 막는다. executor body의 실제 종료 뒤에만 lock을 다시 획득할 수 있으며 늦은 `SUCCESS`·`NO_PUBLIC_CHANGE` 결과는 completion으로 기록하지 않는다.

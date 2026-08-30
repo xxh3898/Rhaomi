@@ -62,7 +62,22 @@ review_trigger: "관리 backend·배포 event 변경 시"
 - [x] filesystem CLI success/failure safe output와 credential·UUID·path·decoder detail 비노출
 - [x] Linux amd64 Hosted·Linux arm64 Mac Compose에서 Node 24·exact Sharp transformer suite 실행 계약
 
-아래 항목은 각 줄의 전체 범위를 기준으로 표시한다. producer, claim/generation, build API와 독립 transformer staging은 완료했고 실제 polling publisher·HTTP 연동·Next build·release/public 결과를 포함한 항목은 미완료다.
+## Phase 1C-8f5 publisher control loop 완료
+
+- [x] exact mode argument 전용 `WebApplicationType.NONE` publisher root와 normal backend loop/thread 부재
+- [x] existing state service 기반 pending/due·retry·expired lease claim과 generation 없는 stale no-op executor 0회
+- [x] first accepted `claimedAt` 기준 fixed 30초, exact boundary 포함·직후 제외와 highest-generation target
+- [x] burst generation lower→highest coalesce와 recovered lower generation ordering 유지
+- [x] debounce·executor lease heartbeat, lost lease·state mutation false의 success/no-op completion 금지
+- [x] empty `FileChannel.tryLock` advisory file, shared lock contender executor concurrency 1과 unavailable transient 처리
+- [x] typed success/no-public-change/transient/terminal mapping과 raw exception·path 없는 safe internal failure
+- [x] lease-loss·shutdown cancellation에서 interrupt를 무시하는 actual async executor의 physical 종료 전 lock 재획득 불가, 종료 뒤 재획득 가능
+- [x] shutdown timeout 뒤 non-daemon control worker·lock 유지와 executor의 늦은 success/no-op completion 금지
+- [x] idle/debounce/executor shutdown, bounded lifecycle join과 shutdown 뒤 새 claim 부재
+- [x] PostgreSQL 18.6 burst·stale·same-generation retry·expired lease recovery·shared lock integration
+- [x] production Build API/transformer/Next/release adapter 없는 transient placeholder와 default Compose publisher service 부재
+
+아래 항목은 각 줄의 전체 범위를 기준으로 표시한다. producer, claim/generation, build API, 독립 transformer staging과 publisher control plane은 완료했고 실제 HTTP adapter·transformer/Next orchestration·release/public 결과를 포함한 항목은 미완료다.
 
 ## 기본 게시
 
@@ -111,6 +126,7 @@ review_trigger: "관리 backend·배포 event 변경 시"
 - [ ] 위 재검증 결과를 publisher release까지 전달 → stale 공개 없음
 - [ ] publisher가 boundary 동안 down → restart 후 overdue event 반복 처리·정확한 snapshot 공개/제거
 - [ ] 가까운 여러 publish/expiry boundary → 30초 debounce/coalesce 후 최종 `generatedAt` snapshot 정확
+- [x] 가까운 여러 due trigger의 fixed 30초 claim·highest-generation coalesce control 결과 정확
 - [x] 같은 `contentRevision`의 publish boundary와 expiry boundary claim이 서로 다른 `publishGeneration` 생성
 - [ ] 주간 notice expiry audit가 event drift를 탐지하되 correctness trigger를 대체하지 않음
 
@@ -146,15 +162,15 @@ WebP source와 실제 iPhone HEIC는 canonical master transformer 입력 형식�
 - [x] parent write failure → staging 실패, partial temp 부재와 기존 target 유지
 - [x] build service credential 오류·admin session-only·dev/public `/api/build/**` → 요청 거부
 - [x] build API create/update/delete/share와 unknown GET 모두 거부
-- [ ] 첫 변경 뒤 30초 debounce와 global filesystem lock
+- [x] 첫 accepted generation 뒤 exact 30초 debounce와 global filesystem advisory lock control plane
 - [x] lower active generation → 실제 higher active generation coalesce primitive와 역방향·invalid target 거부
-- [ ] concurrent triggers → 30초 orchestration이 가장 높은 accepted `publishGeneration`을 선택하고 build 직렬 실행
+- [x] concurrent triggers → 30초 orchestration이 가장 높은 accepted `publishGeneration`을 선택하고 executor port 직렬 진입
 - [x] 동일 `publishGeneration` transient failure → 1분·5분·15분 최대 3회
 - [x] validation/data failure → 무한 retry 없이 terminal failure 상태
 - [x] 자동 attempt retry·lease recovery는 같은 generation
 - [ ] 승인된 manual rebuild/retry는 별도 event와 새 generation
 - [ ] build 중 새 변경·due boundary → 최신 generation 우선 후속 build
-- [ ] publisher public network·Docker socket 없음
+- [x] publisher control mode의 public web port·controller·Docker socket 의존 없음
 
 ## 롤백
 

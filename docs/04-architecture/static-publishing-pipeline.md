@@ -11,7 +11,7 @@ review_trigger: "콘텐츠 배포 방식 변경 시"
 
 ## 구현 상태
 
-Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Flyway V8과 domain service 연동으로 `contentRevision`·publishing outbox producer를 구현했고, Flyway V9과 internal Java service로 pending/due claim·lease recovery·`publishGeneration`·attempt/result state-machine 기반을 구현했다. Phase 1C-8f3은 active generation에 묶인 stateless read-only build snapshot·public-scope media API를, Phase 1C-8f4는 transport-independent strict snapshot transformer·responsive public derivative·atomic staging 산출물을 구현한다. 실제 polling loop, build API HTTP client, 30초 debounce orchestration, Next render, publisher process와 public content route는 아직 구현되지 않았다. 이 문서는 현재 DB/state/build/transformer 경계와 후속 pipeline 계약을 함께 정의한다.
+Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Flyway V8과 domain service 연동으로 `contentRevision`·publishing outbox producer를 구현했고, Flyway V9과 internal Java service로 pending/due claim·lease recovery·`publishGeneration`·attempt/result state-machine 기반을 구현했다. Phase 1C-8f3은 active generation에 묶인 stateless read-only build snapshot·public-scope media API를, Phase 1C-8f4는 transport-independent strict snapshot transformer·responsive public derivative·atomic staging 산출물을 구현한다. Phase 1C-8f5는 dedicated non-web polling process, fixed 30초 debounce, highest-generation coalesce, lease heartbeat, global filesystem lock과 typed build executor control plane을 구현한다. 실제 Build API HTTP client·transformer orchestration, Next render, release switch와 public content route는 아직 구현되지 않았다. 이 문서는 현재 DB/state/build/transformer/control 경계와 후속 pipeline 계약을 함께 정의한다.
 
 ## 목적
 
@@ -34,9 +34,9 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - 공개 결과에 영향을 주지 않는 draft-only 변경은 불필요한 build를 만들지 않도록 분류한다.
 - hard delete는 일반 운영 경로에 포함하지 않는다.
 - 현재 internal state service가 immediate pending event와 `availableAt <= now`인 scheduled event를 single-claim하고 만료 lease·due retry를 같은 generation으로 복구할 수 있다.
-- 후속 단일 publisher가 state service를 반복 호출하고 첫 accepted trigger 뒤 30초 debounce한다.
+- exact opt-in으로 기동한 dedicated non-web publisher가 state service를 반복 호출하고 첫 accepted `PROCESSING` generation의 `claimedAt`부터 고정 30초 debounce한다. `T0 + 30s`에 due인 trigger는 포함하고 그 이후는 다음 window에 남긴다.
 - scheduled claim은 current Notice·Gallery의 published 상태와 expected boundary만 최소 검증한다. build API는 claim 뒤 current row가 다시 바뀔 수 있음을 전제로 전체 snapshot의 relation·media·file·`generatedAt` eligibility를 재검증하고, 후속 transformer도 response를 다시 검증한다.
-- global filesystem lock으로 code·content build를 직렬화한다.
+- executor 직전 container-side configurable `FileChannel.tryLock` global lock을 획득하고, 해당 executor body가 종료됐거나 시작 불가능하다는 wrapper acknowledgment까지 같은 lock scope를 유지한다. planned production container target은 `/var/lib/rhaomi/locks`이며 이번 단계는 production host path를 만들지 않는다.
 - code release와 콘텐츠 release가 같은 검증·atomic switch 구현을 사용한다.
 
 ## 현재 producer 경계
@@ -53,8 +53,9 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - fresh pending/due claim은 `(availableAt, id)` 순서와 `FOR UPDATE SKIP LOCKED`를 사용하고 generation 할당·첫 attempt를 같은 transaction에서 기록한다. rollback은 event와 generation을 모두 원상태로 되돌린다.
 - scheduled source가 없거나 현재 draft·archived·rescheduled이면 generation 없이 terminal stale no-op으로 기록한다. claim layer는 relation·media·file을 판단하지 않는다.
 - active owner·generation·lease guard로 갱신·완료하고, expired lease와 1분·5분·15분 transient retry는 같은 generation을 유지한다. 네 번째 attempt 이후에는 retry exhausted로 종료한다.
-- lower active generation을 실제 higher active generation에 연결하는 coalesce primitive가 있지만 30초 timer와 highest target 선택은 아직 구현하지 않았다.
-- state service는 HTTP endpoint, service credential, polling/background execution, build와 filesystem 접근을 제공하지 않는다.
+- publisher control loop가 30초 fixed timer 동안 accepted generation을 비교하고 lower active claim을 실제 highest live target으로 즉시 coalesce한다. retry·recovery로 더 낮은 generation이 나중에 도착해도 executor authority는 highest로 유지한다.
+- debounce와 async executor 대기 중 lease를 갱신하고 completion 직전 ownership을 다시 확인한다. renewal·coalesce·completion boolean false는 성공으로 취급하지 않는다.
+- state service는 HTTP endpoint, service credential, polling/background execution, build와 filesystem 접근을 제공하지 않으며 control loop가 이 경계를 adapter로 조합한다.
 
 ## 현재 build API 경계
 
@@ -75,6 +76,18 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - output byte SHA-256 파일명으로 중복 file을 합치고 `src/generated/content.json`, `src/generated/media-manifest.json`, `public/generated/media`를 deterministic하게 생성한다.
 - 새 staging target과 같은 parent의 임시 directory를 완성한 뒤 rename한다. 실패 시 임시 산출물을 제거하며 이미 존재하는 성공 target을 교체하거나 current/previous를 조작하지 않는다.
 - `SNAPSHOT_INVALID`, `MEDIA_NOT_FOUND`, `MEDIA_INVALID`, `MEDIA_TRANSFORM_FAILED`, `OUTPUT_FAILED`만 외부 오류 계약으로 사용하고 path·UUID·decoder detail을 출력하지 않는다.
+
+## 현재 publisher control 경계
+
+- `BackendApplication`은 exact `--rhaomi.publisher.mode=control-loop` 인자가 있을 때만 일반 HTTP root 대신 publisher root를 선택한다. publisher는 `WebApplicationType.NONE`을 강제하고 controller·web server·admin bootstrap을 구성하지 않는다.
+- owner는 process lifetime 동안 stable한 최대 128 code-point non-secret 식별자다. idle poll, lease, renewal과 shutdown timeout은 positive bounded internal 설정이며 renewal interval은 lease 절반 이하다. 30초 debounce는 설정으로 변경할 수 없는 승인 계약이다.
+- generation 없는 stale scheduled `NOOP`는 executor target이 아니다. fresh/retry/recovered generation은 같은 ordering으로 비교하며 lower claim은 highest target에 coalesce한다.
+- lock을 얻지 못하거나 safe internal executor failure가 나면 active ownership이 유지되는 경우에만 existing transient failure transition을 호출한다. raw exception·path·credential은 DB result와 log에 남기지 않는다.
+- executor 결과는 `SUCCESS | NO_PUBLIC_CHANGE | TRANSIENT_FAILURE | TERMINAL_FAILURE`이고 각각 기존 state service의 success/no-op/transient/terminal transition으로만 반영한다.
+- lease 상실·shutdown cancellation은 interrupt 요청만으로 완료하지 않는다. wrapper가 callable 진입·종료를 추적하고 실제 종료 acknowledgment 뒤에만 lock을 해제한다. `Future.cancel(true)`·cancelled/`isDone` 상태는 physical termination authority가 아니다.
+- shutdown timeout 뒤 executor가 계속 실행되면 non-daemon control worker가 lock scope 안에서 기다려 새 publisher 진입을 차단한다. 정상 종료가 불가능하면 process termination이 executor와 OS file lock을 함께 정리하는 fail-closed lifecycle을 사용한다.
+- 현재 placeholder executor는 `TRANSIENT_FAILURE`만 반환해 release 생성을 fail-closed한다. build API HTTP client와 transformer 실행은 Phase 1C-8f6 범위다.
+- default Compose에는 publisher service가 없고 normal backend에는 publisher loop/thread가 없다. publisher mode는 public port, Nginx route, Docker socket과 production bind를 추가하지 않는다.
 
 ## planned pipeline
 
@@ -110,19 +123,20 @@ sequenceDiagram
 ## 상세 단계
 
 1. immediate pending·due scheduled event poll, overdue recovery와 claim·`publishGeneration`·첫 attempt의 atomic transaction
-2. 30초 debounce와 가장 높은 accepted `publishGeneration` coalescing
-3. global filesystem lock
-4. release ID, target `contentRevision`·`publishGeneration`과 승인된 production code image digest 확인
-5. internal read-only build API로 일관된 snapshot 조회
-6. scheduled event라면 current Notice·Gallery row를 다시 읽고, snapshot schema, `generatedAt` 기준 published·게시/만료, 관계·media 상태와 실제 file scope 재검증
-7. build API HTTP client로 image 획득 후 구현된 transformer의 validation·metadata 제거·responsive derivative·staging 생성
-8. Next.js build/export
-9. HTML, link, canonical, sitemap, robots와 asset 검증
-10. 새 release directory smoke
-11. `previous` 기록과 `current` atomic switch
-12. public smoke, 실패 시 previous code/current snapshot의 새 rollback generation으로 복구
-13. attempt/result와 마지막 성공 `contentRevision`·`publishGeneration`·`generatedAt` 기록
-14. 더 높은 generation이 있으면 최신 current snapshot 우선 처리
+2. 첫 accepted generation 기준 fixed 30초 debounce와 가장 높은 `publishGeneration` coalescing — control plane 구현
+3. lease heartbeat와 physical executor termination acknowledgment까지 유지하는 global filesystem advisory lock — control plane 구현
+4. typed executor port 호출과 state result 반영 — placeholder만 구현
+5. release ID, target `contentRevision`·`publishGeneration`과 승인된 production code image digest 확인
+6. internal read-only build API로 일관된 snapshot 조회
+7. scheduled event라면 current Notice·Gallery row를 다시 읽고, snapshot schema, `generatedAt` 기준 published·게시/만료, 관계·media 상태와 실제 file scope 재검증
+8. build API HTTP client로 image 획득 후 구현된 transformer의 validation·metadata 제거·responsive derivative·staging 생성
+9. Next.js build/export
+10. HTML, link, canonical, sitemap, robots와 asset 검증
+11. 새 release directory smoke
+12. `previous` 기록과 `current` atomic switch
+13. public smoke, 실패 시 previous code/current snapshot의 새 rollback generation으로 복구
+14. attempt/result와 마지막 성공 `contentRevision`·`publishGeneration`·`generatedAt` 기록
+15. 더 높은 generation이 있으면 최신 current snapshot 우선 처리
 
 ## build API와 transformer 경계
 

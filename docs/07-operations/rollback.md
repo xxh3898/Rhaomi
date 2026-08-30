@@ -11,7 +11,7 @@ review_trigger: "배포 저장구조 변경 시"
 
 ## 구현 상태
 
-이 문서는 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)의 목표 rollback 계약이다. production release, publisher와 backup/restore runtime은 아직 구현되지 않았다.
+이 문서는 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)의 목표 rollback 계약이다. publisher control loop는 구현됐지만 production release adapter/service와 backup/restore runtime은 아직 구현되지 않았다.
 
 ## 대상
 

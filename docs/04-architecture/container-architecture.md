@@ -81,7 +81,7 @@ flowchart TB
     HomeOps -. 상태 .-> Backup
 ```
 
-local private media volume·upload API와 same-origin development gateway까지 구현됐다. 위 production topology는 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)에서 승인한 목표지만 production Compose·Nginx·publisher·backup·HomeOps와 decoder-only image는 아직 구현되지 않았다.
+local private media volume·upload API, same-origin development gateway와 publisher control loop까지 구현됐다. 위 production topology는 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)에서 승인한 목표지만 production Compose·Nginx·publisher release adapter/service·backup·HomeOps와 decoder-only image는 아직 구현되지 않았다.
 
 diagram의 iCloud repository는 Mac mini의 local iCloud Drive path다. [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)에 따라 Apple remote sync가 별도 검증되기 전에는 offsite 사본이나 offsite RPO `PASS`로 간주하지 않는다.
 

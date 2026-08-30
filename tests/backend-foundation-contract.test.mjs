@@ -512,6 +512,28 @@ test("build snapshot transformer dependency와 amd64/arm64 Compose smoke를 고�
   assert.doesNotMatch(transformer, /RHAOMI_BUILD_SERVICE_TOKEN|Authorization/);
 });
 
+test("publisher control loop를 exact opt-in non-web process로 격리한다", async () => {
+  const [backendApplication, publisherApplication, publisherConfiguration, compose, nginx, smoke] =
+    await Promise.all([
+      source("backend/src/main/java/kr/co/rhaomi/backend/BackendApplication.java"),
+      source("backend/src/main/java/kr/co/rhaomi/publisher/PublisherApplication.java"),
+      source("backend/src/main/java/kr/co/rhaomi/publisher/PublisherConfiguration.java"),
+      source("compose.dev.yaml"),
+      source("infra/nginx/dev.conf"),
+      source("scripts/validate-backend-compose.sh"),
+    ]);
+
+  assert.match(backendApplication, /PublisherApplication\.hasModeArgument\(args\)/);
+  assert.match(publisherApplication, /--rhaomi\.publisher\.mode=control-loop/);
+  assert.match(publisherApplication, /setWebApplicationType\(WebApplicationType\.NONE\)/);
+  assert.match(publisherConfiguration, /PublicationStateService\.class/);
+  assert.doesNotMatch(publisherConfiguration, /ComponentScan|RestController|SecurityFilterChain/);
+  assert.doesNotMatch(compose, /\n  publisher:\n/);
+  assert.doesNotMatch(nginx, /publisher/i);
+  assert.match(smoke, /--tests 'kr\.co\.rhaomi\.publisher\.\*'/);
+  assert.match(smoke, /PublisherIsolationIntegrationTests/);
+});
+
 test("실행 경로에 Directus 설정을 남기지 않는다", async () => {
   const runtimeFiles = await Promise.all([
     source("compose.dev.yaml"),
