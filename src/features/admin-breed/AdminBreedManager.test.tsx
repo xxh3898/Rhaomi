@@ -76,8 +76,9 @@ describe("AdminBreedManager", () => {
     ).toEqual(serverOrdered.map((item) => item.name));
   });
 
-  it("keyboard create 성공 뒤 canonical GET server order와 focus 복귀를 보장한다", async () => {
+  it("create 뒤 canonical GET pending 동안 focus를 보류하고 resolve 뒤 trigger로 복귀한다", async () => {
     const user = userEvent.setup();
+    let resolveCanonical: ((value: readonly Breed[]) => void) | undefined;
     const created = breed({ sortOrder: 100 });
     const existing = breed({
       id: POODLE_ID,
@@ -89,7 +90,11 @@ describe("AdminBreedManager", () => {
     const requestAuthenticatedJson = vi
       .fn()
       .mockResolvedValueOnce([existing])
-      .mockResolvedValueOnce(canonicalList);
+      .mockReturnValueOnce(
+        new Promise<readonly Breed[]>((resolve) => {
+          resolveCanonical = resolve;
+        }),
+      );
     const requestJsonMutation = vi.fn().mockResolvedValue(created);
 
     render(
@@ -126,6 +131,11 @@ describe("AdminBreedManager", () => {
       expect.any(Function),
     );
     await waitFor(() => expect(requestAuthenticatedJson).toHaveBeenCalledTimes(2));
+    expect(trigger).toBeDisabled();
+    expect(trigger).not.toHaveFocus();
+
+    resolveCanonical?.(canonicalList);
+    await waitFor(() => expect(trigger).toBeEnabled());
     const list = screen.getByRole("list", { name: "견종 목록" });
     expect(
       within(list)
@@ -135,8 +145,9 @@ describe("AdminBreedManager", () => {
     expect(trigger).toHaveFocus();
   });
 
-  it("edit full PUT 성공 뒤 canonical GET server order와 action focus를 적용한다", async () => {
+  it("update 뒤 canonical GET pending 동안 focus를 보류하고 resolve 뒤 item action으로 복귀한다", async () => {
     const user = userEvent.setup();
+    let resolveCanonical: ((value: readonly Breed[]) => void) | undefined;
     const current = breed();
     const updated = breed({
       status: "published",
@@ -155,7 +166,11 @@ describe("AdminBreedManager", () => {
     const requestAuthenticatedJson = vi
       .fn()
       .mockResolvedValueOnce([current, poodle])
-      .mockResolvedValueOnce(canonicalList);
+      .mockReturnValueOnce(
+        new Promise<readonly Breed[]>((resolve) => {
+          resolveCanonical = resolve;
+        }),
+      );
     const requestJsonMutation = vi.fn().mockResolvedValue(updated);
 
     render(
@@ -193,6 +208,11 @@ describe("AdminBreedManager", () => {
       expect.any(Function),
     );
     await waitFor(() => expect(requestAuthenticatedJson).toHaveBeenCalledTimes(2));
+    expect(trigger).toBeDisabled();
+    expect(trigger).not.toHaveFocus();
+
+    resolveCanonical?.(canonicalList);
+    await waitFor(() => expect(trigger).toBeEnabled());
     expect(screen.getByRole("button", { name: "비숑 수정" })).toHaveFocus();
     expect(screen.getByText("게시됨")).toBeInTheDocument();
     const list = screen.getByRole("list", { name: "견종 목록" });
@@ -203,13 +223,18 @@ describe("AdminBreedManager", () => {
     ).toEqual(canonicalList.map((item) => item.name));
   });
 
-  it("create 성공 뒤 canonical GET 실패를 저장 실패로 오인하지 않고 explicit refresh로 복구한다", async () => {
+  it("create 뒤 canonical GET reject 후 warning과 trigger focus를 복구하고 explicit refresh도 허용한다", async () => {
     const user = userEvent.setup();
+    let rejectCanonical: ((reason?: unknown) => void) | undefined;
     const created = breed({ sortOrder: 100 });
     const requestAuthenticatedJson = vi
       .fn()
       .mockResolvedValueOnce([])
-      .mockRejectedValueOnce(new AdminApiError("unavailable"))
+      .mockReturnValueOnce(
+        new Promise<readonly Breed[]>((_, reject) => {
+          rejectCanonical = reject;
+        }),
+      )
       .mockResolvedValueOnce([created]);
     const requestJsonMutation = vi.fn().mockResolvedValue(created);
 
@@ -224,15 +249,23 @@ describe("AdminBreedManager", () => {
       />,
     );
     await screen.findByText(/등록된 견종이 없습니다/);
-    await user.click(screen.getByRole("button", { name: "새 견종" }));
+    const trigger = screen.getByRole("button", { name: "새 견종" });
+    await user.click(trigger);
     await user.type(screen.getByLabelText("견종 이름"), "비숑 프리제");
     await user.type(screen.getByLabelText("슬러그"), "bichon-frise");
     await user.click(screen.getByRole("button", { name: "견종 생성" }));
 
     expect(await screen.findByText("견종을 생성했습니다.")).toBeInTheDocument();
+    await waitFor(() => expect(requestAuthenticatedJson).toHaveBeenCalledTimes(2));
+    expect(trigger).toBeDisabled();
+    expect(trigger).not.toHaveFocus();
+
+    rejectCanonical?.(new AdminApiError("unavailable"));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "저장은 완료됐지만 목록 순서를 새로고침하지 못했습니다",
     );
+    await waitFor(() => expect(trigger).toBeEnabled());
+    expect(trigger).toHaveFocus();
     expect(screen.getByText("bichon-frise")).toBeInTheDocument();
     expect(screen.queryByText(/견종을 생성하지 못했습니다/)).not.toBeInTheDocument();
     expect(requestJsonMutation).toHaveBeenCalledTimes(1);

@@ -176,7 +176,7 @@ export function AdminServiceManager({
   const createNameRef = useRef<HTMLInputElement>(null);
   const editNameRef = useRef<HTMLInputElement>(null);
   const editTriggerRefs = useRef(new Map<string, HTMLButtonElement>());
-  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const restoreFocusRef = useRef<HTMLButtonElement | null>(null);
 
   const loadServices = useCallback(
     async (mode: ListLoadMode) => {
@@ -222,10 +222,16 @@ export function AdminServiceManager({
       editNameRef.current?.focus();
       return;
     }
+    if (listState !== "ready" || mutationPending) return;
     const target = restoreFocusRef.current;
-    restoreFocusRef.current = null;
-    target?.focus();
-  }, [createOpen, editingId]);
+    if (!target || !target.isConnected || target.disabled || target.tabIndex < 0) {
+      return;
+    }
+    target.focus();
+    if (document.activeElement === target) {
+      restoreFocusRef.current = null;
+    }
+  }, [createOpen, editingId, listState, mutationPending]);
 
   function openCreate() {
     setActionMessage(null);

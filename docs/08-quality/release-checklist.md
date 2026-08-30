@@ -39,7 +39,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] Hero·미용사·OG active-only private media picker, image-alt pair와 archived/missing relation clear·replace
 - [ ] `/admin/` breed/service strict list·draft create·immutable slug·full PUT·server order 보존·post-mutation canonical GET와 archive/restore
 - [ ] 서비스 published description·priceText 보조 검증과 404/409/422 frontend-owned 오류 문구
-- [ ] breed/service pending 중복 방지·stale GET 차단·401/403 mutation non-retry와 keyboard focus lifecycle
+- [ ] breed/service pending 중복 방지·stale GET 차단·401/403 mutation non-retry와 canonical refresh ready 뒤 enabled trigger keyboard focus 복귀
 - [ ] 공개 영향 transaction과 같은 PostgreSQL transaction의 immediate publishing event
 - [ ] future notice publishedAt·expiresAt의 `availableAt` durable scheduled event와 overdue recovery
 - [ ] scheduled event current-row/snapshot 재검증과 reschedule·draft/archive·window-change stale no-op/coalesce

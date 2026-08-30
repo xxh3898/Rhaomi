@@ -103,8 +103,11 @@ describe("AdminServiceManager", () => {
     );
   });
 
-  it("keyboard create 뒤 canonical GET server order와 focus 복귀를 보장한다", async () => {
+  it("create 뒤 canonical GET pending 동안 focus를 보류하고 resolve 뒤 trigger로 복귀한다", async () => {
     const user = userEvent.setup();
+    let resolveCanonical:
+      | ((value: readonly GroomingService[]) => void)
+      | undefined;
     const created = service({ sortOrder: 100 });
     const existing = service({
       id: SPA_ID,
@@ -116,7 +119,11 @@ describe("AdminServiceManager", () => {
     const requestAuthenticatedJson = vi
       .fn()
       .mockResolvedValueOnce([existing])
-      .mockResolvedValueOnce(canonicalList);
+      .mockReturnValueOnce(
+        new Promise<readonly GroomingService[]>((resolve) => {
+          resolveCanonical = resolve;
+        }),
+      );
     const requestJsonMutation = vi.fn().mockResolvedValue(created);
     render(
       <AdminServiceManager
@@ -153,6 +160,11 @@ describe("AdminServiceManager", () => {
       expect.any(Function),
     );
     await waitFor(() => expect(requestAuthenticatedJson).toHaveBeenCalledTimes(2));
+    expect(trigger).toBeDisabled();
+    expect(trigger).not.toHaveFocus();
+
+    resolveCanonical?.(canonicalList);
+    await waitFor(() => expect(trigger).toBeEnabled());
     const list = screen.getByRole("list", { name: "서비스 목록" });
     expect(
       within(list)
@@ -201,8 +213,11 @@ describe("AdminServiceManager", () => {
     await waitFor(() => expect(requestAuthenticatedJson).toHaveBeenCalledTimes(2));
   });
 
-  it("name과 sortOrder update 뒤 canonical GET server order를 적용한다", async () => {
+  it("update 뒤 canonical GET pending 동안 focus를 보류하고 resolve 뒤 item action으로 복귀한다", async () => {
     const user = userEvent.setup();
+    let resolveCanonical:
+      | ((value: readonly GroomingService[]) => void)
+      | undefined;
     const current = service();
     const spa = service({ id: SPA_ID, name: "스파", slug: "spa", sortOrder: 20 });
     const updated = service({
@@ -214,7 +229,11 @@ describe("AdminServiceManager", () => {
     const requestAuthenticatedJson = vi
       .fn()
       .mockResolvedValueOnce([current, spa])
-      .mockResolvedValueOnce(canonicalList);
+      .mockReturnValueOnce(
+        new Promise<readonly GroomingService[]>((resolve) => {
+          resolveCanonical = resolve;
+        }),
+      );
     const requestJsonMutation = vi.fn().mockResolvedValue(updated);
 
     render(
@@ -247,22 +266,35 @@ describe("AdminServiceManager", () => {
       expect.any(Function),
     );
     await waitFor(() => expect(requestAuthenticatedJson).toHaveBeenCalledTimes(2));
+    const trigger = screen.getByRole("button", {
+      name: "프리미엄 기본 미용 수정",
+    });
+    expect(trigger).toBeDisabled();
+    expect(trigger).not.toHaveFocus();
+
+    resolveCanonical?.(canonicalList);
+    await waitFor(() => expect(trigger).toBeEnabled());
     const list = screen.getByRole("list", { name: "서비스 목록" });
     expect(
       within(list)
         .getAllByRole("listitem")
         .map((item) => within(item).getByRole("heading", { level: 3 }).textContent),
     ).toEqual(canonicalList.map((item) => item.name));
-    expect(screen.getByRole("button", { name: "프리미엄 기본 미용 수정" })).toHaveFocus();
+    expect(trigger).toHaveFocus();
   });
 
-  it("mutation 성공 뒤 canonical GET 실패를 저장 실패로 오인하지 않고 refresh로 복구한다", async () => {
+  it("create 뒤 canonical GET reject 후 warning과 trigger focus를 복구하고 explicit refresh도 허용한다", async () => {
     const user = userEvent.setup();
+    let rejectCanonical: ((reason?: unknown) => void) | undefined;
     const created = service({ sortOrder: 100 });
     const requestAuthenticatedJson = vi
       .fn()
       .mockResolvedValueOnce([])
-      .mockRejectedValueOnce(new AdminApiError("unavailable"))
+      .mockReturnValueOnce(
+        new Promise<readonly GroomingService[]>((_, reject) => {
+          rejectCanonical = reject;
+        }),
+      )
       .mockResolvedValueOnce([created]);
     const requestJsonMutation = vi.fn().mockResolvedValue(created);
 
@@ -277,15 +309,23 @@ describe("AdminServiceManager", () => {
       />,
     );
     await screen.findByText(/등록된 서비스가 없습니다/);
-    await user.click(screen.getByRole("button", { name: "새 서비스" }));
+    const trigger = screen.getByRole("button", { name: "새 서비스" });
+    await user.click(trigger);
     await user.type(screen.getByLabelText("서비스 이름"), "기본 미용");
     await user.type(screen.getByLabelText("슬러그"), "basic-grooming");
     await user.click(screen.getByRole("button", { name: "서비스 생성" }));
 
     expect(await screen.findByText("서비스를 생성했습니다.")).toBeInTheDocument();
+    await waitFor(() => expect(requestAuthenticatedJson).toHaveBeenCalledTimes(2));
+    expect(trigger).toBeDisabled();
+    expect(trigger).not.toHaveFocus();
+
+    rejectCanonical?.(new AdminApiError("unavailable"));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "저장은 완료됐지만 목록 순서를 새로고침하지 못했습니다",
     );
+    await waitFor(() => expect(trigger).toBeEnabled());
+    expect(trigger).toHaveFocus();
     expect(screen.getByText("basic-grooming")).toBeInTheDocument();
     expect(screen.queryByText(/서비스를 생성하지 못했습니다/)).not.toBeInTheDocument();
     expect(requestJsonMutation).toHaveBeenCalledTimes(1);

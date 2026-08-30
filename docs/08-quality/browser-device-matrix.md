@@ -42,7 +42,7 @@ review_trigger: "유입 채널·지원 범위 변경 시"
 - 미디어 filter·upload·archive/restore native control과 aria state component test
 - 20 MiB client 차단, multipart boundary, private Blob preview lazy load·object URL revoke와 401/403 test
 - 견종·서비스 loading/empty/error/refresh, draft 생성, immutable slug, full PUT, published/archive/restore, server order 보존과 mutation 뒤 canonical GET component test
-- inline create/edit의 Enter open·첫 input focus·취소/성공 focus 복귀, pending 중복 submit·refresh 경쟁 차단과 401/403 non-retry test
+- inline create/edit의 Enter open·첫 input focus·취소 즉시 복귀·성공 뒤 canonical refresh ready 시 enabled trigger 복귀, pending 중복 submit·refresh 경쟁 차단과 401/403 non-retry test
 
 출시 전 실제 기기 범위:
 
