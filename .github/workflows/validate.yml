@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: 저장소 checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Node.js 설정
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -73,6 +75,8 @@ jobs:
     steps:
       - name: 저장소 checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Java 25 설정
         uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
@@ -87,7 +91,7 @@ jobs:
         run: >-
           docker build
           --file backend/Dockerfile.dev
-          --tag rhaomi-backend-ci:${{ github.sha }}
+          --tag rhaomi-backend-ci:${{ github.event.pull_request.head.sha }}
           .
 
       - name: PostgreSQL·Flyway·인증·media 계약 검증
@@ -102,20 +106,20 @@ jobs:
           --env SPRING_DATASOURCE_PASSWORD
           --env RHAOMI_TEST_DATABASE_ALLOWED
           --env RHAOMI_MEDIA_ROOT=/tmp/rhaomi-media-ci
-          rhaomi-backend-ci:${{ github.sha }}
+          rhaomi-backend-ci:${{ github.event.pull_request.head.sha }}
           ./gradlew test --no-daemon
 
       - name: Production decoder-only image·SBOM 검증
         env:
           RHAOMI_PRODUCTION_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-production-image-evidence
-          RHAOMI_PRODUCTION_IMAGE_TAG: rhaomi-production-ci:${{ github.sha }}
+          RHAOMI_PRODUCTION_IMAGE_TAG: rhaomi-production-ci:${{ github.event.pull_request.head.sha }}
         run: sh scripts/validate-production-image.sh
 
       - name: Production image 공급망 evidence 보존
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: production-image-evidence-${{ github.sha }}
+          name: production-image-evidence-${{ github.event.pull_request.head.sha }}
           path: ${{ runner.temp }}/rhaomi-production-image-evidence
           if-no-files-found: error
           retention-days: 14
@@ -131,6 +135,8 @@ jobs:
     steps:
       - name: 저장소 checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: CI용 local 환경파일 준비
         run: cp .env.example .env.dev.local

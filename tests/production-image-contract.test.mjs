@@ -91,7 +91,13 @@ test("Hosted Validate는 3-job과 read-only permission을 유지한다", async (
 
   assert.deepEqual(jobs, ["frontend:", "backend:", "compose-smoke:"]);
   assert.match(workflow, /permissions:\n  contents: read/);
+  assert.equal(
+    [...workflow.matchAll(/ref: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/gu)]
+      .length,
+    3,
+  );
   assert.match(workflow, /scripts\/validate-production-image\.sh/);
+  assert.doesNotMatch(workflow, /github\.sha/u);
   assert.match(workflow, /actions\/upload-artifact@[0-9a-f]{40}/);
   assert.doesNotMatch(workflow, /packages:\s*write|ghcr\.io|docker\/login-action/i);
 });
