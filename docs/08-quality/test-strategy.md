@@ -305,7 +305,7 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - same-transaction immediate·scheduled event, `contentRevision`·`publishGeneration`, single publisher, overdue recovery·30초 debounce·retry·atomic switch
 - 초기 Mac mini local-only application-consistent backup, 03:30 KST, daily 7 / weekly 4 / monthly 6과 isolated `pg_restore`·media restore
 - single-host disaster accepted risk, external SSD·iCloud `NOT_CONFIGURED / DEFERRED`와 offsite `PASS` 오표기 0
-- 사용자 소유 기존 도메인 전략과 exact FQDN provisioning input 분리, WebAuthn/passkey·recovery code, 실제 매장 운영자 콘텐츠·사진 approval authority
+- 사용자 소유 기존 도메인 전략과 exact FQDN provisioning input 분리, authenticator private key·RP-side credential record·recovery-code secret을 분리한 WebAuthn/passkey 계약, 실제 매장 운영자 콘텐츠·사진 approval authority
 - HomeOps 단일 authority, exact 임계값, stateless single restart allowlist·lock·30분 cooldown·금지 범위
 - libheif `v1.23.1` exact commit, libde265 decoder-only와 x265 absence·SBOM·amd64/arm64 gate
 - application source, Flyway, Dockerfile, Compose, Nginx, workflow와 script diff 0
@@ -403,7 +403,7 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - protected source와 분리된 Mac mini local backup set, manifest/check와 retention·prune post-check
 - isolated restore의 manifest·DB·media·static build와 local RPO·RTO, single-host loss accepted risk evidence
 - raw PGDATA volume을 required restic input으로 사용하지 않고 `pg_dump -Fc`를 새 isolated named volume에 `pg_restore`
-- password 위 WebAuthn/passkey·recovery code와 password-only production 차단
+- password 위 WebAuthn/passkey의 authenticator private key server 비수집·RP-side credential ID/public key/필요 metadata, registration revoke/remove, recovery-code secret 무효화·rotation과 password-only production 차단
 - 사용자 소유 기존 도메인의 exact FQDN·canonical/OG/sitemap/robots/public HTTPS smoke
 - 실제 매장 운영자의 NAP·정책·문구·링크·사진·게시 권한 승인
 - HomeOps synthetic/internal/container/host/DB/publisher/backup threshold·alert

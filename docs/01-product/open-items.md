@@ -26,7 +26,7 @@ review_trigger: "항목 확정 시"
 | 영업시간·정기휴무·주차 | 확인 필요 | 은총쌤 | 공개할 현재값과 지도 서비스 정보의 일치 확인 |
 | Mac production filesystem provisioning | 출시 차단 | 조치호 | `/private/var/lib/rhaomi` canonical directory ownership·permission, public/media/state bind와 PostgreSQL named-volume persistence 검증 |
 | 초기 local-only backup provisioning | 출시 차단 | 조치호 | protected source와 분리된 Mac mini local repository/path, 동일 DB/media backup-set, retention/check와 isolated `pg_restore`·media restore 증거 |
-| 관리자 WebAuthn/passkey 2차 인증 | 미구현 | 조치호·은총쌤 | 운영 계정 passkey 등록·인증, recovery code의 password manager+별도 offline copy와 password-only production 차단 검증 |
+| 관리자 WebAuthn/passkey 2차 인증 | 미구현 | 조치호·은총쌤 | authenticator private key server 비수집, RP-side credential record, registration revoke/remove, recovery-code secret의 별도 보관·rotation과 password-only production 차단 검증 |
 | 실제 iPhone HEIC 업로드 | 미검증 | 조치호·은총쌤 | 후속 `/admin` UI에서 iPhone Safari 원본 선택·업로드·방향·색상 확인 |
 | 실제 iPhone Safari·VoiceOver | 미검증 | 조치호·은총쌤 | actual public HTTPS와 `/admin`의 320px·focus·form·VoiceOver 표본 acceptance |
 

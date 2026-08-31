@@ -13,6 +13,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 
 - 관리자 계정과 password hash
 - 관리자 session과 CSRF token
+- WebAuthn RP-side credential record와 recovery-code secret
 - PostgreSQL 데이터
 - transactional content revision, publish generation과 publishing outbox state
 - private canonical 시술사진과 metadata
@@ -24,6 +25,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 ## 공격 표면
 
 - Spring Boot 관리자 login과 `/api/admin/**`
+- 향후 WebAuthn registration·authentication·registration revoke/remove와 recovery-code 복구
 - session cookie와 CSRF token 전달
 - local/test 관리자 bootstrap
 - Actuator health
@@ -39,7 +41,10 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 
 | 위협 | 영향 | 통제 |
 |---|---|---|
-| 관리자 credential 탈취 | 콘텐츠 변조, 내부 데이터 접근 | BCrypt, 일반화된 로그인 실패, WebAuthn/passkey 배포 게이트, recovery code 보호, session 폐기 |
+| 관리자 credential 탈취 | 콘텐츠 변조, 내부 데이터 접근 | BCrypt, 일반화된 로그인 실패, WebAuthn/passkey 배포 게이트, RP-side credential record 최소 접근, recovery code 보호, session 폐기 |
+| passkey private key의 server 수집·기록 | authenticator trust 경계 붕괴, key 유출 | private key는 authenticator/device authority, server input·DB·환경변수·log·backup·release evidence에서 금지 |
+| WebAuthn registration 위조·record 변조 | 공격자 authenticator 등록, 관리자 사칭 | credential ID·public key·account binding·sign-counter metadata integrity, registration 승인, 분실·폐기·의심 시 credential record revoke/remove |
+| recovery code 노출·재사용 | second factor 우회 | recovery code만 secret inventory로 관리하고 사용·노출·재발급·운영자 변경 시 기존 code 무효화와 새 set rotation |
 | session 탈취 | 관리자 권한 사용 | HttpOnly, SameSite, production Secure/TLS fail-fast, log 마스킹 |
 | CSRF | 관리자 의도와 다른 변경 | Spring Security CSRF 유지, token 없는 state change 거부 |
 | session fixation | 로그인 전 session 탈취 연계 | 로그인 성공 시 session id 교체 |
@@ -102,6 +107,8 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 ## 출시 차단
 
 - 관리자 WebAuthn/passkey 2차 인증 없음 또는 password-only production 허용
+- passkey private key를 server가 수집·저장·로그하거나 RP-side credential record와 recovery-code secret을 같은 rotation 대상으로 취급
+- WebAuthn registration revoke/remove와 recovery-code 무효화·rotation 절차 부재
 - TLS 없이 production session cookie 사용
 - production에서 `Secure=false`
 - PostgreSQL 외부 노출

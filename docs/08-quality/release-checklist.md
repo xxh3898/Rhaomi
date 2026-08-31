@@ -27,7 +27,7 @@ review_trigger: "출시 기준 변경 시"
 - [x] [Production readiness matrix](../07-operations/production-readiness.md)의 계약·local/CI·구현·provisioning·외부 승인·physical acceptance vocabulary
 - [x] ADR-010 topology/code release, ADR-011 publisher, ADR-013 HomeOps, ADR-014 decoder-only runtime contract 정렬
 - [x] ADR-012 초기 Mac mini local-only backup amendment와 single-host disaster accepted risk
-- [x] 초기 사용자 소유 domain 전략, WebAuthn/passkey 2차 인증 target, 실제 매장 운영자 콘텐츠·사진 승인 authority
+- [x] 초기 사용자 소유 domain 전략, authenticator private key/RP-side record/recovery-code secret을 분리한 WebAuthn/passkey 2차 인증 target, 실제 매장 운영자 콘텐츠·사진 승인 authority
 
 위 체크는 문서 계약이 승인됐다는 뜻만 가진다. production 구현·provisioning·deploy 항목을 통과시키지 않으며 overall production readiness는 계속 `HOLD`다.
 
@@ -53,7 +53,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] server session·CSRF·fixation 방어
 - [ ] 관리자 API field allowlist와 anonymous deny
 - [ ] build API credential·read-only policy
-- [ ] 관리자 WebAuthn/passkey 2차 인증·recovery code와 password-only production 차단
+- [ ] 관리자 WebAuthn/passkey 2차 인증, authenticator private key server 비수집, RP-side credential record, registration revoke/remove, recovery-code secret·rotation과 password-only production 차단
 - [ ] 상태 validation
 - [ ] archive 운영
 - [ ] `/admin/` media list·authenticated preview·single upload·archive/restore와 401/403 non-retry 계약
@@ -152,7 +152,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] DB 외부 비공개
 - [ ] publisher public network·Docker socket 부재
 - [ ] secrets scan
-- [ ] production session `Secure`, TLS와 관리자 WebAuthn/passkey 2차 인증 확인
+- [ ] production session `Secure`, TLS와 관리자 WebAuthn/passkey 2차 인증·RP/private-key 경계 확인
 - [ ] exact main SHA·immutable image·digest와 `latest` 부재
 - [ ] GitHub production environment 수동 승인과 고정 Tailscale deploy entrypoint
 - [ ] write maintenance·one-shot Flyway·schema validate·expand/contract

@@ -66,7 +66,7 @@ Spring Boot 콘텐츠 transaction
 - [ ] production entrypoint·runbook의 `docker compose down -v`, `docker volume prune`, named volume direct delete 금지
 - [ ] canonical media `/private/var/lib/rhaomi/data/media` 영속화
 - [ ] 운영 비밀값
-- [ ] 관리자 password+WebAuthn/passkey 2차 인증, recovery code의 password manager+별도 offline copy
+- [ ] 관리자 password+WebAuthn/passkey 2차 인증, authenticator private key server 비수집, RP-side credential ID·public key·필요 metadata, registration revoke/remove, recovery-code secret의 password manager+별도 offline copy·rotation
 - [ ] protected source와 분리된 Mac mini local backup repository/path·ownership·permission·capacity
 - [ ] `pg_dump -Fc`와 canonical media를 묶은 동일 backup-set manifest·retention·check
 - [ ] isolated full restore drill

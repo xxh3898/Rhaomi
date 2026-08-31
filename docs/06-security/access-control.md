@@ -109,13 +109,16 @@ build API와 stateless credential 경계, Node full release adapter와 credentia
 - credential이 일부만 있거나 빈 값이면 기동을 실패시켜 잘못된 보안 상태를 숨기지 않는다.
 - production profile에서는 bootstrap을 실행하지 않는다.
 - `.env.example`에는 실제 email/password를 넣지 않는다.
-- 실사용 은총쌤 계정 생성은 운영 Secret·WebAuthn/passkey 2차 인증·복구 절차를 확인하는 별도 승인 작업이다.
+- 실사용 은총쌤 계정 생성은 운영 Secret provisioning, WebAuthn/passkey 2차 인증 registration·복구 절차를 확인하는 별도 승인 작업이다.
 
 ## 2FA와 계정 수명주기
 
 - 관리자 2차 인증의 기본 target은 기존 password/session/CSRF 위의 WebAuthn/passkey다. SMS 2FA는 사용하지 않고 TOTP fallback은 별도 근거 없이 추가하지 않는다.
 - WebAuthn/passkey는 운영 배포 게이트다. 현재 backend bootstrap에는 포함하지 않으며 password-only 상태를 production-ready로 표현하지 않는다.
-- recovery code를 제공하고 password manager와 별도 offline copy에 보관한다. credential·recovery secret은 Git, log와 release evidence에 기록하지 않는다.
+- passkey private key는 authenticator/device authority이며 Rhaomi server가 수집·저장·로그하지 않는다. registration ceremony는 credential ID·public key와 필요한 authenticator metadata를, authentication ceremony는 assertion을 RP에 전달한다.
+- server는 credential ID, public key, 관리자 account binding과 필요한 authenticator/sign-counter metadata로 RP-side credential record를 유지한다. 이 record는 private key나 recovery secret과 구분하고 일반 API response·log·release evidence에 노출하지 않는다.
+- authenticator 분실·폐기, 무단 등록 의심 또는 운영자 변경 시 해당 WebAuthn registration을 revoke/remove한다. 이는 server가 private key를 rotate하는 절차가 아니다.
+- recovery code만 관련 server secret inventory에 두고 password manager와 별도 offline copy에 보관한다. code 사용·노출 의심·재발급 또는 운영자 변경 시 기존 code를 무효화하고 새 set으로 rotation한다.
 - 공유 계정을 만들지 않는다.
 - 운영자 변경 시 계정을 즉시 비활성화하고 활성 session을 폐기한다.
 - 강한 고유 비밀번호와 검증된 `PasswordEncoder`를 사용한다.
