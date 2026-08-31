@@ -34,11 +34,27 @@ compose() {
 }
 
 cleanup() {
+  cleanup_failed=false
   compose --profile publication-acceptance down >/dev/null 2>&1 || true
   if [ -n "$acceptance_root" ] &&
     [ "$acceptance_root" != "/" ] &&
     [ -f "$marker" ]; then
-    rm -rf -- "$acceptance_root"
+    if find "$acceptance_root" -mindepth 1 ! -path "$marker" -print -quit |
+      grep -q .; then
+      if ! compose --profile publication-acceptance run --rm --no-deps \
+        --entrypoint /bin/sh publication-acceptance-runner -c \
+        'test -f /acceptance/.rhaomi-publication-acceptance && find /acceptance -mindepth 1 ! -name .rhaomi-publication-acceptance -delete' \
+        >/dev/null 2>&1; then
+        cleanup_failed=true
+      fi
+      compose --profile publication-acceptance down >/dev/null 2>&1 || cleanup_failed=true
+    fi
+    rm -f -- "$marker" || cleanup_failed=true
+    rmdir -- "$acceptance_root" || cleanup_failed=true
+  fi
+  if [ "$cleanup_failed" = "true" ]; then
+    echo "publication acceptance marker 임시 root 정리에 실패했습니다." >&2
+    return 1
   fi
 }
 

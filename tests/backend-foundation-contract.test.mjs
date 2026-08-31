@@ -766,9 +766,18 @@ test("synthetic local publication acceptance를 tmpfs DB와 read-only static ser
   assert.match(acceptanceScript, /acceptance_backend_network=\$1/);
   assert.match(acceptanceScript, /acceptance_public_network=\$1/);
   assert.match(acceptanceScript, /task-resources=0/);
+  assert.match(
+    acceptanceScript,
+    /run --rm --no-deps[\s\S]*publication-acceptance-runner[\s\S]*find \/acceptance -mindepth 1/,
+  );
+  assert.match(
+    acceptanceScript,
+    /test -f \/acceptance\/\.rhaomi-publication-acceptance/,
+  );
+  assert.match(acceptanceScript, /rmdir -- "\$acceptance_root"/);
   assert.doesNotMatch(
     acceptanceScript,
-    /docker (?:volume rm|volume prune|system prune)|down -v/,
+    /rm -rf|docker (?:volume rm|volume prune|system prune)|down -v/,
   );
   assert.match(servingScript, /\/api\/build\/snapshot/);
   assert.match(servingScript, /\/actuator\/health/);
