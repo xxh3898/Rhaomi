@@ -13,9 +13,10 @@ review_trigger: "PostgreSQL table·field·API 변경 시"
 
 - 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`, Flyway V4·V7의 `shop_settings`, Flyway V5의 `media_assets`, Flyway V6의 `gallery_items`, Flyway V8의 `content_revision_state`·`publishing_outbox` producer, Flyway V9의 `publish_generation_state`와 outbox claim·lease·attempt/result state
 - 현재 read model: active generation 기반 internal build snapshot·public-scope canonical media content
-- 후속 구현: polling publisher·30초 debounce orchestration, persisted public snapshot/release manifest, 공개 이미지 파생본과 Hero·프로필·OG 렌더링
+- 현재 publication read/use model: polling publisher·30초 debounce, actual Java→Node release executor, generated V2 content/media manifest, 공개 이미지 파생본과 Hero·프로필·OG 정적 렌더링, private release manifest·atomic switch
+- 후속 구현: production Compose·secret·Mac path provisioning, operational status UI와 실제 public acceptance
 
-`breeds`, `services`, `notices`, `shop_settings`, `media_assets`, `gallery_items`와 V8·V9 publication table은 현재 schema 계약이다. Build API response는 이 schema를 변경하지 않는 current read model이고, publisher가 저장하는 최종 public snapshot과 orchestration은 proposed 계약이다.
+`breeds`, `services`, `notices`, `shop_settings`, `media_assets`, `gallery_items`와 V8·V9 publication table은 현재 schema 계약이다. Build API response, generated V2 snapshot/media manifest와 private release manifest는 이 schema를 변경하지 않는 current read/build model이다. release filesystem artifact는 PostgreSQL schema authority가 아니며 이번 구현에 Flyway V10은 없다.
 
 ## 현재 `admin_users`
 
@@ -97,7 +98,7 @@ schema source of truth는 `backend/src/main/resources/db/migration/V1__create_ad
 - Shop은 공개 business field 26개만, Breed·Service·Gallery·Notice는 각 public field allowlist만, media manifest는 `id`, `contentType`, `byteSize`, `width`, `height`만 반환한다.
 - audit, status, storage key/path, persisted hash, source filename/type, claim owner·lease·event ID는 ordering·validation input일 수 있지만 DTO에는 노출하지 않는다.
 - collection은 published/time 조건으로 filter하고 relation target·active media·실제 canonical master size/hash를 다시 검증한다. 명시적 invalid relation/file은 silent omission 없이 전체 snapshot 오류다.
-- `codeImageDigest`는 Build API response가 아니라 후속 publisher가 승인된 production image와 결합해 저장할 content snapshot/release manifest field다.
+- `codeImageDigest`는 Build API response가 아니라 publisher가 allowlist executor metadata로 결합해 private release manifest에 기록하는 field다. local/CI는 synthetic exact digest를 사용하고 production 승인 digest provisioning은 별도 gate다.
 
 ## 콘텐츠 공통 규칙
 
@@ -107,7 +108,7 @@ schema source of truth는 `backend/src/main/resources/db/migration/V1__create_ad
 - 게시·audit 시각은 timezone-aware timestamp로 저장한다. 매장 영업 시작·종료는 `TIME(0)` wall-clock 값이며 후속 공개 화면이 Asia/Seoul로 해석한다.
 - slug: lowercase ASCII kebab-case, unique, 생성 후 관리 API에서 변경 불가
 - raw HTML 입력 금지
-- 공지 본문은 현재 Markdown source로 저장하고 후속 공개 build에서 sanitize
+- 공지 본문은 Markdown source로 저장하고 현재 공개 build에서 raw HTML disabled·URL allowlist·remote image alt-only 계약으로 정적 HTML을 생성
 - 운영 삭제는 `archived`
 - id, audit timestamp와 내부 field는 관리자 update DTO에서 제외
 

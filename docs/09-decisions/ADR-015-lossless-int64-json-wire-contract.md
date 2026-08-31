@@ -56,7 +56,7 @@ HTTP DTO boundary의 `contentRevision`·`publishGeneration`은 `Long.toString(..
 
 ### publication state 불변식
 
-Build API와 transformer staging 성공은 public publication `SUCCESS` 또는 `NO_PUBLIC_CHANGE`가 아니다. production `PublicationBuildExecutor`는 release 설치·`current/previous` switch가 구현될 때까지 `TRANSIENT_FAILURE` placeholder를 유지한다.
+Build API와 transformer staging 성공만으로는 public publication `SUCCESS` 또는 `NO_PUBLIC_CHANGE`가 아니다. actual `PublicationBuildExecutor`는 V2 string을 그대로 보존한 Next Static Export, final-tree·private manifest 검증, `BigInt` stale guard, immutable install, `current/previous` switch와 post-switch serving smoke까지 성공한 경우에만 `SUCCESS`를 반환한다. 같거나 낮은 current generation으로 switch가 필요 없을 때만 `NO_PUBLIC_CHANGE`다. production image·secret·path provisioning은 이 local/CI executor foundation과 별도 gate다.
 
 ## 검토한 대안
 
@@ -86,6 +86,7 @@ precision은 해결하지만 현재 JSON Build API·정적 산출물과 별도�
 
 - 실제 PostgreSQL 18.6·Flyway V1~V9에서 `9007199254740993`과 `9223372036854775807` active generation의 Build API HTTP 200 문자열 보존
 - raw HTTP → Node parser → transformer staging → `content.json`·`media-manifest.json`·CLI의 exact 문자열 보존
+- private release manifest와 Java executor machine result의 exact 문자열 보존, `BigInt` equal/lower stale switch 거부와 `Long.MAX_VALUE` current 전환
 - `contentRevision=0`, safe integer 경계와 최대 `long` 성공
 - zero generation, malformed/leading-zero/overflow string과 JSON numeric field 거부
 

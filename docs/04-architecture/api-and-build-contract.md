@@ -191,13 +191,13 @@ review_trigger: "관리 API·build 입력 변경 시"
 - lower active generation은 같은 owner가 claim한 실제 higher `PROCESSING` generation으로만 `COALESCED` 처리할 수 있다. dedicated publisher control loop가 첫 accepted generation 기준 고정 30초 동안 이 primitive를 호출해 실제 highest generation으로 수렴한다.
 - typed status read model은 publication package 내부에서만 제공하며 state service 자체는 HTTP endpoint·credential·환경 변수·background loop를 추가하지 않는다. 반복 실행 lifecycle은 별도 non-web publisher root가 소유한다.
 
-## publisher orchestration — current control / staging data plane
+## publisher orchestration — current full local/CI release data plane
 
 - exact mode argument로 선택한 dedicated non-web publisher는 current state service를 호출해 immediate pending, due scheduled, overdue lease와 due retry를 계속 처리한다.
 - 첫 accepted trigger의 `claimedAt`부터 `T0 + 30s`를 포함하는 fixed debounce를 적용하고 lower active generation을 highest live generation으로 즉시 coalesce한다. debounce와 executor 대기 중 lease를 갱신하고 container-side global advisory lock을 획득한 뒤에만 typed executor port를 호출한다. lease 상실·shutdown으로 cancellation을 요청해도 실제 executor body가 종료됐거나 시작 불가능하다는 acknowledgment 전에는 lock scope를 빠져나가지 않는다. `Future.cancel(true)`와 `Future.isDone()`은 이 acknowledgment가 아니다.
-- normal backend에는 publisher loop·lifecycle bean이 없고 publisher root에는 controller·web server가 없다. 현재 placeholder executor는 transient failure로 fail-closed하며 public artifact를 만들지 않는다.
+- normal backend에는 publisher loop·lifecycle bean이 없고 publisher root에는 controller·web server가 없다. exact opt-in publisher root만 actual Node release executor를 구성한다.
 - claim 뒤 current row가 바뀔 수 있으므로 event 값을 public authority로 사용하지 않고 전체 build snapshot의 status·게시/만료·relation·media/file 조건을 다시 검증한다.
-- Build API HTTP client와 transformer staging data plane은 별도 Node orchestration으로 구현됐다. Java control loop에는 아직 bind하지 않으며 Next 실행, release manifest·atomic switch와 운영 관제는 후속 Issue에서 구현한다.
+- actual Java executor는 fixed Node executable·script·generation argv와 allowlist environment로 Build API HTTP client, transformer, Next Static Export, strict export validator, private manifest, stale guard, immutable install, `previous/current` switch와 post-switch serving smoke를 한 번의 typed execution으로 연결한다. production image·secret·Mac path·관제 provisioning은 후속 운영 gate다.
 
 ## build API — current
 
@@ -297,11 +297,11 @@ audit actor/timestamp, status, storage key/path, extension, persisted SHA-256, s
 - fixed runtime timeout은 snapshot/media headers와 body 완료까지 10초이며 redirect, 401/403, 409, 422, 429/5xx, malformed 2xx와 transformer code를 `TERMINAL | TRANSIENT | GENERATION`의 safe category로 분리한다. `BUILD_OUTPUT_FAILED`는 이번 staging-only 경계에서 terminal이다.
 - process entrypoint는 `--publish-generation`과 `--output`만 argv로 받고 safe one-line JSON과 exit `0 | 20 | 21 | 22`만 제공한다. token·Authorization·internal URL/path·media UUID·raw response/stack은 출력하지 않는다.
 - orchestration은 manifest media를 cache에 먼저 채워 HTTP retry category를 보존한 뒤 기존 transformer를 호출하고 configurable private target에 atomic staging을 만든다. `PublicationStagingResult`와 machine JSON CLI의 `contentRevision`, `publishGeneration`도 fetched snapshot의 canonical string을 그대로 보존한다.
-- 이 staging 성공은 public publication `SUCCESS`나 `NO_PUBLIC_CHANGE`가 아니다. `PublisherConfiguration` placeholder, outbox state, `current/previous`, active public path는 변경하지 않는다.
+- 이 staging 성공 자체는 public publication `SUCCESS`나 `NO_PUBLIC_CHANGE`가 아니다. full release entrypoint가 동일 결과를 Next render·검증·manifest·switch까지 전달한 뒤에만 Java executor가 publication state를 완료한다.
 
-## publisher content snapshot·release manifest — planned
+## publisher content snapshot·release manifest — current
 
-후속 publisher가 Build API response를 승인된 production code image와 결합해 저장하는 최종 파일은 다음 정보를 포함한다.
+transformer가 만든 `content.json`은 Build Snapshot V2의 public content를 유지하고, release package root의 private `release-manifest.json`은 정적 site와 code identity를 결합한다. production에서는 승인된 image metadata를 주입하고 local/CI에서는 contract-valid synthetic metadata만 사용한다.
 
 ```json
 {
@@ -309,7 +309,6 @@ audit actor/timestamp, status, storage key/path, extension, persisted SHA-256, s
   "generatedAt": "2035-01-01T00:00:00.123456Z",
   "contentRevision": "9007199254740993",
   "publishGeneration": "9007199254740993",
-  "codeImageDigest": "sha256:<digest>",
   "shop": {},
   "services": [],
   "breeds": [],
@@ -319,10 +318,26 @@ audit actor/timestamp, status, storage key/path, extension, persisted SHA-256, s
 }
 ```
 
-- 모든 조회·transform이 성공한 뒤 임시 file과 atomic rename으로 기록한다.
+```json
+{
+  "schemaVersion": 1,
+  "releaseId": "g-9007199254740993.r-9007199254740993.c-0123456789ab",
+  "contentRevision": "9007199254740993",
+  "publishGeneration": "9007199254740993",
+  "generatedAt": "2035-01-01T00:00:00.123456Z",
+  "codeSha": "0123456789abcdef0123456789abcdef01234567",
+  "codeImageTag": "sha-0123456789abcdef0123456789abcdef01234567",
+  "codeImageDigest": "sha256:<64 lowercase hex>",
+  "flywayVersion": "9",
+  "sbomReference": "sha256:<64 lowercase hex>",
+  "siteSha256": "<64 lowercase hex>"
+}
+```
+
+- 모든 조회·transform·Next export와 candidate validation이 성공한 뒤 manifest를 기록하고 complete candidate를 release root 안에서 atomic rename한다.
 - `contentRevision`은 지원되는 콘텐츠 domain mutation snapshot revision이고 `publishGeneration`은 immediate mutation, due boundary, 승인된 code release와 manual rebuild/retry를 포함하는 public trigger sequence다.
 - 같은 `contentRevision`에서도 publish/expiry boundary별 generation과 snapshot을 만들 수 있다. 자동 attempt retry는 같은 generation을 유지한다.
-- release manifest도 canonical decimal string `contentRevision`, `publishGeneration`, `generatedAt`, 승인된 `codeImageDigest`를 기록하고 `current` atomic switch는 generation을 `BigInt`로 비교한 stale protection authority로 사용한다.
+- release manifest도 canonical decimal string `contentRevision`, `publishGeneration`, code identity와 site tree digest를 기록한다. `generatedAt`은 `YYYY-MM-DDTHH:mm:ssZ` 또는 1~6자리 fractional second + `Z`이며 정규식뿐 아니라 UTC year/month/day/hour/minute/second가 원본과 exact 일치하는 actual calendar Instant만 허용한다. immutable package와 `current`·`previous` authority는 release root의 one-direct-child만 허용하고, `current` atomic switch는 generation을 `BigInt`로 비교한 stale protection authority로 사용한다.
 - 일부 collection만 과거 data로 fallback하거나 scheduled event ID·과거 boundary로 current snapshot filter를 우회하지 않는다.
 - transformer는 API response schema와 published/relation/file 조건을 다시 검증하고 raw response를 component에 직접 전달하지 않는다.
 
@@ -337,7 +352,7 @@ backend-owned private canonical master
 → /generated/media/<output-sha256>.<format>      [implemented staging]
 ```
 
-원본 id·storage path·내부 URL을 public path에 남기지 않는다. authenticated build-time HTTP download와 staging 전달은 구현됐고 실제 public release 설치·HTML binding은 후속 publisher/Static Export 범위다.
+원본 id·storage path·내부 URL을 public path에 남기지 않는다. authenticated build-time HTTP download와 staging을 거친 variant는 manifest `publicPath` authority로 공개 `<picture>`에 연결되고 immutable release site에 포함된다.
 
 ## build API 오류 — current
 
@@ -364,13 +379,18 @@ backend-owned private canonical master
 
 어느 경우도 partial target을 성공으로 반환하지 않고 fixed typed error로 종료한다.
 
-## staging adapter 실패 조건 — current / release 실패 조건 — planned
+## staging adapter·release 실패/무변경 조건 — current
 
 - build API 연결·인증 실패
 - transformer typed failure
 - snapshot/media response contract mismatch와 active generation mismatch
 - HTML sanitize·sitemap canonical·link·asset 검증 실패
-- target `publishGeneration`이 current generation 이하
+- malformed current manifest·release collision·symlink escape·unexpected filesystem type
+- HTML/link/canonical/sitemap/robots/media hash 또는 secret/private marker 검증 실패
+
+target `publishGeneration`이 trusted current generation 이하이면 오류나 success가 아니라 `NO_PUBLIC_CHANGE`다. candidate build 뒤 race가 생길 수 있으므로 switch 직전 같은 비교를 다시 수행하고 current/previous를 변경하지 않는다.
+
+full release machine result는 `status`, `retentionStatus`, canonical string revision/generation, `generatedAt`, `releaseId`의 exact shape다. `PUBLISHED`는 `retentionStatus=COMPLETE|DEFERRED`, `NO_PUBLIC_CHANGE`는 `NOT_APPLICABLE`만 허용한다. post-switch smoke를 통과해 public authority가 바뀐 뒤 retention housekeeping만 실패하면 publication을 실패로 되돌리지 않고 safe `DEFERRED`로 표시하며 current·previous를 보존한다.
 
 ## 호환성
 

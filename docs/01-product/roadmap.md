@@ -228,9 +228,14 @@ Phase 1C-8f6은 data-plane staging preparation까지만 구현한다. staging �
 
 ### Phase 1C-8f7 — Next render·release manifest·atomic switch
 
-- Markdown/HTML·SEO·Next Static Export와 산출물 검증
-- release manifest, generation stale guard, `current/previous` atomic switch
-- 새 release·public smoke와 rollback
+- generated V2 기반 홈·정적 공지 상세, safe Markdown, responsive media와 SEO·Next Static Export
+- HTML/link/canonical/sitemap/robots/media hash·비밀값의 fail-closed release validation
+- strict release manifest, `BigInt` generation stale guard, immutable install과 `previous/current` atomic switch
+- candidate 검증·post-switch loopback serving smoke, rollback과 current/previous 보호 retention
+- fixed argv Java→Node executor, child/descendant physical termination과 DB completion 연결
+- 실제 PostgreSQL 18.6·합성 private media·Sharp·Next·filesystem switch의 full pipeline 검증
+
+Phase 1C-8f7은 격리된 synthetic/local·CI release foundation을 구현한다. actual Mac `/private/var/lib/rhaomi` provisioning, production Compose/Nginx/secret/image, 실제 domain·살롱 콘텐츠 공개와 production mutation은 포함하지 않는다.
 
 ### Phase 1C-8f8 — sample content·local end-to-end acceptance
 

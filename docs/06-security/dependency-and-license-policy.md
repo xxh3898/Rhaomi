@@ -3,7 +3,7 @@ title: "의존성·라이선스 정책"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "주요 의존성·라이선스 변경 시"
 ---
 
@@ -19,6 +19,8 @@ review_trigger: "주요 의존성·라이선스 변경 시"
 - Alpine `libheif 1.23.0-r0` — LGPL-3.0-or-later, amd64·arm64 native HEIC/HEIF decode/color transform
 - `sharp 0.35.4` — Apache-2.0, Node 24 build transformer의 JPEG·PNG 재검증과 AVIF·WebP·JPEG 파생본
 - `@img/sharp-libvips-* 1.3.3` — LGPL-3.0-or-later, lockfile로 고정한 Linux amd64·arm64 prebuilt libvips runtime
+- `markdown-it 15.0.1` — MIT, raw HTML을 비활성화한 Notice build-time Markdown renderer
+- `parse5 8.0.1` — MIT, release HTML/link/canonical/asset validator parser
 - Next.js와 frontend dependency는 `package-lock.json` 기준
 - Docker image는 검증한 exact tag를 사용하고 운영에서는 가능하면 digest까지 고정
 
@@ -49,8 +51,10 @@ Alpine package가 동적 link하는 현재 runtime package와 Alpine metadata의
 |---|---|---|---|
 | `sharp` | `0.35.4` | Apache-2.0 | decode, orientation, sRGB, resize, AVIF·WebP·JPEG encode |
 | `@img/sharp-libvips-*` | `1.3.3` | LGPL-3.0-or-later | Linux x64·arm64 image processing runtime |
+| `markdown-it` | `15.0.1` | MIT | raw HTML disabled Markdown→static HTML, link/image policy 적용 |
+| `parse5` | `8.0.1` | MIT | exported HTML 구조·link·canonical·asset 검증 |
 
-application runtime에서 codec·binary를 다운로드하지 않고 `npm ci`가 exact lockfile artifact를 설치한다. actual production publisher image·SBOM·notice packaging은 아직 구현되지 않았으며 release 전에 production dependency inventory와 vulnerability scan을 다시 수행한다.
+application runtime에서 codec·binary를 다운로드하지 않고 preinstalled exact lockfile artifact만 사용한다. validation-only Java 25+Node 24 image는 full publisher를 amd64/arm64에서 검증하지만 production publisher image·SBOM·license notice packaging은 아직 구현되지 않았으며 release 전에 production dependency inventory와 vulnerability scan을 다시 수행한다.
 
 ## Production HEIC runtime target — planned
 

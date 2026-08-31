@@ -54,6 +54,9 @@ review_trigger: "출시 기준 변경 시"
 - [ ] published·notice expiry·relation·media/file의 API/transformer 이중 검증
 - [ ] publisher 동일 generation 1분·5분·15분 최대 3회 retry, 승인된 manual rebuild/retry의 새 generation과 data 오류 중단
 - [ ] V2 snapshot/release manifest의 canonical decimal string `contentRevision`·`publishGeneration`·`generatedAt`과 `BigInt` generation 기준 stale switch 거부
+- [ ] generated V2→Next Static Export→strict final-tree validator→private manifest→immutable release의 exact production image 실행
+- [ ] `previous/current` atomic symlink, post-switch home·notice·media·404 smoke·rollback과 current/previous 보호 retention
+- [ ] actual publisher child process tree의 physical exit와 global filesystem lock lifetime 일치
 - [ ] 실제 iPhone Safari HEIC 선택·upload·preview·archive/restore
 - [ ] 실제 iPhone Safari·VoiceOver 견종·서비스 form·status·sortOrder·긴 slug reflow
 - [ ] 실제 iPhone Safari·VoiceOver 갤러리 form·relation picker·datetime-local·긴 alt/summary reflow
@@ -62,6 +65,8 @@ review_trigger: "출시 기준 변경 시"
 ## 공개 사이트
 
 - [ ] static export
+- [ ] raw HTML disabled Markdown·dangerous URL·remote image policy와 public artifact secret/private path 부재
+- [ ] generated responsive AVIF·WebP·JPEG hash asset과 missing/orphan file 부재
 - [ ] 공개 고객 site의 backend runtime 요청 없음
 - [ ] 모바일 반응형
 - [ ] 데스크톱

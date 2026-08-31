@@ -1,0 +1,17 @@
+FROM node:24.20.0-alpine3.23@sha256:0388af2af070cd4736a1567cfed02469ba117848845b4165d87a333edb53d2ca AS node-runtime
+
+FROM eclipse-temurin:25.0.4_7-jdk-alpine-3.23@sha256:b7c88ce22d575642650ec83cbf4e470a0c183a46871467180238e4b27ad9e20a
+
+ARG LIBHEIF_VERSION=1.23.0-r0
+
+COPY --from=node-runtime /usr/local /usr/local
+
+RUN apk add --no-cache \
+        "libheif=${LIBHEIF_VERSION}" \
+        "libheif-dev=${LIBHEIF_VERSION}" \
+    && java -version 2>&1 | grep -q 'version "25\.' \
+    && node --version | grep -q '^v24\.20\.0$' \
+    && test -e /usr/lib/libheif.so \
+    && test -e /usr/lib/libheif.so.1
+
+ENV JAVA_TOOL_OPTIONS=--enable-native-access=ALL-UNNAMED

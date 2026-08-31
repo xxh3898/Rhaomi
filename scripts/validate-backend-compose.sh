@@ -101,6 +101,16 @@ postgres" ]; then
   exit 1
 fi
 
+publisher_validation_services=$(
+  compose --profile publisher-validation config --services | sort
+)
+if [ "$publisher_validation_services" != "backend
+postgres
+publisher-validation" ]; then
+  echo "publisher validation profile service 경계가 예상과 다릅니다." >&2
+  exit 1
+fi
+
 compose --profile frontend run --rm --no-deps frontend npm ci
 compose --profile validation run --rm --no-deps contract-check sh -c '
   architecture=$(uname -m)
@@ -122,6 +132,8 @@ compose run --rm --no-deps \
   --tests 'kr.co.rhaomi.publisher.*' \
   --tests 'kr.co.rhaomi.backend.PublisherIsolationIntegrationTests' \
   --no-daemon
+compose --profile publisher-validation build publisher-validation
+compose --profile publisher-validation run --rm publisher-validation
 compose down
 sh "$repo_dir/scripts/validate-build-int64-e2e.sh"
 compose --profile frontend up -d --wait --wait-timeout 300 postgres backend frontend gateway

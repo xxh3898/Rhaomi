@@ -25,14 +25,14 @@ flowchart LR
     PublicSite --> Maps[네이버지도 / 카카오맵]
     PublicSite --> Talk[네이버톡톡 / 카카오 채널]
 
-    Owner[은총쌤] --> AdminUI[정적 /admin auth shell<br/>후속 콘텐츠 UI]
+    Owner[은총쌤] --> AdminUI[정적 /admin auth shell<br/>콘텐츠 UI]
     AdminUI -. same-origin /api/admin/** .-> Backend[Spring Boot 관리 API]
     Backend --> PostgreSQL[(PostgreSQL<br/>project-scoped named volume)]
     Backend --> Uploads[(Mac host bind<br/>/private/var/lib/rhaomi/data/media)]
-    Backend -. 후속 same-transaction .-> Outbox[(Immediate / scheduled publishing event)]
+    Backend -->|same transaction| Outbox[(Immediate / scheduled publishing event)]
     Publisher[Single internal publisher] -->|pending/due poll·claim| Outbox
-    Publisher -. read-only build API staging data plane .-> Backend
-    Publisher -. 후속 .-> Releases[(Mac host bind<br/>/private/var/lib/rhaomi/public)]
+    Publisher -->|read-only build API| Backend
+    Publisher -->|validated atomic switch| Releases[(configurable public releases<br/>production Mac bind는 후속)]
     Releases --> PublicSite
 
     Developer[조치호] --> GitHub[GitHub]
@@ -41,7 +41,7 @@ flowchart LR
     HomeOps -. 후속 상태 .-> Publisher
 ```
 
-실선은 현재 기반·control 경계 또는 공개 외부 연결이고, 점선은 아직 Java executor에 bind하지 않은 staging data plane과 후속 운영 경로다.
+실선은 현재 구현한 application/release foundation 또는 공개 외부 연결이고, 점선은 production image·path·관제처럼 별도 provisioning이 필요한 운영 경로다.
 
 ## 현재 구현 경계
 
@@ -50,10 +50,10 @@ flowchart LR
 - PostgreSQL과 Flyway V1~V9 publication producer·claim/generation state
 - local/test bootstrap과 `/admin/` 인증 셸·콘텐츠 CRUD UI
 - active generation에 묶인 stateless internal read-only build snapshot·public-scope media API
-- transport-independent snapshot transformer, authenticated Build API HTTP/media adapter·isolated staging orchestration과 dedicated non-web publisher polling/debounce/coalesce/lock control plane
+- transport-independent snapshot transformer, authenticated Build API HTTP/media adapter, generated V2 Static Export·validator·immutable release/switch와 dedicated non-web publisher polling/debounce/coalesce/lock/executor
 - `/api/build/**`를 먼저 거부하는 local same-origin gateway, 최소 health와 Hosted CI
 
-Build API HTTP adapter·transformer isolated staging orchestration까지 구현됐지만 Next render·release manifest·atomic switch, public content route와 full Java executor binding은 아직 없다. 현재 publisher placeholder는 release를 만들지 않는다.
+공개 홈·공지 상세는 generated V2를 정적 HTML·SEO·responsive media로 렌더링한다. full Java executor는 Build API→transformer→Next→strict manifest/validator→BigInt stale guard→atomic switch→serving smoke를 연결한다. production Compose/Nginx·Mac bind·actual secret/image/domain provisioning은 아직 없다.
 
 ## 신뢰 경계
 
@@ -78,7 +78,7 @@ login/csrf 외 관리 endpoint는 인증이 필요하고 state-changing request�
 - PostgreSQL
 - production project-scoped Docker named volume의 PostgreSQL PGDATA
 - `/private/var/lib/rhaomi` 아래 private canonical media·public release·publisher state/lock
-- 향후 build API·immediate/due publishing event·single publisher
+- internal build API·immediate/due publishing event·single publisher release foundation
 - 향후 encrypted restic backup과 HomeOps
 - Docker internal network
 

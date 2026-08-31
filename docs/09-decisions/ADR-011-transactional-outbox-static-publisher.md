@@ -41,7 +41,7 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 - scheduled event를 물리 삭제해야 correctness가 성립하는 계약으로 만들지 않는다. 처리 완료·stale no-op 상태를 내구적으로 기록할 수 있다.
 - 관리 API 저장 성공, publisher 처리 중, 공개 성공·실패 상태를 구분한다.
 
-#### 현재 구현 경계 — Phase 1C-8f1~8f6
+#### 현재 구현 경계 — Phase 1C-8f1~8f7
 
 - Flyway V8은 `(1, 0)` singleton `content_revision_state`와 immediate·Notice/Gallery scheduled kind를 제한한 `publishing_outbox`를 만든다.
 - application recorder는 기존 content transaction을 필수로 요구하며 row increment와 필요한 event insert를 최종 domain persistence 뒤 한 번 수행한다.
@@ -54,7 +54,7 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 - Phase 1C-8f4는 exact V2 snapshot·relation·eligibility·media manifest를 재검증하고 responsive public derivative와 deterministic V2 content/media manifest를 새 atomic staging target에 만드는 transport-independent transformer를 구현했다.
 - Phase 1C-8f5는 normal backend scan 밖의 dedicated non-web root, repeated claim, first accepted `claimedAt` 기준 fixed 30초 window, exact boundary 포함, highest-generation coalesce, debounce·executor lease renewal, physical executor termination acknowledgment까지 유지하는 filesystem advisory lock과 typed executor/result mapping을 구현했다.
 - Phase 1C-8f6은 environment-only backend credential, no-redirect bounded Build API HTTP client, manifest-scoped memoized media provider와 기존 transformer를 private atomic staging까지 연결한다. staging result와 machine CLI는 fetched canonical revision/generation string을 보존하고 safe terminal/transient/generation result는 DB에 기록하지 않는다.
-- production executor는 release를 만들지 않는 fail-closed placeholder다. 구현된 staging-only data plane은 Java control loop에 bind하지 않으며 Next render, release manifest·stale guard·switch와 prune 정책은 후속 범위다.
+- Phase 1C-8f7은 generated V2를 사용하는 Next Static Export, safe Markdown, SEO·responsive media, strict final-tree validator, private release manifest·`BigInt` stale guard·immutable install·`previous/current` switch·loopback serving smoke·rollback·retention을 actual Java process executor에 bind했다. smoke 성공 뒤 retention housekeeping만 실패한 경우 이미 전환된 public authority를 failure로 오기록하지 않고 safe `retentionStatus=DEFERRED`를 반환한다. 이 executor는 exact non-web publisher root에만 존재하며 production image·secret·Mac path provisioning은 후속 운영 gate다.
 
 ### revision과 public ordering
 
@@ -113,8 +113,10 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 - scheduled event 처리 직전 current Notice·Gallery row와 전체 build snapshot을 다시 읽어 status, current boundary, relation, media/file과 `generatedAt` eligibility를 재검증한다.
 - reschedule, draft·archived 전환 또는 window 변경으로 event가 stale이면 공개 snapshot을 만들지 않고 no-op 처리하거나 최신 pending generation에 합친다. old event가 가진 과거 기대값은 공개 데이터 authority가 아니다.
 - 더 높은 `publishGeneration`이 도착하면 최신 snapshot을 우선하며 낮은 generation의 build가 최신 release를 덮지 못한다.
-- release manifest와 content snapshot에는 최소 canonical decimal string `contentRevision`, `publishGeneration`, `generatedAt`을 기록한다. `current` atomic switch의 stale protection authority는 validation 뒤 `BigInt`로 비교하는 `publishGeneration`이며 JSON number 변환은 금지한다.
+- release manifest와 content snapshot에는 최소 canonical decimal string `contentRevision`, `publishGeneration`, `generatedAt`을 기록한다. release manifest `generatedAt`은 microsecond UTC 모양과 실제 calendar field가 exact 일치해야 한다. `current` atomic switch의 stale protection authority는 validation 뒤 `BigInt`로 비교하는 `publishGeneration`이며 JSON number 변환은 금지한다.
 - build·validation 실패 시 `current`를 변경하지 않고 기존 공개 사이트를 유지한다.
+- validator를 통과한 candidate만 immutable package로 설치한다. switch 직전에 current manifest를 다시 읽으며 post-switch serving smoke 실패는 같은 global lock 안에서 이전 current·previous 상태를 복구한다.
+- release manifest는 public `site/` root의 sibling에 두고 site tree SHA-256, exact code identity·Flyway·SBOM reference를 allowlist field로 기록한다. installed package와 `current`·`previous` package authority는 configured release root의 exact one-direct-child로 제한하고 exact parent·sibling·nested·absolute/out-of-root target은 거부한다. 성공 release 기본 5개를 보존하되 current·previous target은 항상 보호한다.
 - 후속 `/admin/`은 마지막 성공·실패, 대상 content revision·publish generation과 명시적 수동 retry를 제공한다.
 - state-changing 관리 요청과 code deploy 자체는 publisher가 자동 재전송하지 않는다.
 
@@ -162,7 +164,7 @@ backend 장애를 공개 사이트로 전파하고 정적 HTML·SEO 계약을 �
 - [x] build API의 current published/relation/media/file·canonical master 재검증 구현
 - [x] snapshot·media transformer의 response schema·source/output file 이중 검증, responsive derivative·atomic staging 구현
 - [x] backend-only Build API HTTP client, authenticated memoized media provider와 transformer isolated staging orchestration 구현
-- [ ] release manifest 3개 필드와 `publishGeneration` 기준 code/content 공통 build·validate·atomic switch 검증
+- [x] release manifest canonical revision/generation·generatedAt, exact code identity·site digest와 `publishGeneration` 기준 local/CI build·validate·atomic switch 검증
 - [ ] 실제 Mac mini의 public/state/lock bind source ownership·permission과 publisher container mount·atomic symlink smoke 검증
 - [ ] future Notice publish·expiry와 Gallery publish, reschedule/archive stale event, publisher downtime과 close-boundary coalesce 통합 테스트
 - [ ] `/admin/` publish status와 수동 retry UI 구현

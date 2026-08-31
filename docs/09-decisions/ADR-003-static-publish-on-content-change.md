@@ -21,7 +21,7 @@ review_trigger: "콘텐츠 반영 방식 변경 시"
 
 공개 결과에 영향을 주는 콘텐츠 변경과 publishing outbox를 같은 PostgreSQL transaction에 기록한다. 새로 설정·변경된 게시·만료 경계를 가진 Notice와 published Gallery 게시 경계는 저장 transaction에서 durable scheduled publishing event도 함께 기록한다. single internal publisher는 immediate pending event와 due scheduled event를 처리해 현재 승인된 production code image/digest로 정적 사이트를 다시 생성한다.
 
-현재 Phase 1C-8f1은 Flyway V8 transactional `contentRevision`과 immediate·Notice/Gallery scheduled outbox producer, 8f2는 claim/lease·`publishGeneration` state, 8f3은 active generation 기반 internal read-only build snapshot·public-scope media API, 8f4는 strict snapshot transformer·responsive derivative·atomic staging, 8f5는 polling/debounce/coalesce/lock control plane, 8f6은 authenticated Build API HTTP/media adapter와 isolated staging orchestration까지 구현했다. Next render, release manifest·stale guard·switch와 full executor binding은 후속 Issue다.
+현재 Phase 1C-8f1은 Flyway V8 transactional `contentRevision`과 immediate·Notice/Gallery scheduled outbox producer, 8f2는 claim/lease·`publishGeneration` state, 8f3은 active generation 기반 internal read-only build snapshot·public-scope media API, 8f4는 strict snapshot transformer·responsive derivative·atomic staging, 8f5는 polling/debounce/coalesce/lock control plane, 8f6은 authenticated Build API HTTP/media adapter와 isolated staging orchestration을 구현했다. 8f7은 generated V2 기반 Next render, strict export validation, private release manifest·`BigInt` stale guard·immutable install·`previous/current` switch·serving smoke·rollback·retention과 actual Java executor binding을 local/CI에서 구현했다. production provisioning과 실제 공개 acceptance는 후속 운영 gate다.
 
 ```text
 Spring Boot content transaction

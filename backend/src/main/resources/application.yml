@@ -59,6 +59,25 @@ rhaomi:
     shutdown-timeout: ${RHAOMI_PUBLISHER_SHUTDOWN_TIMEOUT:10s}
     lock-file: ${RHAOMI_PUBLISHER_LOCK_FILE:/var/lib/rhaomi/locks/publisher.lock}
     auto-start: ${RHAOMI_PUBLISHER_AUTO_START:true}
+    executor:
+      node-executable: ${RHAOMI_PUBLISHER_NODE_EXECUTABLE:}
+      release-script: ${RHAOMI_PUBLISHER_RELEASE_SCRIPT:}
+      termination-grace: ${RHAOMI_PUBLISHER_PROCESS_TERMINATION_GRACE:2s}
+      build-api-internal-url: ${BUILD_API_INTERNAL_URL:}
+      build-api-credential: ${BUILD_API_CREDENTIAL:}
+      source-root: ${RHAOMI_PUBLISHER_SOURCE_ROOT:}
+      work-root: ${RHAOMI_PUBLISHER_WORK_ROOT:}
+      release-root: ${RHAOMI_PUBLIC_RELEASE_ROOT:}
+      current-link: ${RHAOMI_PUBLIC_CURRENT_LINK:}
+      previous-link: ${RHAOMI_PUBLIC_PREVIOUS_LINK:}
+      public-site-url: ${PUBLIC_SITE_URL:}
+      code-sha: ${RHAOMI_CODE_SHA:}
+      code-image-tag: ${RHAOMI_CODE_IMAGE_TAG:}
+      code-image-digest: ${RHAOMI_CODE_IMAGE_DIGEST:}
+      flyway-version: ${RHAOMI_FLYWAY_VERSION:}
+      sbom-reference: ${RHAOMI_SBOM_REFERENCE:}
+      build-timeout-ms: ${RHAOMI_PUBLISHER_BUILD_TIMEOUT_MS:}
+      release-retention: ${RHAOMI_RELEASE_RETENTION:5}
   bootstrap-admin:
     enabled: ${RHAOMI_BOOTSTRAP_ADMIN_ENABLED:false}
     email: ${RHAOMI_BOOTSTRAP_ADMIN_EMAIL:}

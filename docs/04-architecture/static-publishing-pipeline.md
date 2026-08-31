@@ -11,7 +11,7 @@ review_trigger: "콘텐츠 배포 방식 변경 시"
 
 ## 구현 상태
 
-Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Flyway V8과 domain service 연동으로 `contentRevision`·publishing outbox producer를 구현했고, Flyway V9과 internal Java service로 pending/due claim·lease recovery·`publishGeneration`·attempt/result state-machine 기반을 구현했다. Phase 1C-8f3은 active generation에 묶인 stateless read-only build snapshot·public-scope media API를, Phase 1C-8f4는 transport-independent strict snapshot transformer·responsive public derivative·atomic staging 산출물을 구현한다. Phase 1C-8f5는 dedicated non-web polling process, fixed 30초 debounce, highest-generation coalesce, lease heartbeat, global filesystem lock과 typed build executor control plane을 구현한다. Phase 1C-8f6은 backend-only credential의 Build API HTTP adapter, memoized media provider와 isolated transformer staging orchestration을 구현한다. Next render, release manifest·stale guard·switch, real executor binding과 public content route는 아직 구현되지 않았다. 이 문서는 현재 DB/state/build/transformer/control 경계와 후속 pipeline 계약을 함께 정의한다.
+Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Phase 1C-8f1~8f6은 Flyway V8/V9 producer·claim/generation state, internal Build API, strict transformer, dedicated control loop와 authenticated staging data plane을 구현했다. Phase 1C-8f7은 generated V2 기반 공개 홈·정적 공지 상세·safe Markdown·SEO·responsive media render, strict export validator, release manifest·stale guard·immutable install·`previous/current` switch·serving smoke·rollback·retention을 실제 Java→Node executor와 연결한다. 이 구현은 synthetic fixture와 configurable local/CI filesystem에 한정하며 production Mac path·secret·Compose/Nginx provisioning은 후속 운영 gate다.
 
 ## 목적
 
@@ -77,14 +77,26 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - 새 staging target과 같은 parent의 임시 directory를 완성한 뒤 rename한다. 실패 시 임시 산출물을 제거하며 이미 존재하는 성공 target을 교체하거나 current/previous를 조작하지 않는다.
 - `SNAPSHOT_INVALID`, `MEDIA_NOT_FOUND`, `MEDIA_INVALID`, `MEDIA_TRANSFORM_FAILED`, `OUTPUT_FAILED`만 외부 오류 계약으로 사용하고 path·UUID·decoder detail을 출력하지 않는다.
 
-## 현재 Build API adapter·staging orchestration 경계
+## 현재 Build API adapter·release orchestration 경계
 
 - environment-only internal origin과 64자 lowercase hex credential을 request 전에 검증한다. CLI argv는 positive Java long generation과 private staging path만 허용한다.
 - redirect를 따르지 않는 fixed 10초 bounded GET의 `200 application/json` raw snapshot만 strict parser에 직접 전달하고 요청 generation과 parsed generation을 exact 비교한다.
 - snapshot manifest 밖 media를 network 전에 거부하고 UUID별 in-flight/result를 memoize한다. HTTP MIME·Content-Length·실제 body length를 exact 대조하며 raw canonical media는 memory에만 유지한다.
 - HTTP media를 먼저 cache에 채워 401/403, 409, 429/5xx·timeout, 404/503와 malformed response의 retry 의미를 보존한 뒤 기존 transformer의 deterministic validation을 실행한다.
 - safe result는 terminal/transient/generation category와 고정 code만 노출한다. token·Authorization·internal URL/path·media UUID·response body·stack을 출력 또는 generated artifact에 기록하지 않는다.
-- 새 configurable staging target만 만들고 release directory, active public path와 `current/previous`를 조작하지 않는다. staging 성공은 publisher completion이 아니다.
+- staging 단계 단독 성공은 publisher completion이 아니다. full release entrypoint만 이후 Next build·검증·manifest·switch를 수행하며 최종 serving smoke까지 성공한 경우에만 `PUBLISHED`를 반환한다.
+
+## 현재 Static Export·release filesystem 경계
+
+- Next build workspace는 source root의 작업 전용 sibling 아래 만들고 tracked `src/public`을 복사한 뒤 transformer staging의 `src/generated`·`public/generated`만 덮어쓴다. dependency install이나 runtime backend/browser fetch는 하지 않는다.
+- 공개 홈은 Shop·Service·Gallery·Notice snapshot을 정적 HTML에 포함한다. 각 Notice는 title, optional summary, full source `publishedAt`을 `dateTime`에 보존한 `<time>`, `/notices/<slug>/` detail link를 JavaScript 없이 출력하고 상세 route도 같은 path로 export한다. `markdown-it 15.0.1`은 raw HTML을 비활성화하며 link protocol allowlist와 remote Markdown image의 alt-only 처리를 사용한다.
+- responsive image는 media manifest의 `publicPath`만 사용해 AVIF·WebP·JPEG `<picture>`를 만들고 source UUID·filename·storage path를 URL authority로 쓰지 않는다.
+- validator는 required route, HTML parse, internal link, canonical, sitemap·robots, admin noindex, 각 홈 Notice anchor의 exact title·optional summary·full `time[datetime]`·detail link, generated media byte size·SHA filename, unexpected symlink/special file와 credential/internal/private marker 부재를 검사한다. candidate를 loopback read-only server로 열어 홈·대표 공지·media·404를 다시 확인한 뒤에만 install/switch 단계로 이동한다.
+- candidate는 `<releaseRoot>/.candidate-*` exact direct child에서 완성한다. site tree digest와 canonical string revision/generation, 실제 calendar와 일치하는 UTC `generatedAt`, code SHA·image tag/digest, Flyway version, SBOM reference를 strict private `release-manifest.json`에 기록한 뒤 same-filesystem rename으로 immutable release를 설치한다. installed package와 `current`·`previous`가 가리키는 package root도 반드시 `<releaseRoot>/<one-direct-child>`이며 exact parent, sibling, absolute/out-of-root와 nested target은 fail-closed 거부한다.
+- trusted current manifest generation을 `BigInt`로 비교해 equal/lower target은 `NO_PUBLIC_CHANGE`로 종료한다. switch 직전 다시 비교하며 `Number`·`parseInt` 변환은 금지한다.
+- old current가 있으면 previous를 먼저 old current로 기록한 뒤 current temporary symlink를 atomic rename한다. post-switch에는 actual current symlink를 loopback read-only HTTP server로 제공해 홈·대표 notice·media·404를 검증한다.
+- post-switch smoke 실패는 아직 publication `SUCCESS`가 아닌 동일 lock scope에서 old current/previous를 복구한다. first release라면 broken current를 제거한다. 이는 이미 성공 처리된 production release의 운영 rollback을 직접 낮은 generation으로 전환하는 계약이 아니다.
+- retention은 post-switch smoke 성공 뒤 strict manifest와 site digest를 다시 검증한 성공 release만 대상으로 하며 newest 5와 current·previous를 항상 보호한다. stale·switch/smoke 실패 candidate는 먼저 제거하고 retention 계산·삭제를 실행하지 않는다. 이미 검증·전환·smoke가 끝난 뒤 housekeeping만 실패하면 public switch를 실패로 오기록하지 않고 machine result의 `retentionStatus=DEFERRED`로 남기며 maintenance에서 재검증한다.
 
 ## 현재 publisher control 경계
 
@@ -95,10 +107,11 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - executor 결과는 `SUCCESS | NO_PUBLIC_CHANGE | TRANSIENT_FAILURE | TERMINAL_FAILURE`이고 각각 기존 state service의 success/no-op/transient/terminal transition으로만 반영한다.
 - lease 상실·shutdown cancellation은 interrupt 요청만으로 완료하지 않는다. wrapper가 callable 진입·종료를 추적하고 실제 종료 acknowledgment 뒤에만 lock을 해제한다. `Future.cancel(true)`·cancelled/`isDone` 상태는 physical termination authority가 아니다.
 - shutdown timeout 뒤 executor가 계속 실행되면 non-daemon control worker가 lock scope 안에서 기다려 새 publisher 진입을 차단한다. 정상 종료가 불가능하면 process termination이 executor와 OS file lock을 함께 정리하는 fail-closed lifecycle을 사용한다.
-- 현재 placeholder executor는 `TRANSIENT_FAILURE`만 반환해 release 생성을 fail-closed한다. 구현된 Node staging orchestration은 이 executor에 bind하지 않으며 full Next/release pipeline만 후속 범위다.
+- 실제 Java executor는 Node full release CLI를 fixed argv로 실행하고 credential·URL·filesystem/code metadata를 allowlist environment에만 전달한다. exact one-line JSON과 exit family만 `SUCCESS | NO_PUBLIC_CHANGE | TRANSIENT_FAILURE | TERMINAL_FAILURE`로 변환한다.
+- cancellation 시 Node root와 관찰한 descendant process tree에 graceful/force 종료를 요청하고 physical exit를 확인한 뒤에만 executor body가 반환한다. root가 먼저 종료하고 descendant가 남은 정상-return 경로도 transient failure로 강제 종료한다.
 - default Compose에는 publisher service가 없고 normal backend에는 publisher loop/thread가 없다. publisher mode는 public port, Nginx route, Docker socket과 production bind를 추가하지 않는다.
 
-## planned pipeline
+## 현재 구현 pipeline과 후속 운영 경계
 
 ```mermaid
 sequenceDiagram
@@ -134,18 +147,19 @@ sequenceDiagram
 1. immediate pending·due scheduled event poll, overdue recovery와 claim·`publishGeneration`·첫 attempt의 atomic transaction
 2. 첫 accepted generation 기준 fixed 30초 debounce와 가장 높은 `publishGeneration` coalescing — control plane 구현
 3. lease heartbeat와 physical executor termination acknowledgment까지 유지하는 global filesystem advisory lock — control plane 구현
-4. typed executor port 호출과 state result 반영 — placeholder만 구현
-5. release ID, target `contentRevision`·`publishGeneration`과 승인된 production code image digest 확인
+4. fixed process Java executor 호출과 typed state result 반영 — 구현
+5. release ID, target `contentRevision`·`publishGeneration`과 주입된 code image identity 확인 — local/CI synthetic metadata, production provisioning 후속
 6. internal read-only build API로 일관된 snapshot 조회
 7. scheduled event라면 current Notice·Gallery row를 다시 읽고, snapshot schema, `generatedAt` 기준 published·게시/만료, 관계·media 상태와 실제 file scope 재검증
 8. build API HTTP client로 image 획득 후 구현된 transformer의 validation·metadata 제거·responsive derivative·staging 생성 — isolated data plane 구현
-9. Next.js build/export
-10. HTML, link, canonical, sitemap, robots와 asset 검증
-11. 새 release directory smoke
-12. `previous` 기록과 `current` atomic switch
-13. public smoke, 실패 시 previous code/current snapshot의 새 rollback generation으로 복구
-14. attempt/result와 마지막 성공 `contentRevision`·`publishGeneration`·`generatedAt` 기록
-15. 더 높은 generation이 있으면 최신 current snapshot 우선 처리
+9. isolated Next.js build/export — 구현
+10. HTML, link, canonical, sitemap, robots와 asset 검증 — 구현
+11. immutable candidate·release manifest 검증 — 구현
+12. `previous` 기록과 `current` atomic switch — 구현
+13. local read-only current serving smoke, success 전 실패면 same-attempt old current 복구 — 구현. production public smoke와 higher rollback generation workflow는 운영 gate
+14. smoke 성공 release의 retention과 실패 candidate cleanup — 구현
+15. typed result를 통한 attempt/result와 마지막 성공 generation 기록 — 구현
+16. 더 높은 generation이 있으면 최신 current snapshot 우선 처리
 
 ## build API와 transformer 경계
 
@@ -156,7 +170,7 @@ sequenceDiagram
 - 현재 API query가 `published`, notice `published_at <= generatedAt < expires_at`, relation target, media `active`와 실제 file을 검증하고 구현된 transformer가 response를 독립적으로 다시 검증한다.
 - 선택된 media가 archived, missing 또는 corrupt면 silent omission하지 않고 build 전체를 실패시킨다.
 - raw storage path, DB credential, admin session과 private metadata를 snapshot에 넣지 않는다.
-- transformer는 credential이나 URL을 모르며 `MediaContentProvider` 호출만 한다. Node adapter가 environment-only credential로 이 port를 구현하지만 production publisher process 주입·binding은 후속 범위다.
+- transformer는 credential이나 URL을 모르며 `MediaContentProvider` 호출만 한다. Node adapter가 environment-only credential로 이 port를 구현하고 Java release executor가 이를 호출한다. 실제 production secret·image/path 주입과 service provisioning은 후속 범위다.
 
 ## 원자성·일관성
 

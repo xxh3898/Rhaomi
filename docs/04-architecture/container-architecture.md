@@ -21,9 +21,10 @@ review_trigger: "서비스 배치·network·image 변경 시"
 | `postgres` | `postgres:18.6-alpine3.23` | 없음 | backend PostgreSQL data |
 | `smoke` | `node:24.20.0-alpine3.23` | 없음 | 없음 |
 | `contract-check` | `node:24.20.0-alpine3.23` | 없음, network disabled | 기존 `node_modules`를 사용하는 frontend·repository contract 검증 |
+| `publisher-validation` | exact Temurin 25 + Node 24 + `libheif 1.23.0-r0` validation image | 없음 | temp release·PostgreSQL full pipeline test, dependency cache만 공유 |
 
 - frontend·gateway·PostgreSQL·smoke·contract-check는 검증한 multi-architecture manifest digest를 고정한다. backend Dockerfile은 exact Temurin manifest digest와 `libheif=1.23.0-r0`·`libheif-dev=1.23.0-r0`를 고정한다.
-- `frontend`와 `gateway`는 frontend profile에서 함께 실행하고 `smoke`는 smoke profile, `contract-check`는 validation profile에서만 실행한다.
+- `frontend`와 `gateway`는 frontend profile에서 함께 실행하고 `smoke`는 smoke profile, `contract-check`는 validation profile, `publisher-validation`은 동명 explicit profile에서만 실행한다.
 - browser는 gateway `127.0.0.1:3000`만 사용한다. `/api/**`는 backend, 그 밖의 path와 HMR WebSocket은 frontend로 전달한다.
 - frontend·gateway·smoke는 `frontend-local`, gateway·backend는 `backend-gateway-internal`, backend·PostgreSQL은 `backend-internal`에서 통신한다.
 - gateway와 PostgreSQL은 network를 공유하지 않는다.
@@ -32,6 +33,7 @@ review_trigger: "서비스 배치·network·image 변경 시"
 - 실제 값은 host Compose CLI가 Git 제외 `.env.dev.local`과 process 환경에서 읽어 필요한 service에만 주입한다.
 - frontend는 repository root를 mount하지 않고 `src`, package manifest, Next·TypeScript config와 credential isolation script만 read-only allowlist mount한다. `.env*`, `backend/`, local secret/config와 private runtime data는 frontend filesystem에 없다.
 - `contract-check`는 repository-wide Node contract에 필요한 tracked source만 read-only mount하고 network를 끈다. actual `.env.dev.local`은 mount하지 않으며 build token environment도 받지 않는다.
+- `publisher-validation`은 source/config를 allowlist mount하고 test process 내부의 synthetic build token·domain·temp filesystem만 사용해 PostgreSQL→Build API→Sharp→Next→release switch→DB completion을 검증한다. default stack이나 public gateway에 publisher를 추가하지 않으며 production image·secret·path 계약으로 사용하지 않는다.
 - local/test 관리자 bootstrap은 기본 비활성이며 production profile에서 사용할 수 없다.
 - 일반 종료는 named volume을 보존하는 `docker compose ... down`을 사용한다.
 - `backend-media-masters` volume은 backend만 `/var/lib/rhaomi/media`에 mount하고 frontend·smoke에는 mount하지 않는다.
@@ -81,7 +83,7 @@ flowchart TB
     HomeOps -. 상태 .-> Backup
 ```
 
-local private media volume·upload API, same-origin development gateway, publisher control loop와 Node Build API→transformer private staging data plane까지 구현됐다. orchestration은 current `contract-check`의 network-disabled synthetic loopback HTTP에서 Node 24/Sharp amd64·arm64를 검증하며 default publisher service나 host port를 추가하지 않는다. 위 production topology는 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)에서 승인한 목표지만 production Compose·Nginx·publisher release adapter/service·secret provisioning·backup·HomeOps와 decoder-only image는 아직 구현되지 않았다.
+local private media volume·upload API, same-origin development gateway, dedicated publisher control loop와 Build API→transformer→Next→immutable release/atomic switch data plane을 구현했다. network-disabled Node suites와 explicit `publisher-validation` Java 25/Node 24 harness가 Sharp·filesystem symlink·DB completion을 amd64/arm64에서 검증하며 default publisher service나 host port를 추가하지 않는다. 위 production topology는 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)에서 승인한 목표지만 production Compose·Nginx·publisher service/secret/path provisioning·backup·HomeOps와 decoder-only image는 아직 구현되지 않았다.
 
 diagram의 iCloud repository는 Mac mini의 local iCloud Drive path다. [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)에 따라 Apple remote sync가 별도 검증되기 전에는 offsite 사본이나 offsite RPO `PASS`로 간주하지 않는다.
 

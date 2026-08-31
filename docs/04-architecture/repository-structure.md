@@ -21,9 +21,12 @@ Rhaomi/
 ├── src/
 │   ├── app/
 │   │   ├── page.tsx               # 공개 Static Export 홈
+│   │   ├── notices/[slug]/        # generated notice 정적 상세
 │   │   └── admin/                 # Static Export auth shell·DOM test
 │   ├── build-orchestration/       # Build API HTTP client·media provider·staging orchestration/test
 │   ├── build-transformer/         # strict snapshot·responsive derivative·staging library/test
+│   ├── public-site/               # generated V2 parser·safe Markdown·responsive media
+│   ├── publication-release/       # Next build·validator·manifest·switch·smoke·retention
 │   ├── features/admin-auth/       # relative API client·shape/error test
 │   └── test/                      # Vitest DOM setup
 ├── backend/
@@ -76,12 +79,15 @@ Rhaomi/
 - `src/features/admin-auth`는 relative `/api/admin/**`, same-origin credential, GET no-store, response shape와 고정 오류 mapping을 한 경계에서 처리한다.
 - `infra/nginx/dev.conf`는 local 개발 전용이며 production Nginx·TLS 설정이 아니다.
 - `backend/.../publication`은 domain transaction 밖에서 호출할 수 없는 `MANDATORY` producer recorder와 deterministic JDBC state service를 둔다. state service는 due claim, source/boundary 최소 stale 판정, generation·lease·retry·terminal/coalesce primitive만 제공하며 HTTP controller, scheduler, background executor나 범용 queue framework를 제공하지 않는다.
-- `kr.co.rhaomi.publisher`는 exact mode argument 전용 non-web root와 state adapter, fixed debounce/highest coalesce, lease heartbeat, advisory lock, typed executor/result port를 둔다. 현재 placeholder는 public artifact를 만들지 않는다.
+- `kr.co.rhaomi.publisher`는 exact mode argument 전용 non-web root와 state adapter, fixed debounce/highest coalesce, lease heartbeat, advisory lock과 fixed-process Node release executor를 둔다. child·descendant physical exit 전에는 Java body와 lock을 종료하지 않는다.
 - `backend/.../build`는 별도 stateless principal과 GET allowlist, active generation gate, read-only `REPEATABLE READ` snapshot, exact DTO와 current public relation media 조회만 제공한다. admin session을 재사용하거나 publication/content state를 변경하지 않는다.
-- `src/build-transformer`는 backend나 browser transport에 의존하지 않는 strict `BuildSnapshotV2` parser, lossless int64 canonical string validator, `MediaContentProvider` port, responsive image transformer와 staging writer를 제공한다. publisher loop, HTTP client, Next route와 release/current switch는 포함하지 않는다.
-- `src/build-orchestration`은 environment-only Build API config, bounded no-redirect snapshot client, manifest-scoped memory media provider와 staging-only transformer orchestration을 제공한다. frontend/browser import, DB state completion, Next render와 release/current switch는 포함하지 않는다.
+- `src/build-transformer`는 backend나 browser transport에 의존하지 않는 strict `BuildSnapshotV2` parser, lossless int64 canonical string validator, `MediaContentProvider` port, responsive image transformer와 staging writer를 제공한다. publisher loop·HTTP·release filesystem은 포함하지 않는다.
+- `src/build-orchestration`은 environment-only Build API config, bounded no-redirect snapshot client, manifest-scoped memory media provider와 transformer staging을 제공하고, `src/publication-release`가 이를 Next render·manifest·switch에 조합한다.
+- `src/public-site`는 tracked synthetic fixture와 per-release generated V2를 같은 exact parser로 읽고 safe Markdown·responsive media component를 제공한다. browser runtime fetch를 만들지 않는다.
+- `src/publication-release`는 isolated workspace, static export validator, private release manifest, BigInt stale guard, immutable install, previous/current switch, loopback serving smoke·rollback과 retention을 담당한다.
 - `scripts/transform-build-snapshot.mts`는 test·수동 fixture 검증용 filesystem adapter다. media UUID나 local path를 성공·오류 출력에 기록하지 않는다.
 - `scripts/prepare-publication-staging.mts`는 generation과 private output path만 argv로 받고 URL/credential은 environment에서 읽으며 safe JSON/exit family만 출력한다.
+- `scripts/publish-static-release.mts`는 generation만 argv로 받고 full release result를 safe one-line JSON과 fixed exit family로 출력한다.
 
 ## 전체 제품 목표 구조 — planned
 
@@ -91,7 +97,7 @@ Rhaomi/
 │   ├── app/
 │   │   ├── page.tsx
 │   │   ├── admin/                 # 현재 auth shell, 후속 콘텐츠 UI
-│   │   └── notice/[slug]/
+│   │   └── notices/[slug]/
 │   ├── components/
 │   ├── generated/
 │   │   ├── content.json
@@ -132,7 +138,7 @@ planned 경로는 관련 Issue가 구현할 때만 추가한다.
 - publication state service는 전달받은 `now`·lease를 microsecond로 정규화하고 owner·generation·active lease를 확인한다. 실제 poll/debounce/build orchestration이나 full public eligibility를 이 package에 복제하지 않는다.
 - `kr.co.rhaomi.publisher`는 normal backend component scan 밖의 별도 root다. exact mode argument가 선택된 `WebApplicationType.NONE` process에서만 state adapter, fixed debounce/coalesce, lease heartbeat, filesystem lock과 typed executor port를 구성한다.
 - normal `BackendApplication`은 publisher mode argument가 없으면 기존 HTTP context만 기동한다. publisher root는 controller, servlet security chain, JPA repository, public route와 admin bootstrap을 scan하지 않는다.
-- publisher placeholder executor는 release를 만들지 않고 transient failure로 fail-closed한다. 구현된 Node staging orchestration은 이 executor와 분리돼 있고 Next·release filesystem adapter와 full success binding은 후속 package 범위다.
+- publisher executor는 Node full release CLI의 exact result만 typed state transition에 연결한다. malformed/multiple-line output, child launch failure와 descendant 잔존은 success로 처리하지 않는다.
 - build package는 64자 lowercase hex service token을 timing-safe 비교하고 session을 만들지 않는다. snapshot/media response는 exact allowlist만 사용하며 raw entity·storage path·hash·audit·claim 내부 상태를 노출하지 않는다.
 - password hash, session id와 credential을 log에 남기지 않는다.
 
@@ -143,13 +149,13 @@ planned 경로는 관련 Issue가 구현할 때만 추가한다.
 - JPA `ddl-auto`로 schema 생성 금지
 - destructive migration은 별도 data/backup/rollback 승인 필요
 
-### `src/generated` — transformer 산출물, repository에는 미커밋
+### `src/generated` — synthetic tracked build fixture와 per-release transformer 산출물
 
-- transformer staging root에 `content.json`과 `media-manifest.json`으로 생성하는 고정 입력
-- 수동 수정 금지
+- standard `npm run build` 재현을 위한 실제 운영정보가 없는 최소 V2 fixture를 repository에 둔다.
+- full release는 source를 수정하지 않고 격리 workspace copy의 이 두 파일을 transformer staging 결과로 교체한다.
 - schema version 포함
 - 일부 실패에서 과거 데이터와 혼합 금지
-- 실제 Next render가 이 산출물을 소비하는 연결은 후속
+- 공개 Next render는 exact parser를 통해서만 이 산출물을 소비한다.
 
 ### `public/generated` — transformer 산출물, repository에는 미커밋
 
@@ -157,7 +163,7 @@ planned 경로는 관련 Issue가 구현할 때만 추가한다.
 - 원본 upload 금지
 - 내용 hash 기반 파일명
 - metadata 제거 후 export에 포함
-- 실제 release 설치·retention·current switch는 후속 publisher 범위
+- full publisher가 immutable release 설치·retention·current switch까지 연결한다.
 
 ### `infra`
 

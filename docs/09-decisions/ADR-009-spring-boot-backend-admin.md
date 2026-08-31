@@ -42,7 +42,7 @@ review_trigger: "관리자 인증·콘텐츠 API·DB·배포 구조 변경 시"
 - 최소 Actuator health
 - PostgreSQL을 사용하는 인증 contract test와 개발 Compose·Hosted CI
 
-공지·견종·서비스·갤러리·매장정보 CRUD API, private 이미지 storage·변환, `/admin/` 콘텐츠 UI와 관리자 session과 분리된 internal read-only build API는 후속 Phase에서 구현했다. snapshot transformer, dedicated non-web polling/debounce/lock control loop와 staging-only Build API adapter도 구현했으며, Next 정적 render·release switch와 full executor binding은 아직 구현하지 않았다.
+공지·견종·서비스·갤러리·매장정보 CRUD API, private 이미지 storage·변환, `/admin/` 콘텐츠 UI와 관리자 session과 분리된 internal read-only build API는 후속 Phase에서 구현했다. snapshot transformer, dedicated non-web polling/debounce/lock control loop와 Build API adapter에 이어 generated V2 Next Static Export·release validator·atomic switch와 actual Java executor binding도 local/CI 범위에서 구현했다. production publisher image·secret·path provisioning과 실제 public acceptance는 아직 구현하지 않았다.
 
 ### Phase 1C-7 same-origin client 경계
 

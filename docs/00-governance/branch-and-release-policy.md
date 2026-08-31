@@ -70,4 +70,4 @@ feature/* ──PR──> dev ──Release PR──> main
 - 콘텐츠 release 후보: Spring Boot가 같은 transaction에 기록한 publishing outbox
 - 두 트리거 모두 동일한 `build → validate → atomic switch` 파이프라인으로 수렴한다.
 
-[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)이 production release와 콘텐츠 publisher의 상세 계약을 정의한다. publisher DB state와 dedicated non-web control loop는 구현됐지만 실제 production workflow·environment·release adapter/service는 아직 구현되지 않았다.
+[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)이 production release와 콘텐츠 publisher의 상세 계약을 정의한다. publisher DB state, dedicated non-web control loop와 local/CI full release adapter는 구현됐지만 실제 production workflow·environment·image·secret·Mac path service provisioning은 아직 구현되지 않았다.

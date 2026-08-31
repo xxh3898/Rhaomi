@@ -1,3 +1,4 @@
+import { parseStrictMicrosecondUtcInstant } from "../contracts/strict-instant.mts";
 import { fail } from "./errors.mts";
 
 const UUID_PATTERN =
@@ -6,8 +7,6 @@ const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const PHONE_PATTERN = /^[0-9+() -]+$/;
 const ISO_CONTROL_PATTERN = /[\u0000-\u001f\u007f-\u009f]/u;
-const MICROSECOND_INSTANT_PATTERN =
-  /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(?:\.(\d{1,6}))?Z$/;
 const NON_NEGATIVE_INT64_DECIMAL_PATTERN = /^(?:0|[1-9][0-9]*)$/u;
 const POSITIVE_INT64_DECIMAL_PATTERN = /^[1-9][0-9]*$/u;
 const JAVA_LONG_MAX = BigInt("9223372036854775807");
@@ -417,22 +416,9 @@ function booleanValue(value: unknown): boolean {
 }
 
 function instant(value: unknown): string {
-  if (typeof value !== "string") fail("SNAPSHOT_INVALID");
-  const match = MICROSECOND_INSTANT_PATTERN.exec(value);
-  if (!match) fail("SNAPSHOT_INVALID");
-  const parsed = new Date(value);
-  if (
-    !Number.isFinite(parsed.getTime()) ||
-    parsed.getUTCFullYear() !== Number(match[1]) ||
-    parsed.getUTCMonth() + 1 !== Number(match[2]) ||
-    parsed.getUTCDate() !== Number(match[3]) ||
-    parsed.getUTCHours() !== Number(match[4]) ||
-    parsed.getUTCMinutes() !== Number(match[5]) ||
-    parsed.getUTCSeconds() !== Number(match[6])
-  ) {
-    fail("SNAPSHOT_INVALID");
-  }
-  return value;
+  const parsed = parseStrictMicrosecondUtcInstant(value);
+  if (parsed === null) fail("SNAPSHOT_INVALID");
+  return parsed.value;
 }
 
 function nullableInstant(value: unknown): string | null {
@@ -440,9 +426,9 @@ function nullableInstant(value: unknown): string | null {
 }
 
 function instantKey(value: string): string {
-  const match = MICROSECOND_INSTANT_PATTERN.exec(value);
-  if (!match) fail("SNAPSHOT_INVALID");
-  return `${value.slice(0, 19)}.${(match[7] ?? "").padEnd(6, "0")}Z`;
+  const parsed = parseStrictMicrosecondUtcInstant(value);
+  if (parsed === null) fail("SNAPSHOT_INVALID");
+  return `${value.slice(0, 19)}.${parsed.fraction.padEnd(6, "0")}Z`;
 }
 
 function time(value: unknown): string {

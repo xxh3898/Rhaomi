@@ -3,11 +3,15 @@ title: "메타데이터·구조화 데이터"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-31"
 review_trigger: "도메인·매장정보·URL 구조 변경 시"
 ---
 
 # 메타데이터·구조화 데이터
+
+## 현재 구현 경계
+
+홈과 generated 공개 공지 상세의 title·description·canonical·Open Graph, 홈 LocalBusiness JSON-LD, robots와 sitemap을 Static Export에 구현했다. 값은 Build Snapshot V2와 fail-closed `PUBLIC_SITE_URL`에서 생성하고 final release validator가 absolute HTTPS canonical, sitemap URL, admin 제외와 내부/private URL 부재를 검증한다. 실제 production domain, favicon/app icon, 최종 OG 사진·문구와 Rich Results 실서비스 증거는 미확정 출시 항목이다.
 
 ## 홈 기준
 
@@ -118,7 +122,7 @@ Sitemap: https://<domain>/sitemap.xml
 
 - 홈
 - 공개·미만료 공지
-- 기준을 충족한 견종별 정적 페이지
+- 기준을 충족한 후속 견종별 정적 페이지. Issue #43 sitemap에는 생성하지 않는다.
 
 제외:
 

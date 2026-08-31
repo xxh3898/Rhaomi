@@ -15,8 +15,8 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - 관리자 session과 CSRF token
 - PostgreSQL 데이터
 - transactional content revision, publish generation과 publishing outbox state
-- 향후 원본 시술사진
-- internal build service credential과 staging adapter·향후 production publisher 주입 경계
+- private canonical 시술사진과 metadata
+- internal build service credential, full release adapter와 향후 production publisher 주입 경계
 - encrypted restic repository와 recovery key
 - 공개 도메인과 배포 권한
 - GitHub 저장소와 Actions 권한
@@ -89,7 +89,10 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | snapshot parser drift·relation 우회 | draft·만료·missing relation 또는 private field의 공개 산출물 유입 | exact key·schema·semantic·generatedAt eligibility·relation·media manifest를 transport-independent transformer에서 재검증, unknown/missing field fail-closed |
 | canonical media 위조·metadata 노출 | 손상 image 처리, GPS·기기 정보 공개 | provider content type과 JPEG·PNG signature/decode/size/pixel/single-image 재검증, orientation·sRGB·metadata strip, output decode·format·metadata 검사 |
 | partial·nondeterministic staging 공개 | 혼합 revision, cache 불일치, 이전 성공 결과 훼손 | deterministic order와 output-byte SHA-256 filename, temp sibling 완성 뒤 rename, failure cleanup, existing target fail-closed 보존 |
-| staging 성공의 publication 성공 오판 | Next/release 검증 없이 outbox 완료·불완전 사이트 공개 | staging-only safe result를 Java executor/state와 분리, placeholder 유지, `completeSuccess`·`completeNoop`·active path/symlink 변경 금지 |
+| staging 성공의 publication 성공 오판 | Next/release 검증 없이 outbox 완료·불완전 사이트 공개 | staging-only result를 DB completion과 분리하고 full executor의 export·validator·manifest·switch·post-switch serving smoke 뒤에만 `SUCCESS` 허용 |
+| Notice Markdown XSS·remote image 우회 | script 실행·private/remote resource 공개 | raw HTML 비활성, escaping·link protocol allowlist, Markdown image의 alt-only 처리와 exported HTML dangerous URL 검증 |
+| release tree·manifest 변조 | stale downgrade·path escape·임의 파일 공개 | exact manifest shape·site tree digest, regular-file-only traversal, symlink/special file 거부와 `BigInt` switch-time stale 재검증 |
+| publisher child process 잔존 | global lock 해제 뒤 두 release executor 동시 side effect | Node root·관찰 descendant physical exit 확인, 정상 root exit 뒤 orphan도 transient 강제 종료, Java body 종료 전 lock 유지 |
 | backup key 탈취·분실 | 민감 원본 노출 또는 복구 불가 | 별도 encrypted repository, 제한된 password source, password manager+offline recovery key |
 | PostgreSQL volume 오삭제 | 전체 운영 DB 손실 | project-scoped named volume, 일반 `down` 보존, production `down -v`·prune·direct delete 금지, logical backup·isolated `pg_restore` |
 | 자동 복구 오작동 | 장애 확대·data mutation | stateless web/backend 단일 restart allowlist, deploy/backup lock, 30분 cooldown, audit |
