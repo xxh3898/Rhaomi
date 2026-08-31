@@ -151,6 +151,10 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(entrypoint, /CREATE TABLE[\s\S]*validation_sentinel/u);
   assert.match(entrypoint, /compose_runtime down/u);
   assert.match(entrypoint, /sentinel/u);
+  assert.match(entrypoint, /ps --all --quiet/u);
+  assert.match(entrypoint, /write_service_failure_evidence/u);
+  assert.match(entrypoint, /REDACTED_POSTGRES_PASSWORD/u);
+  assert.match(entrypoint, /REDACTED_BUILD_TOKEN/u);
   assert.match(entrypoint, /\/private\/var\/tmp/u);
   assert.match(entrypoint, /Mounts|PortBindings|NetworkSettings/u);
   assert.match(entrypoint, /api\/build|internal|actuator|release-manifest/u);

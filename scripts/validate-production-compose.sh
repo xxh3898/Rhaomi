@@ -306,22 +306,44 @@ wait_healthy() {
   maximum=$2
   attempt=0
   while [ "$attempt" -lt "$maximum" ]; do
-    container_id=$(compose_validation ps --quiet "$service")
+    container_id=$(compose_validation ps --all --quiet "$service")
     if [ -n "$container_id" ]; then
       health=$(docker inspect "$container_id" --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}')
       if [ "$health" = healthy ]; then
         return 0
       fi
       if [ "$health" = exited ] || [ "$health" = dead ]; then
-        break
+        write_service_failure_evidence "$service" "$container_id"
+        echo "${service}가 healthy 이전에 종료됐습니다." >&2
+        exit 1
       fi
     fi
     attempt=$((attempt + 1))
     sleep 1
   done
   compose_validation ps >&2 || true
+  if [ -n "${container_id:-}" ]; then
+    write_service_failure_evidence "$service" "$container_id"
+  fi
   echo "${service} health timeout" >&2
   exit 1
+}
+
+write_service_failure_evidence() {
+  service=$1
+  container_id=$2
+  failure_evidence="$evidence_dir/production-compose-${service}-failure.txt"
+
+  {
+    docker inspect "$container_id" \
+      --format 'status={{.State.Status}} exitCode={{.State.ExitCode}} oomKilled={{.State.OOMKilled}} error={{json .State.Error}}'
+    compose_validation logs --no-color --tail 200 "$service" 2>&1 || true
+  } |
+    sed \
+      -e "s/${postgres_password}/[REDACTED_POSTGRES_PASSWORD]/g" \
+      -e "s/${build_token}/[REDACTED_BUILD_TOKEN]/g" \
+      >"$failure_evidence"
+  cat "$failure_evidence" >&2
 }
 
 wait_running() {
