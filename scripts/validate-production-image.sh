@@ -85,9 +85,9 @@ docker run --rm --network none \
     java -version 2>&1 | grep '\''version "25\.'\''
     node --version | grep '\''^v24\.20\.0$'\''
     apk info -e libde265
-    test "$(apk info -v libcrypto3)" = "libcrypto3-3.5.8-r0"
-    test "$(apk info -v libssl3)" = "libssl3-3.5.8-r0"
-    test "$(apk info -v openssl)" = "openssl-3.5.8-r0"
+    apk info -e "libcrypto3=3.5.8-r0" >/dev/null
+    apk info -e "libssl3=3.5.8-r0" >/dev/null
+    apk info -e "openssl=3.5.8-r0" >/dev/null
     if apk info -e x265-libs || apk info -e x265; then
       echo "x265 package가 final image에 있습니다." >&2
       exit 1

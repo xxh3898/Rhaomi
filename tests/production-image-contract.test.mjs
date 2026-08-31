@@ -56,7 +56,7 @@ test("production image acceptance가 image surface, actual media와 supply chain
   assert.match(entrypoint, /node --version/);
   assert.match(entrypoint, /amd64 \| arm64/);
   assert.match(entrypoint, /apk info -e libde265/);
-  assert.match(entrypoint, /libcrypto3-3\.5\.8-r0/);
+  assert.match(entrypoint, /libcrypto3=3\.5\.8-r0/);
   assert.match(entrypoint, /x265-libs/);
   assert.match(entrypoint, /ldd .*libheif/);
   assert.match(entrypoint, /validate-production-image-media\.mjs/);
