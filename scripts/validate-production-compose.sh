@@ -14,6 +14,10 @@ project_name="rhaomi-dimp2-${git_short}-$$"
 validation_root=
 marker=
 compose_started=false
+validation_bind_ownership_prepared=false
+validation_bind_ownership_mode=docker-desktop-host-bind
+validation_host_uid=$(id -u)
+validation_host_gid=$(id -g)
 
 if ! printf '%s' "$git_head" | grep -Eq '^[0-9a-f]{40}$'; then
   echo "exact 40-character Git HEAD가 필요합니다." >&2
@@ -69,6 +73,9 @@ compose_validation() {
 cleanup() {
   if [ "$compose_started" = true ]; then
     compose_validation down --remove-orphans >/dev/null 2>&1 || true
+  fi
+  if [ "$validation_bind_ownership_prepared" = true ]; then
+    restore_linux_bind_ownership
   fi
   if [ -n "$validation_root" ] &&
     [ -f "$marker" ] &&
@@ -130,6 +137,7 @@ case "$(uname -m):${image_architecture}" in
     exit 1
     ;;
 esac
+prepare_linux_bind_ownership
 
 export RHAOMI_PRODUCTION_COMPOSE_PROJECT="$project_name"
 export RHAOMI_PRODUCTION_VALIDATION_ROOT="$validation_root"
@@ -264,6 +272,7 @@ printf '%s\n' \
   "normalFlywayDisabled=true" \
   "normalBootstrapDisabled=true" \
   "schemaBootstrapValidationOnly=true" \
+  "validationBindOwnershipMode=${validation_bind_ownership_mode}" \
   >"$evidence_dir/production-compose-runtime.txt"
 printf '%s\n' \
   "volumeName=${volume_name}" \
@@ -308,14 +317,15 @@ wait_healthy() {
   while [ "$attempt" -lt "$maximum" ]; do
     container_id=$(compose_validation ps --all --quiet "$service")
     if [ -n "$container_id" ]; then
-      health=$(docker inspect "$container_id" --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}')
-      if [ "$health" = healthy ]; then
-        return 0
-      fi
-      if [ "$health" = exited ] || [ "$health" = dead ]; then
+      state=$(docker inspect "$container_id" --format '{{.State.Status}}')
+      if [ "$state" = exited ] || [ "$state" = dead ]; then
         write_service_failure_evidence "$service" "$container_id"
         echo "${service}가 healthy 이전에 종료됐습니다." >&2
         exit 1
+      fi
+      health=$(docker inspect "$container_id" --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}')
+      if [ "$health" = healthy ]; then
+        return 0
       fi
     fi
     attempt=$((attempt + 1))
@@ -327,6 +337,56 @@ wait_healthy() {
   fi
   echo "${service} health timeout" >&2
   exit 1
+}
+
+prepare_linux_bind_ownership() {
+  if [ "$(uname -s)" != Linux ]; then
+    return 0
+  fi
+
+  run_bind_ownership_helper prepare
+  validation_bind_ownership_prepared=true
+  validation_bind_ownership_mode=docker-helper-root-owned
+}
+
+restore_linux_bind_ownership() {
+  run_bind_ownership_helper restore
+  validation_bind_ownership_prepared=false
+}
+
+run_bind_ownership_helper() {
+  action=$1
+  docker run --rm --network none --read-only \
+    --user 0:0 \
+    --security-opt no-new-privileges=true \
+    --cap-drop ALL \
+    --cap-add CHOWN \
+    --cap-add DAC_OVERRIDE \
+    --cap-add FOWNER \
+    --label io.homeserver.cleanup.environment=development \
+    --label io.homeserver.cleanup.project=rhaomi \
+    --label "io.homeserver.cleanup.task=${cleanup_task}" \
+    --label io.homeserver.cleanup.lifecycle=task \
+    --label io.homeserver.cleanup.retain=false \
+    --label "io.homeserver.cleanup.git-head=${git_head}" \
+    --volume "$validation_root/public:/validation/public" \
+    --volume "$validation_root/data/media:/validation/media" \
+    --volume "$validation_root/state/publisher:/validation/publisher" \
+    --volume "$validation_root/state/locks:/validation/locks" \
+    "$production_image" \
+    sh -ec '
+      case "$1" in
+        prepare)
+          chown 0:0 /validation/public /validation/media /validation/publisher /validation/locks
+          chmod 0755 /validation/public
+          chmod 0750 /validation/media /validation/publisher /validation/locks
+          ;;
+        restore)
+          chown -R "$2:$3" /validation/public /validation/media /validation/publisher /validation/locks
+          ;;
+        *) exit 64 ;;
+      esac
+    ' sh "$action" "$validation_host_uid" "$validation_host_gid"
 }
 
 write_service_failure_evidence() {

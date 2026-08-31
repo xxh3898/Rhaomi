@@ -155,6 +155,14 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(entrypoint, /write_service_failure_evidence/u);
   assert.match(entrypoint, /REDACTED_POSTGRES_PASSWORD/u);
   assert.match(entrypoint, /REDACTED_BUILD_TOKEN/u);
+  assert.match(entrypoint, /prepare_linux_bind_ownership/u);
+  assert.match(entrypoint, /restore_linux_bind_ownership/u);
+  assert.match(entrypoint, /docker run --rm --network none --read-only/u);
+  assert.match(entrypoint, /--user 0:0/u);
+  assert.match(entrypoint, /--security-opt no-new-privileges=true/u);
+  assert.match(entrypoint, /--cap-drop ALL/u);
+  assert.match(entrypoint, /--cap-add CHOWN/u);
+  assert.match(entrypoint, /validationBindOwnershipMode/u);
   assert.match(entrypoint, /\/private\/var\/tmp/u);
   assert.match(entrypoint, /Mounts|PortBindings|NetworkSettings/u);
   assert.match(entrypoint, /api\/build|internal|actuator|release-manifest/u);
