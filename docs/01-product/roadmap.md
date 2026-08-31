@@ -239,8 +239,13 @@ Phase 1C-8f7은 격리된 synthetic/local·CI release foundation을 구현한다
 
 ### Phase 1C-8f8 — sample content·local end-to-end acceptance
 
-- 실제 공개 후보 sample content와 due publish/expiry end-to-end
-- local gateway/public render·image·SEO·accessibility acceptance
+- production seed가 아닌 synthetic Shop·Breed·Service·Gallery·Notice·JPEG/PNG/HEIC sample을 local bootstrap·same-origin Admin HTTP로 생성
+- draft-only revision, public update, archive, Notice future publish·expiry, publisher downtime overdue recovery, stale reschedule와 fixed 30초 close-boundary coalesce를 실제 release까지 검증
+- Build Snapshot V2→responsive transformer→Next Static Export→immutable release→`previous/current` switch와 manifest/revision/generation 일치 검증
+- backend·PostgreSQL 중단 뒤 read-only local Nginx에서 홈·공지·media·robots·sitemap·runtime 독립, public deny·SEO·접근성·hash media 검증
+- tmpfs DB·task temp root·internal network·single-command cleanup으로 기존 개발 data/volume과 production path·secret을 격리
+
+Phase 1C-8f8은 local/CI synthetic acceptance gate다. 실제 Mac `/private/var/lib/rhaomi` provisioning, production Compose/Nginx/Cloudflare·secret/domain, 실제 살롱 콘텐츠·사진 공개와 iPhone Safari/VoiceOver는 후속 운영·물리 기기 gate다.
 
 ### Phase 1D — Production 운영 아키텍처 계약
 

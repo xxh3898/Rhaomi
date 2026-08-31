@@ -23,7 +23,7 @@ review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 
 ## 현재 구현 범위
 
-Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1~8f6에서 transactional outbox, generation state, internal Build API, strict transformer, non-web control loop와 authenticated staging data plane을 구현했다. Phase 1C-8f7은 generated V2 콘텐츠를 사용하는 공개 홈·정적 공지 상세, safe Markdown, SEO·responsive media 렌더링과 strict export validator를 추가하고, immutable release manifest·BigInt stale guard·`previous/current` atomic switch·post-switch serving smoke·rollback·retention을 실제 Java executor와 연결한다. 이 범위는 synthetic fixture와 격리된 filesystem/DB 검증이며 production Compose·secret·Mac path provisioning이나 실제 콘텐츠 공개는 하지 않는다.
+Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1~8f7에서 transactional outbox, generation state, internal Build API, strict transformer, non-web control loop, generated V2 Next Static Export와 immutable release·atomic switch를 구현했다. Phase 1C-8f8은 synthetic production-like dataset을 실제 local bootstrap·same-origin Admin HTTP로 저장하고, 30초 scheduled publish·expiry·overdue·stale/coalesce에서 Build API→transformer→Next→release를 끝까지 실행한 뒤 backend·PostgreSQL을 중단한 read-only Nginx에서 홈·공지·media·SEO·접근성·runtime 독립을 검증한다. 이 범위는 task-scoped tmpfs/temp filesystem에 한정하며 production Compose·secret·Mac path provisioning이나 실제 콘텐츠 공개는 하지 않는다.
 
 ```text
 .
@@ -134,6 +134,14 @@ RHAOMI_BOOTSTRAP_ADMIN_ENABLED=true \
 RHAOMI_BOOTSTRAP_ADMIN_EMAIL=admin.smoke@example.com \
 RHAOMI_BOOTSTRAP_ADMIN_PASSWORD='replace-with-a-local-test-password' \
 sh scripts/validate-backend-compose.sh .env.dev.local
+```
+
+### Local publication acceptance
+
+production secret이나 기존 개발 DB/media volume 없이 Phase 1C 출판 경로를 한 명령으로 검증한다. 하네스는 `.env.example`, task-scoped synthetic credential, tmpfs PostgreSQL과 `mktemp` public root를 사용하고 종료 시 container·network와 marker가 있는 temp root만 정리한다. Docker volume·image는 삭제하지 않는다.
+
+```bash
+sh scripts/validate-local-publication-acceptance.sh
 ```
 
 ## 현재 핵심 결론

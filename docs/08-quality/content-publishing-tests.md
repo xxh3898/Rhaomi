@@ -109,7 +109,19 @@ review_trigger: "관리 backend·배포 event 변경 시"
 - [x] 실제 PostgreSQL 18.6·Flyway V1~V9·Build API·Sharp·Next·release·control loop full E2E의 success·higher·lower no-op·transient retry·terminal current 유지
 - [x] Java 25+Node 24 validation-only image의 Linux amd64/arm64 publisher·transformer 실행 계약과 default Compose service 불변
 
-아래 항목은 production time-boundary·실제 콘텐츠·운영 acceptance처럼 각 줄의 전체 범위를 기준으로 표시한다. producer, claim/generation, build API, transformer, HTTP adapter와 local/CI full release는 완료했지만 unchecked 항목을 실제 운영 완료로 간주하지 않는다.
+## Phase 1C-8f8 sample content·local publication acceptance 완료
+
+- [x] local bootstrap·same-origin Admin HTTP의 login/me/CSRF, multipart media upload·content create/full PUT
+- [x] published/draft/archived·future/expiring synthetic dataset의 first release·manifest·outbox/current generation 일치
+- [x] draft Gallery revision-only·event/generation/current 불변과 published Service price higher generation/current·previous·HTML 반영
+- [x] published Gallery archive 후 card/media binding 제거와 unrelated public content 유지
+- [x] future Notice publish·expiry의 추가 mutation 없는 release, overdue recovery, reschedule stale no-op의 public release 정확성
+- [x] fixed 30초에 들어온 close publish/expiry highest-generation coalesce와 final `generatedAt` snapshot
+- [x] AVIF/WebP/JPEG·no-upscale·SHA filename·alt·HEIC normalization·private path/UUID 비노출
+- [x] backend·PostgreSQL 중단 후 read-only Nginx home/notice/media/robots/sitemap 200과 internal/unknown/manifest 404
+- [x] static SEO·safe Markdown·accessibility semantics와 task temp/tmpfs/network 격리·container/network cleanup 0
+
+아래 항목은 production time-boundary·실제 콘텐츠·운영 acceptance처럼 각 줄의 전체 범위를 기준으로 표시한다. producer, claim/generation, build API, transformer, HTTP adapter와 local/CI full release·synthetic time-boundary acceptance는 완료했지만 unchecked 항목을 실제 운영 완료로 간주하지 않는다.
 
 ## 기본 게시
 

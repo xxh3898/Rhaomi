@@ -60,7 +60,8 @@ compose() {
 }
 
 cleanup() {
-  compose --profile frontend --profile smoke --profile validation down >/dev/null 2>&1 || true
+  compose --profile frontend --profile smoke --profile validation \
+    --profile publication-acceptance down >/dev/null 2>&1 || true
 }
 
 admin_count() {
@@ -136,6 +137,7 @@ compose --profile publisher-validation build publisher-validation
 compose --profile publisher-validation run --rm publisher-validation
 compose down
 sh "$repo_dir/scripts/validate-build-int64-e2e.sh"
+sh "$repo_dir/scripts/validate-local-publication-acceptance.sh" "$env_file"
 compose --profile frontend up -d --wait --wait-timeout 300 postgres backend frontend gateway
 compose ps
 

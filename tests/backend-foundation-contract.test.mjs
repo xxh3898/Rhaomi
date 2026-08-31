@@ -20,7 +20,7 @@ test("개발 Compose를 same-origin gateway, backend와 비공개 PostgreSQL로 
   assert.match(compose, /postgres:\n/);
   assert.match(compose, /127\.0\.0\.1:8080:8080/);
   assert.match(compose, /127\.0\.0\.1:3000:3000/);
-  assert.equal((compose.match(/@sha256:/g) ?? []).length, 5);
+  assert.equal((compose.match(/@sha256:/g) ?? []).length, 8);
   assert.match(compose, /nginx:1\.31\.4-alpine3\.24@sha256:/);
   assert.match(
     backendDockerfile,
@@ -666,6 +666,134 @@ test("full static release executor와 validation-only multi-runtime 경계를 �
   assert.match(javaExecutor, /"DEFERRED"\.equals\(retentionStatus\)/);
   assert.match(smoke, /--profile publisher-validation build publisher-validation/);
   assert.match(smoke, /--profile publisher-validation run --rm publisher-validation/);
+});
+
+test("synthetic local publication acceptance를 tmpfs DB와 read-only static serving으로 격리한다", async () => {
+  const [
+    compose,
+    acceptanceDockerfile,
+    acceptanceScript,
+    servingScript,
+    adminNginx,
+    nginx,
+    composeSmoke,
+    workflow,
+  ] = await Promise.all([
+    source("compose.dev.yaml"),
+    source("backend/Dockerfile.publication-acceptance"),
+    source("scripts/validate-local-publication-acceptance.sh"),
+    source("scripts/validate-publication-serving.mjs"),
+    source("infra/nginx/publication-acceptance-admin.conf"),
+    source("infra/nginx/publication-acceptance.conf"),
+    source("scripts/validate-backend-compose.sh"),
+    source(".github/workflows/validate.yml"),
+  ]);
+
+  const postgresBlock =
+    compose.match(
+      /\n  publication-acceptance-postgres:\n([\s\S]*?)\n  publication-acceptance-runner:/,
+    )?.[1] ?? "";
+  const runnerBlock =
+    compose.match(
+      /\n  publication-acceptance-runner:\n([\s\S]*?)\n  publication-acceptance-admin-gateway:/,
+    )?.[1] ?? "";
+  const adminGatewayBlock =
+    compose.match(
+      /\n  publication-acceptance-admin-gateway:\n([\s\S]*?)\n  publication-acceptance-static:/,
+    )?.[1] ?? "";
+  const staticBlock =
+    compose.match(
+      /\n  publication-acceptance-static:\n([\s\S]*?)\n  publication-acceptance-smoke:/,
+    )?.[1] ?? "";
+  const smokeBlock =
+    compose.match(
+      /\n  publication-acceptance-smoke:\n([\s\S]*?)\nvolumes:/,
+    )?.[1] ?? "";
+
+  assert.match(compose, /x-publication-acceptance-labels:/);
+  for (const label of [
+    "io.homeserver.cleanup.environment",
+    "io.homeserver.cleanup.project",
+    "io.homeserver.cleanup.task",
+    "io.homeserver.cleanup.lifecycle",
+    "io.homeserver.cleanup.retain",
+    "io.homeserver.cleanup.git-head",
+  ]) {
+    assert.match(compose, new RegExp(label.replaceAll(".", "\\.")));
+  }
+  assert.match(postgresBlock, /profiles: \["publication-acceptance"\]/);
+  assert.match(postgresBlock, /tmpfs:\s*\n\s+- \/var\/lib\/postgresql/);
+  assert.doesNotMatch(postgresBlock, /ports:|postgres-data|\/var\/lib\/rhaomi/i);
+  assert.match(runnerBlock, /LocalPublicationAcceptanceIntegrationTests/);
+  assert.match(runnerBlock, /RHAOMI_LOCAL_PUBLICATION_ACCEPTANCE: "true"/);
+  assert.match(runnerBlock, /RHAOMI_BOOTSTRAP_ADMIN_ENABLED: "true"/);
+  assert.match(runnerBlock, /RHAOMI_ADMIN_BASE_URL: http:\/\/publication-acceptance-admin-gateway:8080/);
+  assert.match(runnerBlock, /RHAOMI_PUBLICATION_ACCEPTANCE_ROOT: \/acceptance/);
+  assert.doesNotMatch(runnerBlock, /\.env\.dev\.local|\/private\/var\/lib\/rhaomi/);
+  assert.match(adminGatewayBlock, /publication-acceptance-admin\.conf/);
+  assert.match(adminGatewayBlock, /publication-acceptance-backend/);
+  assert.doesNotMatch(adminGatewayBlock, /publication-acceptance-public|ports:/);
+  assert.match(staticBlock, /read_only: true/);
+  assert.match(staticBlock, /target: \/srv\/rhaomi\/public\s*\n\s+read_only: true/);
+  assert.match(staticBlock, /publication-acceptance-public/);
+  assert.doesNotMatch(staticBlock, /publication-acceptance-backend|ports:/);
+  assert.match(smokeBlock, /validate-publication-serving\.mjs/);
+  assert.match(smokeBlock, /publication-acceptance-public/);
+  assert.doesNotMatch(smokeBlock, /publication-acceptance-backend|RHAOMI_BUILD_SERVICE_TOKEN/);
+
+  assert.match(acceptanceDockerfile, /node:24\.20\.0-alpine3\.23@sha256:/);
+  assert.match(acceptanceDockerfile, /eclipse-temurin:25\.0\.4_7-jdk-alpine-3\.23@sha256:/);
+  assert.match(acceptanceDockerfile, /COPY package\.json package-lock\.json/);
+  assert.doesNotMatch(acceptanceDockerfile, /COPY \. |\.env/);
+  assert.match(acceptanceScript, /mktemp -d/);
+  assert.match(acceptanceScript, /\.env\.example/);
+  assert.match(acceptanceScript, /RHAOMI_CLEANUP_GIT_HEAD="\$git_head"/);
+  assert.match(
+    acceptanceScript,
+    /RHAOMI_COMPOSE_PROJECT_NAME="\$acceptance_project_name"/,
+  );
+  assert.match(
+    acceptanceScript,
+    /dev-rhaomi-publication-acceptance-.*git_head.*\$\$/,
+  );
+  assert.match(acceptanceScript, /label=com\.docker\.compose\.project=/);
+  assert.match(
+    acceptanceScript,
+    /stop \\\n\s+publication-acceptance-runner[\s\S]*publication-acceptance-postgres/,
+  );
+  assert.match(acceptanceScript, /docker wait "\$runner_id"/);
+  assert.match(acceptanceScript, /static_mount_mode/);
+  assert.match(acceptanceScript, /acceptance_backend_network=\$1/);
+  assert.match(acceptanceScript, /acceptance_public_network=\$1/);
+  assert.match(acceptanceScript, /task-resources=0/);
+  assert.match(
+    acceptanceScript,
+    /run --rm --no-deps[\s\S]*publication-acceptance-runner[\s\S]*find \/acceptance -mindepth 1/,
+  );
+  assert.match(
+    acceptanceScript,
+    /test -f \/acceptance\/\.rhaomi-publication-acceptance/,
+  );
+  assert.match(acceptanceScript, /rmdir -- "\$acceptance_root"/);
+  assert.doesNotMatch(
+    acceptanceScript,
+    /rm -rf|docker (?:volume rm|volume prune|system prune)|down -v/,
+  );
+  assert.match(servingScript, /\/api\/build\/snapshot/);
+  assert.match(servingScript, /\/actuator\/health/);
+  assert.match(servingScript, /createHash\("sha256"\)/);
+  assert.match(adminNginx, /location \^~ \/api\/admin\//);
+  assert.match(adminNginx, /publication-acceptance-runner:8080/);
+  assert.match(nginx, /root \/srv\/rhaomi\/public\/current/);
+  assert.match(nginx, /location \^~ \/api\/\s*\{\s*return 404;/);
+  assert.match(nginx, /location \^~ \/internal\/\s*\{\s*return 404;/);
+  assert.match(nginx, /location \^~ \/actuator\/\s*\{\s*return 404;/);
+  assert.match(composeSmoke, /validate-local-publication-acceptance\.sh/);
+
+  const jobs = [...workflow.matchAll(/^  [a-z0-9-]+:\s*$/gmu)].map((match) =>
+    match[0].trim(),
+  );
+  assert.deepEqual(jobs, ["frontend:", "backend:", "compose-smoke:"]);
 });
 
 test("실행 경로에 Directus 설정을 남기지 않는다", async () => {

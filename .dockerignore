@@ -1,0 +1,15 @@
+.git
+.github
+.env*
+!.env.example
+.next
+.rhaomi-publication-work
+node_modules
+out
+build
+coverage
+backend/.gradle
+backend/build
+infra/local-data
+*.log
+.DS_Store

@@ -53,7 +53,8 @@ review_trigger: "항목 확정 시"
 - automated remote-sync verification은 아직 미구현이다. 구현 전에는 local backup RPO, local iCloud repository integrity와 remotely verified offsite RPO를 분리하고, 수동 증거가 없는 backup set을 offsite `PASS`로 표시하지 않는다.
 - Mac host filesystem authority는 `/private/var/lib/rhaomi`이고 PostgreSQL primary PGDATA는 production project-scoped Docker named volume이다. exact ownership·permission·rendered volume identity, bind/persistence smoke와 logical backup→isolated `pg_restore` 증거는 provisioning 전까지 출시 차단이다.
 - `/srv/rhaomi`는 Linux web/publisher container target에만 허용한다. Mac host `synthetic.conf`·Docker Desktop custom File Sharing, PostgreSQL host PGDATA bind와 raw-volume restic backup은 production 계약이 아니다.
-- [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)는 production 운영 계약을 확정했고 publisher control loop와 Build API→transformer→Next→immutable release/atomic switch의 격리 검증 경로까지 구현했다. production Compose·GitHub Environment·publisher service/secret/path provisioning, backup, HomeOps와 decoder-only image는 아직 구현되지 않았다.
+- [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-015](../09-decisions/ADR-015-lossless-int64-json-wire-contract.md)는 production 운영·lossless wire 계약을 확정했고 publisher control loop와 Build API→transformer→Next→immutable release/atomic switch에 이어 synthetic same-origin Admin HTTP·scheduled boundary·read-only Nginx 런타임 독립 acceptance까지 구현했다. production Compose·GitHub Environment·publisher service/secret/path provisioning, backup, HomeOps와 decoder-only image는 아직 구현되지 않았다.
+- Phase 1C-8f8 sample은 tmpfs/temp root에서만 생성되고 migration·production profile·default fixture로 seed되지 않는다. local PASS를 실제 NAP·예약 정책·고객/반려견 사진 승인이나 production 공개 PASS로 해석하지 않는다.
 - 이번 Issue에서는 실제 이미지·갤러리 seed, 운영 `shop_settings` provisioning과 production migration을 실행하지 않는다. 실제 값·게시 권한 확인과 별도 운영 승인을 거친 후속 작업으로 남긴다.
 
 ## 확인 전 실행 보류

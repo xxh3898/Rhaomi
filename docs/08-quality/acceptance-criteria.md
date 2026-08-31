@@ -371,3 +371,33 @@ review_trigger: "제품 기능 변경 시"
 **Given** 실제 PostgreSQL 18.6·Flyway V1~V9 publication state와 backend Build API를 사용한 full integration일 때
 
 **Then** first success, higher generation과 previous 보존, lower generation no-op, transient same-generation retry 후 success, terminal invalid snapshot의 current 유지가 DB result와 release filesystem에서 함께 일치한다. normal backend와 default Compose에는 publisher bean·service·public route가 추가되지 않는다.
+
+## AC-24 sample content·local publication end-to-end acceptance
+
+**Given** production seed·secret·path·실사진을 사용하지 않는 task-scoped tmpfs PostgreSQL과 synthetic Shop·Breed·Service·Gallery·Notice·JPEG/PNG/HEIC dataset일 때
+
+**When** local/test bootstrap account로 same-origin Admin Nginx의 CSRF→login→fresh CSRF→me, multipart upload, create·full PUT을 실행하고 publisher를 기동하면
+
+**Then** initial public release에는 eligible Shop/service/gallery/notice와 generated hash media만 있고 draft·archived·future content와 null CTA는 없다. Build Snapshot V2·generated artifact·private release manifest·outbox current generation의 canonical revision/generation/generatedAt이 일치한다.
+
+**Given** draft Gallery full PUT을 실행했을 때
+
+**Then** `contentRevision`만 1 증가하고 immediate event, `publishGeneration`, `current`는 변하지 않는다.
+
+**Given** published Service price full PUT과 published Gallery archive를 각각 실행했을 때
+
+**Then** 각 mutation은 higher generation·new current를 만들고 old current를 previous로 보존한다. Service HTML은 canonical response 값으로 갱신되고 archived Gallery card·alt/media binding은 사라지며 unrelated public content는 유지된다.
+
+**Given** UTC Instant와 `Asia/Seoul` offset input으로 future publish·expiry·reschedule·close boundary Notice를 저장했을 때
+
+**Then** 추가 Admin mutation 없이 publish boundary에서 홈·detail·sitemap에 등장하고 expiry boundary에서 제거된다. publisher gap 뒤 overdue event를 복구하며 old reschedule event는 generation 없는 stale no-op이고 `T0 + 30s`의 close publish/expiry는 highest generation final snapshot으로 coalesce된다.
+
+**Given** 성공 release 후 Admin gateway·backend runner·PostgreSQL을 중단했을 때
+
+**When** `current` tree를 public-only network의 Nginx에 read-only mount하면
+
+**Then** 홈·대표 공지·generated media·robots·sitemap은 200을 유지하고 unknown·release manifest·admin/build/internal/actuator path는 404다. HTML은 safe Markdown, Korean landmark/heading/link/image-alt/Notice-time 의미, SEO URL와 hash-byte 일치를 유지하고 credential·runtime backend URL·private filesystem/media identifier를 노출하지 않는다.
+
+**Given** acceptance command가 성공하거나 실패했을 때
+
+**Then** marker가 있는 exact temp root와 task container/network만 정리하고 Docker volume·image, 기존 개발 DB/media/public data, production resource를 삭제·변경하지 않는다.

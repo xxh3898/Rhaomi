@@ -41,7 +41,7 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 - scheduled event를 물리 삭제해야 correctness가 성립하는 계약으로 만들지 않는다. 처리 완료·stale no-op 상태를 내구적으로 기록할 수 있다.
 - 관리 API 저장 성공, publisher 처리 중, 공개 성공·실패 상태를 구분한다.
 
-#### 현재 구현 경계 — Phase 1C-8f1~8f7
+#### 현재 구현 경계 — Phase 1C-8f1~8f8
 
 - Flyway V8은 `(1, 0)` singleton `content_revision_state`와 immediate·Notice/Gallery scheduled kind를 제한한 `publishing_outbox`를 만든다.
 - application recorder는 기존 content transaction을 필수로 요구하며 row increment와 필요한 event insert를 최종 domain persistence 뒤 한 번 수행한다.
@@ -55,6 +55,7 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 - Phase 1C-8f5는 normal backend scan 밖의 dedicated non-web root, repeated claim, first accepted `claimedAt` 기준 fixed 30초 window, exact boundary 포함, highest-generation coalesce, debounce·executor lease renewal, physical executor termination acknowledgment까지 유지하는 filesystem advisory lock과 typed executor/result mapping을 구현했다.
 - Phase 1C-8f6은 environment-only backend credential, no-redirect bounded Build API HTTP client, manifest-scoped memoized media provider와 기존 transformer를 private atomic staging까지 연결한다. staging result와 machine CLI는 fetched canonical revision/generation string을 보존하고 safe terminal/transient/generation result는 DB에 기록하지 않는다.
 - Phase 1C-8f7은 generated V2를 사용하는 Next Static Export, safe Markdown, SEO·responsive media, strict final-tree validator, private release manifest·`BigInt` stale guard·immutable install·`previous/current` switch·loopback serving smoke·rollback·retention을 actual Java process executor에 bind했다. smoke 성공 뒤 retention housekeeping만 실패한 경우 이미 전환된 public authority를 failure로 오기록하지 않고 safe `retentionStatus=DEFERRED`를 반환한다. 이 executor는 exact non-web publisher root에만 존재하며 production image·secret·Mac path provisioning은 후속 운영 gate다.
+- Phase 1C-8f8은 위 결정을 바꾸지 않고 tmpfs PostgreSQL·task temp root에서 actual local bootstrap/same-origin Admin HTTP→scheduled publisher→Build API V2→transformer→Next→immutable switch를 연결한다. future Notice publish·expiry, overdue recovery, reschedule stale no-op, fixed 30초 close-boundary coalesce와 backend·DB 중단 후 read-only static serving을 검증하며 production resource와 실제 콘텐츠는 변경하지 않는다.
 
 ### revision과 public ordering
 
@@ -166,7 +167,8 @@ backend 장애를 공개 사이트로 전파하고 정적 HTML·SEO 계약을 �
 - [x] backend-only Build API HTTP client, authenticated memoized media provider와 transformer isolated staging orchestration 구현
 - [x] release manifest canonical revision/generation·generatedAt, exact code identity·site digest와 `publishGeneration` 기준 local/CI build·validate·atomic switch 검증
 - [ ] 실제 Mac mini의 public/state/lock bind source ownership·permission과 publisher container mount·atomic symlink smoke 검증
-- [ ] future Notice publish·expiry와 Gallery publish, reschedule/archive stale event, publisher downtime과 close-boundary coalesce 통합 테스트
+- [x] future Notice publish·expiry, reschedule stale event, publisher downtime overdue recovery와 close-boundary coalesce의 local synthetic full-release 통합 테스트
+- [ ] future Gallery publish·archive stale event의 production acceptance
 - [ ] `/admin/` publish status와 수동 retry UI 구현
 
 ## 재검토 조건

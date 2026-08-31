@@ -85,6 +85,19 @@ Compose는 `POSTGRES_*`에서 backend의 `SPRING_DATASOURCE_*`를 내부 service
 - production profile에서 flag가 true면 기동을 실패시킨다.
 - 실제 은총쌤 credential을 `.env.example`, CI, 문서에 사용하지 않는다.
 
+## local publication acceptance
+
+`sh scripts/validate-local-publication-acceptance.sh`는 `.env.example`만으로 시작하며 실제 `.env.dev.local`이나 production secret을 요구하지 않는다. script가 exact Git HEAD와 task temp root를 확인한 뒤 synthetic admin/DB credential을 process environment에서만 구성하고 raw 값을 log·artifact에 기록하지 않는다.
+
+| 변수 | 범위 | 설명 |
+|---|---|---|
+| `RHAOMI_LOCAL_PUBLICATION_ACCEPTANCE` | runner-only | opt-in integration test gate |
+| `RHAOMI_PUBLICATION_ACCEPTANCE_ROOT` | runner/static/smoke | marker가 있는 task-scoped temp public/media/state root |
+| `RHAOMI_ADMIN_BASE_URL` | runner-only | internal same-origin Admin Nginx origin |
+| `RHAOMI_ACCEPTANCE_GIT_HEAD` | runner-only | release manifest에 기록할 exact test HEAD |
+
+acceptance PostgreSQL은 `/var/lib/postgresql` tmpfs를 사용하고 host port·named volume이 없다. Admin gateway·runner·DB를 중단한 후 static Nginx와 smoke client만 별도 internal public network에 남긴다. 이 설정은 `local|test` 수용 검증이며 production environment/mount 계약이 아니다.
+
 ## production filesystem·release inventory — planned
 
 | 항목 | 비밀 | 계약 |
