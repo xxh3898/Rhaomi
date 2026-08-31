@@ -197,15 +197,15 @@ publisher는 normal backend profile이나 환경변수만으로 시작하지 않
 
 ## Backup·HomeOps inventory — planned
 
-- 외장 SSD exact repository path는 `/Volumes/<provisioned-volume>/...` 아래에서 volume identity·용량·ownership과 함께 확정하고, iCloud Drive exact folder도 provisioning 전 출시 차단값으로 둔다.
-- 두 destination은 별도 encrypted restic repository와 독립 key를 사용한다.
-- local iCloud Drive repository snapshot/check와 Apple remote sync evidence를 분리하고 local/offsite RPO를 별도 상태로 제공한다.
-- 최초 production은 second trusted device 또는 local cache를 authority로 쓰지 않는 clean retrieval path의 fresh retrieval·restic check·대표 restore를 요구한다.
-- restic password는 root-owned 제한 파일 또는 macOS Keychain password command로 공급하고 값 자체를 env example·log에 넣지 않는다.
+- 초기 production은 protected source와 분리된 Mac mini local backup repository/path를 provisioning 입력으로 확정한다. exact path·owner·permission·capacity는 저장소에 추측하지 않는다.
+- local backup은 `pg_dump -Fc`와 canonical media를 동일 backup-set ID로 묶고 retention/check·isolated restore를 제공한다. raw PostgreSQL volume은 backup authority가 아니다.
+- 초기 local-only backup은 Mac mini 전체 손실에서 production data와 함께 손실될 수 있는 accepted risk가 있다.
+- 외장 SSD·iCloud 3-2-1, restic recovery key와 offsite RPO는 future hardening이며 초기 production blocker가 아니다. 미구성 상태는 `NOT_CONFIGURED / DEFERRED`로 표시한다.
+- future hardening 도입 시 외장 SSD exact path는 `/Volumes/<provisioned-volume>/...` 아래에서 확인하고 iCloud local repository integrity와 Apple remote sync evidence를 분리한다. restic password는 root-owned 제한 파일 또는 macOS Keychain password command로 공급한다.
 - HomeOps endpoint·identity와 Discord 수신자는 Rhaomi public configuration에 넣지 않고 Tailscale·운영 Secret 경계에서 관리한다.
 - Rhaomi는 privacy-safe health/status/event/metric source만 제공한다.
 
-backup repository, key와 HomeOps 설정은 아직 생성·변경하지 않았다.
+local backup repository와 HomeOps 설정은 아직 생성·변경하지 않았다. external repository와 key도 future hardening 전까지 만들지 않는다.
 
 ## `.env.example`
 
@@ -216,7 +216,7 @@ backup repository, key와 HomeOps 설정은 아직 생성·변경하지 않았�
 
 현재 example에는 default Compose가 쓰는 PostgreSQL, session cookie, 비활성 local/test bootstrap, 빈 backend-only build token·Build API adapter 값과 local-safe private media root만 둔다. actual `.env.dev.local`은 frontend filesystem에 mount하지 않는다. publisher는 default Compose service가 아니므로 full executor의 path·code identity 설정을 `.env.example`에 기본 주입하지 않는다. production deploy, publisher credential/path, backup와 HomeOps secret은 해당 implementation Issue 전까지 추가하지 않는다.
 
-## domain — 후속
+## domain — provisioning
 
 ```text
 PUBLIC_SITE_URL=https://<domain>
@@ -225,6 +225,8 @@ API_BASE_URL=https://<domain>/api
 ```
 
 domain을 바꾸면 canonical, sitemap, robots, Open Graph, 검색엔진 등록, same-origin proxy/CSP, TLS와 session cookie Secure 설정을 함께 갱신한다. 관리자 browser에 CORS allowlist를 추가하는 방식으로 우회하지 않는다.
+
+초기 production은 사용자 소유 기존 도메인을 임시 public domain으로 사용한다. exact FQDN은 repository에 하드코딩하지 않고 provisioning 입력으로 확정한다. 사촌 소유 전용 도메인이 준비되면 동일 topology에서 위 설정과 public smoke만 교체하며 DB migration이나 content schema 변경을 요구하지 않는다.
 
 ## 버전 정책
 

@@ -23,6 +23,8 @@ review_trigger: "호스트·파이프라인 변경 시"
 
 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)의 topology와 release 절차는 승인됐지만 production Compose·Nginx, GHCR image, GitHub `production` environment, deploy entrypoint와 one-shot Flyway는 아직 구현되지 않았다. 이 문서는 실행 가능한 목표 계약이며 현재 운영 배포 완료를 뜻하지 않는다.
 
+[Production readiness matrix](production-readiness.md)는 이 승인 계약, local/CI evidence, production provisioning, 외부 콘텐츠 승인과 physical-device acceptance를 분리한다. Phase 1D contract 완료만으로 아래 production 항목을 통과 처리하지 않는다.
+
 ## 배포 유형
 
 ### 코드 배포
@@ -54,7 +56,7 @@ Spring Boot 콘텐츠 transaction
 
 ## 최초 배포 사전 조건
 
-- [ ] 최종 도메인과 same-origin `/admin`, `/api/admin/**` route
+- [ ] 사용자 소유 기존 도메인의 exact temporary FQDN provisioning과 same-origin `/admin`, `/api/admin/**` route
 - [ ] Cloudflare DNS·HTTPS·Tunnel과 host edge route
 - [ ] project web loopback bind와 public deny rule
 - [ ] Mac `/private/var/lib/rhaomi/{app,public,data/media,state,logs}` canonical directory 생성·ownership·permission
@@ -64,11 +66,9 @@ Spring Boot 콘텐츠 transaction
 - [ ] production entrypoint·runbook의 `docker compose down -v`, `docker volume prune`, named volume direct delete 금지
 - [ ] canonical media `/private/var/lib/rhaomi/data/media` 영속화
 - [ ] 운영 비밀값
-- [ ] 관리자 2FA
-- [ ] 암호화 외장 SSD·iCloud restic repository와 recovery key
-- [ ] local iCloud repository snapshot/check와 Apple remote sync 완료 증거 분리
-- [ ] second trusted device 또는 local cache를 authority로 쓰지 않는 clean retrieval path의 fresh retrieval·restic check·대표 restore
-- [ ] local RPO와 remotely verified offsite RPO를 분리한 최초 evidence
+- [ ] 관리자 password+WebAuthn/passkey 2차 인증, recovery code의 password manager+별도 offline copy
+- [ ] protected source와 분리된 Mac mini local backup repository/path·ownership·permission·capacity
+- [ ] `pg_dump -Fc`와 canonical media를 묶은 동일 backup-set manifest·retention·check
 - [ ] isolated full restore drill
 - [ ] `pg_dump -Fc` backup을 새 isolated PostgreSQL named volume에 `pg_restore`하고 row/schema 검증
 - [ ] Flyway migration 적용·검증
@@ -76,10 +76,12 @@ Spring Boot 콘텐츠 transaction
 - [ ] publisher immediate/due event·overdue recovery·두 revision·lock·retry·atomic switch 검증
 - [ ] HomeOps health·event·alert와 bounded restart 경계 검증
 - [ ] decoder-only HEIC image와 x265 absence·SBOM 검증
-- [ ] 실제 매장정보 승인
-- [ ] 사진 사용 기준
+- [ ] 실제 매장 운영자의 NAP·영업정보·정책·문구·링크 최종 승인
+- [ ] 실제 매장 운영자의 Hero/OG/프로필/시술 사진과 반려견/고객 사진 게시 권한 승인
 - [ ] Nginx 404와 security headers
 - [ ] 롤백 검증
+
+외장 SSD·iCloud 3-2-1, restic recovery key와 remotely verified offsite RPO는 초기 production 사전 조건이 아니라 future hardening이다. 미구성 상태는 `NOT_CONFIGURED / DEFERRED`이며 local backup 성공으로 offsite `PASS`를 만들지 않는다. 초기 local-only backup은 Mac mini 전체 손실에서 함께 사라질 수 있다는 accepted risk를 release evidence에 남긴다.
 
 ## 코드 배포 단계
 
@@ -88,7 +90,7 @@ Spring Boot 콘텐츠 transaction
 3. Mac canonical directory ownership·permission, public/media/state bind source와 access mode 확인
 4. PostgreSQL named volume exact identity·mount와 보존 정책 확인
 5. disk 여유와 `current`·`previous` 확인
-6. 최근 정상 backup set·restore drill 상태 확인
+6. 최근 정상 local backup set·isolated restore drill과 single-host risk 승인 상태 확인
 7. migration·major update면 on-demand application-consistent backup 생성·검증
 8. immutable image pull과 digest 검증
 9. 관리자 write maintenance 활성화
@@ -156,6 +158,8 @@ Mac host source는 `/private/var/lib/rhaomi/public`이며 web container `/srv/rh
 - `current`·`previous` 전후 target
 - Mac canonical root·ownership/permission 확인과 public/media/state bind mapping
 - PostgreSQL production project-scoped named volume exact identity, 일반 `down` persistence와 destructive volume command 부재
+- local-only backup repository identity, backup-set ID·manifest/check와 isolated restore evidence
+- external/offsite backup은 미구성이면 `NOT_CONFIGURED / DEFERRED`; local 성공을 offsite 성공으로 표현하지 않음
 - 성공 release 최근 5개
 - `current`·`previous` target은 개수와 무관하게 보존
 - 실패 release/evidence 7일

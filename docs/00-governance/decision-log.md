@@ -3,7 +3,7 @@ title: "의사결정 로그"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-31"
 review_trigger: "의사결정 추가·변경 시"
 ---
 
@@ -22,7 +22,7 @@ review_trigger: "의사결정 추가·변경 시"
 | ADR-009 | 관리 backend는 Spring Boot + PostgreSQL과 서버 세션 인증을 사용한다. | 승인 | [ADR-009](../09-decisions/ADR-009-spring-boot-backend-admin.md) |
 | ADR-010 | Production은 Cloudflare Tunnel·계층형 Nginx, macOS `/private/var/lib/rhaomi` host root, PostgreSQL named volume과 수동 digest release를 사용한다. | 승인 | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md) |
 | ADR-011 | 공개 콘텐츠는 transactional outbox와 단일 정적 publisher로 배포한다. | 승인 | [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md) |
-| ADR-012 | PostgreSQL logical dump·private media를 application-consistent encrypted restic backup set으로 보호하고 raw PGDATA volume은 required backup input에서 제외한다. | 승인 | [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md) |
+| ADR-012 | 초기 production은 PostgreSQL logical dump·private media의 Mac mini local-only application-consistent backup을 사용하고 raw PGDATA volume은 portable authority에서 제외한다. 외장 SSD·iCloud 3-2-1은 future hardening이다. | 승인 | [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md) |
 | ADR-013 | HomeOps를 단일 관제 authority로 사용하고 자동 복구를 stateless 단일 restart로 제한한다. | 승인 | [ADR-013](../09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md) |
 | ADR-014 | Production HEIC runtime은 pinned libheif·libde265 decoder-only image로 구성한다. | 승인 | [ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md) |
 

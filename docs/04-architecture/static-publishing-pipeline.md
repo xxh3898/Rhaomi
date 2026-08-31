@@ -13,6 +13,8 @@ review_trigger: "콘텐츠 배포 방식 변경 시"
 
 Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Phase 1C-8f1~8f7은 Flyway V8/V9 producer·claim/generation state, internal Build API, strict transformer, dedicated control loop, generated V2 Static Export와 immutable release/atomic switch를 구현했다. Phase 1C-8f8은 synthetic production-like content를 local bootstrap·same-origin Admin HTTP로 저장한 뒤 draft/public/archive와 Notice future publish·expiry·overdue·stale/coalesce를 actual Java→Node release까지 검증하고, backend·PostgreSQL 중단 후 `current`를 read-only Nginx에서 계속 제공함을 증명한다. 이 구현은 task-scoped tmpfs/temp filesystem에 한정하며 production Mac path·secret·Compose/Nginx provisioning은 후속 운영 gate다.
 
+[Production readiness matrix](../07-operations/production-readiness.md)는 이 `LOCAL_CI_VERIFIED` evidence와 production publisher service·credential·Mac bind·approved image/digest·actual HTTPS·HomeOps integration의 `PROVISIONING_REQUIRED` 상태를 분리한다.
+
 ## 목적
 
 은총쌤이 관리 backend에 저장한 공개 콘텐츠를 검색 가능한 정적 HTML에 반영하면서 실패 시 기존 영업 사이트를 보호한다.

@@ -109,11 +109,13 @@ build API와 stateless credential 경계, Node full release adapter와 credentia
 - credential이 일부만 있거나 빈 값이면 기동을 실패시켜 잘못된 보안 상태를 숨기지 않는다.
 - production profile에서는 bootstrap을 실행하지 않는다.
 - `.env.example`에는 실제 email/password를 넣지 않는다.
-- 실사용 은총쌤 계정 생성은 운영 Secret·2FA·복구 절차를 확인하는 별도 승인 작업이다.
+- 실사용 은총쌤 계정 생성은 운영 Secret·WebAuthn/passkey 2차 인증·복구 절차를 확인하는 별도 승인 작업이다.
 
 ## 2FA와 계정 수명주기
 
-- 관리자 2FA는 운영 배포 게이트다. 이번 backend bootstrap에는 포함하지 않으며 2FA 없는 상태를 production-ready로 표현하지 않는다.
+- 관리자 2차 인증의 기본 target은 기존 password/session/CSRF 위의 WebAuthn/passkey다. SMS 2FA는 사용하지 않고 TOTP fallback은 별도 근거 없이 추가하지 않는다.
+- WebAuthn/passkey는 운영 배포 게이트다. 현재 backend bootstrap에는 포함하지 않으며 password-only 상태를 production-ready로 표현하지 않는다.
+- recovery code를 제공하고 password manager와 별도 offline copy에 보관한다. credential·recovery secret은 Git, log와 release evidence에 기록하지 않는다.
 - 공유 계정을 만들지 않는다.
 - 운영자 변경 시 계정을 즉시 비활성화하고 활성 session을 폐기한다.
 - 강한 고유 비밀번호와 검증된 `PasswordEncoder`를 사용한다.

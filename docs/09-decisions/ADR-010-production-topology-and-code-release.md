@@ -39,10 +39,11 @@ Internet
 - 공유기 port forwarding을 사용하지 않는다.
 - `cloudflared`가 외부로 연결하며 Rhaomi project web은 host loopback에만 bind한다.
 - 고객 공개 화면과 `/admin/`은 같은 origin을 사용한다.
-- `/admin/`은 검색 제외 대상일 뿐 인증 경계가 아니다. Spring session·CSRF와 출시 전 2FA·rate limit이 업무 경계다.
+- `/admin/`은 검색 제외 대상일 뿐 인증 경계가 아니다. Spring session·CSRF, 출시 전 WebAuthn/passkey 2차 인증과 rate limit이 업무 경계다. password-only production은 허용하지 않는다.
 - PostgreSQL, backend direct port, publisher, backup과 HomeOps는 public exposure가 없다.
 - Tailscale은 SSH, HomeOps UI와 운영 장애 대응에만 사용한다.
 - public Nginx는 `/api/build/**`, `/internal/**`와 `/actuator/**`를 거부한다. HomeOps의 최소 health 조회는 내부 경로를 사용한다.
+- 초기 public domain은 사용자 소유 기존 도메인을 사용하되 exact temporary FQDN은 production provisioning 입력으로 확정한다. 사촌 소유 전용 도메인으로 바꿀 때는 동일 topology에서 DNS/Tunnel/Nginx host·`PUBLIC_SITE_URL`·canonical/OG/sitemap/robots·public smoke를 동기화하고 DB/schema는 변경하지 않는다.
 
 ### macOS production 디렉터리
 

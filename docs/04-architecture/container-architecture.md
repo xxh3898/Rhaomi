@@ -81,8 +81,9 @@ flowchart TB
 
     Backup[Backup job] --> Postgres
     Backup --> Media
-    Backup --> SSD[(encrypted external SSD restic)]
-    SSD --> ICloud[(separate encrypted iCloud restic)]
+    Backup --> LocalBackup[(separate protected Mac local backup repository)]
+    LocalBackup -. future hardening .-> SSD[(encrypted external SSD restic)]
+    SSD -. future hardening .-> ICloud[(separate encrypted iCloud restic)]
 
     HomeOps[HomeOps] -. health / event / metric .-> Web
     HomeOps -. internal health .-> Backend
@@ -92,7 +93,7 @@ flowchart TB
 
 local private media volume·upload API, same-origin development gateway, dedicated publisher control loop와 Build API→transformer→Next→immutable release/atomic switch data plane을 구현했다. network-disabled Node suites, explicit `publisher-validation`, `publication-acceptance` Java 25/Node 24 harness가 Sharp·filesystem symlink·DB completion에 더해 actual Admin HTTP·scheduled boundary·backend 중단 후 static serving을 amd64/arm64에서 검증하며 default publisher service나 host port를 추가하지 않는다. 위 production topology와 lossless wire 계약은 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-015](../09-decisions/ADR-015-lossless-int64-json-wire-contract.md)에서 승인한 목표지만 production Compose·Nginx·publisher service/secret/path provisioning·backup·HomeOps와 decoder-only image는 아직 구현되지 않았다.
 
-diagram의 iCloud repository는 Mac mini의 local iCloud Drive path다. [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)에 따라 Apple remote sync가 별도 검증되기 전에는 offsite 사본이나 offsite RPO `PASS`로 간주하지 않는다.
+초기 production backup은 [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)의 2026-08-31 개정에 따라 protected source와 분리된 Mac mini local repository만 사용한다. diagram의 외장 SSD·iCloud 경로는 future hardening이며 초기 production blocker가 아니다. 미구성 상태를 offsite `PASS`로 표시하지 않는다.
 
 ## 서비스 책임
 
@@ -103,7 +104,7 @@ diagram의 iCloud repository는 Mac mini의 local iCloud Drive path다. [ADR-012
 | `backend` | 관리자 session/auth, 콘텐츠 API, private media 검증·정규화·master 소유 | Nginx를 통해서만 |
 | `postgres` | 관리자와 후속 콘텐츠 데이터 영속화 | 금지 |
 | `publisher` | immediate pending·due scheduled event, overdue recovery, 두 revision, 30초 debounce, lock, snapshot·derivative·Static Export·atomic switch | 금지 |
-| `backup` | application-consistent DB·private master restic backup과 local/offsite evidence 분리 | 금지 |
+| `backup` | application-consistent DB·private master local backup set과 isolated restore evidence; future external/offsite hardening | 금지 |
 | HomeOps | 중앙 health·event·metric, incident·Activity·Discord와 제한된 자동 복구 | Tailscale 전용 |
 
 ## network 원칙
@@ -124,7 +125,7 @@ publisher internal
 - publisher → public releases/state/locks
 
 ops internal
-- backup → PostgreSQL/private media/restic repositories
+- backup → PostgreSQL/private media/local backup repository
 - HomeOps → privacy-safe health/status/event/metric
 ```
 

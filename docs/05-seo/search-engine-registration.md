@@ -3,13 +3,13 @@ title: "검색엔진 등록"
 status: "draft"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-31"
 review_trigger: "도메인 확정 또는 검색엔진 절차 변경 시"
 ---
 
 # 검색엔진 등록
 
-최종 도메인과 HTTPS가 확정된 뒤 수행한다.
+production에서 사용할 현재 public FQDN과 HTTPS가 provisioning된 뒤 수행한다. 초기에는 사용자 소유 기존 도메인의 exact temporary FQDN을 외부 입력으로 확정하며, 사촌 소유 전용 도메인으로 변경하면 같은 절차를 새 canonical domain 기준으로 다시 검증한다.
 
 ## 사전 조건
 
@@ -37,7 +37,7 @@ review_trigger: "도메인 확정 또는 검색엔진 절차 변경 시"
 
 ## 네이버 서치어드바이저
 
-1. 최종 host 단위 사이트 등록
+1. 현재 production host 단위 사이트 등록
 2. meta 또는 HTML 파일 방식으로 소유 확인
 3. robots 수집·검증
 4. 사이트맵 제출

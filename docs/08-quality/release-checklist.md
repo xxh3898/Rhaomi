@@ -22,6 +22,15 @@ review_trigger: "출시 기준 변경 시"
 
 위 항목은 synthetic local/CI gate다. 아래 product·content·physical device·production provisioning·deploy 항목은 별도 증거 없이 PASS로 바꾸지 않는다.
 
+## Phase 1D contract freeze 증거
+
+- [x] [Production readiness matrix](../07-operations/production-readiness.md)의 계약·local/CI·구현·provisioning·외부 승인·physical acceptance vocabulary
+- [x] ADR-010 topology/code release, ADR-011 publisher, ADR-013 HomeOps, ADR-014 decoder-only runtime contract 정렬
+- [x] ADR-012 초기 Mac mini local-only backup amendment와 single-host disaster accepted risk
+- [x] 초기 사용자 소유 domain 전략, WebAuthn/passkey 2차 인증 target, 실제 매장 운영자 콘텐츠·사진 승인 authority
+
+위 체크는 문서 계약이 승인됐다는 뜻만 가진다. production 구현·provisioning·deploy 항목을 통과시키지 않으며 overall production readiness는 계속 `HOLD`다.
+
 ## 제품·콘텐츠
 
 - [ ] 최종 Hero 문구 승인
@@ -44,7 +53,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] server session·CSRF·fixation 방어
 - [ ] 관리자 API field allowlist와 anonymous deny
 - [ ] build API credential·read-only policy
-- [ ] 관리자 2FA
+- [ ] 관리자 WebAuthn/passkey 2차 인증·recovery code와 password-only production 차단
 - [ ] 상태 validation
 - [ ] archive 운영
 - [ ] `/admin/` media list·authenticated preview·single upload·archive/restore와 401/403 non-retry 계약
@@ -143,7 +152,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] DB 외부 비공개
 - [ ] publisher public network·Docker socket 부재
 - [ ] secrets scan
-- [ ] production session `Secure`, TLS와 관리자 2FA 확인
+- [ ] production session `Secure`, TLS와 관리자 WebAuthn/passkey 2차 인증 확인
 - [ ] exact main SHA·immutable image·digest와 `latest` 부재
 - [ ] GitHub production environment 수동 승인과 고정 Tailscale deploy entrypoint
 - [ ] write maintenance·one-shot Flyway·schema validate·expand/contract
@@ -155,13 +164,11 @@ review_trigger: "출시 기준 변경 시"
 - [ ] production `docker compose down -v`, `docker volume prune`, named volume direct delete 금지
 - [ ] DB `pg_dump -Fc`와 canonical media의 동일 backup-set manifest
 - [ ] raw PostgreSQL volume required restic input 부재와 새 isolated named volume `pg_restore` 검증
-- [ ] 외장 SSD·iCloud의 별도 encrypted restic repository
-- [ ] 외장 SSD `/Volumes/<provisioned-volume>/...` exact repository path·volume identity·ownership
-- [ ] local iCloud Drive repository snapshot/check와 Apple remote sync 완료 증거 분리
-- [ ] remote sync 미증명 backup set의 offsite RPO `PASS` 금지와 local/offsite RPO 별도 표시
-- [ ] 최초 production gate의 second trusted device 또는 clean retrieval path fresh retrieval·restic check·대표 restore
+- [ ] protected source와 분리된 Mac mini local backup repository/path·ownership·permission·capacity
+- [ ] 동일 `pg_dump -Fc`·canonical media backup-set manifest와 local RPO evidence
 - [ ] daily 7 / weekly 4 / monthly 6와 post-prune check
-- [ ] quarterly isolated full restore, local/offsite RPO 24h 분리·RTO 8h evidence
+- [ ] quarterly isolated full restore, local RPO 24h·RTO 8h evidence
+- [ ] initial local-only backup의 single-host disaster accepted risk가 release evidence·HomeOps에 명시됨
 - [ ] `current`·`previous` atomic switch·rollback과 성공 release 5개 보존
 - [ ] HomeOps 단일 관제·incident·Activity·Discord authority
 - [ ] public/internal/container/host/DB/publisher/backup monitor와 임계값
@@ -176,3 +183,13 @@ review_trigger: "출시 기준 변경 시"
 - [ ] release evidence
 - [ ] 남은 위험 명시
 - [ ] production deploy 승인
+
+## Future hardening — 초기 production blocker 아님
+
+- [ ] 외장 SSD encrypted restic repository와 `/Volumes/<provisioned-volume>/...` exact identity
+- [ ] iCloud Drive separate encrypted restic repository
+- [ ] local iCloud integrity와 Apple remote sync 증거 분리, remotely verified offsite RPO
+- [ ] second trusted device 또는 clean retrieval path fresh retrieval·restic check·대표 restore
+- [ ] repository recovery key의 password manager+별도 offline copy
+
+위 항목은 미구성 시 `NOT_CONFIGURED / DEFERRED`다. `[ ]` 상태를 초기 production 실패로 해석하지 않으며 local backup 성공으로 offsite `PASS`를 만들지 않는다.

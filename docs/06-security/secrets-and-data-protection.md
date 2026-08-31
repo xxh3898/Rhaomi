@@ -3,7 +3,7 @@ title: "비밀값·데이터 보호"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-29"
+last_updated: "2026-08-31"
 review_trigger: "비밀관리·인증·저장소 변경 시"
 ---
 
@@ -19,7 +19,8 @@ review_trigger: "비밀관리·인증·저장소 변경 시"
 - GitHub production environment deploy credential
 - Tailscale deploy identity
 - TLS/DNS credential
-- 외장 SSD·iCloud restic repository password와 recovery key
+- WebAuthn/passkey credential과 recovery code
+- future 외장 SSD·iCloud restic repository password와 recovery key
 
 관리자 email과 password hash는 공개 정보가 아니며 최소 접근 데이터로 취급한다.
 private media master와 server-owned storage key도 공개 정보가 아니며 원본 사진은 민감 데이터로 취급한다.
@@ -55,7 +56,7 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 - enable flag와 email/password가 모두 있을 때만 local/test에서 실행
 - placeholder를 실제 운영 credential로 사용 금지
 - bootstrap password를 명령 인자나 log에 출력 금지
-- 실제 운영 계정은 별도 Secret·2FA·복구 승인 뒤 생성
+- 실제 운영 계정은 별도 Secret·WebAuthn/passkey·recovery code 승인 뒤 생성
 
 ## Rotation
 
@@ -67,8 +68,8 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 | DB password | 노출·계정 변경·정책 주기 |
 | GitHub production credential | runner 침해·권한 변경 |
 | Tailscale deploy identity | host·operator 변경 또는 노출 의심 |
-| restic repository password·recovery key | 노출 의심·복구 사본 훼손·접근자 변경 |
-| 2FA recovery code | 사용 또는 노출 |
+| WebAuthn/passkey credential·recovery code | 기기 분실·사용·노출 또는 운영자 변경 |
+| future restic repository password·recovery key | 노출 의심·복구 사본 훼손·접근자 변경 |
 
 ## 데이터 분류
 
@@ -94,15 +95,14 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 
 - PostgreSQL primary PGDATA는 production project-scoped Docker named volume, private media master는 Mac `/private/var/lib/rhaomi/data/media` host bind source로 분리
 - named volume은 일반 Compose `down`에서 보존하고 production `down -v`, volume prune와 direct delete를 금지
-- 외장 SSD의 encrypted restic repository와 iCloud Drive의 별도 encrypted restic repository 사용
-- 외장 SSD exact repository path는 `/Volumes/<provisioned-volume>/...` 아래에서 provisioning하고 volume identity·ownership을 확인
-- 두 repository의 key를 분리하고 recovery key를 password manager와 offline 사본에 보관
+- 초기 production은 protected source와 분리된 Mac mini local-only backup repository/path 사용
 - 관리자 write maintenance 안에서 `pg_dump -Fc`와 media manifest를 같은 backup-set ID로 묶음
-- raw PostgreSQL named volume을 required restic input이나 restore authority로 사용하지 않고 새 isolated named volume의 `pg_restore`로 복구 검증
-- checksum·size·file count·snapshot ID를 기록하고 외장 SSD·local iCloud repository integrity와 Apple remote sync 완료를 별도 상태로 판정
-- remote sync가 검증된 backup set만 offsite RPO `PASS`로 인정하고 최초 production 전 second trusted device 또는 clean retrieval path의 fresh retrieval·restic check·대표 restore 수행
+- raw PostgreSQL named volume을 backup input이나 restore authority로 사용하지 않고 새 isolated named volume의 `pg_restore`로 복구 검증
+- checksum·size·file count와 Git SHA·image digest·Flyway를 versioned backup-set manifest에 기록
 - daily 7, weekly 4, monthly 6을 보존하고 prune는 월간 maintenance 승인 범위에서만 실행
 - production overwrite 없이 isolated restore를 분기마다 수행
 - backup 삭제·prune는 승인과 보존 정책, 기존 정상 snapshot 보호를 적용
+- Mac mini host/storage 전체 손실에서 production data와 local backup이 함께 손실될 수 있는 accepted risk를 기록
+- 외장 SSD·iCloud encrypted restic과 recovery key는 future hardening이다. 도입 시 exact external path·key 분리, password manager+offline recovery copy와 remote-sync/fresh-retrieval evidence를 별도 검증
 
-현재 local Compose media volume은 persistence contract 검증용이며 운영 backup 구현 완료를 뜻하지 않는다. production `/private/var/lib/rhaomi` ownership·bind source, PostgreSQL named volume, 외장 SSD·iCloud repository, key, backup automation, remote-sync evidence와 offsite restore는 별도 승인 전까지 출시 차단이다.
+현재 local Compose media volume은 persistence contract 검증용이며 운영 backup 구현 완료를 뜻하지 않는다. production `/private/var/lib/rhaomi` ownership·bind source, PostgreSQL named volume과 local backup repository·automation·isolated restore는 초기 production 출시 차단이다. 외장 SSD·iCloud·offsite restore는 초기 blocker가 아닌 `NOT_CONFIGURED / DEFERRED` future hardening이며 미구성 상태를 `PASS`로 표시하지 않는다.
