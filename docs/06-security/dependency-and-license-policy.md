@@ -54,23 +54,27 @@ Alpine package가 동적 link하는 현재 runtime package와 Alpine metadata의
 | `markdown-it` | `15.0.1` | MIT | raw HTML disabled Markdown→static HTML, link/image policy 적용 |
 | `parse5` | `8.0.1` | MIT | exported HTML 구조·link·canonical·asset 검증 |
 
-application runtime에서 codec·binary를 다운로드하지 않고 preinstalled exact lockfile artifact만 사용한다. validation-only Java 25+Node 24 image는 full publisher를 amd64/arm64에서 검증하지만 production publisher image·SBOM·license notice packaging은 아직 구현되지 않았으며 release 전에 production dependency inventory와 vulnerability scan을 다시 수행한다.
+application runtime에서 codec·binary를 다운로드하지 않고 preinstalled exact lockfile artifact만 사용한다. validation-only Java 25+Node 24 image와 별개로 canonical production image는 lockfile의 production dependency에 Next Static Export가 요구하는 pinned TypeScript·type package만 더해 build stage에서 설치한다. final image에는 npm package manager와 npm cache를 남기지 않으며 runtime install을 허용하지 않는다.
 
-## Production HEIC runtime target — planned
+## Production HEIC runtime foundation — implemented, not provisioned
 
 [ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)에 따라 production은 Alpine `libheif` package를 그대로 복사하지 않고 decoder-only source build를 사용한다.
 
 | 구성 | production 계약 |
 |---|---|
 | libheif | official `v1.23.1`, commit `2c4bbb54c2738d4a5efbbe3e5fa1d5d76bb88eb0` |
-| HEIC decoder | pinned libde265 활성 |
+| source archive | SHA-256 `9fdb7410222a9fd12387f4332e3f93cf428c976ac16f1379fcd7f6415ebe03c0` |
+| HEIC decoder | Alpine libde265 `1.0.16-r0` 활성 |
 | x265·HEIC encoder | 비활성, final image package·link·plugin 부재 |
 | 다른 encoder·CLI·example·dev tool | 비활성 또는 runtime에서 제거 |
 | plugin loading·experimental feature | 비활성 |
 | Java adapter | NightMonkeys `imageio-heif 1.1.0` 유지 |
-| 검증 | Linux amd64 CI, Mac mini Linux arm64 actual HEIC fixture |
+| runtime | exact Temurin `25.0.4_7` JRE + Node `24.20.0` digest |
+| 검증 | `scripts/validate-production-image.sh`, Linux amd64 CI와 Mac mini Linux arm64 actual HEIC fixture |
 
-production image build·publish는 아직 구현되지 않았다. 구현 시 source·license notice, LGPL 의무 검토, SBOM, vulnerability scan, CMake configure summary와 final image의 x265 absence를 release evidence에 포함한다. encoder 제거는 남은 native dependency의 license 검토를 생략하는 근거가 아니다.
+production image build와 image-level acceptance는 구현됐고 `backend/production-image-components.json`이 최소 runtime의 source·exact identity·license·obligation 상태를 추적한다. validation은 exact image ID·Git HEAD에 연결된 CycloneDX SBOM, pinned Syft·Grype report, CMake build contract와 x265 package/link/plugin absence를 생성한다. generated evidence는 CI artifact로 보존하고 source tree에는 커밋하지 않는다. encoder 제거는 남은 native dependency의 LGPL source·license·재연결 등 배포 의무 검토를 생략하는 근거가 아니다.
+
+GHCR publish, registry scan policy, production Compose·Secret·deploy는 아직 구현하지 않았다. scanner는 finding을 숨기는 blanket suppression을 사용하지 않으며 새 severity policy를 이 단계에서 만들지 않는다. actual HIGH/CRITICAL finding은 fixed package로 해소하거나 pinned architecture와 충돌하면 별도 결정 gate로 되돌린다.
 
 ## Directus 결정 기록
 
@@ -91,7 +95,7 @@ Directus 12.3.1 Core의 custom permission entitlement가 라오미펫의 item fi
 
 ## 라이선스 인벤토리
 
-출시 전에 생성한다.
+validation에서 machine-readable inventory를 생성하고, 출시 전 exact release image evidence로 다시 보존한다.
 
 - production dependencies
 - development/test dependencies

@@ -287,6 +287,22 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 - explicit validation-only `publisher-validation` profile에서 Java 25·Node 24·Sharp actual full publication E2E, public release temp filesystem과 normal service 집합 불변
 - int64 E2E가 현재 task label의 사전 생성 Node/Gradle cache volume만 사용하며 불일치·부재 시 unlabeled volume을 암묵 생성하지 않음
 
+### production decoder-only image
+
+`sh scripts/validate-production-image.sh`를 Linux native architecture에서 실행한다.
+
+- exact Temurin Java 25 JRE·Node `24.20.0` digest, libheif `v1.23.1` tag/commit/archive SHA와 libde265 `1.0.16-r0`
+- upstream `plugin_option`·root `option` inventory exact match, CMake cache의 libde265 built-in 단독 활성과 모든 codec plugin `OFF`
+- x265 package·`libx265` ELF link·codec plugin file 0, encoder/example/CLI/compiler/Git/CMake/source/header/cache/test source 부재
+- executable backend JAR와 production-only Node graph의 tracked publisher Static Export 성공, runtime npm package manager 부재
+- tmpfs PostgreSQL과 private media에서 actual HEIC·generic HEIF→JPEG 201, orientation·sRGB·metadata strip
+- HEIC sequence `422 MEDIA_INVALID_IMAGE`, AVIF `415 MEDIA_TYPE_UNSUPPORTED`
+- exact image ID·Git HEAD를 metadata로 가진 CycloneDX SBOM, tracked core component source/version/license, x265 0
+- exact pinned Grype 실행·database metadata와 severity summary, scan 실패·금지 component 발견 시 validation 실패
+- Mac mini Docker Linux arm64 native run과 Hosted Backend Linux amd64 run의 동일 entrypoint
+
+scanner finding을 blanket ignore하지 않는다. 새 severity cutoff를 이 구현에서 만들지 않으며 actual HIGH/CRITICAL은 fixed dependency로 해소하거나 pinned architecture와 충돌하면 decision gate로 되돌린다. generated SBOM·scan은 test artifact이고 source에 커밋하지 않는다.
+
 ## 현재 Phase 1D 운영 아키텍처 contract freeze 검증
 
 Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음 계약을 검증한다.
@@ -311,7 +327,7 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - application source, Flyway, Dockerfile, Compose, Nginx, workflow와 script diff 0
 - corrective exact-head Hosted CI Frontend·Backend·Compose Smoke 3/3 성공
 
-문서 PASS는 production Compose, publisher, backup, HomeOps 또는 decoder-only image의 runtime acceptance 증거가 아니다.
+문서 contract PASS 자체는 production runtime acceptance 증거가 아니다. D-IMP-1 decoder-only image는 별도의 final-image build·actual HEIC·SBOM·scan·amd64/arm64 gate로 검증하며, 그 성공도 production Compose, publisher provisioning, backup, HomeOps 또는 실제 Mac·iPhone production acceptance를 대신하지 않는다.
 
 ## 현재 Phase 1C-8f4 transformer 자동 검증
 
@@ -427,7 +443,7 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 PR:
 
 - Frontend
-- Backend PostgreSQL/auth/media contract를 exact Java 25·libheif image에서 실행
+- Backend PostgreSQL/auth/media contract를 exact Java 25 development image에서 실행하고 canonical production decoder-only image build·actual HEIC·SBOM·scan을 같은 job에서 추가 검증
 - Compose Smoke의 same-origin auth·HEIC 정규화·media volume restart persistence
 - diff·secret·문서 link 검사
 

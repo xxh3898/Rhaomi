@@ -50,7 +50,10 @@ Rhaomi/
 │   │   ├── db/migration/          # Flyway V1~V9, V8 producer·V9 claim/generation state
 │   │   └── application.yml
 │   ├── src/test/                  # PostgreSQL auth·콘텐츠·build snapshot/media 계약
-│   └── Dockerfile.dev             # exact Java 25 + libheif runtime
+│   ├── Dockerfile.dev             # exact Java 25 + development libheif runtime
+│   ├── Dockerfile.production      # Java 25·Node 24·decoder-only canonical application image
+│   ├── production-image-components.json
+│   └── production-image-NOTICE.md # tracked source·license·obligation evidence
 ├── infra/nginx/dev.conf           # local same-origin proxy와 /api/build 명시적 404
 ├── scripts/
 │   ├── generate-synthetic-media-fixtures.mjs
@@ -60,6 +63,10 @@ Rhaomi/
 │   ├── validate-backend-compose.sh
 │   ├── transform-build-snapshot.mts
 │   ├── validate-frontend-credential-isolation.mjs
+│   ├── validate-production-image.sh
+│   ├── validate-libheif-build-contract.sh
+│   ├── finalize-production-sbom.mjs
+│   ├── validate-production-supply-chain.mjs
 │   └── validate-export.mjs
 ├── tests/                         # frontend·runtime contract
 ├── docs/

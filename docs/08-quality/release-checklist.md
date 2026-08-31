@@ -47,7 +47,7 @@ review_trigger: "출시 기준 변경 시"
 
 ## 관리 backend
 
-- [ ] Java image·Spring Boot·Gradle Wrapper 잠금 버전
+- [x] Java production image·Spring Boot·Gradle Wrapper 잠금 버전
 - [ ] PostgreSQL 연결
 - [ ] Flyway migration과 JPA schema validation
 - [ ] server session·CSRF·fixation 방어
@@ -131,17 +131,19 @@ review_trigger: "출시 기준 변경 시"
 
 - [ ] 이미지 파생본
 - [ ] EXIF 제거
-- [ ] HEIC 검증
-- [ ] decoder-only libheif `v1.23.1` exact commit과 libde265 decode
-- [ ] production CMake의 libde265-only fail-closed codec allowlist와 encoder·plugin·experimental path OFF
-- [ ] production image x265 package·library·link·plugin 부재
-- [ ] source·license notice·SBOM·image scan
-- [ ] Linux amd64와 Mac mini Linux arm64 actual HEIC fixture
+- [x] HEIC image-level 검증
+- [x] decoder-only libheif `v1.23.1` exact commit과 libde265 decode gate
+- [x] production CMake의 libde265-only fail-closed codec allowlist와 encoder·plugin·experimental path OFF
+- [x] production image x265 package·library·link·plugin 부재
+- [x] source·license notice·SBOM·image scan gate
+- [x] Linux amd64와 Mac mini Linux arm64 actual HEIC fixture gate
 - [ ] asset budgets
 - [ ] Lighthouse
 - [ ] 저속 모바일 표본
 - [ ] layout shift
 - [ ] third-party SDK 없음
+
+위 완료 표시는 D-IMP-1 source와 local/Hosted validation gate에 한정된다. GHCR publish, production Compose 배치와 실제 iPhone Safari HEIC acceptance는 각각 code release·운영·물리 기기 항목이므로 계속 미완료다.
 
 ## 보안·운영
 

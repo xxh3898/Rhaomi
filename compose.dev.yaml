@@ -163,8 +163,11 @@ services:
       - ./backend/src:/workspace/backend/src:ro
       - ./backend/build.gradle:/workspace/backend/build.gradle:ro
       - ./backend/Dockerfile.dev:/workspace/backend/Dockerfile.dev:ro
+      - ./backend/Dockerfile.production:/workspace/backend/Dockerfile.production:ro
       - ./backend/Dockerfile.publication-acceptance:/workspace/backend/Dockerfile.publication-acceptance:ro
       - ./backend/Dockerfile.publisher-validation:/workspace/backend/Dockerfile.publisher-validation:ro
+      - ./backend/production-image-components.json:/workspace/backend/production-image-components.json:ro
+      - ./backend/production-image-NOTICE.md:/workspace/backend/production-image-NOTICE.md:ro
       - ./backend/gradle:/workspace/backend/gradle:ro
       - ./infra/nginx/dev.conf:/workspace/infra/nginx/dev.conf:ro
       - ./infra/nginx/publication-acceptance-admin.conf:/workspace/infra/nginx/publication-acceptance-admin.conf:ro

@@ -39,7 +39,7 @@ Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Bo
 │   ├── public-site/         # generated V2 loader·safe Markdown·responsive media
 │   ├── publication-release/ # export 검증·manifest·stale guard·atomic switch
 │   └── features/            # admin auth/transport, dashboard, media·shop·breed·service·gallery UI
-├── backend/                 # Spring Boot admin/build API와 dedicated publisher control plane
+├── backend/                 # Spring Boot API·publisher와 canonical decoder-only production Dockerfile
 ├── infra/nginx/dev.conf     # local same-origin gateway와 /api/build 명시적 차단
 ├── scripts/                 # 정적 산출물·gateway·HEIC·Compose smoke 검증
 ├── tests/                   # frontend·runtime contract test
@@ -143,6 +143,17 @@ production secret이나 기존 개발 DB/media volume 없이 Phase 1C 출판 경
 ```bash
 sh scripts/validate-local-publication-acceptance.sh
 ```
+
+### Production image acceptance
+
+production deploy 없이 현재 native Docker architecture에서 canonical Java 25+Node 24 application image를 build하고 libheif/libde265 allowlist, x265 부재, publisher Static Export, actual HEIC/HEIF HTTP 정규화, CycloneDX SBOM과 pinned scanner를 검증한다.
+
+```bash
+RHAOMI_PRODUCTION_EVIDENCE_DIR=/path/to/task-evidence \
+sh scripts/validate-production-image.sh
+```
+
+evidence 경로에는 secret이 아닌 exact image ID·Git HEAD, CMake contract, runtime inventory, SBOM과 scan report만 생성한다. script는 task container/network와 tmpfs PostgreSQL을 정리하지만 image/cache를 삭제하거나 volume을 만들지 않는다. GHCR push, production Secret·Mac path·Compose provisioning과 deploy는 수행하지 않는다.
 
 ## 현재 핵심 결론
 
