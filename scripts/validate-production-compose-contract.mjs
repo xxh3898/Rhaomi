@@ -2,12 +2,22 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-const [basePath, validationPath, validationRoot, expectedImage, expectedTask, expectedHead] =
-  process.argv.slice(2);
+const [
+  basePath,
+  validationPath,
+  baseSourcePath,
+  validationSourcePath,
+  validationRoot,
+  expectedImage,
+  expectedTask,
+  expectedHead,
+] = process.argv.slice(2);
 
 if (
   !basePath ||
   !validationPath ||
+  !baseSourcePath ||
+  !validationSourcePath ||
   !validationRoot ||
   !expectedImage ||
   !expectedTask ||
@@ -16,11 +26,15 @@ if (
   throw new Error("production Compose contract validator arguments are incomplete");
 }
 
-const [base, validation] = await Promise.all([
+const [base, validation, baseSource, validationSource] = await Promise.all([
   readConfig(basePath),
   readConfig(validationPath),
+  readFile(resolve(baseSourcePath), "utf8"),
+  readFile(resolve(validationSourcePath), "utf8"),
 ]);
 
+validateBindSourceContract(baseSource, "base production Compose");
+validateBindSourceContract(validationSource, "production validation overlay");
 validateBase(base);
 validateValidation(validation);
 
@@ -45,6 +59,47 @@ async function readConfig(path) {
   const parsed = JSON.parse(await readFile(resolve(path), "utf8"));
   assert.equal(typeof parsed, "object", "rendered Compose object가 필요합니다.");
   return parsed;
+}
+
+function validateBindSourceContract(source, subject) {
+  const lines = source.split(/\r?\n/u);
+  let bindMountCount = 0;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = /^(\s*)- type: bind\s*$/u.exec(lines[index]);
+    if (!match) {
+      continue;
+    }
+
+    bindMountCount += 1;
+    const itemIndent = match[1].length;
+    let end = index + 1;
+    while (end < lines.length) {
+      const line = lines[end];
+      if (line.trim() === "") {
+        end += 1;
+        continue;
+      }
+      if (/^\s*/u.exec(line)[0].length <= itemIndent) {
+        break;
+      }
+      end += 1;
+    }
+
+    const block = lines.slice(index, end).join("\n");
+    assert.match(
+      block,
+      /^\s+bind:\s*\n\s+create_host_path: false\s*$/mu,
+      `${subject}의 모든 bind mount는 create_host_path: false를 명시해야 합니다.`,
+    );
+    assert.doesNotMatch(
+      block,
+      /^\s+create_host_path: true\s*$/mu,
+      `${subject}의 bind mount가 host path를 자동 생성하면 안 됩니다.`,
+    );
+  }
+
+  assert.ok(bindMountCount > 0, `${subject}에 검증할 bind mount가 필요합니다.`);
 }
 
 function validateBase(config) {
@@ -171,7 +226,11 @@ function validateValidation(config) {
     );
     for (const mount of service.volumes ?? []) {
       assert.equal(mount.type, "bind");
-      assert.equal(mount.bind?.create_host_path, false);
+      assert.notEqual(
+        mount.bind?.create_host_path,
+        true,
+        "rendered validation bind mount가 host path를 자동 생성하면 안 됩니다.",
+      );
       assert.ok(mount.source.startsWith(`${root}/`));
       assert.ok(!mount.source.startsWith("/private/var/lib/rhaomi/"));
     }
@@ -234,7 +293,11 @@ function validateBaseMounts(web, backend, publisher, postgres) {
   for (const service of [web, backend, publisher]) {
     for (const item of service.volumes) {
       assert.equal(item.type, "bind");
-      assert.equal(item.bind?.create_host_path, false);
+      assert.notEqual(
+        item.bind?.create_host_path,
+        true,
+        "rendered production bind mount가 host path를 자동 생성하면 안 됩니다.",
+      );
     }
   }
   assert.equal(mount(web, "/srv/rhaomi/public").read_only, true);

@@ -19,6 +19,16 @@ function serviceBlock(compose, service, nextService) {
   return match[1];
 }
 
+function assertEveryBindMountDisablesHostPathCreation(compose) {
+  const bindMountCount = (compose.match(/^\s+- type: bind\s*$/gmu) ?? []).length;
+  const disabledCount =
+    (compose.match(/^\s+create_host_path: false\s*$/gmu) ?? []).length;
+
+  assert.ok(bindMountCount > 0);
+  assert.equal(disabledCount, bindMountCount);
+  assert.doesNotMatch(compose, /^\s+create_host_path: true\s*$/mu);
+}
+
 test("production Compose가 external same-image와 최소 service topology를 고정한다", async () => {
   const compose = await source("compose.production.yaml");
   const web = serviceBlock(compose, "rhaomi-web", "backend");
@@ -40,6 +50,7 @@ test("production Compose가 external same-image와 최소 service topology를 �
   );
   assert.doesNotMatch(compose, /^\s+build:/mu);
   assert.doesNotMatch(compose, /(?:^|:)latest(?:$|\s)/imu);
+  assertEveryBindMountDisablesHostPathCreation(compose);
   assert.match(
     backend,
     /image: \$\{RHAOMI_PRODUCTION_IMAGE:\?[^}]+\}/u,
@@ -113,6 +124,7 @@ test("production Nginx가 static/admin 경계와 fail-closed route를 고정한�
 test("validation overlay만 task temp source와 schema bootstrap seam을 사용한다", async () => {
   const overlay = await source("compose.production.validation.yaml");
 
+  assertEveryBindMountDisablesHostPathCreation(overlay);
   assert.match(overlay, /source: \$\{RHAOMI_PRODUCTION_VALIDATION_ROOT:\?[^}]+\}\/public/u);
   assert.match(overlay, /source: \$\{RHAOMI_PRODUCTION_VALIDATION_ROOT:\?[^}]+\}\/data\/media/u);
   assert.match(overlay, /source: \$\{RHAOMI_PRODUCTION_VALIDATION_ROOT:\?[^}]+\}\/state\/publisher/u);
@@ -134,6 +146,8 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(entrypoint, /docker compose[\s\S]*compose\.production\.yaml/u);
   assert.match(entrypoint, /config --format json/u);
   assert.match(entrypoint, /validate-production-compose-contract\.mjs/u);
+  assert.match(entrypoint, /\/validation\/compose\.production\.yaml/u);
+  assert.match(entrypoint, /\/validation\/compose\.production\.validation\.yaml/u);
   assert.match(entrypoint, /CREATE TABLE[\s\S]*validation_sentinel/u);
   assert.match(entrypoint, /compose_runtime down/u);
   assert.match(entrypoint, /sentinel/u);
@@ -150,7 +164,9 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(contract, /backend/u);
   assert.match(contract, /publisher/u);
   assert.match(contract, /postgres/u);
-  assert.match(contract, /create_host_path/u);
+  assert.match(contract, /validateBindSourceContract/u);
+  assert.match(contract, /create_host_path: false/u);
+  assert.match(contract, /assert\.notEqual\([\s\S]*create_host_path/u);
   assert.match(contract, /postgres-data/u);
   assert.match(contract, /BUILD_API_CREDENTIAL/u);
 });

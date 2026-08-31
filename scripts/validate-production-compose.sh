@@ -169,12 +169,16 @@ docker run --rm --network none \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=${git_head}" \
   --volume "$repo_dir/scripts/validate-production-compose-contract.mjs:/validation/validate-production-compose-contract.mjs:ro" \
+  --volume "$repo_dir/compose.production.yaml:/validation/compose.production.yaml:ro" \
+  --volume "$repo_dir/compose.production.validation.yaml:/validation/compose.production.validation.yaml:ro" \
   --volume "$validation_root/raw:/validation/input:ro" \
   --workdir /validation \
   "$production_image" \
   node validate-production-compose-contract.mjs \
     /validation/input/base-config.json \
     /validation/input/validation-config.json \
+    /validation/compose.production.yaml \
+    /validation/compose.production.validation.yaml \
     "$validation_root" \
     "$production_image" \
     "$cleanup_task" \
