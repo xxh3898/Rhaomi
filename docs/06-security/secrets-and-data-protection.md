@@ -94,7 +94,7 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 - Authorization, Cookie, Set-Cookie header 기록 금지
 - request body 전체 logging 금지
 - 기본 access log에서 query string 제외
-- production project Nginx는 `$uri`만 access log에 기록하고 build/admin query·credential을 log format에 포함하지 않음
+- production project Nginx는 request target에 query-free `$uri`만 사용하고 query-bearing Referrer, build/admin query·credential·Cookie·body를 log format에 포함하지 않음
 - 로그인 실패는 계정 존재·활성 여부를 구분하지 않는 일반 메시지 사용
 - `/me`와 login response는 관리자 id, email, role만 반환
 - entity의 `passwordHash`는 API DTO에 포함하지 않음

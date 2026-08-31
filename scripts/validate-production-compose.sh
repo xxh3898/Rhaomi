@@ -101,6 +101,7 @@ mkdir -p \
   "$validation_root/app/nginx" \
   "$validation_root/public/releases/validation/site/admin" \
   "$validation_root/public/releases/validation/site/_next/static" \
+  "$validation_root/public/releases/validation/site/generated/media" \
   "$validation_root/data/media" \
   "$validation_root/state/publisher" \
   "$validation_root/state/locks" \
@@ -115,6 +116,13 @@ printf '%s\n' \
   >"$validation_root/public/releases/validation/site/admin/index.html"
 printf '%s\n' 'console.log("static validation asset");' \
   >"$validation_root/public/releases/validation/site/_next/static/validation.js"
+for hidden_path in \
+  admin/.synthetic-hidden \
+  _next/static/.synthetic-hidden \
+  generated/media/.synthetic-hidden; do
+  printf '%s\n' 'synthetic hidden fixture' \
+    >"$validation_root/public/releases/validation/site/$hidden_path"
+done
 printf '%s\n' \
   '{"schemaVersion":1,"contentRevision":"0","publishGeneration":"1","generatedAt":"2026-09-01T00:00:00Z"}' \
   >"$validation_root/public/releases/validation/release-manifest.json"
@@ -294,6 +302,8 @@ printf '%s\n' \
   "actuatorRoute=404" \
   "releaseManifestRoute=404" \
   "unknownRoute=404" \
+  "nestedHiddenPaths=404" \
+  "queryBearingRefererLogged=false" \
   "queryFreeAccessLogContract=verified" \
   >"$evidence_dir/production-compose-http.txt"
 printf '%s\n' \
@@ -564,9 +574,22 @@ verify_http_contract() {
     /actuator/health \
     /release-manifest.json \
     /.env \
+    /admin/.synthetic-hidden \
+    /_next/static/.synthetic-hidden \
+    /generated/media/.synthetic-hidden \
     /unknown-validation-route; do
     assert_http_status "$base_url$path" 404
   done
+
+  referer_query_marker="rhaomi-referer-query-${git_short}-$$"
+  curl --silent --show-error --output /dev/null \
+    --header "Referer: https://referrer.invalid/source?marker=${referer_query_marker}" \
+    "$base_url/"
+  web_id=$(compose_runtime ps --quiet rhaomi-web)
+  if docker logs "$web_id" 2>&1 | grep -Fq "$referer_query_marker"; then
+    echo "query-bearing Referer가 production access log에 기록됐습니다." >&2
+    exit 1
+  fi
 }
 
 assert_http_status() {

@@ -117,7 +117,13 @@ test("production Nginx가 static/admin 경계와 fail-closed route를 고정한�
   assert.match(nginx, /X-Robots-Tag "noindex, nofollow" always/u);
   assert.match(nginx, /immutable/u);
   assert.match(nginx, /log_format[\s\S]*\$request_method \$uri \$server_protocol/u);
+  assert.doesNotMatch(nginx, /\$http_referer/u);
   assert.doesNotMatch(nginx, /\$request_uri|\$args|\$query_string/u);
+  const hiddenPathGuard = 'if ($uri ~ "(^|/)[.]") {';
+  assert.ok(nginx.includes(hiddenPathGuard));
+  assert.ok(
+    nginx.indexOf(hiddenPathGuard) < nginx.indexOf("\n    location "),
+  );
   assert.doesNotMatch(nginx, /ssl_certificate|listen\s+443|cloudflare|websocket|upgrade/iu);
 });
 
@@ -166,6 +172,16 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(entrypoint, /\/private\/var\/tmp/u);
   assert.match(entrypoint, /Mounts|PortBindings|NetworkSettings/u);
   assert.match(entrypoint, /api\/build|internal|actuator|release-manifest/u);
+  for (const path of [
+    "admin/.synthetic-hidden",
+    "_next/static/.synthetic-hidden",
+    "generated/media/.synthetic-hidden",
+  ]) {
+    assert.ok(entrypoint.includes(path));
+  }
+  assert.match(entrypoint, /Referer: https:\/\/referrer\.invalid/u);
+  assert.match(entrypoint, /docker logs/u);
+  assert.match(entrypoint, /queryBearingRefererLogged=false/u);
   assert.doesNotMatch(
     entrypoint,
     /down -v|docker (?:volume|image) (?:rm|prune)|docker system prune|rm -rf/u,

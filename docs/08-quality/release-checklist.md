@@ -151,7 +151,7 @@ review_trigger: "출시 기준 변경 시"
 - [x] web-only loopback port와 web→backend, backend↔PostgreSQL, publisher→backend/DB internal network 경계
 - [x] canonical Mac public/media/state bind mapping과 web/media RO·backend/publisher 최소 RW rendered contract
 - [x] project-scoped PostgreSQL named volume, task 일반 Compose `down`→`up` sentinel·identity persistence
-- [x] project Nginx static/admin proxy, build/internal/actuator/manifest deny와 real 404
+- [x] project Nginx static/admin proxy, build/internal/actuator/manifest deny, nested hidden file 404와 query-bearing Referrer access-log 제외
 - [x] task temp overlay·validation-only V1~V9 bootstrap, normal backend/publisher Flyway·bootstrap 비활성
 - [x] native amd64/arm64 validator와 Hosted exact-head evidence, task container/network cleanup
 
