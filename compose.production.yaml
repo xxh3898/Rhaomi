@@ -35,6 +35,7 @@ services:
     ports:
       - "127.0.0.1:${RHAOMI_WEB_LOOPBACK_PORT:?RHAOMI_WEB_LOOPBACK_PORT is required}:8080"
     networks:
+      - loopback-edge
       - web-backend
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ >/dev/null"]
@@ -198,6 +199,7 @@ volumes:
   postgres-data:
 
 networks:
+  loopback-edge:
   web-backend:
     internal: true
   build-internal:

@@ -364,7 +364,8 @@ verify_runtime_surface() {
     fi
   done
 
-  assert_networks "$web_id" "${project_name}_web-backend"
+  assert_networks "$web_id" \
+    "${project_name}_loopback-edge ${project_name}_web-backend"
   assert_networks "$backend_id" \
     "${project_name}_build-internal ${project_name}_data-internal ${project_name}_web-backend"
   assert_networks "$publisher_id" \
@@ -405,10 +406,11 @@ assert_networks() {
   expected=$2
   actual=$(docker inspect "$container_id" \
     --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' |
+    sed '/^[[:space:]]*$/d' |
     sort | tr '\n' ' ' | sed 's/ $//')
   expected_sorted=$(printf '%s\n' $expected | sort | tr '\n' ' ' | sed 's/ $//')
   if [ "$actual" != "$expected_sorted" ]; then
-    echo "runtime NetworkSettings adjacency가 다릅니다." >&2
+    echo "runtime NetworkSettings adjacency가 다릅니다: expected=${expected_sorted}, actual=${actual}" >&2
     exit 1
   fi
 }
@@ -417,7 +419,8 @@ assert_mounts() {
   container_id=$1
   expected=$2
   actual=$(docker inspect "$container_id" \
-    --format '{{range .Mounts}}{{println .Destination .RW}}{{end}}' |
+    --format '{{range .Mounts}}{{printf "%s:%t\n" .Destination .RW}}{{end}}' |
+    sed '/^[[:space:]]*$/d' |
     sort | tr '\n' ' ' | sed 's/ $//')
   expected_sorted=$(printf '%s\n' $expected | tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//')
   if [ "$actual" != "$expected_sorted" ]; then

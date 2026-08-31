@@ -333,7 +333,7 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 
 - source contract test가 service inventory, external same-image backend/publisher, pinned web/PostgreSQL image, `build:`·`latest` 부재를 확인
 - canonical base `/private/var/lib/rhaomi` source와 overlay-only temp source가 분리되고 host `/srv/rhaomi`, source checkout·Docker socket mount가 없음을 확인
-- rendered JSON에서 web-only `127.0.0.1` port, 세 internal network adjacency, bind target/mode, project-scoped PostgreSQL volume name과 cleanup label 확인
+- rendered JSON에서 web-only `127.0.0.1` port와 전용 `loopback-edge`, 세 service internal network adjacency, bind target/mode, project-scoped PostgreSQL volume name과 cleanup label 확인
 - validation-only schema bootstrap으로 PostgreSQL 18.6·Flyway V1~V9를 적용한 뒤 normal backend/publisher의 Flyway·bootstrap 비활성 확인
 - actual container inspect의 `PortBindings`, `NetworkSettings`, `Mounts`와 web public RO, backend media RW, publisher public/state/lock RW·media RO probe
 - static home/admin·immutable asset, anonymous admin upstream, `Secure` session cookie, build/internal/actuator/manifest/dot/unknown 404와 internal valid Bearer authentication 확인

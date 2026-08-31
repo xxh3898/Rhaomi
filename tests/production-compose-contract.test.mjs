@@ -87,6 +87,7 @@ test("production Compose가 external same-image와 최소 service topology를 �
   assert.match(compose, /web-backend:[\s\S]*internal: true/u);
   assert.match(compose, /build-internal:[\s\S]*internal: true/u);
   assert.match(compose, /data-internal:[\s\S]*internal: true/u);
+  assert.match(compose, /loopback-edge:\s*\n  web-backend:/u);
   const volumeBlock = compose.match(/\nvolumes:\n([\s\S]*?)\nnetworks:/u)?.[1];
   assert.equal(volumeBlock, "  postgres-data:\n");
 });

@@ -115,6 +115,8 @@ volumes:
     labels: *validation-labels
 
 networks:
+  loopback-edge:
+    labels: *validation-labels
   web-backend:
     labels: *validation-labels
   build-internal:

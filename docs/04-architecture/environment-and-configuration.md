@@ -205,7 +205,7 @@ image에는 production credential, domain, Mac host path를 bake하지 않는다
 | project Nginx | `infra/nginx/production.conf` |
 | runtime validator | `scripts/validate-production-compose.sh` |
 | service inventory | `rhaomi-web`, `backend`, `publisher`, `postgres` |
-| network | `web-backend`, `build-internal`, `data-internal`; 모두 internal |
+| network | web 전용 non-internal `loopback-edge`; `web-backend`, `build-internal`, `data-internal`은 internal |
 | published port | `127.0.0.1:${RHAOMI_WEB_LOOPBACK_PORT}:8080`만 허용 |
 | DB persistence | Compose project-scoped `postgres-data`, container `/var/lib/postgresql` |
 

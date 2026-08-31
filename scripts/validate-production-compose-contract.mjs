@@ -55,7 +55,7 @@ function validateBase(config) {
   );
   assert.deepEqual(
     Object.keys(config.networks).sort(),
-    ["build-internal", "data-internal", "web-backend"],
+    ["build-internal", "data-internal", "loopback-edge", "web-backend"],
     "base production network inventory가 다릅니다.",
   );
   assert.deepEqual(Object.keys(config.volumes), ["postgres-data"]);
@@ -91,11 +91,13 @@ function validateBase(config) {
     validateLogging(service);
   }
 
-  assert.deepEqual(networks(web), ["web-backend"]);
+  assert.deepEqual(networks(web), ["loopback-edge", "web-backend"]);
   assert.deepEqual(networks(backend), ["build-internal", "data-internal", "web-backend"]);
   assert.deepEqual(networks(publisher), ["build-internal", "data-internal"]);
   assert.deepEqual(networks(postgres), ["data-internal"]);
-  for (const network of Object.values(config.networks)) {
+  assert.equal(config.networks["loopback-edge"].internal ?? false, false);
+  for (const networkName of ["web-backend", "build-internal", "data-internal"]) {
+    const network = config.networks[networkName];
     assert.equal(network.internal, true, "production network는 internal-only여야 합니다.");
   }
 
