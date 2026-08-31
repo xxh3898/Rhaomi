@@ -52,6 +52,8 @@ test("production Compose가 external same-image와 최소 service topology를 �
     web,
     /nginx:1\.31\.4-alpine3\.24@sha256:db35bfc6b2951e7f8a72db5db120288c127ffaeeb4a6d4b95a26fead017d5913/u,
   );
+  assert.match(web, /user: "101:101"/u);
+  assert.match(web, /\/var\/cache\/nginx:rw,noexec,nosuid,size=64m,uid=101,gid=101,mode=0750/u);
   assert.match(
     postgres,
     /postgres:18\.6-alpine3\.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f/u,

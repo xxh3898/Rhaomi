@@ -110,7 +110,7 @@ local private media volume·upload API, same-origin development gateway, dedicat
 
 ## Production Compose·project Nginx — implemented, unprovisioned
 
-`compose.production.yaml`은 external exact image만 사용하는 `rhaomi-web`, `backend`, `publisher`, `postgres` 네 service와 세 internal network를 canonical inventory로 둔다. web만 required loopback port를 publish하고 `/api/admin/**`만 backend로 전달한다. backend/publisher는 같은 image를 사용하며 normal process의 Flyway와 bootstrap은 비활성이다. PostgreSQL은 project-scoped `postgres-data` named volume을 `/var/lib/postgresql`에 사용하고 host bind를 사용하지 않는다.
+`compose.production.yaml`은 external exact image만 사용하는 `rhaomi-web`, `backend`, `publisher`, `postgres` 네 service와 세 internal network를 canonical inventory로 둔다. web은 UID/GID `101:101`과 같은 owner의 bounded tmpfs로 non-root 실행하며 required loopback port만 publish하고 `/api/admin/**`만 backend로 전달한다. backend/publisher는 같은 image를 사용하며 normal process의 Flyway와 bootstrap은 비활성이다. PostgreSQL은 project-scoped `postgres-data` named volume을 `/var/lib/postgresql`에 사용하고 host bind를 사용하지 않는다.
 
 `compose.production.validation.yaml`은 base host source를 바꾸지 않고 validation run에서만 marker-owned temp public/media/state source와 validation-only schema bootstrap을 덮어쓴다. `scripts/validate-production-compose.sh`는 rendered contract, actual mount mode·network·port, static/admin/deny route, internal Build API authentication, 일반 `down` 뒤 sentinel·volume identity를 native architecture에서 검증한다. task container/network는 정리하고 task PostgreSQL volume은 삭제하지 않는다. 이 증거는 actual `/private/var/lib/rhaomi` ownership·permission이나 production volume·Secret·FQDN provisioning이 아니다.
 

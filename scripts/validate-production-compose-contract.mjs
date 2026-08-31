@@ -71,6 +71,12 @@ function validateBase(config) {
   assert.equal(publisher.image, expectedImage);
   assert.match(web.image, /^nginx:[^@]+@sha256:[0-9a-f]{64}$/u);
   assert.match(postgres.image, /^postgres:18\.6-[^@]+@sha256:[0-9a-f]{64}$/u);
+  assert.equal(web.user, "101:101", "production Nginx는 non-root UID/GID로 실행해야 합니다.");
+  assert.deepEqual(web.tmpfs, [
+    "/var/cache/nginx:rw,noexec,nosuid,size=64m,uid=101,gid=101,mode=0750",
+    "/var/run:rw,noexec,nosuid,size=8m,uid=101,gid=101,mode=0750",
+    "/tmp:rw,noexec,nosuid,size=8m,uid=101,gid=101,mode=0750",
+  ]);
 
   for (const service of Object.values(config.services)) {
     assert.equal(service.build, undefined, "production build directive는 금지됩니다.");
