@@ -128,6 +128,8 @@ class FullPublicationPipelineIntegrationTests {
         assertTrue(Files.readString(resolveSite(currentLink).resolve("index.html"))
                 .contains("합성 갤러리 강아지"));
         assertTrue(Files.readString(resolveSite(currentLink).resolve("index.html"))
+                .contains("<time dateTime=\"2020-01-01T00:00:00Z\">2020-01-01</time>"));
+        assertTrue(Files.readString(resolveSite(currentLink).resolve("index.html"))
                 .contains("<picture"));
         try (var files = Files.walk(resolveSite(currentLink).resolve("generated/media"))) {
             var extensions = files.filter(Files::isRegularFile)

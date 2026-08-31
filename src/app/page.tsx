@@ -236,6 +236,9 @@ export default function Home() {
                   <span>{notice.pinned ? "중요" : "공지"}</span>
                   <strong>{notice.title}</strong>
                   {notice.summary !== null && <small>{notice.summary}</small>}
+                  <time dateTime={notice.publishedAt}>
+                    {notice.publishedAt.slice(0, 10)}
+                  </time>
                 </Link>
               </li>
             ))}

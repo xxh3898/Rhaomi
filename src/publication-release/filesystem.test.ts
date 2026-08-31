@@ -8,7 +8,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { ReleaseManifestV1 } from "./contracts.mts";
@@ -70,6 +70,34 @@ async function candidate(
     `${JSON.stringify(manifest, null, 2)}\n`,
   );
   return { candidateRoot, manifest };
+}
+
+async function exactParentRelease(
+  paths: Awaited<ReturnType<typeof fixtureRoot>>,
+  linkPath: string,
+) {
+  const packageRoot = dirname(paths.releaseRoot);
+  const siteRoot = join(packageRoot, "site");
+  await mkdir(siteRoot, { recursive: true });
+  await writeFile(join(siteRoot, "index.html"), "exact parent escape");
+  const manifest: ReleaseManifestV1 = {
+    schemaVersion: 1,
+    releaseId: basename(packageRoot),
+    contentRevision: "1",
+    publishGeneration: "1",
+    generatedAt: "2026-08-31T00:00:00Z",
+    codeSha: SHA,
+    codeImageTag: `sha-${SHA}`,
+    codeImageDigest: DIGEST,
+    flywayVersion: "9",
+    sbomReference: DIGEST,
+    siteSha256: await siteTreeSha256(siteRoot),
+  };
+  await writeFile(
+    join(packageRoot, "release-manifest.json"),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+  );
+  await symlink("site", linkPath, "dir");
 }
 
 describe("immutable release switch", () => {
@@ -367,5 +395,23 @@ describe("immutable release switch", () => {
     await expect(
       readReleaseLink(paths.currentLink, paths.releaseRoot),
     ).rejects.toThrowError(/invalid/i);
+  });
+
+  it("rejects an exact-parent current package even when its manifest and site are valid", async () => {
+    const paths = await fixtureRoot();
+    await exactParentRelease(paths, paths.currentLink);
+
+    await expect(
+      readReleaseLink(paths.currentLink, paths.releaseRoot),
+    ).rejects.toMatchObject({ code: "RELEASE_CURRENT_INVALID" });
+  });
+
+  it("rejects an exact-parent previous package even when its manifest and site are valid", async () => {
+    const paths = await fixtureRoot();
+    await exactParentRelease(paths, paths.previousLink);
+
+    await expect(
+      readReleaseLink(paths.previousLink, paths.releaseRoot),
+    ).rejects.toMatchObject({ code: "RELEASE_CURRENT_INVALID" });
   });
 });

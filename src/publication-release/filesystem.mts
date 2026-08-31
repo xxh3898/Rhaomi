@@ -13,6 +13,7 @@ import {
 import {
   basename,
   dirname,
+  isAbsolute,
   join,
   relative,
   resolve,
@@ -75,17 +76,29 @@ async function readManifest(packageRoot: string): Promise<ReleaseManifestV1> {
   return parseReleaseManifest(value);
 }
 
+function directChildName(parentPath: string, childPath: string): string | null {
+  const child = relative(resolve(parentPath), resolve(childPath));
+  if (
+    child.length === 0 ||
+    child === ".." ||
+    child.startsWith(`..${sep}`) ||
+    isAbsolute(child) ||
+    child.includes(sep)
+  ) {
+    return null;
+  }
+  return child;
+}
+
 export async function inspectInstalledRelease(
   packageRoot: string,
   releaseRoot: string,
 ): Promise<InstalledRelease> {
   const normalizedReleaseRoot = resolve(releaseRoot);
   const normalizedPackageRoot = resolve(packageRoot);
-  const child = relative(normalizedReleaseRoot, normalizedPackageRoot);
+  const child = directChildName(normalizedReleaseRoot, normalizedPackageRoot);
   if (
-    child.length === 0 ||
-    child.startsWith(`..${sep}`) ||
-    child.includes(sep) ||
+    child === null ||
     basename(normalizedPackageRoot).startsWith(".")
   ) {
     releaseFail("RELEASE_CURRENT_INVALID");
@@ -175,10 +188,10 @@ export async function installImmutableRelease(input: Readonly<{
   releaseRoot: string;
   manifest: ReleaseManifestV1;
 }>): Promise<ImmutableInstallResult> {
-  const candidateParent = dirname(resolve(input.candidateRoot));
+  const candidateName = directChildName(input.releaseRoot, input.candidateRoot);
   if (
-    candidateParent !== resolve(input.releaseRoot) ||
-    !basename(input.candidateRoot).startsWith(".candidate-")
+    candidateName === null ||
+    !candidateName.startsWith(".candidate-")
   ) {
     releaseFail("RELEASE_INPUT_INVALID");
   }

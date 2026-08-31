@@ -337,7 +337,7 @@ transformer가 만든 `content.json`은 Build Snapshot V2의 public content를 �
 - 모든 조회·transform·Next export와 candidate validation이 성공한 뒤 manifest를 기록하고 complete candidate를 release root 안에서 atomic rename한다.
 - `contentRevision`은 지원되는 콘텐츠 domain mutation snapshot revision이고 `publishGeneration`은 immediate mutation, due boundary, 승인된 code release와 manual rebuild/retry를 포함하는 public trigger sequence다.
 - 같은 `contentRevision`에서도 publish/expiry boundary별 generation과 snapshot을 만들 수 있다. 자동 attempt retry는 같은 generation을 유지한다.
-- release manifest도 canonical decimal string `contentRevision`, `publishGeneration`, `generatedAt`, code identity와 site tree digest를 기록하고 `current` atomic switch는 generation을 `BigInt`로 비교한 stale protection authority로 사용한다.
+- release manifest도 canonical decimal string `contentRevision`, `publishGeneration`, code identity와 site tree digest를 기록한다. `generatedAt`은 `YYYY-MM-DDTHH:mm:ssZ` 또는 1~6자리 fractional second + `Z`이며 정규식뿐 아니라 UTC year/month/day/hour/minute/second가 원본과 exact 일치하는 actual calendar Instant만 허용한다. immutable package와 `current`·`previous` authority는 release root의 one-direct-child만 허용하고, `current` atomic switch는 generation을 `BigInt`로 비교한 stale protection authority로 사용한다.
 - 일부 collection만 과거 data로 fallback하거나 scheduled event ID·과거 boundary로 current snapshot filter를 우회하지 않는다.
 - transformer는 API response schema와 published/relation/file 조건을 다시 검증하고 raw response를 component에 직접 전달하지 않는다.
 

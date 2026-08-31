@@ -156,7 +156,7 @@ sh scripts/validate-backend-compose.sh .env.dev.local
 - V9 internal state service는 pending/due claim, transactional `publishGeneration`, active lease·owner guard, same-generation recovery/retry, typed terminal result와 lower→higher coalesce primitive를 제공한다.
 - 별도 stateless build credential과 active generation 기반 read-only snapshot·public-scope media content API를 제공하며 관리자 session이나 browser 경로와 공유하지 않는다. local frontend는 token environment뿐 아니라 `.env.dev.local`과 backend filesystem도 mount하지 않는다.
 - dedicated non-web publisher control loop, 고정 30초 debounce, highest generation coalesce, lease renewal, descendant physical termination acknowledgment까지 보유하는 global advisory lock과 실제 Node release executor/result mapping을 구현했다.
-- generated V2 snapshot을 정적 홈·공지 상세·SEO·safe Markdown·responsive `<picture>`에 바인딩하고, HTML/link/canonical/sitemap/robots/media hash·비밀값 검증 뒤 immutable release manifest를 설치한다. current manifest의 canonical generation을 `BigInt`로 비교해 equal/lower switch를 거부하고 `previous/current` atomic switch·read-only serving smoke·rollback·성공 release 5개 retention을 수행한다.
+- generated V2 snapshot을 정적 홈·공지 상세·SEO·safe Markdown·responsive `<picture>`에 바인딩한다. 홈의 각 공지는 title·optional summary·full `publishedAt`을 보존한 `<time>`·정적 detail link를 함께 출력한다. HTML/link/canonical/sitemap/robots/media hash·비밀값과 release manifest의 actual UTC calendar를 검증하고 release package와 `current`·`previous` target을 release root의 exact direct child로 제한한다. current manifest의 canonical generation을 `BigInt`로 비교해 equal/lower switch를 거부하고 atomic switch·read-only serving smoke·rollback·성공 release 5개 retention을 수행한다.
 - 공개 콘텐츠 변경은 정적 사이트 재빌드·검증·원자적 교체를 유발한다.
 - 고객용 예약 시스템, 결제, 회원가입, 문의 폼은 만들지 않는다.
 - 전화, 인스타그램, 네이버톡톡 등 외부 문의 채널로 연결한다.

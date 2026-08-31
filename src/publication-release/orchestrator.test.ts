@@ -224,6 +224,9 @@ describe("publishStaticRelease", () => {
         /<meta property="og:image" content="https:\/\/site\.example\/generated\/media\/[0-9a-f]{64}\.jpeg"/u,
       );
       expect(home).toContain('href="/notices/synthetic-notice/"');
+      expect(home).toContain(
+        '<time dateTime="2026-08-29T11:00:00.123456Z">2026-08-29</time>',
+      );
       expect(detail).toContain("<strong>합성 Markdown 본문</strong>");
       expect(detail).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
       expect(detail).not.toContain("<script>alert(1)</script>");

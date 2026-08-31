@@ -26,6 +26,22 @@ function environment() {
   };
 }
 
+function manifest(generatedAt = "2026-08-31T00:00:00.123456Z") {
+  return {
+    schemaVersion: 1,
+    releaseId: releaseIdFor("9007199254740993", "9223372036854775807", SHA),
+    contentRevision: "9007199254740993",
+    publishGeneration: "9223372036854775807",
+    generatedAt,
+    codeSha: SHA,
+    codeImageTag: `sha-${SHA}`,
+    codeImageDigest: DIGEST,
+    flywayVersion: "9",
+    sbomReference: DIGEST,
+    siteSha256: "c".repeat(64),
+  } as const;
+}
+
 describe("publication release contracts", () => {
   it("loads bounded non-secret release settings", () => {
     expect(loadPublicationReleaseConfig(environment())).toMatchObject({
@@ -65,22 +81,31 @@ describe("publication release contracts", () => {
   });
 
   it("keeps manifest int64 strings exact and rejects numeric fields", () => {
-    const manifest = {
-      schemaVersion: 1,
-      releaseId: releaseIdFor("9007199254740993", "9223372036854775807", SHA),
-      contentRevision: "9007199254740993",
-      publishGeneration: "9223372036854775807",
-      generatedAt: "2026-08-31T00:00:00.123456Z",
-      codeSha: SHA,
-      codeImageTag: `sha-${SHA}`,
-      codeImageDigest: DIGEST,
-      flywayVersion: "9",
-      sbomReference: DIGEST,
-      siteSha256: "c".repeat(64),
-    };
-    expect(parseReleaseManifest(manifest)).toEqual(manifest);
+    const value = manifest();
+    expect(parseReleaseManifest(value)).toEqual(value);
     expect(() =>
-      parseReleaseManifest({ ...manifest, publishGeneration: 9_007_199_254_740_992 }),
+      parseReleaseManifest({ ...value, publishGeneration: 9_007_199_254_740_992 }),
     ).toThrowError(/invalid/i);
+  });
+
+  it.each([
+    "2026-02-31T00:00:00Z",
+    "2026-04-31T00:00:00Z",
+    "2026-01-01T24:00:00Z",
+    "2026-01-01T00:60:00Z",
+    "2026-01-01T00:00:60Z",
+  ])("rejects non-existent manifest instant %s", (generatedAt) => {
+    expect(() => parseReleaseManifest(manifest(generatedAt))).toThrowError(
+      /invalid/i,
+    );
+  });
+
+  it.each([
+    "2028-02-29T23:59:59Z",
+    "2028-02-29T23:59:59.123456Z",
+  ])("accepts strict manifest instant %s", (generatedAt) => {
+    expect(parseReleaseManifest(manifest(generatedAt)).generatedAt).toBe(
+      generatedAt,
+    );
   });
 });

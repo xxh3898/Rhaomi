@@ -343,12 +343,12 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 
 ## 현재 Phase 1C-8f7 정적 render·release 단위·통합 자동 검증
 
-- generated V2 exact loader, 홈·공지 상세·sitemap·robots Static Export와 backend runtime request 부재
+- generated V2 exact loader, 홈 Notice별 title·optional summary·full `time[datetime]`·detail link, 공지 상세·sitemap·robots Static Export와 backend runtime request 부재
 - URL/phone/source Markdown의 raw HTML escaping, link protocol allowlist, remote image alt-only와 exported dangerous URL 검사
 - slug/canonical·JSON-LD·admin noindex·alt·responsive `<picture>` 및 generated media hash/missing/orphan 검증
 - symlink·special file·private URL/path·credential marker와 broken internal link fail-closed
-- private manifest의 canonical string revision/generation·generatedAt·code identity·site tree digest 일치
-- validation 뒤와 switch 직전 `BigInt` stale guard, equal/lower no-op, immutable collision과 `Long.MAX_VALUE`
+- private manifest의 canonical string revision/generation, valid leap-day와 1~6 fractional second를 허용하고 overflow date/time을 거부하는 strict `generatedAt`, code identity·site tree digest 일치
+- release root의 one-direct-child package confinement, exact-parent current/previous와 sibling/absolute/out-of-root 거부, validation 뒤와 switch 직전 `BigInt` stale guard, equal/lower no-op, immutable collision과 `Long.MAX_VALUE`
 - candidate loopback home/notice/media/404 pre-switch smoke, previous/current atomic symlink 뒤 동일 post-switch smoke, existing/first release rollback, 실패 candidate cleanup과 smoke 성공 뒤에만 실행되는 retention 보호, post-switch housekeeping 실패의 `DEFERRED` success 분리
 - actual Java process executor의 fixed argv/allowlist environment, safe machine result, root·descendant physical termination과 lock lifetime
 - PostgreSQL 18.6·Flyway V1~V9 active generation의 Build API→Sharp→Next→release→DB state success, higher/previous, lower no-op, transient same-generation retry, terminal current 유지

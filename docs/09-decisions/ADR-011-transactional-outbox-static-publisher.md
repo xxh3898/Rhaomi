@@ -113,10 +113,10 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 - scheduled event 처리 직전 current Notice·Gallery row와 전체 build snapshot을 다시 읽어 status, current boundary, relation, media/file과 `generatedAt` eligibility를 재검증한다.
 - reschedule, draft·archived 전환 또는 window 변경으로 event가 stale이면 공개 snapshot을 만들지 않고 no-op 처리하거나 최신 pending generation에 합친다. old event가 가진 과거 기대값은 공개 데이터 authority가 아니다.
 - 더 높은 `publishGeneration`이 도착하면 최신 snapshot을 우선하며 낮은 generation의 build가 최신 release를 덮지 못한다.
-- release manifest와 content snapshot에는 최소 canonical decimal string `contentRevision`, `publishGeneration`, `generatedAt`을 기록한다. `current` atomic switch의 stale protection authority는 validation 뒤 `BigInt`로 비교하는 `publishGeneration`이며 JSON number 변환은 금지한다.
+- release manifest와 content snapshot에는 최소 canonical decimal string `contentRevision`, `publishGeneration`, `generatedAt`을 기록한다. release manifest `generatedAt`은 microsecond UTC 모양과 실제 calendar field가 exact 일치해야 한다. `current` atomic switch의 stale protection authority는 validation 뒤 `BigInt`로 비교하는 `publishGeneration`이며 JSON number 변환은 금지한다.
 - build·validation 실패 시 `current`를 변경하지 않고 기존 공개 사이트를 유지한다.
 - validator를 통과한 candidate만 immutable package로 설치한다. switch 직전에 current manifest를 다시 읽으며 post-switch serving smoke 실패는 같은 global lock 안에서 이전 current·previous 상태를 복구한다.
-- release manifest는 public `site/` root의 sibling에 두고 site tree SHA-256, exact code identity·Flyway·SBOM reference를 allowlist field로 기록한다. 성공 release 기본 5개를 보존하되 current·previous target은 항상 보호한다.
+- release manifest는 public `site/` root의 sibling에 두고 site tree SHA-256, exact code identity·Flyway·SBOM reference를 allowlist field로 기록한다. installed package와 `current`·`previous` package authority는 configured release root의 exact one-direct-child로 제한하고 exact parent·sibling·nested·absolute/out-of-root target은 거부한다. 성공 release 기본 5개를 보존하되 current·previous target은 항상 보호한다.
 - 후속 `/admin/`은 마지막 성공·실패, 대상 content revision·publish generation과 명시적 수동 retry를 제공한다.
 - state-changing 관리 요청과 code deploy 자체는 publisher가 자동 재전송하지 않는다.
 

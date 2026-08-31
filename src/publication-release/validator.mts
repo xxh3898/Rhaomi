@@ -71,6 +71,12 @@ function textContent(node: HtmlNode): string {
   return children(node).map(textContent).join("");
 }
 
+function containsExactText(node: HtmlNode, expected: string): boolean {
+  return descendants(node).some(
+    (child) => child.nodeName === "#text" && child.value === expected,
+  );
+}
+
 function canonicalHref(document: HtmlNode): string | null {
   return (
     elements(document, "link")
@@ -280,10 +286,31 @@ export async function validateStaticExport(
     input.artifacts.content.shop.phone,
     input.artifacts.content.shop.address,
     ...input.artifacts.content.services.map((service) => service.name),
-    ...input.artifacts.content.notices.map((notice) => notice.title),
   ];
   if (requiredText.some((value) => !homeText.includes(value))) {
     releaseFail("RELEASE_VALIDATION_FAILED");
+  }
+  const homeLinks = elements(home.document, "a");
+  for (const notice of input.artifacts.content.notices) {
+    const href = `/notices/${notice.slug}/`;
+    const link = homeLinks.find((candidate) => attribute(candidate, "href") === href);
+    const publishedTime =
+      link === undefined
+        ? undefined
+        : descendants(link).find(
+            (candidate) =>
+              candidate.nodeName === "time" &&
+              attribute(candidate, "datetime") === notice.publishedAt,
+          );
+    if (
+      link === undefined ||
+      !containsExactText(link, notice.title) ||
+      (notice.summary !== null && !containsExactText(link, notice.summary)) ||
+      publishedTime === undefined ||
+      textContent(publishedTime) !== notice.publishedAt.slice(0, 10)
+    ) {
+      releaseFail("RELEASE_VALIDATION_FAILED");
+    }
   }
   const homeAlt = new Set(
     elements(home.document, "img").map((image) => attribute(image, "alt") ?? ""),

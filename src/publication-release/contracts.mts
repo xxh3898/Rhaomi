@@ -1,6 +1,7 @@
 import { isAbsolute, normalize, parse, resolve } from "node:path";
 
 import { parsePublishGeneration } from "../build-orchestration/config.mts";
+import { parseStrictMicrosecondUtcInstant } from "../contracts/strict-instant.mts";
 import { releaseFail } from "./errors.mts";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/u;
@@ -8,8 +9,6 @@ const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const IMAGE_TAG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/@:-]{0,254}$/u;
 const FLYWAY_PATTERN = /^(?:0|[1-9][0-9]{0,8})$/u;
 const RELEASE_ID_PATTERN = /^[a-z0-9][a-z0-9.-]{0,127}$/u;
-const INSTANT_PATTERN =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/u;
 const MANIFEST_KEYS = [
   "schemaVersion",
   "releaseId",
@@ -217,10 +216,11 @@ export function parseReleaseManifest(value: unknown): ReleaseManifestV1 {
   } catch {
     releaseFail("RELEASE_CURRENT_INVALID");
   }
-  const generatedAt = stringField(input, "generatedAt", INSTANT_PATTERN);
-  if (!Number.isFinite(new Date(generatedAt).getTime())) {
+  const parsedGeneratedAt = parseStrictMicrosecondUtcInstant(input.generatedAt);
+  if (parsedGeneratedAt === null) {
     releaseFail("RELEASE_CURRENT_INVALID");
   }
+  const generatedAt = parsedGeneratedAt.value;
   return {
     schemaVersion: 1,
     releaseId: stringField(input, "releaseId", RELEASE_ID_PATTERN),

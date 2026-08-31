@@ -352,13 +352,13 @@ review_trigger: "제품 기능 변경 시"
 
 **When** full release executor가 target generation을 처리하면
 
-**Then** repository source를 수정하지 않는 isolated workspace에서 홈·공지 상세·sitemap·robots를 Static Export하고, safe Markdown은 raw HTML을 text로 escape하며 dangerous URL을 link로 만들지 않고 remote Markdown image는 alt text만 보존한다. responsive `<picture>`는 verified manifest path의 AVIF·WebP·JPEG만 사용한다.
+**Then** repository source를 수정하지 않는 isolated workspace에서 홈·공지 상세·sitemap·robots를 Static Export한다. 홈의 각 Notice는 title, non-null summary, full source `publishedAt`을 가진 `<time>`, `/notices/<slug>/` link를 정적 HTML에 포함한다. safe Markdown은 raw HTML을 text로 escape하며 dangerous URL을 link로 만들지 않고 remote Markdown image는 alt text만 보존한다. responsive `<picture>`는 verified manifest path의 AVIF·WebP·JPEG만 사용한다.
 
 **Then** final tree의 regular file·internal link·canonical·sitemap·robots·admin noindex·generated media hash를 strict 검증하고 backend/internal URL, credential marker, private storage path, symlink·special file, missing·orphan media를 거부한다.
 
 **Given** candidate export가 검증됐을 때
 
-**Then** public `site/`의 sibling private manifest에 exact canonical decimal string `contentRevision`·`publishGeneration`, `generatedAt`, code SHA·image identity·Flyway·SBOM reference와 site tree digest를 기록한다. candidate loopback에서 홈·대표 공지·media·404를 확인한 뒤 same-filesystem immutable package로 설치한다. current manifest generation은 validation과 switch 직전에 각각 `BigInt`로 비교하며 같거나 낮은 target은 symlink를 변경하지 않는 `NO_PUBLIC_CHANGE`다.
+**Then** public `site/`의 sibling private manifest에 exact canonical decimal string `contentRevision`·`publishGeneration`, strict actual-calendar microsecond UTC `generatedAt`, code SHA·image identity·Flyway·SBOM reference와 site tree digest를 기록한다. candidate loopback에서 홈·대표 공지·media·404를 확인한 뒤 release root의 one-direct-child immutable package로 설치한다. `current`·`previous`가 exact parent, sibling, nested 또는 absolute/out-of-root package를 가리키면 fail-closed 거부한다. current manifest generation은 validation과 switch 직전에 각각 `BigInt`로 비교하며 같거나 낮은 target은 symlink를 변경하지 않는 `NO_PUBLIC_CHANGE`다.
 
 **Given** 더 높은 generation의 candidate를 전환할 때
 

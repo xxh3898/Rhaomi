@@ -51,12 +51,14 @@ async function validSite() {
   const root = await mkdtemp(join(tmpdir(), "rhaomi-site-validator-"));
   roots.push(root);
   const artifacts = artifactsFixture();
+  const notice = artifacts.content.notices[0];
+  if (notice === undefined) throw new Error("Synthetic notice is missing");
   await mkdir(join(root, "admin"), { recursive: true });
   await mkdir(join(root, "notices", "synthetic-notice"), { recursive: true });
   const serviceNames = artifacts.content.services.map((item) => item.name).join(" ");
   await writeFile(
     join(root, "index.html"),
-    `<!doctype html><html lang="ko"><head><link rel="canonical" href="https://site.example/"></head><body>${artifacts.content.shop.shopName} ${artifacts.content.shop.phone} ${artifacts.content.shop.address} ${serviceNames} 합성 공지 <a href="/notices/synthetic-notice/">공지</a></body></html>`,
+    `<!doctype html><html lang="ko"><head><link rel="canonical" href="https://site.example/"></head><body>${artifacts.content.shop.shopName} ${artifacts.content.shop.phone} ${artifacts.content.shop.address} ${serviceNames}<a href="/notices/${notice.slug}/"><strong>${notice.title}</strong><small>${notice.summary}</small><time datetime="${notice.publishedAt}">${notice.publishedAt.slice(0, 10)}</time></a></body></html>`,
   );
   await writeFile(
     join(root, "admin", "index.html"),
@@ -91,6 +93,44 @@ describe("validateStaticExport", () => {
         publicSiteUrl: "https://site.example/",
       }),
     ).resolves.toBeUndefined();
+  });
+
+  it("rejects home notice title, summary, datetime, or detail-link drift", async () => {
+    const mutations = [
+      (html: string) =>
+        html.replace(
+          "<strong>합성 공지</strong>",
+          "<strong>다른 제목</strong>",
+        ),
+      (html: string) =>
+        html.replace(
+          "<small>합성 공지 요약</small>",
+          "<small>다른 요약</small>",
+        ),
+      (html: string) =>
+        html.replace(
+          'datetime="2026-08-29T11:00:00.123456Z"',
+          'datetime="2026-08-29T11:00:00Z"',
+        ),
+      (html: string) =>
+        html.replace(
+          'href="/notices/synthetic-notice/"',
+          'href="/"',
+        ),
+    ];
+
+    for (const mutate of mutations) {
+      const fixture = await validSite();
+      const path = join(fixture.root, "index.html");
+      await writeFile(path, mutate(await readFile(path, "utf8")));
+      await expect(
+        validateStaticExport({
+          siteRoot: fixture.root,
+          artifacts: fixture.artifacts,
+          publicSiteUrl: "https://site.example/",
+        }),
+      ).rejects.toThrowError(/validation/i);
+    }
   });
 
   it("rejects broken internal links and private build values", async () => {
