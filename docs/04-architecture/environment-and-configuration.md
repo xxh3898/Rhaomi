@@ -112,22 +112,30 @@ production release manifest에는 exact `main` SHA, image tag·digest, Flyway ve
 
 `/srv/rhaomi`는 이 표의 Linux container target에만 허용하고 Mac host path로 해석하지 않는다. PostgreSQL named volume은 일반 `docker compose down`에서 보존하며 production `down -v`, `docker volume prune`과 direct delete를 금지한다.
 
-## 공개 frontend build — planned
+## 공개 frontend·release build — current local foundation / production provisioning planned
 
 | 변수 | 비밀 | 설명 |
 |---|---:|---|
 | `PUBLIC_SITE_URL` | N | canonical 기준 absolute URL |
-| `SITE_ENV` | N | local/development/production |
-| `BUILD_API_INTERNAL_URL` | N | Node staging adapter가 사용하는 absolute `http|https` backend origin; userinfo/query/fragment/path 금지 |
-| `BUILD_API_CREDENTIAL` | Y | `RHAOMI_BUILD_SERVICE_TOKEN`과 같은 secret source에서 Node staging adapter에만 주입하는 64자 lowercase hex credential |
-| `CONTENT_SNAPSHOT_PATH` | N | 생성 파일 경로 |
-| `MEDIA_OUTPUT_PATH` | N | 공개 파생본 경로 |
-| `BUILD_RELEASE_ID` | N | release 식별자 |
-| `BUILD_CONTENT_REVISION` | N | 콘텐츠 mutation snapshot revision |
-| `BUILD_PUBLISH_GENERATION` | N | public trigger의 monotonic sequence와 stale switch authority |
-| `BUILD_TIMESTAMP` | N | snapshot `generatedAt`, notice published·expiry 판정 기준 시각 |
+| `BUILD_API_INTERNAL_URL` | N | Node adapter가 사용하는 absolute root `http|https` backend origin; userinfo/query/fragment/path 금지 |
+| `BUILD_API_CREDENTIAL` | Y | `RHAOMI_BUILD_SERVICE_TOKEN`과 같은 secret source에서 publisher process에만 주입하는 64자 lowercase hex credential |
+| `RHAOMI_PUBLISHER_NODE_EXECUTABLE` | N | absolute executable regular file |
+| `RHAOMI_PUBLISHER_RELEASE_SCRIPT` | N | `scripts/publish-static-release.mts` absolute regular file |
+| `RHAOMI_PUBLISHER_PROCESS_TERMINATION_GRACE` | N | child process graceful terminate, 기본 `2s`, 100ms~10s |
+| `RHAOMI_PUBLISHER_SOURCE_ROOT` | N, 내부 경로 | package·tracked render source와 preinstalled `node_modules` root |
+| `RHAOMI_PUBLISHER_WORK_ROOT` | Y 취급 | private per-run staging·HOME root |
+| `RHAOMI_PUBLIC_RELEASE_ROOT` | N, 내부 경로 | immutable release package root |
+| `RHAOMI_PUBLIC_CURRENT_LINK` | N, 내부 경로 | active site symlink |
+| `RHAOMI_PUBLIC_PREVIOUS_LINK` | N, 내부 경로 | 직전 site symlink |
+| `RHAOMI_CODE_SHA` | N | exact 40 lowercase hex code identity |
+| `RHAOMI_CODE_IMAGE_TAG` | N | non-secret immutable image identity |
+| `RHAOMI_CODE_IMAGE_DIGEST` | N | `sha256:<64 lowercase hex>` |
+| `RHAOMI_FLYWAY_VERSION` | N | release DB contract version, 현재 `9` |
+| `RHAOMI_SBOM_REFERENCE` | N | `sha256:<64 lowercase hex>` reference |
+| `RHAOMI_PUBLISHER_BUILD_TIMEOUT_MS` | N | Next build timeout, 1,000~3,600,000ms; 미설정 600,000ms |
+| `RHAOMI_RELEASE_RETENTION` | N | 1~100, 기본 5; current·previous 별도 보호 |
 
-backend의 `RHAOMI_BUILD_SERVICE_TOKEN`과 internal read-only API, 위 두 변수로 실행하는 Node staging adapter는 구현됐다. adapter는 URL/credential과 generation을 request 전에 fail-closed 검증하고 credential을 argv·query·path·출력에 넣지 않으며 request body까지 fixed 10초 runtime default 안에 완료한다. browser/frontend/gateway에는 build credential이나 `NEXT_PUBLIC_` 변수를 주입하지 않고 credential file도 mount하지 않으며 dev/public Nginx가 build namespace를 차단한다. 실제 production publisher process의 environment·secret provisioning은 아직 구현되지 않았다.
+backend의 `RHAOMI_BUILD_SERVICE_TOKEN`과 internal read-only API, 위 설정을 사용하는 Node full release adapter·Java executor는 구현됐다. Java publisher bean 생성 시 build/public root URL, credential, absolute source/work/release/current/previous 관계, build timeout·retention을 Node acceptance와 같은 범위로 fail-fast 검증한다. adapter는 URL/credential과 generation을 request 전에 다시 fail-closed 검증하고 credential을 argv·query·path·출력에 넣지 않으며 request body까지 fixed 10초 runtime default 안에 완료한다. browser/frontend/gateway에는 build credential이나 `NEXT_PUBLIC_` 변수를 주입하지 않고 credential file도 mount하지 않으며 dev/public Nginx가 build namespace를 차단한다. 실제 production publisher process의 environment·secret/image/path provisioning은 아직 구현되지 않았다.
 
 ## Static publisher control loop
 
@@ -145,18 +153,20 @@ publisher는 normal backend profile이나 환경변수만으로 시작하지 않
 
 첫 accepted generation 기준 debounce는 고정 30초이며 환경변수로 바꿀 수 없다. `T0 + 30s` trigger를 포함하고 이후 trigger는 다음 window에 남긴다. poll·lease·renew·shutdown duration은 positive bounded 값이고 owner에는 credential·path를 넣지 않는다.
 
-현재 control loop는 immediate pending, due scheduled, same-generation retry와 expired lease recovery를 처리하고 highest generation coalesce·lease heartbeat·global lock·typed result mapping을 제공한다. cancellation은 executor wrapper의 실제 진입·종료 상태를 추적하며, interrupt 뒤에도 body가 살아 있으면 lock과 non-daemon control worker를 유지한다. shutdown timeout은 lifecycle caller의 대기만 제한하고 lock을 먼저 넘기지 않으며, 외부 process termination 때 executor와 OS lock이 함께 정리된다. placeholder executor는 항상 transient failure를 반환해 public release를 만들지 않는다. default `compose.dev.yaml`은 publisher service를 자동 기동하지 않으며 public/dev Nginx route와 Docker socket도 추가하지 않는다.
+현재 control loop는 immediate pending, due scheduled, same-generation retry와 expired lease recovery를 처리하고 highest generation coalesce·lease heartbeat·global lock·typed result mapping을 제공한다. 실제 executor는 fixed argv Node release CLI를 호출해 Build API→transformer→Next→manifest→atomic switch를 수행한다. cancellation은 wrapper의 callable 종료뿐 아니라 Node root·관찰한 descendant의 physical exit까지 확인하고, 그 전에는 lock과 non-daemon control worker를 유지한다. shutdown timeout은 lifecycle caller의 대기만 제한하고 lock을 먼저 넘기지 않으며 외부 process termination 때 child와 OS lock이 함께 정리된다. default `compose.dev.yaml`은 publisher service를 자동 기동하지 않으며 public/dev Nginx route와 Docker socket도 추가하지 않는다.
 
-아래 release filesystem 변수는 후속 Phase 1C-8f7 planned contract다. `BUILD_API_CREDENTIAL`은 현재 Node staging adapter의 environment contract지만 production secret provisioning은 후속 gate다.
+아래 release filesystem 값은 구현된 executor의 container-side production target이다. local/CI는 temp path를 사용하며 production secret·mount provisioning은 후속 gate다.
 
-| planned 변수 | 비밀 | 설명 |
+| 변수 | 비밀 | 설명 |
 |---|---:|---|
 | `BUILD_API_CREDENTIAL` | Y | admin session과 분리된 read-only service credential |
-| `PUBLISHER_STATE_DIR` | Y 취급 | publisher process의 non-DB local state |
-| `RELEASES_DIR` | N | publisher container 내부 `/srv/rhaomi/public/releases` |
-| `CURRENT_LINK` | N | publisher container 내부 `/srv/rhaomi/public/current` |
-| `PREVIOUS_LINK` | N | publisher container 내부 `/srv/rhaomi/public/previous` |
-| `RELEASE_RETENTION` | N | 성공 release 5개, current·previous 항상 보존 |
+| `RHAOMI_PUBLISHER_WORK_ROOT` | Y 취급 | publisher process의 non-DB local staging state, planned `/var/lib/rhaomi/publisher` |
+| `RHAOMI_PUBLIC_RELEASE_ROOT` | N | publisher container 내부 `/srv/rhaomi/public/releases` |
+| `RHAOMI_PUBLIC_CURRENT_LINK` | N | publisher container 내부 `/srv/rhaomi/public/current` |
+| `RHAOMI_PUBLIC_PREVIOUS_LINK` | N | publisher container 내부 `/srv/rhaomi/public/previous` |
+| `RHAOMI_RELEASE_RETENTION` | N | 성공 release 5개, current·previous 항상 보존 |
+
+`compose.dev.yaml`의 `publisher-validation` profile은 Java 25·Node 24·libheif를 한 image에 고정하고 synthetic PostgreSQL/credential/domain/temp release root로 실제 full pipeline test만 실행한다. default service 집합이나 public port를 늘리지 않으며 runtime `npm install`을 수행하지 않는다. 이 validation image는 ADR-014 production decoder-only image가 아니다. int64 E2E 하네스는 `RHAOMI_INT64_NODE_MODULES_VOLUME`·`RHAOMI_INT64_GRADLE_CACHE_VOLUME`로 해당 task의 사전 생성·label 확인 cache volume을 명시하고, `RHAOMI_CLEANUP_TASK`를 모든 임시 container/network label에 동일하게 적용한다. 지정 volume이 없으면 암묵 생성하지 않고 중단한다.
 
 ## Production deploy·migration — planned
 
@@ -191,7 +201,7 @@ backup repository, key와 HomeOps 설정은 아직 생성·변경하지 않았�
 - 실제 key, password, 실사용 email 금지
 - 운영 `.env`와 credential source를 참조하지 않음
 
-현재 example에는 default Compose가 쓰는 PostgreSQL, session cookie, 비활성 local/test bootstrap, 빈 backend-only build token과 local-safe private media root만 둔다. actual `.env.dev.local`은 frontend filesystem에 mount하지 않는다. publisher는 default Compose service가 아니므로 위 non-secret control 설정과 planned credential을 `.env.example`에 주입하지 않는다. production deploy, publisher adapter credential, backup와 HomeOps secret은 해당 implementation Issue 전까지 추가하지 않는다.
+현재 example에는 default Compose가 쓰는 PostgreSQL, session cookie, 비활성 local/test bootstrap, 빈 backend-only build token·Build API adapter 값과 local-safe private media root만 둔다. actual `.env.dev.local`은 frontend filesystem에 mount하지 않는다. publisher는 default Compose service가 아니므로 full executor의 path·code identity 설정을 `.env.example`에 기본 주입하지 않는다. production deploy, publisher credential/path, backup와 HomeOps secret은 해당 implementation Issue 전까지 추가하지 않는다.
 
 ## domain — 후속
 

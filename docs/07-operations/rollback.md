@@ -3,7 +3,7 @@ title: "롤백"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-29"
+last_updated: "2026-08-31"
 review_trigger: "배포 저장구조 변경 시"
 ---
 
@@ -11,7 +11,9 @@ review_trigger: "배포 저장구조 변경 시"
 
 ## 구현 상태
 
-이 문서는 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)의 목표 rollback 계약이다. publisher control loop는 구현됐지만 production release adapter/service와 backup/restore runtime은 아직 구현되지 않았다.
+이 문서는 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)의 목표 rollback 계약이다. publisher control loop와 local/CI release adapter는 이전 `current/previous` link snapshot을 보존하고 post-switch loopback smoke 실패 시 같은 global lock에서 복구하며, 첫 release 실패 시 `current`를 제거하는 low-level primitive를 구현했다. production service/image/path와 승인된 higher-generation rollback trigger, backup/restore runtime은 아직 구현되지 않았다.
+
+local/CI의 same-attempt smoke rollback은 실패한 candidate가 publication success로 기록되기 전 filesystem을 복구하는 동작이다. 이미 성공한 낮은 generation release를 운영에서 직접 재활성화하는 절차와 다르며, 아래 production rollback은 계속 더 높은 새 `publishGeneration`을 요구한다.
 
 ## 대상
 

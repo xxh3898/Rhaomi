@@ -3,7 +3,7 @@ title: "정기 유지보수"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-31"
 review_trigger: "운영 주기 변경 시"
 ---
 
@@ -11,7 +11,7 @@ review_trigger: "운영 주기 변경 시"
 
 ## 구현 상태
 
-아래 주기는 [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)와 [ADR-013](../09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md)의 production 목표다. backup repository, HomeOps monitor와 maintenance automation은 아직 구현·실행되지 않았다.
+아래 주기는 [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)와 [ADR-013](../09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md)의 production 목표다. local/CI release adapter에는 post-switch smoke를 통과한 성공 release 기본 5개 retention과 current·previous 보호, stale·실패 candidate cleanup이 구현됐지만 production path에서 자동 실행되지 않는다. machine result가 `retentionStatus=DEFERRED`이면 이미 성공한 current를 낮추지 않고 release root integrity·permission을 재검증한 뒤 별도 maintenance로 retention을 재시도한다. backup repository, HomeOps monitor와 maintenance automation은 아직 구현·실행되지 않았다.
 
 ## 매일 자동
 

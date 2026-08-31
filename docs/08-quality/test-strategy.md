@@ -284,6 +284,8 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 - private media named volume의 backend-only mount와 PostgreSQL volume 분리
 - Directus service 부재
 - 종료 시 named volume 보존
+- explicit validation-only `publisher-validation` profile에서 Java 25·Node 24·Sharp actual full publication E2E, public release temp filesystem과 normal service 집합 불변
+- int64 E2E가 현재 task label의 사전 생성 Node/Gradle cache volume만 사용하며 불일치·부재 시 unlabeled volume을 암묵 생성하지 않음
 
 ## 현재 Phase 1D 운영 아키텍처 문서 검증
 
@@ -337,17 +339,25 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 - raw HTTP `9007199254740993` → Node parser → V2 `content.json`·`media-manifest.json`과 machine CLI의 exact string 보존
 - CLI environment-only credential, fixed argv, safe one-line JSON과 exit `0/20/21/22`, secret/URL/path/UUID/stack leak 0
 - Linux amd64 Hosted와 Linux arm64 Mac Compose Node 24/Sharp 실행
-- Java placeholder executor, publication DB state, Flyway V1~V9, default Compose와 public/admin route 불변
+- 8f6 staging-only CLI 실행 시 publication DB state, Flyway V1~V9, default Compose와 public/admin route 불변; 8f7 actual executor full gate는 아래 별도 suite에서 검증
 
-## 후속 정적 render·release 단위·통합 테스트
+## 현재 Phase 1C-8f7 정적 render·release 단위·통합 자동 검증
 
-- Build API URL/phone/source Markdown을 transformer가 링크·HTML로 안전하게 변환
-- slug/canonical, JSON-LD, alt validation과 content fixture → transformer → static snapshot
+- generated V2 exact loader, 홈·공지 상세·sitemap·robots Static Export와 backend runtime request 부재
+- URL/phone/source Markdown의 raw HTML escaping, link protocol allowlist, remote image alt-only와 exported dangerous URL 검사
+- slug/canonical·JSON-LD·admin noindex·alt·responsive `<picture>` 및 generated media hash/missing/orphan 검증
+- symlink·special file·private URL/path·credential marker와 broken internal link fail-closed
+- private manifest의 canonical string revision/generation·generatedAt·code identity·site tree digest 일치
+- validation 뒤와 switch 직전 `BigInt` stale guard, equal/lower no-op, immutable collision과 `Long.MAX_VALUE`
+- candidate loopback home/notice/media/404 pre-switch smoke, previous/current atomic symlink 뒤 동일 post-switch smoke, existing/first release rollback, 실패 candidate cleanup과 smoke 성공 뒤에만 실행되는 retention 보호, post-switch housekeeping 실패의 `DEFERRED` success 분리
+- actual Java process executor의 fixed argv/allowlist environment, safe machine result, root·descendant physical termination과 lock lifetime
+- PostgreSQL 18.6·Flyway V1~V9 active generation의 Build API→Sharp→Next→release→DB state success, higher/previous, lower no-op, transient same-generation retry, terminal current 유지
+
+다음은 여전히 후속 운영 통합 범위다.
+
 - additional admin mutation 없는 future Notice publish·expiry와 Gallery publish, publisher restart 뒤 overdue 처리
-- Notice·Gallery claim 뒤 변경까지 포함한 Build API 재검증 결과가 release까지 stale 공개를 막음
-- 구현된 30초 debounce·global lock·highest generation target과 실제 Build API/transformer 결과의 최종 snapshot 정확성
-- 낮거나 같은 generation의 old build switch 거부와 승인된 manual rebuild/retry의 새 generation
-- persisted snapshot/release manifest의 contentRevision·publishGeneration·generatedAt·codeImageDigest 일치
+- Notice·Gallery claim 뒤 실제 reschedule/archive 변경까지 포함한 release stale-content 방지
+- 승인된 manual rebuild/retry의 새 generation과 실제 production code image/digest
 
 ## 후속 콘텐츠 UI/E2E
 

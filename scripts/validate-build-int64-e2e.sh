@@ -12,8 +12,27 @@ postgres_image='postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde
 node_image='node:24.20.0-alpine3.23@sha256:0388af2af070cd4736a1567cfed02469ba117848845b4165d87a333edb53d2ca'
 backend_image=${RHAOMI_INT64_BACKEND_IMAGE:-dev-rhaomi-backend:java25-libheif-1.23.0}
 volume_prefix=${RHAOMI_COMPOSE_VOLUME_PREFIX:-dev-rhaomi}
-node_modules_volume="$volume_prefix-frontend-node-modules"
-gradle_cache_volume="$volume_prefix-backend-gradle-cache"
+node_modules_volume=${RHAOMI_INT64_NODE_MODULES_VOLUME:-"$volume_prefix-frontend-node-modules"}
+gradle_cache_volume=${RHAOMI_INT64_GRADLE_CACHE_VOLUME:-"$volume_prefix-backend-gradle-cache"}
+cleanup_task=${RHAOMI_CLEANUP_TASK:-issue-42-int64-v2-corrective}
+
+validate_resource_name() {
+  case "$1" in
+    "" | [!A-Za-z0-9]* | *[!A-Za-z0-9_.-]*)
+      echo "int64 E2E resource 이름이 유효하지 않습니다." >&2
+      exit 1
+      ;;
+  esac
+}
+
+validate_resource_name "$node_modules_volume"
+validate_resource_name "$gradle_cache_volume"
+validate_resource_name "$cleanup_task"
+
+if ! docker volume inspect "$node_modules_volume" "$gradle_cache_volume" >/dev/null 2>&1; then
+  echo "int64 E2E에는 사전에 label과 함께 생성된 Node/Gradle cache volume이 필요합니다." >&2
+  exit 1
+fi
 
 if [ -z "${RHAOMI_BUILD_SERVICE_TOKEN:-}" ]; then
   echo "int64 E2E에는 build service test token이 필요합니다." >&2
@@ -31,7 +50,7 @@ trap cleanup EXIT HUP INT TERM
 docker network create --internal \
   --label io.homeserver.cleanup.environment=development \
   --label io.homeserver.cleanup.project=rhaomi \
-  --label io.homeserver.cleanup.task=issue-42-int64-v2-corrective \
+  --label "io.homeserver.cleanup.task=$cleanup_task" \
   --label io.homeserver.cleanup.lifecycle=task \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=$git_head" \
@@ -44,7 +63,7 @@ docker run -d --rm \
   --tmpfs /var/lib/postgresql:rw,nosuid,nodev,size=512m \
   --label io.homeserver.cleanup.environment=development \
   --label io.homeserver.cleanup.project=rhaomi \
-  --label io.homeserver.cleanup.task=issue-42-int64-v2-corrective \
+  --label "io.homeserver.cleanup.task=$cleanup_task" \
   --label io.homeserver.cleanup.lifecycle=task \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=$git_head" \
@@ -72,7 +91,7 @@ docker run -d --rm \
   --tmpfs /tmp:rw,nosuid,nodev,size=512m \
   --label io.homeserver.cleanup.environment=development \
   --label io.homeserver.cleanup.project=rhaomi \
-  --label io.homeserver.cleanup.task=issue-42-int64-v2-corrective \
+  --label "io.homeserver.cleanup.task=$cleanup_task" \
   --label io.homeserver.cleanup.lifecycle=task \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=$git_head" \
@@ -147,7 +166,7 @@ run_node_validation() {
     --network "$network_name" \
     --label io.homeserver.cleanup.environment=development \
     --label io.homeserver.cleanup.project=rhaomi \
-    --label io.homeserver.cleanup.task=issue-42-int64-v2-corrective \
+    --label "io.homeserver.cleanup.task=$cleanup_task" \
     --label io.homeserver.cleanup.lifecycle=task \
     --label io.homeserver.cleanup.retain=false \
     --label "io.homeserver.cleanup.git-head=$git_head" \

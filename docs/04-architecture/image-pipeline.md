@@ -30,10 +30,11 @@ JPEG / PNG / HEIC / HEIF upload
 → MediaContentProvider 입력·JPEG/PNG metadata 제거·재검증 [implemented]
 → no-upscale responsive variants + content-hashed filename [implemented]
 → atomic staging의 src/generated + public/generated       [implemented]
-→ crop/focal point·Next static render·release switch       [planned]
+→ manifest 기반 <picture>·Next static render·release       [implemented]
+→ 최종 crop/focal point·visual profile polish              [planned]
 ```
 
-현재 완료 범위는 upload에서 private canonical master, 갤러리 relation과 매장정보 Hero·프로필·OG scalar relation, internal build API, authenticated memory-only HTTP media provider, transport-independent transformer와 isolated atomic staging orchestration, dedicated publisher polling/debounce/coalesce/lock control plane까지다. crop/focal-point 정책, Static Export render, release manifest/switch와 real publisher success binding은 완료로 보지 않는다.
+현재 완료 범위는 upload에서 private canonical master, 갤러리 relation과 매장정보 Hero·프로필·OG scalar relation, internal build API, authenticated memory-only HTTP media provider, transport-independent transformer, manifest 기반 responsive `<picture>`, Next Static Export와 immutable release/switch의 실제 publisher binding까지다. 최종 crop/focal-point 정책, 디자인별 profile 조정과 production image/path provisioning은 완료로 보지 않는다.
 
 ## 저장 정책
 
@@ -73,7 +74,7 @@ Gallery·Hero profile은 Phase 1C-8f4의 구현 계약이다. source가 후보 �
 - 원본보다 큰 이미지를 업스케일하지 않는다.
 - 이미지마다 실제 `width`와 `height`를 manifest에 기록한다.
 - 같은 source byte와 encode 결과는 output SHA-256으로 file을 deduplicate한다.
-- `<picture>`와 `srcset`을 실제 page에 연결하는 작업은 후속이다.
+- Hero·Gallery·OG는 manifest `publicPath`만 사용한 정적 `<picture>`/`srcset`에 연결한다.
 - Hero LCP 후보는 preload 여부를 검토한다.
 - 아래쪽 이미지는 `loading="lazy"`를 사용한다.
 
@@ -108,14 +109,14 @@ production decoder-only image는 아직 구현되지 않았다. 현재 local/CI 
 - output byte SHA-256 filename과 결정적 media manifest
 - format·decode·transform·write 실패를 silent skip하지 않고 typed build 오류로 종료
 
-실제 page crop/focal point, 미용사·OG 최종 profile, HTML `<picture>` binding은 디자인·Static Export Issue에서 확정한다. 현재 fallback을 최종 OG 1200×630 crop 계약으로 해석하지 않는다.
+실제 page crop/focal point와 미용사·OG 최종 profile은 후속 디자인 Issue에서 확정한다. 현재 구현된 `<picture>` binding과 최대 1200 JPEG fallback을 최종 OG 1200×630 crop 계약으로 해석하지 않는다.
 
 ## HEIC 출시 게이트
 
 합성 HEIC의 backend 업로드·orientation·sRGB·metadata 제거는 amd64 CI와 arm64 container에서 자동 검증한다. 다만 은총쌤이 iPhone을 사용할 가능성이 높으므로 후속 `/admin` UI 통합에서 실제 iPhone Safari 원본 선택·전송을 반드시 시험한다.
 
 - 실제 Safari multipart 업로드 성공 여부
-- implemented staging adapter download·decode와 후속 full publisher/release 반영 여부
+- implemented full publisher의 download·decode·responsive derivative·release 반영
 - orientation
 - 색상 프로파일
 - 변환 결과

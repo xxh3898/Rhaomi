@@ -5,7 +5,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import kr.co.rhaomi.backend.publication.PublicationStateService;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration;
 import org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration;
 import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
@@ -20,7 +19,7 @@ import org.springframework.context.annotation.Import;
     DataJpaRepositoriesAutoConfiguration.class,
     SecurityAutoConfiguration.class
 })
-@EnableConfigurationProperties(PublisherProperties.class)
+@EnableConfigurationProperties({PublisherProperties.class, PublicationExecutorProperties.class})
 @Import(PublicationStateService.class)
 public class PublisherConfiguration {
 
@@ -51,9 +50,9 @@ public class PublisherConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean(PublicationBuildExecutor.class)
-    PublicationBuildExecutor unavailablePublicationBuildExecutor() {
-        return targetGeneration -> PublicationBuildResult.TRANSIENT_FAILURE;
+    PublicationBuildExecutor publicationBuildExecutor(
+            PublicationExecutorProperties properties) {
+        return new NodePublicationBuildExecutor(properties.toSettings());
     }
 
     @Bean(destroyMethod = "shutdownNow")

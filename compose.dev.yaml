@@ -155,6 +155,7 @@ services:
       - ./backend/src:/workspace/backend/src:ro
       - ./backend/build.gradle:/workspace/backend/build.gradle:ro
       - ./backend/Dockerfile.dev:/workspace/backend/Dockerfile.dev:ro
+      - ./backend/Dockerfile.publisher-validation:/workspace/backend/Dockerfile.publisher-validation:ro
       - ./backend/gradle:/workspace/backend/gradle:ro
       - ./infra/nginx/dev.conf:/workspace/infra/nginx/dev.conf:ro
       - ./scripts:/workspace/scripts:ro
@@ -168,6 +169,47 @@ services:
       - ./tsconfig.json:/workspace/tsconfig.json:ro
       - ./vitest.config.mts:/workspace/vitest.config.mts:ro
       - frontend-node-modules:/workspace/node_modules
+
+  publisher-validation:
+    profiles: ["publisher-validation"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.publisher-validation
+    image: ${RHAOMI_PUBLISHER_VALIDATION_IMAGE:-dev-rhaomi-publisher-validation:java25-node24-libheif-1.23.0}
+    init: true
+    working_dir: /workspace/backend
+    command:
+      [
+        "./gradlew",
+        "test",
+        "--tests",
+        "kr.co.rhaomi.publisher.FullPublicationPipelineIntegrationTests",
+        "--no-daemon",
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?POSTGRES_USER is required}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      RHAOMI_TEST_DATABASE_ALLOWED: "true"
+      RHAOMI_FULL_PUBLISHER_E2E: "true"
+      RHAOMI_PUBLISHER_E2E_SOURCE_ROOT: /workspace
+      RHAOMI_PUBLISHER_E2E_NODE: /usr/local/bin/node
+      RHAOMI_MEDIA_ROOT: /tmp/rhaomi-publisher-e2e-media
+    volumes:
+      - ./backend:/workspace/backend
+      - ./scripts:/workspace/scripts:ro
+      - ./src:/workspace/src:ro
+      - ./next.config.ts:/workspace/next.config.ts:ro
+      - ./package.json:/workspace/package.json:ro
+      - ./package-lock.json:/workspace/package-lock.json:ro
+      - ./tsconfig.json:/workspace/tsconfig.json:ro
+      - frontend-node-modules:/workspace/node_modules
+      - backend-gradle-cache:/root/.gradle
+    networks:
+      - backend-internal
 
 volumes:
   frontend-node-modules:

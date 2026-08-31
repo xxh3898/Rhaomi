@@ -50,7 +50,7 @@ Spring Boot 콘텐츠 transaction
 → 공통 build/validate/atomic switch pipeline
 ```
 
-두 경로는 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)의 build·검증·원자적 전환 구현을 공유한다. transactional outbox, generation state, dedicated polling/debounce/lock control loop와 Build API→transformer isolated staging data plane은 구현됐지만 Java executor binding, Next/release manifest·stale guard·atomic switch adapter는 아직 구현되지 않았다.
+두 경로는 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)의 build·검증·원자적 전환 구현을 공유한다. transactional outbox, generation state, dedicated polling/debounce/lock control loop, Build API→transformer staging, Next Static Export, private release manifest·`BigInt` stale guard·`previous/current` atomic switch·post-switch smoke·rollback·retention과 실제 Java executor binding을 local/CI filesystem에서 구현했다. production Compose·Nginx·secret·Mac canonical path provisioning과 실제 public HTTPS acceptance는 아직 구현되지 않았다.
 
 ## 최초 배포 사전 조건
 
@@ -116,7 +116,7 @@ Spring Boot 콘텐츠 transaction
 
 - 코드 checkout은 마지막 승인된 main commit을 사용한다.
 - publisher는 immediate pending event와 `availableAt <= now`인 scheduled notice event를 처리하고 restart 후 overdue event를 복구한다.
-- content snapshot과 release manifest에 `contentRevision`, `publishGeneration`, `generatedAt`을 기록한다.
+- generated content와 private release manifest에 canonical decimal string `contentRevision`, `publishGeneration`과 microsecond `generatedAt`을 기록하고 exact code SHA·image tag/digest·Flyway·SBOM reference·site tree digest를 결합한다.
 - `contentRevision`은 콘텐츠 mutation snapshot이고, mutation 없는 publish/expiry boundary, 승인된 code release와 manual rebuild/retry는 새 `publishGeneration`을 만든다.
 - scheduled event마다 current notice row와 전체 snapshot을 다시 검증해 reschedule, draft·archived 전환과 window 변경의 stale event를 no-op 또는 최신 generation에 coalesce한다.
 - build API와 transformer에서 published, notice 게시·만료, relation·media와 file을 이중 검증한다.
@@ -125,6 +125,9 @@ Spring Boot 콘텐츠 transaction
 - 현재 공개 사이트를 유지한다.
 - 동일 `publishGeneration` transient failure는 1분·5분·15분 최대 3회 retry하고 data 오류는 무한 retry하지 않는다.
 - atomic switch는 `publishGeneration`을 authority로 비교해 낮거나 같은 generation이 newer `current`를 덮지 못하게 한다.
+- candidate는 release root와 같은 filesystem에서 완성·검증한 뒤 immutable package로 설치한다. manifest는 public `site/` root 밖에 두고 `current`·`previous`는 exact release `site/` symlink만 가리킨다.
+- switch 직전 current manifest를 다시 읽어 stale 여부를 재확인하고, loopback post-switch serving smoke 실패 시 같은 lock scope에서 이전 symlink 상태를 복구한다.
+- 성공 release는 기본 5개를 보존하되 current·previous target은 개수와 무관하게 보호한다.
 - 운영자에게 마지막 성공·실패 content revision·publish generation과 새 generation을 만드는 명시적 수동 retry를 제공한다.
 
 ## Nginx

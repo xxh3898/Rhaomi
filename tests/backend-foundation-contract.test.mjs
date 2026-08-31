@@ -450,7 +450,7 @@ test("frontend runtime과 dependency에서 local credential filesystem을 격리
   const gatewayBlock = compose.match(/\n  gateway:\n([\s\S]*?)\n  backend:/)?.[1] ?? "";
   const backendBlock = compose.match(/\n  backend:\n([\s\S]*?)\n  postgres:/)?.[1] ?? "";
   const contractCheckBlock =
-    compose.match(/\n  contract-check:\n([\s\S]*?)\nvolumes:/)?.[1] ?? "";
+    compose.match(/\n  contract-check:\n([\s\S]*?)\n  publisher-validation:/)?.[1] ?? "";
 
   assert.doesNotMatch(frontendBlock, /- \.:\/workspace(?:\s|$)/);
   assert.doesNotMatch(frontendBlock, /\.env|\.\/backend|RHAOMI_BUILD_SERVICE_TOKEN/i);
@@ -522,6 +522,11 @@ test("build snapshot transformer dependency와 amd64/arm64 Compose smoke를 고�
   assert.match(composeSmoke, /validate-build-int64-e2e\.sh/);
   assert.match(int64E2e, /9007199254740993/);
   assert.match(int64E2e, /9223372036854775807/);
+  assert.match(int64E2e, /RHAOMI_INT64_NODE_MODULES_VOLUME/);
+  assert.match(int64E2e, /RHAOMI_INT64_GRADLE_CACHE_VOLUME/);
+  assert.match(int64E2e, /RHAOMI_CLEANUP_TASK/);
+  assert.match(int64E2e, /docker volume inspect/);
+  assert.match(int64E2e, /io\.homeserver\.cleanup\.task=\$cleanup_task/);
   assert.doesNotMatch(int64E2e, /docker (?:volume rm|system prune|volume prune)/);
   assert.match(contracts, /export type BuildSnapshotV2/);
   assert.match(contracts, /schemaVersion: 2/);
@@ -578,10 +583,8 @@ test("Build API HTTP adapter와 staging-only orchestration 경계를 고정한�
   assert.match(cli, /--publish-generation/);
   assert.match(cli, /--output/);
   assert.doesNotMatch(cli, /--(?:url|credential|token)/i);
-  assert.match(
-    publisherConfiguration,
-    /unavailablePublicationBuildExecutor[\s\S]*?PublicationBuildResult\.TRANSIENT_FAILURE/,
-  );
+  assert.match(publisherConfiguration, /new NodePublicationBuildExecutor/);
+  assert.doesNotMatch(publisherConfiguration, /unavailablePublicationBuildExecutor/);
   assert.doesNotMatch(compose, /\n  publisher:\n/);
   assert.match(nginx, /location \^~ \/api\/build\/\s*\{\s*return 404;/);
 });
@@ -606,6 +609,63 @@ test("publisher control loop를 exact opt-in non-web process로 격리한다", a
   assert.doesNotMatch(nginx, /publisher/i);
   assert.match(smoke, /--tests 'kr\.co\.rhaomi\.publisher\.\*'/);
   assert.match(smoke, /PublisherIsolationIntegrationTests/);
+});
+
+test("full static release executor와 validation-only multi-runtime 경계를 고정한다", async () => {
+  const [
+    packageJson,
+    compose,
+    validationDockerfile,
+    releaseCli,
+    releaseOrchestrator,
+    releaseFilesystem,
+    javaExecutor,
+    smoke,
+  ] = await Promise.all([
+    source("package.json"),
+    source("compose.dev.yaml"),
+    source("backend/Dockerfile.publisher-validation"),
+    source("scripts/publish-static-release.mts"),
+    source("src/publication-release/orchestrator.mts"),
+    source("src/publication-release/filesystem.mts"),
+    source("backend/src/main/java/kr/co/rhaomi/publisher/NodePublicationBuildExecutor.java"),
+    source("scripts/validate-backend-compose.sh"),
+  ]);
+  const manifest = JSON.parse(packageJson);
+  const publisherBlock =
+    compose.match(/\n  publisher-validation:\n([\s\S]*?)\nvolumes:/)?.[1] ?? "";
+
+  assert.equal(
+    manifest.scripts["publish:static-release"],
+    "node scripts/publish-static-release.mts",
+  );
+  assert.match(validationDockerfile, /node:24\.20\.0-alpine3\.23@sha256:/);
+  assert.match(validationDockerfile, /eclipse-temurin:25\.0\.4_7-jdk-alpine-3\.23@sha256:/);
+  assert.match(validationDockerfile, /node --version/);
+  assert.match(validationDockerfile, /java -version/);
+  assert.match(publisherBlock, /profiles: \["publisher-validation"\]/);
+  assert.match(publisherBlock, /FullPublicationPipelineIntegrationTests/);
+  assert.doesNotMatch(publisherBlock, /\n\s+ports:|docker\.sock|\.env\.dev\.local/);
+  assert.match(releaseCli, /--publish-generation/);
+  assert.doesNotMatch(releaseCli, /--(?:credential|token|url)/i);
+  assert.match(releaseOrchestrator, /preparePublicationStaging/);
+  assert.match(releaseOrchestrator, /buildIsolatedNextExport/);
+  assert.match(releaseOrchestrator, /validateStaticExport/);
+  assert.match(releaseOrchestrator, /smokeStaticServingPath/);
+  assert.match(releaseOrchestrator, /retentionStatus: "COMPLETE" \| "DEFERRED" \| "NOT_APPLICABLE"/);
+  assert(
+    releaseOrchestrator.indexOf("const switchResult") <
+      releaseOrchestrator.indexOf("await pruneSuccessfulReleases"),
+  );
+  assert.match(releaseFilesystem, /compareGenerations/);
+  assert.match(releaseFilesystem, /atomicSymlink/);
+  assert.match(releaseFilesystem, /pruneSuccessfulReleases/);
+  assert.match(javaExecutor, /ProcessBuilder/);
+  assert.match(javaExecutor, /trackProcessTree/);
+  assert.match(javaExecutor, /terminateProcessTree/);
+  assert.match(javaExecutor, /"DEFERRED"\.equals\(retentionStatus\)/);
+  assert.match(smoke, /--profile publisher-validation build publisher-validation/);
+  assert.match(smoke, /--profile publisher-validation run --rm publisher-validation/);
 });
 
 test("실행 경로에 Directus 설정을 남기지 않는다", async () => {

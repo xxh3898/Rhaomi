@@ -3,7 +3,7 @@ title: "ADR-008: 공개 사이트의 관리 backend 런타임 독립"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-31"
 review_trigger: "공개 API 연동 제안 시"
 ---
 
@@ -11,6 +11,7 @@ review_trigger: "공개 API 연동 제안 시"
 
 - 결정일: 2026-08-28
 - 상태: Accepted
+- 개정일: 2026-08-31 — Issue #43 generated V2 Static Export·release foundation 반영
 
 ## 맥락
 
@@ -30,6 +31,8 @@ Spring Boot와 PostgreSQL은 관리자 기능에 필요하지만, 이들이 중�
 - Open Graph asset
 
 고객 브라우저는 Spring Boot와 PostgreSQL에 연결하지 않는다.
+
+Issue #43은 generated V2 content/media만 읽는 홈·공지 상세, sitemap·robots·JSON-LD·responsive media Static Export와 strict final-tree validator를 구현했다. release build 중에만 internal Build API를 사용하며 완성된 `site/`에는 backend URL·credential·private path가 없어야 한다. local/CI release foundation은 이 독립성을 자동 검증하지만 실제 production backend/DB 중단 smoke는 운영 provisioning 뒤 별도 gate다.
 
 ## 검증 조건
 

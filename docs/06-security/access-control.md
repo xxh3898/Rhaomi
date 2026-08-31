@@ -25,7 +25,7 @@ review_trigger: "역할·권한·인증 방식 변경 시"
 - 일반 고객 회원 기능 없음
 - 초기 단계에서 불필요한 다중 RBAC를 만들지 않음
 
-현재 `ADMIN` 업무 endpoint와 `/admin/` 화면은 견종·서비스·공지·갤러리, private media relation을 포함한 매장정보 singleton과 private media master에 한정한다. anonymous public gallery·shop·media endpoint는 아직 없다.
+현재 `ADMIN` 업무 endpoint와 `/admin/` 화면은 견종·서비스·공지·갤러리, private media relation을 포함한 매장정보 singleton과 private media master에 한정한다. anonymous public gallery·shop·media API endpoint는 없고 공개 데이터는 검증된 Static Export 안에만 포함된다.
 
 ### Public customer
 
@@ -45,7 +45,7 @@ build-time 공개 콘텐츠 조회는 [ADR-011](../09-decisions/ADR-011-transact
 - Build Snapshot V2 revision/generation은 canonical decimal string만 허용하고 Node가 JSON number로 축소하지 않아 generation equality·stale protection을 precision collision로 우회하지 못하게 한다.
 - raw storage path, DB credential, admin session과 private metadata를 노출하지 않는다.
 
-build API와 stateless credential 경계, Node staging adapter와 credential을 사용하지 않는 publisher control loop는 구현됐다. adapter는 같은 secret source의 `BUILD_API_CREDENTIAL`을 environment로만 받고 URL/query/argv/output에는 넣지 않으며 no-redirect bounded GET과 manifest-scoped memory media provider만 사용한다. production publisher secret provisioning과 Java executor binding은 아직 구현되지 않았다. local token은 backend와 명시적인 staging validation process에만 전달하고 frontend·gateway environment에는 key를 두지 않으며 frontend filesystem에는 `.env.dev.local`, backend source와 local secret/config를 mount하지 않는다. 관리자 session을 재사용하거나 실제 token을 이 문서·저장소에 만들지 않는다.
+build API와 stateless credential 경계, Node full release adapter와 credential을 직접 해석하지 않는 publisher control loop를 구현했다. Java executor는 같은 secret source의 `BUILD_API_CREDENTIAL`을 allowlist environment로만 child에 전달하고 URL/query/argv/output에는 넣지 않으며 no-redirect bounded GET과 manifest-scoped memory media provider만 사용한다. production publisher secret/image/path provisioning은 아직 구현되지 않았다. local token은 backend와 명시적인 validation process에만 전달하고 frontend·gateway environment에는 key를 두지 않으며 frontend filesystem에는 `.env.dev.local`, backend source와 local secret/config를 mount하지 않는다. 관리자 session을 재사용하거나 실제 token을 이 문서·저장소에 만들지 않는다.
 
 ### Static admin client
 
@@ -127,7 +127,7 @@ build API와 stateless credential 경계, Node staging adapter와 credential을 
 - `id`, `slug` 수정값, actor, `password_hash`, audit timestamp와 내부/system field는 일반 update API에서 받지 않는다.
 - 매장정보 request는 명시된 scalar media UUID와 Hero·프로필 alt만 추가로 받고 `id`, `singletonKey`, actor, audit, storage metadata를 받지 않는다. response는 mutable field·scalar relation id·server-owned audit만 반환하고 DB id·singleton guard·media entity는 노출하지 않는다.
 - media upload는 multipart `file` 하나만 받고 filename을 path·DB·response에 사용하지 않는다. status update는 `active | archived` 하나만 허용한다.
-- media response는 storage key, filesystem path, extension과 SHA-256을 노출하지 않는다. archived content도 ADMIN만 조회할 수 있고 public/build route는 없다.
+- admin media response는 storage key, filesystem path, extension과 SHA-256을 노출하지 않는다. archived content도 ADMIN만 조회할 수 있고 anonymous public route는 없다. build media route는 active generation과 current public relation scope의 verified bytes만 private no-store로 허용한다.
 - gallery request는 scalar breed/service/media id만 받고 response도 id만 반환한다. target 객체와 private media storage metadata를 embed하지 않는다.
 - gallery publish 전 breed/service `published`, 연결 media `active`를 검증한다. target의 후속 상태 변경은 cascade하지 않고 후속 build snapshot에서 다시 검증한다.
 - shop PUT은 Hero·프로필 image-alt pair와 모든 non-null media의 `active` 상태를 mutation 전에 검증한다. target의 후속 archive는 cascade하지 않고 후속 build snapshot에서 relation·file을 다시 검증한다.

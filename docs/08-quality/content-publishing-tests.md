@@ -76,7 +76,7 @@ review_trigger: "관리 backend·배포 event 변경 시"
 - [x] shutdown timeout 뒤 non-daemon control worker·lock 유지와 executor의 늦은 success/no-op completion 금지
 - [x] idle/debounce/executor shutdown, bounded lifecycle join과 shutdown 뒤 새 claim 부재
 - [x] PostgreSQL 18.6 burst·stale·same-generation retry·expired lease recovery·shared lock integration
-- [x] production Build API/transformer/Next/release adapter 없는 transient placeholder와 default Compose publisher service 부재
+- [x] 8f5 control-plane 범위에서 production Build API/transformer/Next/release adapter 없는 transient placeholder와 default Compose publisher service 부재
 
 ## Phase 1C-8f6 Build API adapter·staging orchestration 완료
 
@@ -90,10 +90,26 @@ review_trigger: "관리 backend·배포 event 변경 시"
 - [x] staging result·CLI의 canonical revision/generation string 보존, fixed argv, environment-only credential, safe JSON/exit family와 token·URL/path·UUID·stack 비노출
 - [x] `0` content revision, safe integer 경계, `9007199254740993`, `Long.MAX_VALUE` 성공과 zero generation·leading zero·overflow·JSON number 거부
 - [x] frontend/gateway credential environment/filesystem 0, public `/api/build/**` 404 유지
-- [x] Java `PublicationBuildExecutor` transient placeholder와 publication state·Flyway V1~V9 불변
+- [x] 8f6 staging-only 범위에서 Java `PublicationBuildExecutor` transient placeholder와 publication state·Flyway V1~V9 불변
 - [x] Linux amd64 Hosted와 Linux arm64 Mac Compose의 Node 24/Sharp orchestration suite 실행 계약
 
-아래 항목은 각 줄의 전체 범위를 기준으로 표시한다. producer, claim/generation, build API, transformer, HTTP adapter·isolated staging과 publisher control plane은 완료했다. Next orchestration·release/public 결과는 미완료다.
+## Phase 1C-8f7 Next release·atomic switch 완료
+
+- [x] tracked synthetic V2 fixture, exact generated content/media loader와 runtime backend request 없는 홈·공지 상세 Static Export
+- [x] raw HTML disabled Markdown, dangerous URL 거부, remote image alt-only와 canonical·JSON-LD·sitemap·robots 계약
+- [x] manifest-scoped AVIF·WebP·JPEG `<picture>`, media content hash·missing·orphan 검증과 private URL/path 비노출
+- [x] final tree regular-file-only traversal, internal link·canonical·sitemap·robots·admin noindex·secret marker fail-closed 검증
+- [x] private release manifest의 canonical string revision/generation·generatedAt, exact code identity·site digest와 immutable collision 계약
+- [x] validation 뒤·switch 직전 두 번의 `BigInt` stale guard, equal/lower no-op과 `Long.MAX_VALUE` 전환
+- [x] previous/current atomic symlink, loopback post-switch 홈·공지·media·404 smoke, failure rollback과 첫 release current 제거
+- [x] immutable install 전 candidate loopback 홈·대표 공지·media·404 pre-switch smoke와 실패 시 current 불변
+- [x] post-switch smoke 성공 뒤 release 5개 retention과 current·previous 보호, stale·smoke 실패 candidate cleanup 및 실패 시 retention 미실행, post-switch housekeeping 실패의 `DEFERRED` success 분리와 malformed/out-of-root link fail closed
+- [x] actual Java fixed-process executor의 safe result/exit mapping, malformed·multiple·oversized output와 launch failure 분류
+- [x] root가 먼저 끝나거나 interrupt를 무시하는 descendant의 physical exit 전 executor·global lock 반환 금지
+- [x] 실제 PostgreSQL 18.6·Flyway V1~V9·Build API·Sharp·Next·release·control loop full E2E의 success·higher·lower no-op·transient retry·terminal current 유지
+- [x] Java 25+Node 24 validation-only image의 Linux amd64/arm64 publisher·transformer 실행 계약과 default Compose service 불변
+
+아래 항목은 production time-boundary·실제 콘텐츠·운영 acceptance처럼 각 줄의 전체 범위를 기준으로 표시한다. producer, claim/generation, build API, transformer, HTTP adapter와 local/CI full release는 완료했지만 unchecked 항목을 실제 운영 완료로 간주하지 않는다.
 
 ## 기본 게시
 
@@ -168,8 +184,8 @@ WebP source와 실제 iPhone HEIC는 canonical master transformer 입력 형식�
 - [x] 콘텐츠 변경과 publishing outbox가 같은 PostgreSQL transaction에서 commit/rollback
 - [x] Build API V2 response의 canonical string `contentRevision`·`publishGeneration`·`generatedAt` 일치와 `codeImageDigest` 부재
 - [x] transformer V2 content/manifest·staging result·CLI의 canonical string `contentRevision`·`publishGeneration`·`generatedAt` 보존
-- [ ] publisher content snapshot/release manifest의 위 세 field·승인 code image digest 일치
-- [ ] 낮거나 같은 `publishGeneration`의 old build가 newer current를 덮지 못함
+- [x] publisher generated content/private release manifest의 위 세 field·executor code image digest 일치
+- [x] 낮거나 같은 `publishGeneration`의 old build가 newer current를 덮지 못함
 - [x] build service token disabled → fixed 503, production 누락·malformed → startup failure
 - [x] Build API client timeout·5xx → staging adapter transient failure, public/current mutation 없음
 - [ ] PostgreSQL 중단 → build 실패, current 유지
@@ -190,7 +206,7 @@ WebP source와 실제 iPhone HEIC는 canonical master transformer 입력 형식�
 
 ## 롤백
 
-- [ ] previous release 존재
-- [ ] symlink 전환
-- [ ] 공개 스모크
-- [ ] publisher가 문제 revision을 무한 재배포하지 않게 조치
+- [x] local/CI previous release 존재와 current·previous target 보존
+- [x] local/CI atomic symlink 전환
+- [x] loopback post-switch 공개 스모크와 failure rollback
+- [x] deterministic invalid snapshot terminal 처리와 current 유지

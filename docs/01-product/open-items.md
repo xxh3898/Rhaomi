@@ -47,13 +47,13 @@ review_trigger: "항목 확정 시"
 - Flyway V4·V7과 매장정보 관리자 API는 text·영업정보·외부 링크와 nullable Hero·프로필·OG private media relation을 담을 구조와 검증을 제공한다.
 - 실제 라오미펫 상호·주소·전화·영업시간·소개·외부 URL은 migration, source constant, 기본 fixture로 seed하지 않는다.
 - Flyway V5 private media upload/master, Flyway V6 갤러리 relation과 Flyway V7 매장정보 Hero·프로필·OG media FK는 구현됐다.
-- public/build gallery·shop·media API, 공개 responsive 파생본과 Hero·프로필·OG 렌더링은 아직 없다.
+- internal build snapshot/media API와 공개 responsive 파생본, Hero·Gallery·OG Static Export binding은 구현됐다. 실제 운영 콘텐츠·사진 seed, 최종 crop/focal-point·시각 디자인과 public release provisioning은 아직 없다.
 - 실제 사진 게시 동의, 실제 iPhone Safari UI 검증과 운영 private storage·backup이 완료될 때까지 사진 공개는 출시 차단 상태로 남긴다.
 - [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)에서 외장 SSD와 iCloud Drive의 별도 encrypted restic repository를 backup 매체로 확정했다. `/Volumes/<provisioned-volume>/...` 아래 exact repository path·용량·iCloud folder·repository key 보관 위치, Apple remote sync 완료와 fresh retrieval restore 증거는 provisioning 전까지 출시 차단이다.
 - automated remote-sync verification은 아직 미구현이다. 구현 전에는 local backup RPO, local iCloud repository integrity와 remotely verified offsite RPO를 분리하고, 수동 증거가 없는 backup set을 offsite `PASS`로 표시하지 않는다.
 - Mac host filesystem authority는 `/private/var/lib/rhaomi`이고 PostgreSQL primary PGDATA는 production project-scoped Docker named volume이다. exact ownership·permission·rendered volume identity, bind/persistence smoke와 logical backup→isolated `pg_restore` 증거는 provisioning 전까지 출시 차단이다.
 - `/srv/rhaomi`는 Linux web/publisher container target에만 허용한다. Mac host `synthetic.conf`·Docker Desktop custom File Sharing, PostgreSQL host PGDATA bind와 raw-volume restic backup은 production 계약이 아니다.
-- [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)는 production 운영 계약을 확정했고 publisher control loop와 Build API→transformer isolated staging data plane까지 구현했지만 production Compose·GitHub Environment·publisher release adapter/service, backup, HomeOps와 decoder-only image는 아직 구현되지 않았다.
+- [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)는 production 운영 계약을 확정했고 publisher control loop와 Build API→transformer→Next→immutable release/atomic switch의 격리 검증 경로까지 구현했다. production Compose·GitHub Environment·publisher service/secret/path provisioning, backup, HomeOps와 decoder-only image는 아직 구현되지 않았다.
 - 이번 Issue에서는 실제 이미지·갤러리 seed, 운영 `shop_settings` provisioning과 production migration을 실행하지 않는다. 실제 값·게시 권한 확인과 별도 운영 승인을 거친 후속 작업으로 남긴다.
 
 ## 확인 전 실행 보류

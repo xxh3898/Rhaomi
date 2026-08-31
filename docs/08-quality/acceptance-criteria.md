@@ -316,7 +316,7 @@ review_trigger: "제품 기능 변경 시"
 
 **Given** executor가 `SUCCESS | NO_PUBLIC_CHANGE | TRANSIENT_FAILURE | TERMINAL_FAILURE`를 반환할 때
 
-**Then** control loop만 기존 state service의 success·no-op·transient·terminal transition에 각각 매핑한다. 현재 placeholder는 transient failure로 fail-closed하며 public release를 만들지 않는다.
+**Then** control loop만 기존 state service의 success·no-op·transient·terminal transition에 각각 매핑한다. actual executor는 AC-23의 전체 release gate를 통과한 경우에만 success/no-op을 반환하고, launch·transport·validation·process 실패는 fixed safe category로 fail closed한다.
 
 **Given** idle, debounce 또는 executor 중 shutdown이 요청될 때
 
@@ -344,4 +344,30 @@ review_trigger: "제품 기능 변경 시"
 
 **Given** HTTP snapshot/media와 transformer staging이 모두 성공했을 때
 
-**Then** output의 `contentRevision`, `publishGeneration`, `generatedAt`은 fetched snapshot과 일치하지만 Java placeholder executor와 publication DB state는 변하지 않는다. Next/export/release/stale guard/current switch가 없으므로 `SUCCESS`나 `NO_PUBLIC_CHANGE`로 간주하지 않는다.
+**Then** 독립 staging output의 `contentRevision`, `publishGeneration`, `generatedAt`은 fetched snapshot과 일치하고 publication DB state는 변하지 않는다. 이 단계만으로는 `SUCCESS`나 `NO_PUBLIC_CHANGE`가 아니며 actual executor는 AC-23의 Next/export/release gate까지 계속 수행한다.
+
+## AC-23 Next Static Export·immutable release·actual executor
+
+**Given** strict Build Snapshot V2와 generated media manifest가 있을 때
+
+**When** full release executor가 target generation을 처리하면
+
+**Then** repository source를 수정하지 않는 isolated workspace에서 홈·공지 상세·sitemap·robots를 Static Export하고, safe Markdown은 raw HTML을 text로 escape하며 dangerous URL을 link로 만들지 않고 remote Markdown image는 alt text만 보존한다. responsive `<picture>`는 verified manifest path의 AVIF·WebP·JPEG만 사용한다.
+
+**Then** final tree의 regular file·internal link·canonical·sitemap·robots·admin noindex·generated media hash를 strict 검증하고 backend/internal URL, credential marker, private storage path, symlink·special file, missing·orphan media를 거부한다.
+
+**Given** candidate export가 검증됐을 때
+
+**Then** public `site/`의 sibling private manifest에 exact canonical decimal string `contentRevision`·`publishGeneration`, `generatedAt`, code SHA·image identity·Flyway·SBOM reference와 site tree digest를 기록한다. candidate loopback에서 홈·대표 공지·media·404를 확인한 뒤 same-filesystem immutable package로 설치한다. current manifest generation은 validation과 switch 직전에 각각 `BigInt`로 비교하며 같거나 낮은 target은 symlink를 변경하지 않는 `NO_PUBLIC_CHANGE`다.
+
+**Given** 더 높은 generation의 candidate를 전환할 때
+
+**Then** `previous`와 `current`를 sibling temp symlink rename으로 바꾸고 loopback HTTP에서 홈·공지·media·404를 확인한다. post-switch smoke가 실패하면 같은 global lock 안에서 이전 link 상태를 복구하고 첫 release면 `current`를 제거한다. 실패 candidate는 성공 retention을 실행하기 전에 제거하며, smoke 성공 뒤에만 기본 성공 release 5개를 계산하고 current·previous를 항상 보호한다.
+
+**Given** exact opt-in non-web Java publisher가 actual executor를 실행할 때
+
+**Then** fixed Node executable·script·generation argv와 allowlist environment만 사용하고 단일 bounded machine JSON을 typed result로 매핑한다. credential·URL·path·UUID·stack은 argv, output, durable state와 public artifact에 남지 않는다. interrupt·shutdown 시 root와 관찰한 descendant의 physical exit 전에는 Java body와 filesystem lock scope를 종료하지 않는다.
+
+**Given** 실제 PostgreSQL 18.6·Flyway V1~V9 publication state와 backend Build API를 사용한 full integration일 때
+
+**Then** first success, higher generation과 previous 보존, lower generation no-op, transient same-generation retry 후 success, terminal invalid snapshot의 current 유지가 DB result와 release filesystem에서 함께 일치한다. normal backend와 default Compose에는 publisher bean·service·public route가 추가되지 않는다.
