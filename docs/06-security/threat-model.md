@@ -13,17 +13,19 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 
 - 관리자 계정과 password hash
 - 관리자 session과 CSRF token
+- WebAuthn RP-side credential record와 recovery-code secret
 - PostgreSQL 데이터
 - transactional content revision, publish generation과 publishing outbox state
 - private canonical 시술사진과 metadata
 - internal build service credential, full release adapter와 향후 production publisher 주입 경계
-- encrypted restic repository와 recovery key
+- 초기 Mac mini local backup repository·manifest와 future encrypted restic recovery key
 - 공개 도메인과 배포 권한
 - GitHub 저장소와 Actions 권한
 
 ## 공격 표면
 
 - Spring Boot 관리자 login과 `/api/admin/**`
+- 향후 WebAuthn registration·authentication·registration revoke/remove와 recovery-code 복구
 - session cookie와 CSRF token 전달
 - local/test 관리자 bootstrap
 - Actuator health
@@ -39,7 +41,10 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 
 | 위협 | 영향 | 통제 |
 |---|---|---|
-| 관리자 credential 탈취 | 콘텐츠 변조, 내부 데이터 접근 | BCrypt, 일반화된 로그인 실패, 2FA 배포 게이트, session 폐기 |
+| 관리자 credential 탈취 | 콘텐츠 변조, 내부 데이터 접근 | BCrypt, 일반화된 로그인 실패, WebAuthn/passkey 배포 게이트, RP-side credential record 최소 접근, recovery code 보호, session 폐기 |
+| passkey private key의 server 수집·기록 | authenticator trust 경계 붕괴, key 유출 | private key는 authenticator/device authority, server input·DB·환경변수·log·backup·release evidence에서 금지 |
+| WebAuthn registration 위조·record 변조 | 공격자 authenticator 등록, 관리자 사칭 | credential ID·public key·account binding·sign-counter metadata integrity, registration 승인, 분실·폐기·의심 시 credential record revoke/remove |
+| recovery code 노출·재사용 | second factor 우회 | recovery code만 secret inventory로 관리하고 사용·노출·재발급·운영자 변경 시 기존 code 무효화와 새 set rotation |
 | session 탈취 | 관리자 권한 사용 | HttpOnly, SameSite, production Secure/TLS fail-fast, log 마스킹 |
 | CSRF | 관리자 의도와 다른 변경 | Spring Security CSRF 유지, token 없는 state change 거부 |
 | session fixation | 로그인 전 session 탈취 연계 | 로그인 성공 시 session id 교체 |
@@ -93,14 +98,17 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | Notice Markdown XSS·remote image 우회 | script 실행·private/remote resource 공개 | raw HTML 비활성, escaping·link protocol allowlist, Markdown image의 alt-only 처리와 exported HTML dangerous URL 검증 |
 | release tree·manifest 변조 | stale downgrade·path escape·임의 파일 공개 | exact manifest shape·site tree digest, regular-file-only traversal, symlink/special file 거부와 `BigInt` switch-time stale 재검증 |
 | publisher child process 잔존 | global lock 해제 뒤 두 release executor 동시 side effect | Node root·관찰 descendant physical exit 확인, 정상 root exit 뒤 orphan도 transient 강제 종료, Java body 종료 전 lock 유지 |
-| backup key 탈취·분실 | 민감 원본 노출 또는 복구 불가 | 별도 encrypted repository, 제한된 password source, password manager+offline recovery key |
+| local-only backup 동시 손실 | host/storage 전체 장애에서 production data와 backup 동시 손실 | 초기 accepted risk 명시, local manifest/check·isolated restore; external/offsite는 future hardening |
+| future backup key 탈취·분실 | 민감 원본 노출 또는 복구 불가 | external hardening 도입 시 별도 encrypted repository, 제한된 password source, password manager+offline recovery key |
 | PostgreSQL volume 오삭제 | 전체 운영 DB 손실 | project-scoped named volume, 일반 `down` 보존, production `down -v`·prune·direct delete 금지, logical backup·isolated `pg_restore` |
 | 자동 복구 오작동 | 장애 확대·data mutation | stateless web/backend 단일 restart allowlist, deploy/backup lock, 30분 cooldown, audit |
 | native codec 공급망 | image 처리 RCE·license 위반 | pinned source commit, decoder-only, x265 absence, SBOM·scan·actual fixture |
 
 ## 출시 차단
 
-- 관리자 2FA 없음
+- 관리자 WebAuthn/passkey 2차 인증 없음 또는 password-only production 허용
+- passkey private key를 server가 수집·저장·로그하거나 RP-side credential record와 recovery-code secret을 같은 rotation 대상으로 취급
+- WebAuthn registration revoke/remove와 recovery-code 무효화·rotation 절차 부재
 - TLS 없이 production session cookie 사용
 - production에서 `Secure=false`
 - PostgreSQL 외부 노출
@@ -116,7 +124,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - Mac `/private/var/lib/rhaomi` ownership·bind smoke, PostgreSQL named-volume restart/일반 `down` persistence와 isolated `pg_restore` 증거 부재
 - HomeOps 자동 복구가 DB·volume·migration·backup을 변경할 수 있음
 
-현재 local backend·gateway와 `/admin/` 인증 셸·미디어·매장정보·견종·서비스·갤러리·공지 관리 UI는 운영 배포 대상이 아니므로 2FA·TLS·운영 account provisioning을 구현하지 않는다. noindex와 client session 확인도 보안 통제로 간주하지 않으며, 실제 iPhone Safari HEIC upload·shop/견종/서비스/갤러리/공지 form·VoiceOver 증거가 없는 상태를 운영 준비 완료로 표현하지 않는다.
+현재 local backend·gateway와 `/admin/` 인증 셸·미디어·매장정보·견종·서비스·갤러리·공지 관리 UI는 운영 배포 대상이 아니므로 WebAuthn/passkey·TLS·운영 account provisioning을 구현하지 않는다. noindex와 client session 확인도 보안 통제로 간주하지 않으며, 실제 iPhone Safari HEIC upload·shop/견종/서비스/갤러리/공지 form·VoiceOver 증거가 없는 상태를 운영 준비 완료로 표현하지 않는다.
 
 ## 출시 후 개선
 

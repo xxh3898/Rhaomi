@@ -287,12 +287,14 @@ Gradle test는 `RHAOMI_TEST_DATABASE_ALLOWED=true`가 명시되지 않으면 app
 - explicit validation-only `publisher-validation` profile에서 Java 25·Node 24·Sharp actual full publication E2E, public release temp filesystem과 normal service 집합 불변
 - int64 E2E가 현재 task label의 사전 생성 Node/Gradle cache volume만 사용하며 불일치·부재 시 unlabeled volume을 암묵 생성하지 않음
 
-## 현재 Phase 1D 운영 아키텍처 문서 검증
+## 현재 Phase 1D 운영 아키텍처 contract freeze 검증
 
-Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 다음 계약을 검증한다.
+Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음 계약을 검증한다.
 
 - ADR-010~014 frontmatter `approved`, 본문 `Accepted`와 decision log 승인 상태 일치
 - Markdown 상대 link와 문서 작성 규칙
+- readiness status vocabulary 정의·matrix 사용값 일치와 local/CI synthetic evidence의 production `PASS` 승격 0
+- roadmap의 `CONTRACT COMPLETE / PROVISIONING NOT COMPLETE`, open-items·matrix·release checklist blocker 일치
 - Cloudflare Tunnel → host edge Nginx → loopback project Nginx와 `/api/admin/**` public route
 - `/api/build/**`, `/internal/**`, `/actuator/**` public deny와 backend/PostgreSQL direct exposure 금지
 - macOS host canonical `/private/var/lib/rhaomi/{app,public,data/media,state,logs}` 경로 일치와 `/data/postgres` bind source 부재
@@ -301,8 +303,9 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 - PostgreSQL production project-scoped named volume, 일반 Compose `down` 보존과 `down -v`·prune·direct delete 금지 일치
 - main merge와 manual production apply 분리, exact SHA·digest와 one-shot Flyway
 - same-transaction immediate·scheduled event, `contentRevision`·`publishGeneration`, single publisher, overdue recovery·30초 debounce·retry·atomic switch
-- external SSD·iCloud 별도 encrypted restic repository, local integrity와 remote sync evidence 분리, 03:30 KST, daily 7 / weekly 4 / monthly 6
-- weekly structural check, monthly full data read, quarterly isolated restore, 최초 fresh retrieval remote evidence, local/offsite RPO 24h·RTO 8h 분리
+- 초기 Mac mini local-only application-consistent backup, 03:30 KST, daily 7 / weekly 4 / monthly 6과 isolated `pg_restore`·media restore
+- single-host disaster accepted risk, external SSD·iCloud `NOT_CONFIGURED / DEFERRED`와 offsite `PASS` 오표기 0
+- 사용자 소유 기존 도메인 전략과 exact FQDN provisioning input 분리, authenticator private key·RP-side credential record·recovery-code secret을 분리한 WebAuthn/passkey 계약, 실제 매장 운영자 콘텐츠·사진 approval authority
 - HomeOps 단일 authority, exact 임계값, stateless single restart allowlist·lock·30분 cooldown·금지 범위
 - libheif `v1.23.1` exact commit, libde265 decoder-only와 x265 absence·SBOM·amd64/arm64 gate
 - application source, Flyway, Dockerfile, Compose, Nginx, workflow와 script diff 0
@@ -397,14 +400,17 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 - backend/PostgreSQL 중단 중 공개 site 유지
 - `/api/build/**`, `/internal/**`, `/actuator/**` public deny
 - successful release 5개와 current/previous retention, failed artifact 7일
-- 외장 SSD·iCloud backup set, local repository snapshot/check와 Apple remote sync evidence 분리, retention·prune post-check
-- second trusted device 또는 local cache를 배제한 clean path의 fresh retrieval·restic check·대표 restore
-- isolated restore의 manifest·DB·media·static build와 local/offsite RPO·RTO
+- protected source와 분리된 Mac mini local backup set, manifest/check와 retention·prune post-check
+- isolated restore의 manifest·DB·media·static build와 local RPO·RTO, single-host loss accepted risk evidence
 - raw PGDATA volume을 required restic input으로 사용하지 않고 `pg_dump -Fc`를 새 isolated named volume에 `pg_restore`
-- 외장 SSD `/Volumes/<provisioned-volume>/...` exact path·volume identity와 encrypted repository 검증
+- password 위 WebAuthn/passkey의 authenticator private key server 비수집·RP-side credential ID/public key/필요 metadata, registration revoke/remove, recovery-code secret 무효화·rotation과 password-only production 차단
+- 사용자 소유 기존 도메인의 exact FQDN·canonical/OG/sitemap/robots/public HTTPS smoke
+- 실제 매장 운영자의 NAP·정책·문구·링크·사진·게시 권한 승인
 - HomeOps synthetic/internal/container/host/DB/publisher/backup threshold·alert
 - stateless web/backend single restart와 deploy/backup lock·30분 cooldown·audit
 - decoder-only image x265 absence와 Linux amd64·Mac mini Linux arm64 actual HEIC
+
+외장 SSD·iCloud 3-2-1, recovery key와 fresh retrieval은 초기 production 이후 future hardening test다. 도입 전에는 미실행 상태를 실패나 성공으로 오기록하지 않는다.
 
 ## test data
 

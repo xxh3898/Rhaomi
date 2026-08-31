@@ -3,7 +3,7 @@ title: "ADR-013: HomeOps 통합 관제·알림·자동 복구 경계"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-29"
+last_updated: "2026-08-31"
 review_trigger: "관제 authority·임계값·자동 복구·로그 보존 변경 시"
 ---
 
@@ -48,7 +48,8 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. health/sta
 - Mac `/private/var/lib/rhaomi` bind source의 disk·inode와 production project-scoped PostgreSQL named volume capacity·identity
 - PostgreSQL connection, lock과 rollback 등 최소 운영 지표
 - publisher immediate pending·due/overdue scheduled event, lock, 마지막 `contentRevision`·`publishGeneration`·`generatedAt`과 성공·실패 release
-- local backup RPO, local iCloud repository integrity, remotely verified offsite RPO와 fresh retrieval·restore drill 상태
+- Mac mini local-only backup repository의 backup-set/check·local RPO·isolated restore drill과 single-host loss accepted risk
+- external SSD/iCloud hardening은 구성 전 `NOT_CONFIGURED / DEFERRED`; 구성 뒤에만 local repository integrity·remotely verified offsite RPO·fresh retrieval 상태
 - incident·Activity·Discord 알림과 daily summary
 
 ### 초기 임계값
@@ -58,7 +59,7 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. health/sta
 | public HTTPS·keyword | 3회 연속 실패 | 즉시 alert |
 | container health | 2회 연속 unhealthy | 즉시 alert |
 | local backup | 마지막 성공 36시간 초과 | critical |
-| offsite backup | 최초 remote 증거 없음 / 마지막 remotely verified success 36시간 초과 | `UNKNOWN`+critical alert / critical |
+| offsite backup | future hardening 미구성 | `NOT_CONFIGURED / DEFERRED`, 초기 critical trigger 아님 |
 | publisher lock | 15분 초과 | critical |
 | pending/due outbox | immediate pending 또는 `availableAt <= now` overdue 10분 초과 | warning |
 | build/release | 실패 | 즉시 alert |
@@ -100,6 +101,8 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. health/sta
 ### 수용하는 잔여 위험
 
 HomeOps가 Mac mini와 같은 host에 있어 전원·회선·Docker 전체 장애는 관제와 알림을 동시에 중단할 수 있다. 초기 서비스에서는 이 same-host blind spot을 수용하며 외부 heartbeat를 추가하지 않는다.
+
+초기 backup도 Mac mini 내부에만 있어 host/storage 전체 손실은 production data와 backup을 함께 잃을 수 있다. HomeOps는 이를 local RPO 성공으로 숨기지 않고 external/offsite hardening 전까지 별도 accepted risk와 `NOT_CONFIGURED / DEFERRED` 상태로 표시한다.
 
 ## 이유
 

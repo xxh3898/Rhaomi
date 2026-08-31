@@ -3,7 +3,7 @@ title: "모니터링·장애 대응"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-31"
 review_trigger: "모니터링 도구·장애 등급 변경 시"
 ---
 
@@ -18,6 +18,7 @@ review_trigger: "모니터링 도구·장애 등급 변경 시"
 - Prometheus·Grafana·Loki는 초기 범위에 포함하지 않는다.
 - HomeOps UI와 운영 endpoint는 Tailscale 전용이다.
 - Rhaomi용 HomeOps monitor·alert·restart 설정은 아직 구현되지 않았다.
+- [Production readiness matrix](production-readiness.md)의 HomeOps 행은 `IMPLEMENTATION_REQUIRED`이며 문서 승인만으로 실제 monitor가 존재한다고 보지 않는다.
 
 ## 모니터링 대상
 
@@ -57,12 +58,10 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. 실제 log
 
 - 마지막 local backup 성공 시각과 local RPO
 - backup-set ID, dump·media size와 file count
-- 외장 SSD snapshot/check 결과
-- local iCloud Drive repository snapshot/check와 integrity 결과
-- Apple remote sync가 별도 검증된 마지막 backup-set ID·시각과 offsite RPO
-- remote sync 증거가 없을 때 offsite `UNKNOWN` 또는 실패 상태. local 성공으로 `PASS` 대체 금지
+- protected source와 분리된 Mac mini local repository identity·capacity·manifest/check 결과
 - 마지막 isolated full restore 일시·RPO/RTO
-- 최초 production fresh retrieval·restic check·대표 restore evidence 상태
+- single-host backup risk 수용 상태
+- future external SSD/iCloud hardening은 구성 전 `NOT_CONFIGURED / DEFERRED`; local 성공으로 offsite `PASS` 대체 금지
 
 ### host
 
@@ -79,7 +78,7 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. 실제 log
 | public HTTPS·핵심 문구 | 3회 연속 실패 | 즉시 alert |
 | container health | 2회 연속 unhealthy | 즉시 alert |
 | local backup | 마지막 성공 36시간 초과 | critical |
-| offsite backup | 최초 remote 증거 없음 / 마지막 remotely verified success 36시간 초과 | `UNKNOWN`+critical alert / critical |
+| offsite backup | future hardening 미구성 | `NOT_CONFIGURED / DEFERRED`, 초기 critical trigger 아님 |
 | publisher lock | 15분 초과 | critical |
 | pending/due outbox | immediate pending 또는 `availableAt <= now` overdue 10분 초과 | warning |
 | build/release | 실패 | 즉시 alert |
@@ -122,6 +121,8 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. 실제 log
 ## 관제 사각지대
 
 HomeOps가 Mac mini와 같은 host에 있어 전원·회선·Docker 전체 장애는 관제와 alert를 함께 중단할 수 있다. 초기 서비스에서는 이 same-host blind spot을 명시적으로 수용하며 외부 heartbeat를 추가하지 않는다.
+
+초기 backup도 같은 Mac mini에 있으므로 host/storage 전체 손실은 production data와 local backup을 함께 잃을 수 있다. HomeOps는 이 상태를 숨기지 않고 external/offsite hardening이 구성될 때까지 `NOT_CONFIGURED / DEFERRED`로 표시한다.
 
 ## 장애 등급
 

@@ -11,7 +11,7 @@ review_trigger: "운영 주기 변경 시"
 
 ## 구현 상태
 
-아래 주기는 [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)와 [ADR-013](../09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md)의 production 목표다. local/CI release adapter에는 post-switch smoke를 통과한 성공 release 기본 5개 retention과 current·previous 보호, stale·실패 candidate cleanup이 구현됐지만 production path에서 자동 실행되지 않는다. machine result가 `retentionStatus=DEFERRED`이면 이미 성공한 current를 낮추지 않고 release root integrity·permission을 재검증한 뒤 별도 maintenance로 retention을 재시도한다. backup repository, HomeOps monitor와 maintenance automation은 아직 구현·실행되지 않았다.
+아래 주기는 [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)와 [ADR-013](../09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md)의 production 목표다. local/CI release adapter에는 post-switch smoke를 통과한 성공 release 기본 5개 retention과 current·previous 보호, stale·실패 candidate cleanup이 구현됐지만 production path에서 자동 실행되지 않는다. machine result가 `retentionStatus=DEFERRED`이면 이미 성공한 current를 낮추지 않고 release root integrity·permission을 재검증한 뒤 별도 maintenance로 retention을 재시도한다. 초기 Mac mini local-only backup repository, HomeOps monitor와 maintenance automation은 아직 구현·실행되지 않았다.
 
 ## 매일 자동
 
@@ -19,8 +19,8 @@ review_trigger: "운영 주기 변경 시"
 - Docker container·host CPU/memory/load·disk/inode 확인
 - Mac `/private/var/lib/rhaomi` filesystem과 production PostgreSQL named volume capacity·mount identity 확인
 - 매일 03:30 `Asia/Seoul` application-consistent PostgreSQL·canonical media backup
-- 외장 SSD snapshot, local iCloud Drive repository snapshot/check와 별도 remote-sync evidence 상태 확인
-- local backup RPO와 remotely verified offsite RPO를 분리해 기록하고 remote evidence가 없으면 offsite `PASS` 금지
+- protected source와 분리된 Mac mini local repository의 backup-set manifest/check와 local RPO 확인
+- external SSD/iCloud hardening은 미구성 시 `NOT_CONFIGURED / DEFERRED`로 유지하고 local success를 offsite `PASS`로 표현하지 않음
 - publisher immediate/due event·overdue backlog·lock·마지막 `contentRevision`·`publishGeneration` build/release 상태
 - 인증서 만료 단계 확인
 - HomeOps Activity·Discord·daily summary
@@ -28,8 +28,7 @@ review_trigger: "운영 주기 변경 시"
 ## 매주
 
 - 최근 공지 publish/expiry boundary와 public snapshot 일치 audit·reconciliation. 이 점검을 correctness trigger로 사용하지 않음
-- 외장 SSD와 local iCloud Drive repository의 restic structural check
-- Apple remote sync 완료 증거와 마지막 remotely verified backup-set 확인
+- local backup repository의 dump archive·manifest·media checksum structural check
 - 실패한 publisher·release·backup 로그 확인
 - 이미지 깨짐 검사
 - 외부 링크 스모크
@@ -46,14 +45,13 @@ review_trigger: "운영 주기 변경 시"
 - NAP 일치 확인
 - 관리자 사용자·세션 검토
 - 성공 release 최근 5개, 실패 artifact 7일과 build cache 정리 후보 검토
-- restic retention dry-run 뒤 daily 7 / weekly 4 / monthly 6 적용·prune·post-check
-- 외장 SSD와 local iCloud Drive repository full data read. 이 성공을 Apple remote sync 증거로 해석하지 않음
+- local backup retention dry-run 뒤 daily 7 / weekly 4 / monthly 6 적용·prune·post-check
+- local backup repository의 보존 대상 full data read
 - service당 약 100 MiB·일반 14일 로그 보존과 incident hold 확인
 
 ## 분기
 
 - isolated Compose와 새 data directory의 실제 full restore test
-- iCloud offsite 표본은 second trusted device 또는 local cache를 authority로 사용하지 않는 clean retrieval path에서 fresh retrieval·restic check·대표 restore
 - Spring Boot·Java·PostgreSQL upgrade 필요성 검토
 - 계정·token rotation 검토
 - 개인정보·로그 보존 검토
@@ -80,7 +78,7 @@ review_trigger: "운영 주기 변경 시"
 아래는 자동 정리하지 않는다.
 
 - 최신 DB backup
-- 외장 SSD·local iCloud repository의 정상 retention snapshot과 remotely verified offsite backup set
+- local repository의 정상 retention backup set
 - backend 소유 원본 image storage
 - production project-scoped PostgreSQL named volume과 raw PGDATA
 - 현재·직전 정상 release
@@ -97,3 +95,7 @@ review_trigger: "운영 주기 변경 시"
 - `current`·`previous` target 정리
 
 일반 maintenance 종료가 Compose `down`을 필요로 하면 `-v` 없이 실행하고 재기동 뒤 PostgreSQL data persistence를 확인한다. volume 정리 후보라는 이유로 production named volume을 prune/delete하지 않는다.
+
+## future hardening 유지보수
+
+외장 SSD·iCloud 3-2-1이 별도 승인으로 도입된 뒤에만 repository restic check, Apple remote-sync evidence, second trusted device 또는 clean retrieval path의 fresh retrieval·대표 restore를 이 주기에 추가한다. 그 전에는 존재하지 않는 offsite 작업을 성공으로 기록하지 않는다.

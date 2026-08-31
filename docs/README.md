@@ -3,7 +3,7 @@ title: "문서 인덱스"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-29"
+last_updated: "2026-08-31"
 review_trigger: "문서 추가·이동 시"
 ---
 
@@ -84,6 +84,7 @@ review_trigger: "문서 추가·이동 시"
 
 ## 07. 운영
 
+- [Production readiness matrix](07-operations/production-readiness.md)
 - [배포](07-operations/deployment.md)
 - [백업·복구](07-operations/backup-and-restore.md)
 - [모니터링·장애 대응](07-operations/monitoring-and-incident-response.md)

@@ -108,7 +108,7 @@ Phase 1C-6은 실제 이미지·운영값 입력, crop·responsive derivative, p
 - exact Nginx image/digest local gateway와 frontend/backend/PostgreSQL network 분리
 - gateway를 통한 auth·20 MiB request·HEIC·restart persistence Compose smoke
 
-Phase 1C-7은 실제 콘텐츠 CRUD 화면, 운영 Nginx/TLS·2FA, 공개 build API나 실제 iPhone Safari 검증의 완료를 의미하지 않는다.
+Phase 1C-7은 실제 콘텐츠 CRUD 화면, 운영 Nginx/TLS·WebAuthn/passkey 2차 인증, 공개 build API나 실제 iPhone Safari 검증의 완료를 의미하지 않는다.
 
 ### Phase 1C-8a — 관리자 미디어 UI
 
@@ -251,11 +251,23 @@ Phase 1C-8f8은 local/CI synthetic acceptance gate다. 실제 Mac `/private/var/
 
 - ADR-010 Cloudflare Tunnel·계층형 Nginx topology, macOS `/private/var/lib/rhaomi` host root, PostgreSQL project-scoped named volume과 수동 digest code release
 - ADR-011 immediate·scheduled transactional event, 두 revision·single publisher·atomic switch
-- ADR-012 외장 SSD·iCloud encrypted restic backup, remote-sync evidence와 isolated restore
+- ADR-012 초기 Mac mini local-only application-consistent backup·isolated restore와 single-host loss accepted risk, 외장 SSD·iCloud 3-2-1 future hardening
 - ADR-013 HomeOps 단일 관제·제한된 stateless restart
 - ADR-014 pinned source HEIC decoder-only production runtime
+- [Production readiness matrix](../07-operations/production-readiness.md)의 계약·local/CI·구현·provisioning·외부 승인·물리 acceptance 분리
 
-Phase 1D는 문서·계약 확정만 의미한다. 실제 Mac directory ownership·bind smoke, PostgreSQL restart·일반 Compose `down` persistence·isolated `pg_restore`, production Compose/Nginx, GitHub Environment, publisher와 production build credential 주입, backup repository, HomeOps 설정과 production image는 후속 Issue에서 구현·검증한다.
+Phase 1D는 `Production operating architecture CONTRACT COMPLETE`다. 이는 문서·계약 확정만 의미하며 `Production provisioning/deploy NOT COMPLETE`다. 실제 Mac directory ownership·bind smoke, PostgreSQL restart·일반 Compose `down` persistence·isolated `pg_restore`, production Compose/Nginx, GitHub Environment, publisher와 production build credential 주입, local backup repository, HomeOps 설정과 production image는 후속 Issue에서 구현·검증한다.
+
+후속 production implementation은 dependency 순서대로 진행한다.
+
+1. D-IMP-1 decoder-only production image·SBOM/supply-chain evidence
+2. D-IMP-2 production Compose/project Nginx·Mac bind/PostgreSQL named-volume provisioning validator
+3. D-IMP-3 private GHCR·GitHub production Environment·fixed Tailscale entrypoint·one-shot Flyway/schema validate/maintenance
+4. D-IMP-4 local-only application-consistent backup·isolated `pg_restore`/media restore evidence
+5. D-IMP-5 HomeOps monitoring/event/status·bounded stateless restart
+6. D-IMP-6 actual domain/content/public HTTPS·iPhone Safari/VoiceOver·rollback/recovery first-production acceptance
+
+외장 SSD·iCloud 3-2-1은 초기 production blocker가 아니라 별도 승인 후의 future hardening이다. Phase 2 진입도 production deploy 또는 위 readiness blocker 완료를 뜻하지 않는다.
 
 ## Phase 2 — 공개 랜딩 MVP
 
@@ -287,10 +299,11 @@ Phase 1D는 문서·계약 확정만 의미한다. 실제 Mac directory ownershi
 - Google Search Console
 - 네이버 서치어드바이저
 - 성능·접근성·실기기 검증
-- 외장 SSD·iCloud encrypted restic backup, local/offsite RPO 분리·fresh retrieval·isolated restore
+- Mac mini local-only application-consistent backup·isolated restore와 single-host risk 운영 확인
+- 후속 외장 SSD·iCloud 3-2-1 hardening, local/offsite RPO 분리·fresh retrieval
 - HomeOps 단일 관제·alert·bounded stateless restart
 - decoder-only HEIC production image와 SBOM·amd64/arm64 검증
-- 관리자 2FA와 TLS/session cookie production gate
+- 관리자 WebAuthn/passkey 2차 인증과 TLS/session cookie production gate
 
 ## Phase 5 — 운영 검증 후 선택
 

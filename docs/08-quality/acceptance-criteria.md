@@ -401,3 +401,23 @@ review_trigger: "제품 기능 변경 시"
 **Given** acceptance command가 성공하거나 실패했을 때
 
 **Then** marker가 있는 exact temp root와 task container/network만 정리하고 Docker volume·image, 기존 개발 DB/media/public data, production resource를 삭제·변경하지 않는다.
+
+## AC-25 Phase 1D production contract freeze
+
+**Given** ADR-010~014가 `approved / Accepted`이고 Phase 1C-8f8 synthetic local/CI acceptance가 완료됐을 때
+
+**When** production readiness를 판정하면
+
+**Then** 승인 계약, local/CI evidence, 구현 필요, production provisioning, 외부 콘텐츠 승인과 physical-device acceptance를 [canonical vocabulary](../07-operations/production-readiness.md)로 분리하고 Phase 1D를 `CONTRACT COMPLETE`, production provisioning/deploy를 `NOT COMPLETE`로 기록한다.
+
+**Given** 초기 backup 전략의 2026-08-31 owner 결정이 있을 때
+
+**Then** `pg_dump -Fc`·canonical media·동일 manifest를 protected source와 분리된 Mac mini local repository에 보존하는 계약을 초기 blocker로 사용한다. 외장 SSD·iCloud 3-2-1과 offsite RPO는 future hardening이며 미구성 상태를 `PASS`로 표현하지 않는다. Mac mini 전체 손실 시 local backup도 함께 손실되는 risk를 명시한다.
+
+**Given** 초기 public domain과 관리자·콘텐츠 gate를 판정할 때
+
+**Then** 사용자 소유 기존 도메인 전략은 결정됐고 exact FQDN만 provisioning input이다. password 위 WebAuthn/passkey는 authenticator private key를 server가 수집·저장·로그하지 않고 RP-side credential ID·public key·필요 metadata만 유지해야 한다. registration revoke/remove와 별도 recovery-code secret 무효화·rotation은 구현 blocker이며 실제 NAP·정책·문구·링크·사진·게시 권한은 매장 운영자 승인 전 `EXTERNAL_DECISION_REQUIRED`다.
+
+**Given** automated DOM·접근성·HEIC test가 모두 성공했을 때
+
+**Then** 실제 iPhone Safari·VoiceOver evidence가 없으면 `PHYSICAL_ACCEPTANCE_REQUIRED`를 유지하고 production acceptance로 승격하지 않는다.

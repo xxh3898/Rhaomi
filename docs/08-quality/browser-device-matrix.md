@@ -3,7 +3,7 @@ title: "브라우저·기기 매트릭스"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-30"
+last_updated: "2026-08-31"
 review_trigger: "유입 채널·지원 범위 변경 시"
 ---
 
@@ -58,13 +58,13 @@ review_trigger: "유입 채널·지원 범위 변경 시"
 - Hero·미용사·OG picker, archived/missing relation 정정
 - 견종·서비스 생성·수정·게시·보관·복구와 긴 이름·slug·priceText
 - 갤러리 생성·수정·게시·보관·복구, 관계 상태 정정, local datetime과 긴 alt/summary
-- 2FA
+- WebAuthn/passkey 2차 인증과 recovery code 복구 흐름
 - 공지 작성
 - pinned·publishedAt·expiresAt과 published/archived 변경, 긴 Markdown source
 - HEIC 파일
 - 긴 본문과 키보드
 
-현재 `/admin/` 인증 셸과 미디어·매장정보·견종·서비스·갤러리·공지 관리 UI는 실제 iPhone Safari·VoiceOver에서 아직 검증하지 않았다. 사진 보관함의 HEIC 선택·upload·preview, shop time/radio/url form과 picker, 견종·서비스·갤러리·공지 form의 keyboard·reflow, relation picker·datetime-local·긴 Markdown·session cookie와 archive/restore를 실제 기기에서 확인하고 2FA·TLS gate를 충족한 뒤 운영에 사용한다.
+현재 `/admin/` 인증 셸과 미디어·매장정보·견종·서비스·갤러리·공지 관리 UI는 실제 iPhone Safari·VoiceOver에서 아직 검증하지 않았다. 사진 보관함의 HEIC 선택·upload·preview, shop time/radio/url form과 picker, 견종·서비스·갤러리·공지 form의 keyboard·reflow, relation picker·datetime-local·긴 Markdown·session cookie와 archive/restore를 실제 기기에서 확인하고 WebAuthn/passkey 2차 인증·TLS gate를 충족한 뒤 운영에 사용한다.
 
 ## 화면
 
