@@ -9,6 +9,19 @@ review_trigger: "출시 기준 변경 시"
 
 # 출시 체크리스트
 
+## Phase 1C local publication acceptance 증거
+
+- [x] synthetic local bootstrap·same-origin Admin HTTP·multipart upload·full PUT dataset
+- [x] draft revision-only, public update/current·previous, Gallery archive removal
+- [x] Notice future publish·expiry, overdue recovery, stale reschedule·fixed 30초 coalesce full release
+- [x] Build API V2→responsive transformer→Next→immutable release→atomic switch 연결
+- [x] AVIF/WebP/JPEG·no-upscale·SHA filename·alt·HEIC normalization·private marker 비노출
+- [x] backend·PostgreSQL 중단 후 read-only Nginx home/notice/media/robots/sitemap 200·internal/unknown 404
+- [x] static SEO·safe Markdown·현재 public surface 접근성 semantics
+- [x] tmpfs/temp root·internal network·single-command cleanup·task container/network 0
+
+위 항목은 synthetic local/CI gate다. 아래 product·content·physical device·production provisioning·deploy 항목은 별도 증거 없이 PASS로 바꾸지 않는다.
+
 ## 제품·콘텐츠
 
 - [ ] 최종 Hero 문구 승인

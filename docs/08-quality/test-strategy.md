@@ -355,9 +355,23 @@ Issue #19는 docs/ADR-only이므로 production runtime을 실행하지 않고 �
 
 다음은 여전히 후속 운영 통합 범위다.
 
-- additional admin mutation 없는 future Notice publish·expiry와 Gallery publish, publisher restart 뒤 overdue 처리
-- Notice·Gallery claim 뒤 실제 reschedule/archive 변경까지 포함한 release stale-content 방지
+- future Gallery publish·archive stale event의 production acceptance
 - 승인된 manual rebuild/retry의 새 generation과 실제 production code image/digest
+
+## 현재 Phase 1C-8f8 local publication acceptance
+
+- test/local bootstrap과 same-origin internal Nginx의 CSRF→login→fresh CSRF→me, actual multipart JPEG/PNG/HEIC upload와 Admin create/full PUT
+- synthetic Shop 26-field·nullable CTA·Hero/Groomer/OG relation, published/draft/archived Breed·Service·Gallery·Notice dataset
+- first release의 exact Shop/service/gallery/notice/location, future/draft/archived 비노출, V2 content와 private release manifest revision/generation/generatedAt 일치
+- draft Gallery full PUT의 revision-only·event/generation/current 불변, published Service price full PUT의 higher generation/current·old previous·exact HTML 반영
+- published Gallery archive 후 card/alt binding 제거와 unrelated public content 유지
+- `Asia/Seoul` offset input·UTC Instant 일치, future Notice publish·expiry의 mutation 없는 release, publisher gap 후 overdue recovery
+- rescheduled old boundary의 generation 없는 `STALE_TRIGGER`, close publish/expiry의 fixed `T0 + 30s` highest-generation coalesce·final snapshot
+- generated AVIF/WebP/JPEG profile, no-upscale width, output SHA-256 filename/byte, alt, HEIC→JPEG master regression과 private UUID/path/backend marker 비노출
+- backend·PostgreSQL·Admin gateway 중단 후 read-only `current` Nginx의 home/notice/media/robots/sitemap 200, unknown/manifest/admin/build/internal/actuator 404
+- static HTML의 `lang=ko`, main, heading, image alt, link href, Notice `time[datetime]`, safe Markdown와 SEO contract
+- `.env.example`, tmpfs DB, marker temp root, task-only internal network·required cleanup label을 사용하고 일반 `down` 후 task container/network 0; Docker volume/image delete 없음
+- `scripts/validate-local-publication-acceptance.sh`를 로컬 Mac mini Linux arm64와 기존 Hosted Compose Smoke Linux amd64에서 동일하게 실행
 
 ## 후속 콘텐츠 UI/E2E
 

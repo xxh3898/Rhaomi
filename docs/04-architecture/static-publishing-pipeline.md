@@ -11,7 +11,7 @@ review_trigger: "콘텐츠 배포 방식 변경 시"
 
 ## 구현 상태
 
-Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Phase 1C-8f1~8f6은 Flyway V8/V9 producer·claim/generation state, internal Build API, strict transformer, dedicated control loop와 authenticated staging data plane을 구현했다. Phase 1C-8f7은 generated V2 기반 공개 홈·정적 공지 상세·safe Markdown·SEO·responsive media render, strict export validator, release manifest·stale guard·immutable install·`previous/current` switch·serving smoke·rollback·retention을 실제 Java→Node executor와 연결한다. 이 구현은 synthetic fixture와 configurable local/CI filesystem에 한정하며 production Mac path·secret·Compose/Nginx provisioning은 후속 운영 gate다.
+Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Phase 1C-8f1~8f7은 Flyway V8/V9 producer·claim/generation state, internal Build API, strict transformer, dedicated control loop, generated V2 Static Export와 immutable release/atomic switch를 구현했다. Phase 1C-8f8은 synthetic production-like content를 local bootstrap·same-origin Admin HTTP로 저장한 뒤 draft/public/archive와 Notice future publish·expiry·overdue·stale/coalesce를 actual Java→Node release까지 검증하고, backend·PostgreSQL 중단 후 `current`를 read-only Nginx에서 계속 제공함을 증명한다. 이 구현은 task-scoped tmpfs/temp filesystem에 한정하며 production Mac path·secret·Compose/Nginx provisioning은 후속 운영 gate다.
 
 ## 목적
 
@@ -110,6 +110,15 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - 실제 Java executor는 Node full release CLI를 fixed argv로 실행하고 credential·URL·filesystem/code metadata를 allowlist environment에만 전달한다. exact one-line JSON과 exit family만 `SUCCESS | NO_PUBLIC_CHANGE | TRANSIENT_FAILURE | TERMINAL_FAILURE`로 변환한다.
 - cancellation 시 Node root와 관찰한 descendant process tree에 graceful/force 종료를 요청하고 physical exit를 확인한 뒤에만 executor body가 반환한다. root가 먼저 종료하고 descendant가 남은 정상-return 경로도 transient failure로 강제 종료한다.
 - default Compose에는 publisher service가 없고 normal backend에는 publisher loop/thread가 없다. publisher mode는 public port, Nginx route, Docker socket과 production bind를 추가하지 않는다.
+
+## 현재 local end-to-end acceptance 경계
+
+- `publication-acceptance` profile은 tmpfs PostgreSQL, same-origin Admin Nginx, Java 25/Node 24 runner, read-only static Nginx와 public smoke client로 구성한다. default frontend/backend profile에 publisher나 public port를 추가하지 않는다.
+- test/local bootstrap account로 CSRF→login→fresh CSRF→me를 수행하고 multipart media upload, Breed/Service create·full PUT, Shop 26-field full PUT, Gallery/Notice create·full PUT을 gateway 동일 origin에서 호출한다. 시간 seam을 제외한 user-facing content creation을 direct SQL로 대체하지 않는다.
+- first release 후 draft Gallery는 revision만 증가하고, published Service price는 higher generation/current와 exact HTML을 만들며, published Gallery archive는 next release에서 binding을 제거하고 old current를 previous로 보존한다.
+- UTC Instant와 `Asia/Seoul` offset input을 같은 microsecond authority로 저장한다. 추가 Admin mutation 없이 future publish·expiry를 반영하고, publisher gap의 overdue event, old reschedule stale no-op, `T0 + 30s`에 들어온 근접 publish/expiry를 highest generation으로 coalesce한다.
+- release 후 Admin gateway·runner·PostgreSQL을 중단하고 public-only network의 Nginx에 `current`를 read-only mount한다. 홈·대표 공지·hash media·robots·sitemap은 200, unknown·manifest·admin/build/internal/actuator API는 404이며 HTML은 runtime backend URL·credential·private path를 포함하지 않는다.
+- script는 exact HEAD·marker temp root·read-only mount·network 격리를 확인한다. 일반 Compose `down`과 marker root만 정리하고 durable volume/image와 기존 개발 data를 삭제하지 않는다.
 
 ## 현재 구현 pipeline과 후속 운영 경계
 
