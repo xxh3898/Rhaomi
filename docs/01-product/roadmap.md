@@ -256,11 +256,11 @@ Phase 1C-8f8은 local/CI synthetic acceptance gate다. 실제 Mac `/private/var/
 - ADR-014 pinned source HEIC decoder-only production runtime
 - [Production readiness matrix](../07-operations/production-readiness.md)의 계약·local/CI·구현·provisioning·외부 승인·물리 acceptance 분리
 
-Phase 1D는 `Production operating architecture CONTRACT COMPLETE`다. 이는 문서·계약 확정만 의미하며 `Production provisioning/deploy NOT COMPLETE`다. 실제 Mac directory ownership·bind smoke, PostgreSQL restart·일반 Compose `down` persistence·isolated `pg_restore`, production Compose/Nginx, GitHub Environment, publisher와 production build credential 주입, local backup repository, HomeOps 설정과 production image는 후속 Issue에서 구현·검증한다.
+Phase 1D는 `Production operating architecture CONTRACT COMPLETE`다. D-IMP-1은 canonical decoder-only application image와 SBOM·actual HEIC·amd64/arm64 acceptance까지 구현했지만 이는 `Production provisioning/deploy COMPLETE`가 아니다. 실제 Mac directory ownership·bind smoke, PostgreSQL restart·일반 Compose `down` persistence·isolated `pg_restore`, production Compose/Nginx, GitHub Environment, publisher와 production build credential 주입, local backup repository, HomeOps 설정과 approved image digest 배치는 후속 Issue에서 구현·검증한다.
 
 후속 production implementation은 dependency 순서대로 진행한다.
 
-1. D-IMP-1 decoder-only production image·SBOM/supply-chain evidence
+1. D-IMP-1 decoder-only production image·SBOM/supply-chain evidence — implementation/local·Hosted acceptance 완료, production provisioning 미완료
 2. D-IMP-2 production Compose/project Nginx·Mac bind/PostgreSQL named-volume provisioning validator
 3. D-IMP-3 private GHCR·GitHub production Environment·fixed Tailscale entrypoint·one-shot Flyway/schema validate/maintenance
 4. D-IMP-4 local-only application-consistent backup·isolated `pg_restore`/media restore evidence
@@ -302,7 +302,7 @@ Phase 1D는 `Production operating architecture CONTRACT COMPLETE`다. 이는 문
 - Mac mini local-only application-consistent backup·isolated restore와 single-host risk 운영 확인
 - 후속 외장 SSD·iCloud 3-2-1 hardening, local/offsite RPO 분리·fresh retrieval
 - HomeOps 단일 관제·alert·bounded stateless restart
-- decoder-only HEIC production image와 SBOM·amd64/arm64 검증
+- approved decoder-only HEIC image digest의 production 배치와 실제 Mac·iPhone acceptance
 - 관리자 WebAuthn/passkey 2차 인증과 TLS/session cookie production gate
 
 ## Phase 5 — 운영 검증 후 선택

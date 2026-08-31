@@ -3,7 +3,7 @@ title: "ADR-014: HEIC decoder-only production runtime"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-29"
+last_updated: "2026-08-31"
 review_trigger: "HEIC codec·native image·라이선스·지원 형식 변경 시"
 ---
 
@@ -92,6 +92,20 @@ WITH_FUZZERS=OFF
 - LGPL source·notice·재연결 등 실제 배포 의무는 release 전에 검토한다.
 - encoder 제거를 license 검토 자체의 대체로 보지 않는다.
 
+### D-IMP-1 구현 상태
+
+`backend/Dockerfile.production`을 backend·dedicated publisher가 공유할 canonical production image source로 구현했다. 이 image는 exact Temurin Java 25 JRE와 Node `24.20.0` digest, libheif `v1.23.1` exact commit·archive SHA-256, Alpine libde265 `1.0.16-r0`을 고정한다. CMake source option inventory와 cache를 machine-check하고 libde265만 built-in codec으로 허용한다. final stage에는 application JAR, lockfile 기반 production Node dependency와 Next build에 필요한 type package, tracked publisher source/config만 allowlist로 복사하며 npm·compiler·Git·CMake·source tree·cache를 남기지 않는다.
+
+`sh scripts/validate-production-image.sh`는 native architecture에서 다음을 하나의 fail-closed acceptance로 수행한다.
+
+- Java·Node와 backend JAR·publisher Static Export runtime 확인
+- x265 package, `libx265` linkage, codec plugin, encoder·example·build tool 부재 확인
+- actual HEIC·generic HEIF의 JPEG orientation·sRGB·metadata strip과 sequence 422·AVIF 415 확인
+- exact final image ID·Git HEAD를 포함한 CycloneDX SBOM과 pinned Syft·Grype evidence 생성
+- tracked `production-image-components.json`의 source·version·commit/checksum·license·obligation 상태 확인
+
+generated SBOM·scanner report는 PR/CI evidence이며 저장소에 stale artifact로 커밋하지 않는다. canonical image source와 validation gate 구현은 완료됐지만 GHCR publish, production Compose service argv/profile, Secret·Mac filesystem provisioning과 deploy는 D-IMP-2~3 범위다. 따라서 이 결정의 runtime 상태는 production `PASS`가 아니라 `PROVISIONING_REQUIRED`다.
+
 ## 이유
 
 - server 기능에 필요한 decode capability만 남겨 native 공격면과 image 크기를 줄인다.
@@ -128,12 +142,12 @@ browser·기기별 품질과 metadata 처리에 의존하고 현재 server-side 
 
 ## 실행 계획
 
-- [ ] pinned source를 사용하는 multi-stage production image 구현
-- [ ] libde265만 `ON`인 fail-closed CMake codec allowlist와 모든 encoder·plugin·experimental path `OFF` configure summary assertion
-- [ ] final image x265 package·link·plugin absence 검사
-- [ ] SBOM, source·license notice와 scanner evidence 생성
-- [ ] Linux amd64 Hosted CI actual HEIC 검증
-- [ ] Mac mini Linux arm64 HEIC smoke 검증
+- [x] pinned source를 사용하는 multi-stage production image 구현
+- [x] libde265만 `ON`인 fail-closed CMake codec allowlist와 모든 encoder·plugin·experimental path `OFF` configure summary assertion
+- [x] final image x265 package·link·plugin absence 검사
+- [x] SBOM, source·license notice와 scanner evidence 생성
+- [x] Linux amd64 Hosted CI actual HEIC gate 연결
+- [x] Mac mini Linux arm64 HEIC smoke gate 구현
 
 ## 재검토 조건
 

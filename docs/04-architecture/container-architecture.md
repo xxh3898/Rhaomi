@@ -91,9 +91,22 @@ flowchart TB
     HomeOps -. 상태 .-> Backup
 ```
 
-local private media volume·upload API, same-origin development gateway, dedicated publisher control loop와 Build API→transformer→Next→immutable release/atomic switch data plane을 구현했다. network-disabled Node suites, explicit `publisher-validation`, `publication-acceptance` Java 25/Node 24 harness가 Sharp·filesystem symlink·DB completion에 더해 actual Admin HTTP·scheduled boundary·backend 중단 후 static serving을 amd64/arm64에서 검증하며 default publisher service나 host port를 추가하지 않는다. 위 production topology와 lossless wire 계약은 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-015](../09-decisions/ADR-015-lossless-int64-json-wire-contract.md)에서 승인한 목표지만 production Compose·Nginx·publisher service/secret/path provisioning·backup·HomeOps와 decoder-only image는 아직 구현되지 않았다.
+local private media volume·upload API, same-origin development gateway, dedicated publisher control loop와 Build API→transformer→Next→immutable release/atomic switch data plane을 구현했다. network-disabled Node suites, explicit `publisher-validation`, `publication-acceptance` Java 25/Node 24 harness가 Sharp·filesystem symlink·DB completion에 더해 actual Admin HTTP·scheduled boundary·backend 중단 후 static serving을 amd64/arm64에서 검증하며 default publisher service나 host port를 추가하지 않는다. 위 production topology와 lossless wire 계약은 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-015](../09-decisions/ADR-015-lossless-int64-json-wire-contract.md)에서 승인했다. D-IMP-1 decoder-only application image와 image-level acceptance는 구현됐지만 production Compose·Nginx·publisher service/secret/path provisioning·backup·HomeOps는 아직 구현되지 않았다.
 
 초기 production backup은 [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)의 2026-08-31 개정에 따라 protected source와 분리된 Mac mini local repository만 사용한다. diagram의 외장 SSD·iCloud 경로는 future hardening이며 초기 production blocker가 아니다. 미구성 상태를 offsite `PASS`로 표시하지 않는다.
+
+## Production application image — implemented, unprovisioned
+
+`backend/Dockerfile.production`이 이후 backend와 non-web publisher service가 같은 code image/digest를 사용하기 위한 canonical source다.
+
+- final base는 exact Temurin Java 25 JRE digest이고 exact Node `24.20.0` runtime을 포함한다.
+- libheif `v1.23.1` exact commit·archive SHA-256에서 source build하며 Alpine libde265 `1.0.16-r0`만 codec backend로 link한다.
+- CMake의 codec/plugin과 root option inventory 전체를 고정하고 libde265 외 codec, encoder, dynamic plugin, experimental path를 fail-closed `OFF`로 검증한다.
+- final image에는 backend executable JAR, package-lock 기반 production Node graph, Next build용 pinned TypeScript/type package와 tracked publisher source/config만 allowlist로 포함한다.
+- x265 package·link·plugin, npm·compiler·Git·CMake·header/source tree·Gradle/npm cache와 test source는 final image에서 제외한다.
+- service-specific argv/profile, UID/GID, Mac bind ownership, production Secret과 image registry identity는 D-IMP-2~3에서 확정·provision한다. Dockerfile은 이를 임의 결정하는 `ENTRYPOINT`나 production 값을 bake하지 않는다.
+
+`scripts/validate-production-image.sh`는 task container/network와 tmpfs PostgreSQL만 사용해 final image surface, publisher Static Export, actual Admin HTTP HEIC/HEIF normalization, sequence·AVIF 오류 계약, CycloneDX SBOM과 Grype evidence를 native amd64/arm64에서 검증한다. generated evidence는 source에 커밋하지 않고 Hosted artifact와 review evidence로 보존한다. 이 image를 build한 사실은 GHCR publish나 production 배치를 뜻하지 않는다.
 
 ## 서비스 책임
 

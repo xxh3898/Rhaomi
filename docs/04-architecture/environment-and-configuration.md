@@ -68,7 +68,7 @@ Compose는 `POSTGRES_*`에서 backend의 `SPRING_DATASOURCE_*`를 내부 service
 - root가 비었거나 temp/master directory를 만들고 쓸 수 없거나 두 directory가 다른 filesystem이면 backend 기동을 실패시킨다.
 - local Compose는 별도 persistent `dev-rhaomi-backend-media-masters` volume을 backend에만 mount한다.
 - source 20 MiB, stored 30 MiB, width·height 12,000px, total 60MP, JPEG quality 92는 현재 application contract로 고정하며 client request나 공개 env로 변경하지 않는다.
-- `JAVA_TOOL_OPTIONS=--enable-native-access=ALL-UNNAMED`는 pinned FFM 기반 HEIC adapter 실행에 필요하며 backend image와 Gradle test/bootRun에만 적용한다.
+- `JAVA_TOOL_OPTIONS=--enable-native-access=ALL-UNNAMED`는 pinned FFM 기반 HEIC adapter 실행에 필요하며 development backend, canonical production image와 Gradle test/bootRun에만 적용한다.
 - production canonical media의 Mac host path는 `/private/var/lib/rhaomi/data/media`이며 web에는 mount하지 않는다. backend container에는 `/var/lib/rhaomi/media`로 read-write mount하고 publisher·backup에는 필요한 경우 read-only로 제한한다. exact ownership·permission, backup과 restore는 별도 provisioning·운영 승인에서 검증한다.
 
 ## local/test 관리자 bootstrap
@@ -181,6 +181,21 @@ publisher는 normal backend profile이나 환경변수만으로 시작하지 않
 
 `compose.dev.yaml`의 `publisher-validation` profile은 Java 25·Node 24·libheif를 한 image에 고정하고 synthetic PostgreSQL/credential/domain/temp release root로 실제 full pipeline test만 실행한다. default service 집합이나 public port를 늘리지 않으며 runtime `npm install`을 수행하지 않는다. 이 validation image는 ADR-014 production decoder-only image가 아니다. int64 E2E 하네스는 `RHAOMI_INT64_NODE_MODULES_VOLUME`·`RHAOMI_INT64_GRADLE_CACHE_VOLUME`로 해당 task의 사전 생성·label 확인 cache volume을 명시하고, `RHAOMI_CLEANUP_TASK`를 모든 임시 container/network label에 동일하게 적용한다. 지정 volume이 없으면 암묵 생성하지 않고 중단한다.
 
+## production image foundation — implemented, not deployed
+
+| 항목 | canonical 값 |
+|---|---|
+| Dockerfile | `backend/Dockerfile.production` |
+| Java final base | `eclipse-temurin:25.0.4_7-jre-alpine-3.23` exact digest |
+| Node runtime | `node:24.20.0-alpine3.23` exact digest에서 복사한 runtime |
+| libheif | `v1.23.1`, commit `2c4bbb54c2738d4a5efbbe3e5fa1d5d76bb88eb0`, archive SHA-256 고정 |
+| libde265 | Alpine `1.0.16-r0`, 유일한 native codec backend |
+| application | `/opt/rhaomi/backend.jar` |
+| publisher source | `/opt/rhaomi/source`, runtime install 없이 preinstalled lockfile dependency 사용 |
+| acceptance | `sh scripts/validate-production-image.sh` |
+
+image에는 production credential, domain, Mac host path를 bake하지 않는다. `RHAOMI_PUBLISHER_NODE_EXECUTABLE`, release script와 source root의 container 내부 non-secret default만 제공하고 backend/publisher service argv·profile·credential·public/state path는 D-IMP-2~3 Compose/provisioning에서 주입한다. validation은 synthetic credential, task-only network와 tmpfs DB/media를 사용하며 volume이나 production filesystem을 만들지 않는다.
+
 ## Production deploy·migration — planned
 
 - protected GitHub `production` environment의 수동 승인 뒤에만 environment secret을 사용한다.
@@ -193,7 +208,7 @@ publisher는 normal backend profile이나 환경변수만으로 시작하지 않
 - PostgreSQL restart와 일반 Compose `down`·`up` 뒤 data persistence를 검증하고 `down -v`·volume prune/delete가 고정 entrypoint·runbook에 없음을 확인한다.
 - application-consistent backup을 새 isolated PostgreSQL named volume에 `pg_restore`해 복구 authority를 확인한다.
 
-이 environment, secret, entrypoint와 one-shot service는 아직 생성하지 않았다.
+이 production environment, secret, service entrypoint와 one-shot migration service는 아직 생성하지 않았다. canonical image 구현은 이 provisioning 상태를 변경하지 않는다.
 
 ## Backup·HomeOps inventory — planned
 

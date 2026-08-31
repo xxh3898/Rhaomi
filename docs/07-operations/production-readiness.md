@@ -46,11 +46,11 @@ matrix의 `현재 상태`는 해당 행에서 가장 가까운 다음 gate 하�
 | PostgreSQL persistence / migration | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md), [환경설정](../04-architecture/environment-and-configuration.md) | PostgreSQL 18.6·Flyway V1~V9 local/CI migration·restart persistence | `PROVISIONING_REQUIRED` | 예 | project-scoped named-volume exact identity, 일반 Compose `down` persistence, one-shot Flyway·schema validate |
 | private media | [ADR-004](../09-decisions/ADR-004-static-media-copy.md), [컨테이너 구조](../04-architecture/container-architecture.md) | private master·HEIC normalization·relation/rollback cleanup local/CI | `PROVISIONING_REQUIRED` | 예 | `/private/var/lib/rhaomi/data/media` ownership·permission과 backend RW/publisher·backup RO bind smoke |
 | publisher / static release | [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md), [정적 퍼블리싱](../04-architecture/static-publishing-pipeline.md) | immediate/scheduled event, 두 revision, 30초 coalesce, V2→Next→immutable switch·rollback·backend/DB-off serving local/CI | `PROVISIONING_REQUIRED` | 예 | production publisher service·credential, public/state/lock bind, approved image/digest, actual HTTPS·HomeOps event evidence |
-| code release / image / SBOM | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md) | Hosted Validate는 존재하지만 production image/pipeline은 없음 | `IMPLEMENTATION_REQUIRED` | 예 | immutable multi-arch image+SBOM→private GHCR→GitHub production Environment→fixed Tailscale entrypoint→digest apply |
+| code release / image / SBOM | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md) | canonical production Dockerfile, exact runtime source·base, image-level acceptance, image-ID/Git-HEAD CycloneDX·scanner gate | `IMPLEMENTATION_REQUIRED` | 예 | immutable multi-arch image publish+SBOM→private GHCR→GitHub production Environment→fixed Tailscale entrypoint→digest apply |
 | initial local-only backup / restore | [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md), [백업·복구](backup-and-restore.md) | portable authority와 isolated restore 계약만 승인됨; 실제 repository·backup set 없음 | `IMPLEMENTATION_REQUIRED` | 예 | protected source와 분리된 Mac local repository/path, 동일 DB/media backup-set, retention/check, isolated `pg_restore`·media restore drill |
 | external SSD / iCloud offsite hardening | [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md) 2026-08-31 amendment | 미구성; offsite RPO 증거 없음 | `CONTRACT_APPROVED` | 아니요 | 초기 production 뒤 별도 승인으로 3-2-1, recovery key, remote-sync evidence·fresh retrieval 도입; 미구성 상태를 `PASS`로 표시 금지 |
 | HomeOps monitoring / recovery | [ADR-013](../09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md), [모니터링](monitoring-and-incident-response.md) | privacy-safe 신호·single-restart 경계만 승인됨 | `IMPLEMENTATION_REQUIRED` | 예 | monitor/event/status와 consecutive failure·lock·30분 cooldown·pre/post health·audit를 갖춘 stateless web/backend 단일 restart |
-| HEIC decoder-only runtime | [ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md) | Alpine development HEIC와 amd64/arm64 application fixture evidence | `IMPLEMENTATION_REQUIRED` | 예 | libheif `v1.23.1` exact commit, libde265 ON, x265/encoder/plugin/unused codec OFF image·SBOM·license·dual-arch evidence |
+| HEIC decoder-only runtime | [ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md) | libheif `v1.23.1` exact commit/SHA, libde265-only CMake, x265 package/link/plugin 0, actual HEIC/HEIF·sequence/AVIF, SBOM/license/scan의 amd64/arm64 gate | `PROVISIONING_REQUIRED` | 예 | approved image digest를 production backend/publisher에 배치하고 실제 Mac mount·service startup·iPhone HEIC acceptance 확인 |
 | initial public domain | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md), [환경설정](../04-architecture/environment-and-configuration.md) | 사용자 소유 기존 도메인을 임시 public domain으로 쓰는 전략 승인 | `PROVISIONING_REQUIRED` | 예 | exact temporary FQDN 외부 입력, Cloudflare/Nginx host·`PUBLIC_SITE_URL`·canonical/OG/sitemap/robots·smoke 동기화 |
 | final cousin-owned domain | [미확정 항목](../01-product/open-items.md) | 전용 도메인 구매 전 | `EXTERNAL_DECISION_REQUIRED` | 아니요 | 구매 뒤 동일 topology에서 canonical/public domain만 migration하고 DB/schema는 변경하지 않음 |
 | actual content / photo rights | [미확정 항목](../01-product/open-items.md), [출시 체크리스트](../08-quality/release-checklist.md) | synthetic fixture만 검증됨 | `EXTERNAL_DECISION_REQUIRED` | 예 | 실제 매장 운영자의 NAP·영업정보·정책·문구·링크·사진·반려견/고객 사진 게시 권한 최종 승인 |
@@ -78,6 +78,8 @@ matrix의 `현재 상태`는 해당 행에서 가장 가까운 다음 gate 하�
 
 외장 SSD/iCloud 3-2-1은 D-IMP-4의 초기 production 범위가 아니라 후속 hardening이다. 새 architecture 결정이 필요해지면 구현 Issue에서 임의 선택하지 않고 별도 결정 gate로 되돌린다.
 
+D-IMP-1의 canonical image source와 acceptance는 구현됐으며 D-IMP-2가 다음 slice다. 이 전진은 GHCR artifact, production Compose·Mac filesystem·Secret 또는 deploy evidence를 뜻하지 않는다. code release 행은 D-IMP-3 전달 경로가 남아 있어 계속 `IMPLEMENTATION_REQUIRED`이고, decoder-only runtime 행만 배치 대기 상태인 `PROVISIONING_REQUIRED`로 전진한다.
+
 ## accepted residual risks
 
 - 초기 local-only backup은 logical deletion·corruption·rollback recovery에는 도움을 주지만 Mac mini host/storage 전체 손실 시 production data와 backup을 함께 잃을 수 있다. 이 single-host disaster risk는 초기 production에서 명시적으로 수용한다.
@@ -86,4 +88,4 @@ matrix의 `현재 상태`는 해당 행에서 가장 가까운 다음 gate 하�
 
 ## 비수행 경계
 
-이 contract freeze는 production Compose/Nginx/image/workflow/secret/path/volume/repository/HomeOps/Cloudflare를 생성하거나 변경하지 않는다. merge, release, deploy, production migration·mutation도 포함하지 않는다.
+D-IMP-1은 검증용 canonical production image와 Hosted validation workflow만 구현한다. production Compose/Nginx/secret/path/volume/repository/HomeOps/Cloudflare 또는 GHCR package를 생성·변경하지 않는다. merge, release, deploy, production migration·mutation도 포함하지 않는다.

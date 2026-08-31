@@ -89,7 +89,7 @@ Gallery·Hero profile은 Phase 1C-8f4의 구현 계약이다. source가 후보 �
 - runtime download·client filename 기반 shell command 없음
 - codec 누락·link 실패는 backend startup에서 fail-fast
 
-### Production upload normalization runtime — planned
+### Production upload normalization image — implemented, not deployed
 
 - [ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)의 official libheif `v1.23.1`, exact commit `2c4bbb54c2738d4a5efbbe3e5fa1d5d76bb88eb0`
 - libde265 HEVC decoder만 native codec allowlist로 활성화
@@ -97,7 +97,7 @@ Gallery·Hero profile은 Phase 1C-8f4의 구현 계약이다. source가 후보 �
 - NightMonkeys, JPEG/PNG passthrough, JPEG quality 92, orientation·sRGB·metadata strip과 크기 제한 유지
 - SBOM·source/license notice와 final image의 x265 package·link·plugin 부재 검사
 
-production decoder-only image는 아직 구현되지 않았다. 현재 local/CI Alpine package runtime과 future production source build를 같은 상태로 표현하지 않는다.
+`backend/Dockerfile.production`은 위 source identity와 allowlist를 사용하는 decoder-only backend/publisher 공통 image를 구현한다. actual HEIC/HEIF HTTP normalization, sequence·AVIF rejection, final surface, SBOM·scanner gate를 amd64 Hosted CI와 Mac mini Linux arm64에서 검증한다. 현재 local/CI development Alpine package runtime과 canonical production source build는 계속 별도 authority이며, production Compose·approved digest·Mac mount·실제 iPhone acceptance 전에는 production 배치 완료로 표시하지 않는다.
 
 ### 현재 public derivative transformer
 
