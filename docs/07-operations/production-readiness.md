@@ -3,7 +3,7 @@ title: "Production readiness matrix"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호·은총쌤"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "production 구현·provisioning·외부 승인·물리 기기 증거 변경 시"
 ---
 
@@ -40,12 +40,12 @@ matrix의 `현재 상태`는 해당 행에서 가장 가까운 다음 gate 하�
 
 | 영역 | contract authority | 현재 증거 | 현재 상태 | production blocker | 후속 구현 gate |
 |---|---|---|---|---:|---|
-| ingress / public web | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md), [배포](deployment.md) | local same-origin gateway와 static Nginx deny/runtime 독립 smoke | `PROVISIONING_REQUIRED` | 예 | Cloudflare DNS/HTTPS→Tunnel→host edge→loopback project Nginx, actual FQDN·404/deny·public HTTPS smoke |
+| ingress / public web | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md), [배포](deployment.md) | canonical project Nginx와 web-only loopback Compose source, task static/admin/deny/404 smoke | `PROVISIONING_REQUIRED` | 예 | actual loopback port/FQDN, Cloudflare DNS/HTTPS→Tunnel→host edge와 public HTTPS smoke |
 | backend / admin session·CSRF | [ADR-009](../09-decisions/ADR-009-spring-boot-backend-admin.md), [접근제어](../06-security/access-control.md) | Java 25/PostgreSQL auth·session fixation·CSRF·fail-closed API 계약과 Hosted CI | `PROVISIONING_REQUIRED` | 예 | production TLS·`Secure` cookie, 운영 계정·rate limit evidence |
 | admin second factor | [접근제어](../06-security/access-control.md), [위협 모델](../06-security/threat-model.md) | password/session/CSRF foundation만 구현됨 | `IMPLEMENTATION_REQUIRED` | 예 | password 위 WebAuthn/passkey 등록·인증, authenticator private key server 비수집, RP-side credential record, registration revoke/remove, recovery-code secret·rotation; password-only production 금지 |
-| PostgreSQL persistence / migration | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md), [환경설정](../04-architecture/environment-and-configuration.md) | PostgreSQL 18.6·Flyway V1~V9 local/CI migration·restart persistence | `PROVISIONING_REQUIRED` | 예 | project-scoped named-volume exact identity, 일반 Compose `down` persistence, one-shot Flyway·schema validate |
-| private media | [ADR-004](../09-decisions/ADR-004-static-media-copy.md), [컨테이너 구조](../04-architecture/container-architecture.md) | private master·HEIC normalization·relation/rollback cleanup local/CI | `PROVISIONING_REQUIRED` | 예 | `/private/var/lib/rhaomi/data/media` ownership·permission과 backend RW/publisher·backup RO bind smoke |
-| publisher / static release | [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md), [정적 퍼블리싱](../04-architecture/static-publishing-pipeline.md) | immediate/scheduled event, 두 revision, 30초 coalesce, V2→Next→immutable switch·rollback·backend/DB-off serving local/CI | `PROVISIONING_REQUIRED` | 예 | production publisher service·credential, public/state/lock bind, approved image/digest, actual HTTPS·HomeOps event evidence |
+| PostgreSQL persistence / migration | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md), [환경설정](../04-architecture/environment-and-configuration.md) | PostgreSQL 18.6·Flyway V1~V9와 task project-scoped volume identity·일반 `down` sentinel persistence | `PROVISIONING_REQUIRED` | 예 | actual production volume identity·capacity·restart persistence, one-shot Flyway·schema validate |
+| private media | [ADR-004](../09-decisions/ADR-004-static-media-copy.md), [컨테이너 구조](../04-architecture/container-architecture.md) | private master·HEIC 계약과 task temp backend RW/publisher RO/web-unmounted bind smoke | `PROVISIONING_REQUIRED` | 예 | `/private/var/lib/rhaomi/data/media` ownership·permission과 actual Docker Desktop bind smoke |
+| publisher / static release | [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md), [정적 퍼블리싱](../04-architecture/static-publishing-pipeline.md) | same-image non-web publisher Compose argv, task public/state/lock RW·media RO와 immediate/scheduled V2 release local/CI | `PROVISIONING_REQUIRED` | 예 | actual credential·public/state/lock bind, approved digest, HTTPS·HomeOps event evidence |
 | code release / image / SBOM | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md) | canonical production Dockerfile, exact runtime source·base, image-level acceptance, image-ID/Git-HEAD CycloneDX·scanner gate | `IMPLEMENTATION_REQUIRED` | 예 | immutable multi-arch image publish+SBOM→private GHCR→GitHub production Environment→fixed Tailscale entrypoint→digest apply |
 | initial local-only backup / restore | [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md), [백업·복구](backup-and-restore.md) | portable authority와 isolated restore 계약만 승인됨; 실제 repository·backup set 없음 | `IMPLEMENTATION_REQUIRED` | 예 | protected source와 분리된 Mac local repository/path, 동일 DB/media backup-set, retention/check, isolated `pg_restore`·media restore drill |
 | external SSD / iCloud offsite hardening | [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md) 2026-08-31 amendment | 미구성; offsite RPO 증거 없음 | `CONTRACT_APPROVED` | 아니요 | 초기 production 뒤 별도 승인으로 3-2-1, recovery key, remote-sync evidence·fresh retrieval 도입; 미구성 상태를 `PASS`로 표시 금지 |
@@ -78,7 +78,7 @@ matrix의 `현재 상태`는 해당 행에서 가장 가까운 다음 gate 하�
 
 외장 SSD/iCloud 3-2-1은 D-IMP-4의 초기 production 범위가 아니라 후속 hardening이다. 새 architecture 결정이 필요해지면 구현 Issue에서 임의 선택하지 않고 별도 결정 gate로 되돌린다.
 
-D-IMP-1의 canonical image source와 acceptance는 구현됐으며 D-IMP-2가 다음 slice다. 이 전진은 GHCR artifact, production Compose·Mac filesystem·Secret 또는 deploy evidence를 뜻하지 않는다. code release 행은 D-IMP-3 전달 경로가 남아 있어 계속 `IMPLEMENTATION_REQUIRED`이고, decoder-only runtime 행만 배치 대기 상태인 `PROVISIONING_REQUIRED`로 전진한다.
+D-IMP-1 canonical image와 D-IMP-2 production Compose/project Nginx source·task-scoped validator는 구현·local/Hosted 검증됐다. actual `/private/var/lib/rhaomi`, production named volume, Secret·FQDN·host edge·Cloudflare는 `PROVISIONING_REQUIRED`다. GHCR/digest delivery, GitHub production Environment, fixed deploy entrypoint와 one-shot Flyway는 D-IMP-3 `IMPLEMENTATION_REQUIRED`이며 다음 slice다.
 
 ## accepted residual risks
 
@@ -88,4 +88,4 @@ D-IMP-1의 canonical image source와 acceptance는 구현됐으며 D-IMP-2가 �
 
 ## 비수행 경계
 
-D-IMP-1은 검증용 canonical production image와 Hosted validation workflow만 구현한다. production Compose/Nginx/secret/path/volume/repository/HomeOps/Cloudflare 또는 GHCR package를 생성·변경하지 않는다. merge, release, deploy, production migration·mutation도 포함하지 않는다.
+D-IMP-2는 canonical production Compose/project Nginx source와 task temp overlay만 구현한다. 실제 Mac canonical path·production volume·Secret·FQDN·HomeOps·Cloudflare·GHCR package를 생성·변경하지 않았고 merge, release, deploy, production migration·mutation도 수행하지 않았다.

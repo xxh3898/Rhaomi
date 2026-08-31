@@ -3,7 +3,7 @@ title: "ADR-010: Production topology와 코드 릴리스"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "운영 진입 경로·배포·마이그레이션·릴리스 보존 변경 시"
 ---
 
@@ -17,7 +17,7 @@ review_trigger: "운영 진입 경로·배포·마이그레이션·릴리스 보
 
 Rhaomi는 macOS Mac mini에서 다른 홈서버 서비스와 함께 운영될 예정이며 공개 정적 사이트, same-origin 관리자 API, PostgreSQL과 private media를 서로 다른 신뢰 경계로 분리해야 한다. macOS의 root system volume은 일반 Linux host와 같은 writable `/srv` 계약을 제공하지 않고 Docker Desktop의 기본 host file sharing에도 `/srv`가 포함되지 않는다. `main` merge, image 생성, 운영 반영과 Flyway migration도 하나의 암묵적 자동 단계로 묶지 않아야 한다.
 
-이 결정은 목표 운영 계약만 확정한다. production Compose, Nginx, Cloudflare Tunnel, GHCR image, GitHub Environment와 Mac mini deploy entrypoint는 아직 구현·provisioning되지 않았다.
+이 결정의 D-IMP-2 source implementation으로 production Compose와 project Nginx, task-scoped validation overlay를 추가했다. Cloudflare Tunnel, host edge, GHCR, GitHub Environment, Mac mini deploy entrypoint와 actual host/Secret/volume/FQDN은 아직 구현·provisioning되지 않았다.
 
 Issue #43은 같은 계약의 build·validate·private manifest·immutable install·`previous/current` switch·post-switch smoke·rollback·retention primitive를 격리된 local/CI filesystem과 actual Java→Node executor로 구현했다. 이 증거는 `/private/var/lib/rhaomi` ownership·Docker Desktop bind, production image/digest·secret, Nginx·Cloudflare, public HTTPS 또는 deploy entrypoint provisioning 완료를 뜻하지 않는다.
 
@@ -193,7 +193,7 @@ Docker Desktop host sharing·path와 DB internal layout에 결합되고 portable
 
 ## 실행 계획
 
-- [ ] production Compose와 project Nginx 구현
+- [x] production Compose와 project Nginx source·task-scoped local/Hosted validation 구현
 - [ ] GHCR immutable multi-architecture image와 SBOM pipeline 구현
 - [ ] GitHub production environment·required reviewer·branch policy 설정
 - [ ] Tailscale 전용 고정 deploy entrypoint 구현

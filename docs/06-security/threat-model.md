@@ -3,7 +3,7 @@ title: "위협 모델"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "외부 노출·관리 기능·인증 변경 시"
 ---
 
@@ -85,6 +85,8 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | self-hosted runner 악용 | Mac mini 장악 | 전용 runner scope, untrusted PR 실행 금지, 최소 권한 |
 | build credential 탈취 | private snapshot·canonical media 노출 | 256-bit token·timing-safe 비교, stateless GET allowlist, admin session 분리, active generation·public relation scope, public Nginx deny, token 비기록 |
 | frontend filesystem credential 노출 | browser build·dependency lifecycle을 통한 build token·DB/admin credential 탈취 | frontend repository-root bind 금지, source/config allowlist mount, `.env*`·backend·local secret 제외, frontend env/file·token digest Compose smoke |
+| production web credential·private filesystem 노출 | public Nginx 침해가 DB/build token·media/state로 확장 | web environment credential 0, public bind RO만 mount, PostgreSQL network 미공유, admin-only proxy와 build/internal/actuator/manifest 404 |
+| production topology drift | backend/DB/publisher host 노출 또는 과도한 lateral movement | external-image canonical Compose, web-only loopback port, 세 internal network adjacency와 rendered/runtime contract 검사 |
 | build credential 오구성 | internal endpoint의 fail-open 또는 production 미보호 기동 | backend production 누락·형식 오류 startup failure, Node adapter의 request 전 exact URL/64자 lowercase hex 검증, browser/public env 주입 금지 |
 | Build API redirect·SSRF·credential 유출 | token이 다른 origin으로 전달되거나 internal topology 노출 | root absolute http/https origin allowlist, userinfo/query/fragment/path 거부, redirect manual·cookie omit, credential argv/query/path/log/generated output 금지 |
 | media 중복·protocol drift | 같은 private master 반복 유출, memory/resource 낭비, 잘못된 byte transform | strict manifest membership, UUID별 rejected/in-flight/result memoization, exact MIME·Content-Length·body length와 bounded body read |

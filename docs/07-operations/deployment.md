@@ -3,7 +3,7 @@ title: "배포"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "호스트·파이프라인 변경 시"
 ---
 
@@ -21,7 +21,7 @@ review_trigger: "호스트·파이프라인 변경 시"
 
 ## 구현 상태
 
-[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)의 topology와 release 절차는 승인됐지만 production Compose·Nginx, GHCR image, GitHub `production` environment, deploy entrypoint와 one-shot Flyway는 아직 구현되지 않았다. 이 문서는 실행 가능한 목표 계약이며 현재 운영 배포 완료를 뜻하지 않는다.
+[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)의 topology와 release 절차에 따라 `compose.production.yaml`, `infra/nginx/production.conf`와 task validation overlay를 구현했다. external exact image, web-only loopback, same-image backend/publisher, internal network, canonical bind와 project-scoped PostgreSQL volume source contract는 local/Hosted evidence가 있다. GHCR, GitHub `production` environment, actual host path·volume·Secret·FQDN, deploy entrypoint와 one-shot Flyway는 아직 구현·provision되지 않았다. 이 문서는 현재 운영 배포 완료를 뜻하지 않는다.
 
 [Production readiness matrix](production-readiness.md)는 이 승인 계약, local/CI evidence, production provisioning, 외부 콘텐츠 승인과 physical-device acceptance를 분리한다. Phase 1D contract 완료만으로 아래 production 항목을 통과 처리하지 않는다.
 
@@ -52,7 +52,15 @@ Spring Boot 콘텐츠 transaction
 → 공통 build/validate/atomic switch pipeline
 ```
 
-두 경로는 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)의 build·검증·원자적 전환 구현을 공유한다. transactional outbox, generation state, dedicated polling/debounce/lock control loop, Build API→transformer staging, Next Static Export, private release manifest·`BigInt` stale guard·`previous/current` atomic switch·post-switch smoke·rollback·retention과 실제 Java executor binding을 local/CI filesystem에서 구현했다. production Compose·Nginx·secret·Mac canonical path provisioning과 실제 public HTTPS acceptance는 아직 구현되지 않았다.
+두 경로는 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)의 build·검증·원자적 전환 구현을 공유한다. transactional outbox, generation state, dedicated polling/debounce/lock control loop, Build API→transformer staging, Next Static Export, private release manifest·`BigInt` stale guard·`previous/current` atomic switch·post-switch smoke·rollback·retention과 실제 Java executor binding을 구현했다. production Compose는 같은 image의 exact non-web publisher argv와 public/state/lock/media mount target을 고정한다. actual Secret·Mac canonical path·approved digest provisioning과 public HTTPS acceptance는 아직 수행하지 않았다.
+
+## D-IMP-2 source validation
+
+- canonical base는 `/private/var/lib/rhaomi` bind source와 project-scoped PostgreSQL named volume을 유지한다.
+- validation overlay만 task temp root와 validation-only schema bootstrap을 사용한다.
+- native architecture에서 web-only loopback, network adjacency, mount RO/RW, static/admin/deny route, internal Build API auth와 일반 Compose `down`→`up` sentinel persistence를 검증한다.
+- task container/network는 정리하지만 task PostgreSQL volume과 image는 삭제하지 않는다.
+- 위 evidence는 아래 최초 배포 사전 조건의 actual Mac·production 항목을 완료 처리하지 않는다.
 
 ## 최초 배포 사전 조건
 

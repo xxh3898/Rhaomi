@@ -1,0 +1,205 @@
+name: ${RHAOMI_PRODUCTION_COMPOSE_PROJECT:?RHAOMI_PRODUCTION_COMPOSE_PROJECT is required}
+
+x-production-logging: &production-logging
+  driver: local
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+  rhaomi-web:
+    image: nginx:1.31.4-alpine3.24@sha256:db35bfc6b2951e7f8a72db5db120288c127ffaeeb4a6d4b95a26fead017d5913
+    init: true
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /var/cache/nginx:rw,noexec,nosuid,size=64m
+      - /var/run:rw,noexec,nosuid,size=8m
+      - /tmp:rw,noexec,nosuid,size=8m
+    volumes:
+      - type: bind
+        source: /private/var/lib/rhaomi/app/nginx/production.conf
+        target: /etc/nginx/conf.d/default.conf
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /private/var/lib/rhaomi/public
+        target: /srv/rhaomi/public
+        read_only: true
+        bind:
+          create_host_path: false
+    ports:
+      - "127.0.0.1:${RHAOMI_WEB_LOOPBACK_PORT:?RHAOMI_WEB_LOOPBACK_PORT is required}:8080"
+    networks:
+      - web-backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+    logging: *production-logging
+
+  backend:
+    image: ${RHAOMI_PRODUCTION_IMAGE:?RHAOMI_PRODUCTION_IMAGE is required}
+    init: true
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    working_dir: /opt/rhaomi
+    command: ["java", "-jar", "/opt/rhaomi/backend.jar"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: production
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${RHAOMI_POSTGRES_DB:?RHAOMI_POSTGRES_DB is required}
+      SPRING_DATASOURCE_USERNAME: ${RHAOMI_POSTGRES_USER:?RHAOMI_POSTGRES_USER is required}
+      SPRING_DATASOURCE_PASSWORD: ${RHAOMI_POSTGRES_PASSWORD:?RHAOMI_POSTGRES_PASSWORD is required}
+      SPRING_FLYWAY_ENABLED: "false"
+      RHAOMI_SESSION_COOKIE_SECURE: "true"
+      RHAOMI_BOOTSTRAP_ADMIN_ENABLED: "false"
+      RHAOMI_BUILD_SERVICE_TOKEN: ${RHAOMI_BUILD_SERVICE_TOKEN:?RHAOMI_BUILD_SERVICE_TOKEN is required}
+      RHAOMI_MEDIA_ROOT: /var/lib/rhaomi/media
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    volumes:
+      - type: bind
+        source: /private/var/lib/rhaomi/data/media
+        target: /var/lib/rhaomi/media
+        bind:
+          create_host_path: false
+    networks:
+      - web-backend
+      - build-internal
+      - data-internal
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q '\"status\":\"UP\"'",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+    logging: *production-logging
+
+  publisher:
+    image: ${RHAOMI_PRODUCTION_IMAGE:?RHAOMI_PRODUCTION_IMAGE is required}
+    init: true
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    working_dir: /opt/rhaomi
+    command:
+      [
+        "java",
+        "-jar",
+        "/opt/rhaomi/backend.jar",
+        "--rhaomi.publisher.mode=control-loop",
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: production
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${RHAOMI_POSTGRES_DB:?RHAOMI_POSTGRES_DB is required}
+      SPRING_DATASOURCE_USERNAME: ${RHAOMI_POSTGRES_USER:?RHAOMI_POSTGRES_USER is required}
+      SPRING_DATASOURCE_PASSWORD: ${RHAOMI_POSTGRES_PASSWORD:?RHAOMI_POSTGRES_PASSWORD is required}
+      SPRING_FLYWAY_ENABLED: "false"
+      RHAOMI_PUBLISHER_OWNER: ${RHAOMI_PUBLISHER_OWNER:?RHAOMI_PUBLISHER_OWNER is required}
+      RHAOMI_PUBLISHER_AUTO_START: "true"
+      RHAOMI_PUBLISHER_LOCK_FILE: /var/lib/rhaomi/locks/publisher.lock
+      RHAOMI_PUBLISHER_NODE_EXECUTABLE: /usr/local/bin/node
+      RHAOMI_PUBLISHER_RELEASE_SCRIPT: /opt/rhaomi/source/scripts/publish-static-release.mts
+      RHAOMI_PUBLISHER_SOURCE_ROOT: /opt/rhaomi/source
+      RHAOMI_PUBLISHER_WORK_ROOT: /var/lib/rhaomi/publisher
+      RHAOMI_PUBLIC_RELEASE_ROOT: /srv/rhaomi/public/releases
+      RHAOMI_PUBLIC_CURRENT_LINK: /srv/rhaomi/public/current
+      RHAOMI_PUBLIC_PREVIOUS_LINK: /srv/rhaomi/public/previous
+      BUILD_API_INTERNAL_URL: http://backend:8080
+      BUILD_API_CREDENTIAL: ${RHAOMI_BUILD_SERVICE_TOKEN:?RHAOMI_BUILD_SERVICE_TOKEN is required}
+      PUBLIC_SITE_URL: ${RHAOMI_PUBLIC_SITE_URL:?RHAOMI_PUBLIC_SITE_URL is required}
+      RHAOMI_CODE_SHA: ${RHAOMI_CODE_SHA:?RHAOMI_CODE_SHA is required}
+      RHAOMI_CODE_IMAGE_TAG: ${RHAOMI_CODE_IMAGE_TAG:?RHAOMI_CODE_IMAGE_TAG is required}
+      RHAOMI_CODE_IMAGE_DIGEST: ${RHAOMI_CODE_IMAGE_DIGEST:?RHAOMI_CODE_IMAGE_DIGEST is required}
+      RHAOMI_FLYWAY_VERSION: ${RHAOMI_FLYWAY_VERSION:?RHAOMI_FLYWAY_VERSION is required}
+      RHAOMI_SBOM_REFERENCE: ${RHAOMI_SBOM_REFERENCE:?RHAOMI_SBOM_REFERENCE is required}
+      RHAOMI_PUBLISHER_BUILD_TIMEOUT_MS: "600000"
+      RHAOMI_RELEASE_RETENTION: "5"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    volumes:
+      - type: bind
+        source: /private/var/lib/rhaomi/public
+        target: /srv/rhaomi/public
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /private/var/lib/rhaomi/data/media
+        target: /var/lib/rhaomi/media
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /private/var/lib/rhaomi/state/publisher
+        target: /var/lib/rhaomi/publisher
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /private/var/lib/rhaomi/state/locks
+        target: /var/lib/rhaomi/locks
+        bind:
+          create_host_path: false
+    networks:
+      - build-internal
+      - data-internal
+    stop_grace_period: 30s
+    logging: *production-logging
+
+  postgres:
+    image: postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      POSTGRES_DB: ${RHAOMI_POSTGRES_DB:?RHAOMI_POSTGRES_DB is required}
+      POSTGRES_USER: ${RHAOMI_POSTGRES_USER:?RHAOMI_POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${RHAOMI_POSTGRES_PASSWORD:?RHAOMI_POSTGRES_PASSWORD is required}
+    volumes:
+      - type: volume
+        source: postgres-data
+        target: /var/lib/postgresql
+    networks:
+      - data-internal
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\"",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    stop_grace_period: 1m
+    logging: *production-logging
+
+volumes:
+  postgres-data:
+
+networks:
+  web-backend:
+    internal: true
+  build-internal:
+    internal: true
+  data-internal:
+    internal: true

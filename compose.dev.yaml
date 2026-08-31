@@ -172,10 +172,13 @@ services:
       - ./infra/nginx/dev.conf:/workspace/infra/nginx/dev.conf:ro
       - ./infra/nginx/publication-acceptance-admin.conf:/workspace/infra/nginx/publication-acceptance-admin.conf:ro
       - ./infra/nginx/publication-acceptance.conf:/workspace/infra/nginx/publication-acceptance.conf:ro
+      - ./infra/nginx/production.conf:/workspace/infra/nginx/production.conf:ro
       - ./scripts:/workspace/scripts:ro
       - ./src:/workspace/src:ro
       - ./tests:/workspace/tests:ro
       - ./compose.dev.yaml:/workspace/compose.dev.yaml:ro
+      - ./compose.production.yaml:/workspace/compose.production.yaml:ro
+      - ./compose.production.validation.yaml:/workspace/compose.production.validation.yaml:ro
       - ./eslint.config.mjs:/workspace/eslint.config.mjs:ro
       - ./next.config.ts:/workspace/next.config.ts:ro
       - ./package.json:/workspace/package.json:ro

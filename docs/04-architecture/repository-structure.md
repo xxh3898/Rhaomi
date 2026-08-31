@@ -3,7 +3,7 @@ title: "저장소 구조"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "module·배포 구조 변경 시"
 ---
 
@@ -54,7 +54,9 @@ Rhaomi/
 │   ├── Dockerfile.production      # Java 25·Node 24·decoder-only canonical application image
 │   ├── production-image-components.json
 │   └── production-image-NOTICE.md # tracked source·license·obligation evidence
-├── infra/nginx/dev.conf           # local same-origin proxy와 /api/build 명시적 404
+├── infra/nginx/
+│   ├── dev.conf                   # local same-origin proxy와 /api/build 명시적 404
+│   └── production.conf            # static/admin-only production project Nginx
 ├── scripts/
 │   ├── generate-synthetic-media-fixtures.mjs
 │   ├── validate-backend-auth.mjs
@@ -64,6 +66,8 @@ Rhaomi/
 │   ├── transform-build-snapshot.mts
 │   ├── validate-frontend-credential-isolation.mjs
 │   ├── validate-production-image.sh
+│   ├── validate-production-compose.sh
+│   ├── validate-production-compose-contract.mjs
 │   ├── validate-libheif-build-contract.sh
 │   ├── finalize-production-sbom.mjs
 │   ├── validate-production-supply-chain.mjs
@@ -71,6 +75,8 @@ Rhaomi/
 ├── tests/                         # frontend·runtime contract
 ├── docs/
 ├── compose.dev.yaml
+├── compose.production.yaml        # canonical production service/network/mount inventory
+├── compose.production.validation.yaml # task temp validation overlay
 ├── next.config.ts
 ├── package.json
 ├── package-lock.json
@@ -84,7 +90,7 @@ Rhaomi/
 - 관리자 collection controller는 견종·서비스·공지·갤러리의 `GET`, `POST`, `PUT`을 제공한다. 매장정보 singleton은 `GET`, `PUT`, private media는 list/detail/content `GET`, upload `POST`, status `PUT`만 제공하며 모든 domain에서 `PATCH`·`DELETE`를 제공하지 않는다.
 - `/admin/`은 인증 상태·로그인·로그아웃과 매장정보·미디어·견종·서비스·갤러리·공지 관리 component를 same-page Static Export shell에서 제공한다.
 - `src/features/admin-auth`는 relative `/api/admin/**`, same-origin credential, GET no-store, response shape와 고정 오류 mapping을 한 경계에서 처리한다.
-- `infra/nginx/dev.conf`는 local 개발 전용이며 production Nginx·TLS 설정이 아니다.
+- `infra/nginx/dev.conf`는 local 개발 전용이다. `infra/nginx/production.conf`는 project loopback Nginx의 static/admin/deny/cache 계약이며 host edge TLS·Cloudflare 설정은 포함하지 않는다.
 - `backend/.../publication`은 domain transaction 밖에서 호출할 수 없는 `MANDATORY` producer recorder와 deterministic JDBC state service를 둔다. state service는 due claim, source/boundary 최소 stale 판정, generation·lease·retry·terminal/coalesce primitive만 제공하며 HTTP controller, scheduler, background executor나 범용 queue framework를 제공하지 않는다.
 - `kr.co.rhaomi.publisher`는 exact mode argument 전용 non-web root와 state adapter, fixed debounce/highest coalesce, lease heartbeat, advisory lock과 fixed-process Node release executor를 둔다. child·descendant physical exit 전에는 Java body와 lock을 종료하지 않는다.
 - `backend/.../build`는 별도 stateless principal과 GET allowlist, active generation gate, read-only `REPEATABLE READ` snapshot, exact DTO와 current public relation media 조회만 제공한다. admin session을 재사용하거나 publication/content state를 변경하지 않는다.
@@ -175,9 +181,10 @@ planned 경로는 관련 Issue가 구현할 때만 추가한다.
 ### `infra`
 
 - `infra/nginx/dev.conf`는 local same-origin gateway만 정의
-- 운영 Docker Compose, production Nginx, single publisher와 backup job은 후속
+- `compose.production.yaml`과 `infra/nginx/production.conf`는 four-service topology와 project Nginx를 정의하고 validation overlay가 task temp source만 치환
+- actual production Secret·Mac ownership·volume·ingress/deploy와 backup job은 후속
 - local 개발 Compose와 운영 credential·volume을 공유하지 않음
-- future production Compose는 repository 밖 Mac host `/private/var/lib/rhaomi`의 public/media/state bind source와 production project-scoped PostgreSQL named volume을 명시적으로 구분
+- production Compose는 repository 밖 Mac host `/private/var/lib/rhaomi`의 public/media/state bind source와 production project-scoped PostgreSQL named volume을 명시적으로 구분
 - Linux container `/srv/rhaomi/public` target을 Mac host `/srv/rhaomi` source로 해석하거나 `synthetic.conf`·custom File Sharing 전제로 사용하지 않음
 - production data, named volume과 초기 Mac local backup repository를 Git worktree·`infra/` 아래에 생성하지 않음
 - future 외장 SSD `/Volumes/<provisioned-volume>/...`·iCloud repository도 별도 provisioning 전 생성하지 않음

@@ -3,7 +3,7 @@ title: "출시 체크리스트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "출시 기준 변경 시"
 ---
 
@@ -143,7 +143,19 @@ review_trigger: "출시 기준 변경 시"
 - [ ] layout shift
 - [ ] third-party SDK 없음
 
-위 완료 표시는 D-IMP-1 source와 local/Hosted validation gate에 한정된다. GHCR publish, production Compose 배치와 실제 iPhone Safari HEIC acceptance는 각각 code release·운영·물리 기기 항목이므로 계속 미완료다.
+위 완료 표시는 D-IMP-1 source와 local/Hosted validation gate에 한정된다. GHCR publish, production Compose 실제 배치와 iPhone Safari HEIC acceptance는 각각 code release·운영·물리 기기 항목이므로 계속 미완료다.
+
+### D-IMP-2 source·task validation
+
+- [x] external exact image만 사용하는 four-service production Compose source, `build:`·`latest` 0
+- [x] web-only loopback port와 web→backend, backend↔PostgreSQL, publisher→backend/DB internal network 경계
+- [x] canonical Mac public/media/state bind mapping과 web/media RO·backend/publisher 최소 RW rendered contract
+- [x] project-scoped PostgreSQL named volume, task 일반 Compose `down`→`up` sentinel·identity persistence
+- [x] project Nginx static/admin proxy, build/internal/actuator/manifest deny와 real 404
+- [x] task temp overlay·validation-only V1~V9 bootstrap, normal backend/publisher Flyway·bootstrap 비활성
+- [x] native amd64/arm64 validator와 Hosted exact-head evidence, task container/network cleanup
+
+위 완료 표시는 repository source와 task-scoped local/Hosted 환경에만 적용된다. actual `/private/var/lib/rhaomi`·production volume·Secret·loopback/FQDN·Cloudflare/GHCR/deploy evidence 없이 아래 production 항목을 완료 처리하지 않는다.
 
 ## 보안·운영
 

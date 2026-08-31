@@ -3,7 +3,7 @@ title: "ADR-014: HEIC decoder-only production runtime"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "HEIC codec·native image·라이선스·지원 형식 변경 시"
 ---
 
@@ -104,7 +104,7 @@ WITH_FUZZERS=OFF
 - exact final image ID·Git HEAD를 포함한 CycloneDX SBOM과 pinned Syft·Grype evidence 생성
 - tracked `production-image-components.json`의 source·version·commit/checksum·license·obligation 상태 확인
 
-generated SBOM·scanner report는 PR/CI evidence이며 저장소에 stale artifact로 커밋하지 않는다. canonical image source와 validation gate 구현은 완료됐지만 GHCR publish, production Compose service argv/profile, Secret·Mac filesystem provisioning과 deploy는 D-IMP-2~3 범위다. 따라서 이 결정의 runtime 상태는 production `PASS`가 아니라 `PROVISIONING_REQUIRED`다.
+generated SBOM·scanner report는 PR/CI evidence이며 저장소에 stale artifact로 커밋하지 않는다. canonical image와 D-IMP-2 Compose의 same-image backend/publisher argv·task runtime validation은 구현됐지만 GHCR publish, approved digest, Secret·Mac filesystem provisioning과 deploy는 D-IMP-3 이후 범위다. 따라서 이 결정의 runtime 상태는 production `PASS`가 아니라 `PROVISIONING_REQUIRED`다.
 
 ## 이유
 
