@@ -64,6 +64,7 @@ main() {
   postgres_password=$(openssl rand -hex 24)
   prepare_validation_host "$source_root" "$source_project" rhaomi_backup_source source
   prepare_validation_host "$restore_root" "$restore_project" rhaomi_backup_restore restore
+  prepare_validation_compose_cli "$source_root/app/docker"
 
   docker volume ls --format '{{.Name}}' >"$raw_dir/preexisting-volumes.txt"
   docker image ls --no-trunc --format '{{.ID}}' | sort -u >"$raw_dir/preexisting-images.txt"
@@ -314,6 +315,27 @@ prepare_validation_host() {
     "RHAOMI_CLEANUP_GIT_HEAD=$git_head" \
     >"$host_root/app/production.env"
   chmod 600 "$host_root/app/production.env" "$host_root/app/docker/config.json"
+}
+
+prepare_validation_compose_cli() {
+  validation_docker_config=$1
+  if command -v docker-compose >/dev/null 2>&1; then
+    return 0
+  fi
+  DOCKER_CONFIG=$validation_docker_config docker compose version >/dev/null 2>&1 ||
+    backup_validation_fail BACKUP_COMPOSE_CLI_MISSING
+  validation_cli_root="$validation_parent/validation-cli"
+  mkdir -m 700 "$validation_cli_root"
+  validation_compose_cli="$validation_cli_root/docker-compose"
+  printf '%s\n' \
+    '#!/bin/sh' \
+    'exec docker compose "$@"' \
+    >"$validation_compose_cli"
+  chmod 700 "$validation_compose_cli"
+  PATH="$validation_cli_root:$PATH"
+  export PATH
+  [ "$(command -v docker-compose)" = "$validation_compose_cli" ] ||
+    backup_validation_fail BACKUP_COMPOSE_CLI_MISSING
 }
 
 prepare_runtime_bind_ownership() {

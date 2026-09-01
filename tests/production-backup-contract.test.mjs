@@ -157,6 +157,14 @@ test("task validator가 A backup/B mutation/fresh restore A와 persistence를 ex
     [...validator.matchAll(/restore_runtime_bind_ownership "\$restore_root"/gu)].length,
     2,
   );
+  assert.match(validator, /prepare_validation_compose_cli "\$source_root\/app\/docker"/u);
+  assert.match(
+    validator,
+    /DOCKER_CONFIG=\$validation_docker_config docker compose version/u,
+  );
+  assert.match(validator, /validation_cli_root="\$validation_parent\/validation-cli"/u);
+  assert.match(validator, /'exec docker compose "\$@"'/u);
+  assert.match(validator, /command -v docker-compose/u);
   assert.match(
     validator,
     /chown -R 0:0[\s\S]*\/validation\/state\/publisher/u,
