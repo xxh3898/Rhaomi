@@ -3,7 +3,7 @@ title: "환경설정"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "환경변수·domain·version 변경 시"
 ---
 
@@ -98,7 +98,7 @@ Compose는 `POSTGRES_*`에서 backend의 `SPRING_DATASOURCE_*`를 내부 service
 
 acceptance PostgreSQL은 `/var/lib/postgresql` tmpfs를 사용하고 host port·named volume이 없다. Admin gateway·runner·DB를 중단한 후 static Nginx와 smoke client만 별도 internal public network에 남긴다. 이 설정은 `local|test` 수용 검증이며 production environment/mount 계약이 아니다.
 
-## production filesystem·release inventory — planned
+## production filesystem·release inventory — source implemented, host provisioning planned
 
 | 항목 | 비밀 | 계약 |
 |---|---:|---|
@@ -113,7 +113,7 @@ acceptance PostgreSQL은 `/var/lib/postgresql` tmpfs를 사용하고 host port·
 
 production release manifest에는 exact `main` SHA, image tag·digest, Flyway version, release ID, SBOM reference와 public build의 `contentRevision`, `publishGeneration`, `generatedAt`을 기록한다. actual ownership, UID/GID, rendered named-volume name과 Secret source는 provisioning에서 확정하며 Git에 실제 값을 기록하지 않는다.
 
-### production mount mapping — planned
+### production mount mapping — canonical Compose source
 
 | Mac source 또는 Docker source | Linux container target | access |
 |---|---|---|
@@ -148,7 +148,7 @@ production release manifest에는 exact `main` SHA, image tag·digest, Flyway ve
 | `RHAOMI_PUBLISHER_BUILD_TIMEOUT_MS` | N | Next build timeout, 1,000~3,600,000ms; 미설정 600,000ms |
 | `RHAOMI_RELEASE_RETENTION` | N | 1~100, 기본 5; current·previous 별도 보호 |
 
-backend의 `RHAOMI_BUILD_SERVICE_TOKEN`과 internal read-only API, 위 설정을 사용하는 Node full release adapter·Java executor는 구현됐다. Java publisher bean 생성 시 build/public root URL, credential, absolute source/work/release/current/previous 관계, build timeout·retention을 Node acceptance와 같은 범위로 fail-fast 검증한다. adapter는 URL/credential과 generation을 request 전에 다시 fail-closed 검증하고 credential을 argv·query·path·출력에 넣지 않으며 request body까지 fixed 10초 runtime default 안에 완료한다. browser/frontend/gateway에는 build credential이나 `NEXT_PUBLIC_` 변수를 주입하지 않고 credential file도 mount하지 않으며 dev/public Nginx가 build namespace를 차단한다. 실제 production publisher process의 environment·secret/image/path provisioning은 아직 구현되지 않았다.
+backend의 `RHAOMI_BUILD_SERVICE_TOKEN`과 internal read-only API, 위 설정을 사용하는 Node full release adapter·Java executor는 구현됐다. Java publisher bean 생성 시 build/public root URL, credential, absolute source/work/release/current/previous 관계, build timeout·retention을 Node acceptance와 같은 범위로 fail-fast 검증한다. adapter는 URL/credential과 generation을 request 전에 다시 fail-closed 검증하고 credential을 argv·query·path·출력에 넣지 않으며 request body까지 fixed 10초 runtime default 안에 완료한다. browser/frontend/web에는 build credential이나 `NEXT_PUBLIC_` 변수를 주입하지 않고 credential file도 mount하지 않으며 dev/public Nginx가 build namespace를 차단한다. D-IMP-2 Compose는 backend `RHAOMI_BUILD_SERVICE_TOKEN`과 publisher `BUILD_API_CREDENTIAL`을 같은 required source에서 서로 다른 key로 주입한다. actual production Secret·image digest·FQDN 값의 provisioning은 아직 수행하지 않았다.
 
 ## Static publisher control loop
 
@@ -168,7 +168,7 @@ publisher는 normal backend profile이나 환경변수만으로 시작하지 않
 
 현재 control loop는 immediate pending, due scheduled, same-generation retry와 expired lease recovery를 처리하고 highest generation coalesce·lease heartbeat·global lock·typed result mapping을 제공한다. 실제 executor는 fixed argv Node release CLI를 호출해 Build API→transformer→Next→manifest→atomic switch를 수행한다. cancellation은 wrapper의 callable 종료뿐 아니라 Node root·관찰한 descendant의 physical exit까지 확인하고, 그 전에는 lock과 non-daemon control worker를 유지한다. shutdown timeout은 lifecycle caller의 대기만 제한하고 lock을 먼저 넘기지 않으며 외부 process termination 때 child와 OS lock이 함께 정리된다. default `compose.dev.yaml`은 publisher service를 자동 기동하지 않으며 public/dev Nginx route와 Docker socket도 추가하지 않는다.
 
-아래 release filesystem 값은 구현된 executor의 container-side production target이다. local/CI는 temp path를 사용하며 production secret·mount provisioning은 후속 gate다.
+아래 release filesystem 값은 구현된 executor와 D-IMP-2 Compose의 container-side production target이다. local/CI는 overlay temp path를 사용하며 production secret·host mount provisioning은 후속 gate다.
 
 | 변수 | 비밀 | 설명 |
 |---|---:|---|
@@ -194,7 +194,25 @@ publisher는 normal backend profile이나 환경변수만으로 시작하지 않
 | publisher source | `/opt/rhaomi/source`, runtime install 없이 preinstalled lockfile dependency 사용 |
 | acceptance | `sh scripts/validate-production-image.sh` |
 
-image에는 production credential, domain, Mac host path를 bake하지 않는다. `RHAOMI_PUBLISHER_NODE_EXECUTABLE`, release script와 source root의 container 내부 non-secret default만 제공하고 backend/publisher service argv·profile·credential·public/state path는 D-IMP-2~3 Compose/provisioning에서 주입한다. validation은 synthetic credential, task-only network와 tmpfs DB/media를 사용하며 volume이나 production filesystem을 만들지 않는다.
+image에는 production credential, domain, Mac host path를 bake하지 않는다. `RHAOMI_PUBLISHER_NODE_EXECUTABLE`, release script와 source root의 container 내부 non-secret default만 제공한다. D-IMP-2 Compose는 backend/publisher argv·profile·credential key·public/media/state target을 고정하고, D-IMP-3와 host provisioning이 actual image digest·Secret·FQDN·ownership을 주입한다.
+
+## Production Compose inventory — implemented, not deployed
+
+| 항목 | source contract |
+|---|---|
+| base | `compose.production.yaml` |
+| validation overlay | `compose.production.validation.yaml` |
+| project Nginx | `infra/nginx/production.conf` |
+| runtime validator | `scripts/validate-production-compose.sh` |
+| service inventory | `rhaomi-web`, `backend`, `publisher`, `postgres` |
+| network | web 전용 non-internal `loopback-edge`; `web-backend`, `build-internal`, `data-internal`은 internal |
+| published port | `127.0.0.1:${RHAOMI_WEB_LOOPBACK_PORT}:8080`만 허용 |
+| external origin | redirect는 relative `Location`; backend forwarded origin은 config가 고정한 `https:443` |
+| DB persistence | Compose project-scoped `postgres-data`, container `/var/lib/postgresql` |
+
+base는 `RHAOMI_PRODUCTION_COMPOSE_PROJECT`, exact `RHAOMI_PRODUCTION_IMAGE`, loopback port, PostgreSQL credential, build service token, publisher owner, public site URL과 release metadata를 required input으로 받는다. actual 값은 repository나 `.env.example`에 두지 않는다. validation overlay만 `RHAOMI_PRODUCTION_VALIDATION_ROOT`, cleanup task/head를 받아 task temp bind와 schema bootstrap seam을 추가한다. normal backend/publisher의 `SPRING_FLYWAY_ENABLED=false`, bootstrap 비활성과 secure session cookie는 overlay에서도 바뀌지 않는다.
+
+validator는 exact-HEAD production image를 재사용하고 Darwin에서는 `/private/var/tmp`, Hosted Linux에서는 runner temp에 marker root를 만든다. base `/private/var/lib/rhaomi`는 생성·수정하지 않는다. external형 synthetic Host의 `/admin` 요청이 `308`과 exact relative `Location: /admin/`을 반환하고 runtime loaded config가 client 입력이 아닌 `https:443`을 backend forwarded origin으로 사용하는지 확인한다. general `down`→`up` 뒤 task named-volume sentinel과 Flyway history를 확인하며 `down -v`, volume/image delete 또는 prune을 실행하지 않는다. task volume은 evidence와 함께 retained resource로 보고한다.
 
 ## Production deploy·migration — planned
 
@@ -208,7 +226,7 @@ image에는 production credential, domain, Mac host path를 bake하지 않는다
 - PostgreSQL restart와 일반 Compose `down`·`up` 뒤 data persistence를 검증하고 `down -v`·volume prune/delete가 고정 entrypoint·runbook에 없음을 확인한다.
 - application-consistent backup을 새 isolated PostgreSQL named volume에 `pg_restore`해 복구 authority를 확인한다.
 
-이 production environment, secret, service entrypoint와 one-shot migration service는 아직 생성하지 않았다. canonical image 구현은 이 provisioning 상태를 변경하지 않는다.
+production service inventory와 project Nginx source는 구현했지만 GitHub production environment, actual Secret·image digest·host path·loopback/FQDN, fixed deploy entrypoint와 one-shot migration service는 아직 생성·provision하지 않았다.
 
 ## Backup·HomeOps inventory — planned
 

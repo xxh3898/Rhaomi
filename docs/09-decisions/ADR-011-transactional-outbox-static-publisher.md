@@ -3,7 +3,7 @@ title: "ADR-011: Transactional outbox와 정적 publisher"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 방식 변경 시"
 ---
 
@@ -91,6 +91,7 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 - publisher의 filesystem 접근은 필요한 read-only media와 release/state/lock write 경로로 제한한다.
 - release host source는 `/private/var/lib/rhaomi/public`이고 publisher container target은 `/srv/rhaomi/public`이다. `releases`, `current`, `previous` 조작은 container target에서 수행되지만 Mac host authority는 `/private/var/lib/rhaomi/public`이다.
 - publisher state host source는 `/private/var/lib/rhaomi/state/publisher`, lock source는 `/private/var/lib/rhaomi/state/locks`다. 둘을 각각 publisher container `/var/lib/rhaomi/publisher`, `/var/lib/rhaomi/locks`로 read-write mount한다.
+- D-IMP-2 `compose.production.yaml`은 backend와 동일 external image, exact non-web mode, internal Build API/DB network, public/state/lock RW와 media RO target을 구현했다. task overlay의 native smoke는 이 lifetime/mount 경계를 검증하지만 actual host source·Secret·approved digest provisioning은 아니다.
 - code release와 content release는 같은 build·validate·switch 구현을 사용한다.
 - content release는 임의 branch가 아니라 현재 승인된 production `main` image/digest만 사용한다.
 

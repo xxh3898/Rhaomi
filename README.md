@@ -3,7 +3,7 @@ title: "Rhaomi 프로젝트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 ---
 
@@ -23,7 +23,7 @@ review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 
 ## 현재 구현 범위
 
-Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1~8f7에서 transactional outbox, generation state, internal Build API, strict transformer, non-web control loop, generated V2 Next Static Export와 immutable release·atomic switch를 구현했다. Phase 1C-8f8은 synthetic production-like dataset을 실제 local bootstrap·same-origin Admin HTTP로 저장하고, 30초 scheduled publish·expiry·overdue·stale/coalesce에서 Build API→transformer→Next→release를 끝까지 실행한 뒤 backend·PostgreSQL을 중단한 read-only Nginx에서 홈·공지·media·SEO·접근성·runtime 독립을 검증한다. Phase 1D는 [Production readiness matrix](docs/07-operations/production-readiness.md)에서 승인 계약, local/CI 증거, 구현·provisioning, 외부 콘텐츠 승인과 physical-device acceptance를 분리해 contract를 freeze한다. 이 범위는 task-scoped tmpfs/temp filesystem과 Markdown 계약에 한정하며 production Compose·secret·Mac path·backup repository provisioning이나 실제 콘텐츠 공개는 하지 않는다.
+Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1~8f7에서 transactional outbox, generation state, internal Build API, strict transformer, non-web control loop, generated V2 Next Static Export와 immutable release·atomic switch를 구현했다. Phase 1C-8f8은 synthetic production-like dataset을 실제 local bootstrap·same-origin Admin HTTP로 저장하고, 30초 scheduled publish·expiry·overdue·stale/coalesce에서 Build API→transformer→Next→release를 끝까지 실행한 뒤 backend·PostgreSQL을 중단한 read-only Nginx에서 홈·공지·media·SEO·접근성·runtime 독립을 검증한다. Phase 1D는 [Production readiness matrix](docs/07-operations/production-readiness.md)에서 승인 계약, local/CI 증거, 구현·provisioning, 외부 콘텐츠 승인과 physical-device acceptance를 분리해 contract를 freeze한다. D-IMP-1 canonical image에 이어 D-IMP-2 production Compose·project Nginx source와 task-scoped Mac/Linux validation overlay를 구현했다. 이는 actual `/private/var/lib/rhaomi`, 운영 PostgreSQL volume·Secret·FQDN·Cloudflare/GHCR/deploy provisioning 또는 실제 콘텐츠 공개를 뜻하지 않는다.
 
 ```text
 .
@@ -40,11 +40,13 @@ Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Bo
 │   ├── publication-release/ # export 검증·manifest·stale guard·atomic switch
 │   └── features/            # admin auth/transport, dashboard, media·shop·breed·service·gallery UI
 ├── backend/                 # Spring Boot API·publisher와 canonical decoder-only production Dockerfile
-├── infra/nginx/dev.conf     # local same-origin gateway와 /api/build 명시적 차단
+├── infra/nginx/             # local gateway와 production static/admin fail-closed config
 ├── scripts/                 # 정적 산출물·gateway·HEIC·Compose smoke 검증
 ├── tests/                   # frontend·runtime contract test
 ├── docs/                    # 제품·아키텍처·운영 기준 문서
 ├── compose.dev.yaml         # 개발 전용 gateway/frontend/backend/PostgreSQL
+├── compose.production.yaml  # canonical Mac bind·named-volume production inventory
+├── compose.production.validation.yaml # task temp source·schema bootstrap 검증 overlay
 ├── next.config.ts
 ├── package.json
 ├── package-lock.json
@@ -154,6 +156,20 @@ sh scripts/validate-production-image.sh
 ```
 
 evidence 경로에는 secret이 아닌 exact image ID·Git HEAD, CMake contract, runtime inventory, SBOM과 scan report만 생성한다. script는 task container/network와 tmpfs PostgreSQL을 정리하지만 image/cache를 삭제하거나 volume을 만들지 않는다. GHCR push, production Secret·Mac path·Compose provisioning과 deploy는 수행하지 않는다.
+
+### Production Compose acceptance
+
+미리 검증한 exact-HEAD production image를 재사용해 canonical base를 렌더링하고, validation overlay만 task temp source로 치환해 project Nginx·backend·publisher·PostgreSQL의 network/mount/route/persistence를 검증한다.
+
+```bash
+RHAOMI_PRODUCTION_IMAGE='rhaomi-production-validation:<exact-head>' \
+RHAOMI_WEB_LOOPBACK_PORT=18051 \
+RHAOMI_CLEANUP_TASK=51-production-compose-nginx \
+RHAOMI_PRODUCTION_COMPOSE_EVIDENCE_DIR=/path/to/task-evidence \
+sh scripts/validate-production-compose.sh
+```
+
+script는 image OCI revision과 current Git HEAD 일치, validation-only Flyway V1~V9 bootstrap, normal backend/publisher의 Flyway·bootstrap 비활성, web-only loopback port, internal network adjacency, bind RO/RW, public deny route, `Secure` session cookie와 일반 Compose `down`→`up` sentinel persistence를 확인한다. task container/network와 marker temp root는 정리하지만 PostgreSQL task volume과 image는 삭제하지 않고 exact retained volume을 보고한다. base의 `/private/var/lib/rhaomi`를 만들거나 변경하지 않으며 production Secret·FQDN·Cloudflare·GHCR·deploy도 다루지 않는다.
 
 ## 현재 핵심 결론
 

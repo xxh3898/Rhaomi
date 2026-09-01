@@ -3,7 +3,7 @@ title: "테스트 전략"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "기술·기능 범위 변경 시"
 ---
 
@@ -328,6 +328,22 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - corrective exact-head Hosted CI Frontend·Backend·Compose Smoke 3/3 성공
 
 문서 contract PASS 자체는 production runtime acceptance 증거가 아니다. D-IMP-1 decoder-only image는 별도의 final-image build·actual HEIC·SBOM·scan·amd64/arm64 gate로 검증하며, 그 성공도 production Compose, publisher provisioning, backup, HomeOps 또는 실제 Mac·iPhone production acceptance를 대신하지 않는다.
+
+## 현재 D-IMP-2 production Compose·Nginx 자동 검증
+
+- source contract test가 service inventory, external same-image backend/publisher, pinned web/PostgreSQL image, `build:`·`latest` 부재를 확인
+- canonical base `/private/var/lib/rhaomi` source와 overlay-only temp source가 분리되고 host `/srv/rhaomi`, source checkout·Docker socket mount가 없음을 확인
+- rendered JSON에서 web-only `127.0.0.1` port와 전용 `loopback-edge`, 세 service internal network adjacency, bind target/mode, project-scoped PostgreSQL volume name과 cleanup label 확인
+- validation-only schema bootstrap으로 PostgreSQL 18.6·Flyway V1~V9를 적용한 뒤 normal backend/publisher의 Flyway·bootstrap 비활성 확인
+- actual container inspect의 `PortBindings`, `NetworkSettings`, `Mounts`와 web public RO, backend media RW, publisher public/state/lock RW·media RO probe
+- static home/admin·immutable asset, anonymous admin upstream, `Secure` session cookie, build/internal/actuator/manifest/dot/unknown 404와 internal valid Bearer authentication 확인
+- external형 Host로 `/admin`을 요청해 `308`, exact `Location: /admin/`, internal `http://`·`:8080`·validation loopback port 부재를 확인하고 runtime Nginx config의 fixed `X-Forwarded-Proto: https`·`X-Forwarded-Port: 443`을 확인
+- `/admin/`, `/_next/static/`, `/generated/media/` 아래 실제 dot-prefixed fixture가 존재해도 404인지 확인하고 synthetic query-bearing Referer marker가 actual web access log에 남지 않는지 확인
+- synthetic sentinel을 기록하고 일반 Compose `down` 뒤 같은 task volume identity로 다시 `up`해 row·Flyway history 불변 확인
+- pre-existing volume/image 보존, task container/network 0과 task volume retained evidence 확인; volume/image delete·prune 없음
+- Mac mini Docker Desktop Linux arm64와 Hosted Backend Linux amd64가 same entrypoint를 exact HEAD production image로 실행
+
+이 검증은 actual `/private/var/lib/rhaomi` ownership·permission, production named volume·Secret·FQDN·Cloudflare·GHCR/deploy·one-shot Flyway 증거가 아니다. 해당 항목은 production readiness에서 계속 미완료다.
 
 ## 현재 Phase 1C-8f4 transformer 자동 검증
 

@@ -3,7 +3,7 @@ title: "접근제어"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "역할·권한·인증 방식 변경 시"
 ---
 
@@ -45,7 +45,7 @@ build-time 공개 콘텐츠 조회는 [ADR-011](../09-decisions/ADR-011-transact
 - Build Snapshot V2 revision/generation은 canonical decimal string만 허용하고 Node가 JSON number로 축소하지 않아 generation equality·stale protection을 precision collision로 우회하지 못하게 한다.
 - raw storage path, DB credential, admin session과 private metadata를 노출하지 않는다.
 
-build API와 stateless credential 경계, Node full release adapter와 credential을 직접 해석하지 않는 publisher control loop를 구현했다. Java executor는 같은 secret source의 `BUILD_API_CREDENTIAL`을 allowlist environment로만 child에 전달하고 URL/query/argv/output에는 넣지 않으며 no-redirect bounded GET과 manifest-scoped memory media provider만 사용한다. production publisher secret/image/path provisioning은 아직 구현되지 않았다. local token은 backend와 명시적인 validation process에만 전달하고 frontend·gateway environment에는 key를 두지 않으며 frontend filesystem에는 `.env.dev.local`, backend source와 local secret/config를 mount하지 않는다. 관리자 session을 재사용하거나 실제 token을 이 문서·저장소에 만들지 않는다.
+build API와 stateless credential 경계, Node full release adapter와 credential을 직접 해석하지 않는 publisher control loop를 구현했다. Java executor는 같은 secret source의 `BUILD_API_CREDENTIAL`을 allowlist environment로만 child에 전달하고 URL/query/argv/output에는 넣지 않으며 no-redirect bounded GET과 manifest-scoped memory media provider만 사용한다. D-IMP-2 Compose는 backend와 publisher만 build internal network를 공유하고 같은 required secret source를 각각 `RHAOMI_BUILD_SERVICE_TOKEN`, `BUILD_API_CREDENTIAL` key로 받는다. web에는 credential environment·file·source mount가 없고 public `/api/build/**`는 404다. task validator는 synthetic token을 출력하지 않고 internal valid Bearer가 인증 계층을 통과하는지만 확인한다. actual production Secret·image/path provisioning은 아직 수행하지 않았다.
 
 ### Static admin client
 

@@ -3,7 +3,7 @@ title: "컨테이너 구조"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "서비스 배치·network·image 변경 시"
 ---
 
@@ -59,7 +59,7 @@ frontend dependency install과 runtime은 같은 `node_modules`·npm cache volum
 
 이전 Directus 개발 volume은 새 Compose에서 참조하지 않는다. 실제 운영 data가 아니더라도 이 Issue에서 삭제하지 않으며 별도 cleanup 승인 대상으로 남긴다.
 
-## 운영 목표 구성 — planned
+## 운영 목표 구성 — source implemented, provisioning planned
 
 ```mermaid
 flowchart TB
@@ -91,7 +91,7 @@ flowchart TB
     HomeOps -. 상태 .-> Backup
 ```
 
-local private media volume·upload API, same-origin development gateway, dedicated publisher control loop와 Build API→transformer→Next→immutable release/atomic switch data plane을 구현했다. network-disabled Node suites, explicit `publisher-validation`, `publication-acceptance` Java 25/Node 24 harness가 Sharp·filesystem symlink·DB completion에 더해 actual Admin HTTP·scheduled boundary·backend 중단 후 static serving을 amd64/arm64에서 검증하며 default publisher service나 host port를 추가하지 않는다. 위 production topology와 lossless wire 계약은 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-015](../09-decisions/ADR-015-lossless-int64-json-wire-contract.md)에서 승인했다. D-IMP-1 decoder-only application image와 image-level acceptance는 구현됐지만 production Compose·Nginx·publisher service/secret/path provisioning·backup·HomeOps는 아직 구현되지 않았다.
+local private media volume·upload API, same-origin development gateway, dedicated publisher control loop와 Build API→transformer→Next→immutable release/atomic switch data plane을 구현했다. network-disabled Node suites, explicit `publisher-validation`, `publication-acceptance` Java 25/Node 24 harness가 Sharp·filesystem symlink·DB completion에 더해 actual Admin HTTP·scheduled boundary·backend 중단 후 static serving을 amd64/arm64에서 검증한다. 위 production topology와 lossless wire 계약은 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-015](../09-decisions/ADR-015-lossless-int64-json-wire-contract.md)에서 승인했다. D-IMP-1 decoder-only application image에 이어 D-IMP-2 `compose.production.yaml`, project Nginx와 task validation overlay를 구현했다. actual Secret·Mac ownership/path·production volume·ingress/deploy·backup·HomeOps provisioning은 여전히 미완료다.
 
 초기 production backup은 [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)의 2026-08-31 개정에 따라 protected source와 분리된 Mac mini local repository만 사용한다. diagram의 외장 SSD·iCloud 경로는 future hardening이며 초기 production blocker가 아니다. 미구성 상태를 offsite `PASS`로 표시하지 않는다.
 
@@ -104,9 +104,15 @@ local private media volume·upload API, same-origin development gateway, dedicat
 - CMake의 codec/plugin과 root option inventory 전체를 고정하고 libde265 외 codec, encoder, dynamic plugin, experimental path를 fail-closed `OFF`로 검증한다.
 - final image에는 backend executable JAR, package-lock 기반 production Node graph, Next build용 pinned TypeScript/type package와 tracked publisher source/config만 allowlist로 포함한다.
 - x265 package·link·plugin, npm·compiler·Git·CMake·header/source tree·Gradle/npm cache와 test source는 final image에서 제외한다.
-- service-specific argv/profile, UID/GID, Mac bind ownership, production Secret과 image registry identity는 D-IMP-2~3에서 확정·provision한다. Dockerfile은 이를 임의 결정하는 `ENTRYPOINT`나 production 값을 bake하지 않는다.
+- backend와 publisher의 service-specific argv/profile·container target은 D-IMP-2 Compose가 고정한다. UID/GID, Mac bind ownership, production Secret과 image registry identity는 D-IMP-3 및 host provisioning에서 확정한다. Dockerfile은 이를 임의 결정하는 `ENTRYPOINT`나 production 값을 bake하지 않는다.
 
 `scripts/validate-production-image.sh`는 task container/network와 tmpfs PostgreSQL만 사용해 final image surface, publisher Static Export, actual Admin HTTP HEIC/HEIF normalization, sequence·AVIF 오류 계약, CycloneDX SBOM과 Grype evidence를 native amd64/arm64에서 검증한다. generated evidence는 source에 커밋하지 않고 Hosted artifact와 review evidence로 보존한다. 이 image를 build한 사실은 GHCR publish나 production 배치를 뜻하지 않는다.
+
+## Production Compose·project Nginx — implemented, unprovisioned
+
+`compose.production.yaml`은 external exact image만 사용하는 `rhaomi-web`, `backend`, `publisher`, `postgres` 네 service를 canonical inventory로 둔다. web만 host loopback publish를 위한 non-internal `loopback-edge`에 연결하고, service 통신은 `web-backend`, `build-internal`, `data-internal` 세 internal network로 분리한다. web은 UID/GID `101:101`과 같은 owner의 bounded tmpfs로 non-root 실행하며 required loopback port만 publish하고 `/api/admin/**`만 backend로 전달한다. project Nginx는 external HTTPS termination 뒤 생성하는 redirect를 relative `Location`으로 제한하고 backend에는 고정 `X-Forwarded-Proto: https`·`X-Forwarded-Port: 443`을 전달해 내부 HTTP scheme·port를 origin authority로 사용하지 않는다. backend/publisher는 같은 image를 사용하며 normal process의 Flyway와 bootstrap은 비활성이다. PostgreSQL은 project-scoped `postgres-data` named volume을 `/var/lib/postgresql`에 사용하고 host bind를 사용하지 않는다.
+
+`compose.production.validation.yaml`은 base host source를 바꾸지 않고 validation run에서만 marker-owned temp public/media/state source와 validation-only schema bootstrap을 덮어쓴다. `scripts/validate-production-compose.sh`는 rendered contract, actual mount mode·network·port, static/admin/deny route, internal Build API authentication, 일반 `down` 뒤 sentinel·volume identity를 native architecture에서 검증한다. task container/network는 정리하고 task PostgreSQL volume은 삭제하지 않는다. 이 증거는 actual `/private/var/lib/rhaomi` ownership·permission이나 production volume·Secret·FQDN provisioning이 아니다.
 
 ## 서비스 책임
 
@@ -148,7 +154,7 @@ ops internal
 - backup과 HomeOps는 project public network에 join하지 않는다.
 - HomeOps UI·운영 endpoint와 Tailscale SSH는 public site와 분리한다.
 
-## 운영 영속 경로 — planned
+## 운영 영속 경로 — source contract implemented, host provisioning planned
 
 ```text
 /private/var/lib/rhaomi/
@@ -175,9 +181,9 @@ ops internal
 | global lock | `/private/var/lib/rhaomi/state/locks` | publisher `/var/lib/rhaomi/locks` | host bind RW |
 | PostgreSQL PGDATA | production project-scoped named volume | PostgreSQL image PGDATA target | Docker-managed persistent volume |
 
-exact host ownership·permission, rendered mount와 named-volume identity는 provisioning Issue에서 검증한다. container 삭제와 일반 Compose `down`은 PostgreSQL data를 삭제하지 않아야 하며 production `down -v`, volume prune/delete를 금지한다. DB backup/restore는 raw volume copy가 아니라 `pg_dump -Fc`·`pg_restore`를 authority로 사용한다.
+base Compose의 source/target·mode와 task overlay의 rendered mount·named-volume persistence는 local/CI에서 검증한다. actual host ownership·permission, production rendered volume identity와 bind smoke는 provisioning에서 검증한다. container 삭제와 일반 Compose `down`은 PostgreSQL data를 삭제하지 않아야 하며 production `down -v`, volume prune/delete를 금지한다. DB backup/restore는 raw volume copy가 아니라 `pg_dump -Fc`·`pg_restore`를 authority로 사용한다.
 
-## 공개 route — planned
+## 공개 route — project Nginx implemented, ingress provisioning planned
 
 ```text
 https://<public-domain>/          → 정적 사이트와 /admin auth shell

@@ -6,6 +6,7 @@ repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 git_head=$(git -C "$repo_dir" rev-parse HEAD)
 git_short=$(printf '%s' "$git_head" | cut -c1-12)
 image_tag=${RHAOMI_PRODUCTION_IMAGE_TAG:-"rhaomi-production-validation:${git_head}"}
+cleanup_task=${RHAOMI_CLEANUP_TASK:-49-production-decoder-image}
 evidence_dir=${RHAOMI_PRODUCTION_EVIDENCE_DIR:-}
 evidence_is_temporary=false
 
@@ -56,7 +57,7 @@ docker build \
   --build-arg "RHAOMI_GIT_HEAD=${git_head}" \
   --label io.homeserver.cleanup.environment=development \
   --label io.homeserver.cleanup.project=rhaomi \
-  --label io.homeserver.cleanup.task=49-production-decoder-image \
+  --label "io.homeserver.cleanup.task=${cleanup_task}" \
   --label io.homeserver.cleanup.lifecycle=task \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=${git_head}" \
@@ -77,7 +78,7 @@ esac
 docker run --rm --network none \
   --label io.homeserver.cleanup.environment=development \
   --label io.homeserver.cleanup.project=rhaomi \
-  --label io.homeserver.cleanup.task=49-production-decoder-image \
+  --label "io.homeserver.cleanup.task=${cleanup_task}" \
   --label io.homeserver.cleanup.lifecycle=task \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=${git_head}" \
@@ -140,7 +141,7 @@ docker run --rm --network none \
   --env PUBLIC_SITE_URL=https://production-image.invalid \
   --label io.homeserver.cleanup.environment=development \
   --label io.homeserver.cleanup.project=rhaomi \
-  --label io.homeserver.cleanup.task=49-production-decoder-image \
+  --label "io.homeserver.cleanup.task=${cleanup_task}" \
   --label io.homeserver.cleanup.lifecycle=task \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=${git_head}" \
@@ -155,7 +156,7 @@ docker run --rm --network none \
 docker run --rm --network none \
   --label io.homeserver.cleanup.environment=development \
   --label io.homeserver.cleanup.project=rhaomi \
-  --label io.homeserver.cleanup.task=49-production-decoder-image \
+  --label "io.homeserver.cleanup.task=${cleanup_task}" \
   --label io.homeserver.cleanup.lifecycle=task \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=${git_head}" \
@@ -169,7 +170,7 @@ for evidence_name in \
   docker run --rm --network none \
     --label io.homeserver.cleanup.environment=development \
     --label io.homeserver.cleanup.project=rhaomi \
-    --label io.homeserver.cleanup.task=49-production-decoder-image \
+    --label "io.homeserver.cleanup.task=${cleanup_task}" \
     --label io.homeserver.cleanup.lifecycle=task \
     --label io.homeserver.cleanup.retain=false \
     --label "io.homeserver.cleanup.git-head=${git_head}" \
@@ -180,7 +181,7 @@ done
 docker run --rm --network none \
   --label io.homeserver.cleanup.environment=development \
   --label io.homeserver.cleanup.project=rhaomi \
-  --label io.homeserver.cleanup.task=49-production-decoder-image \
+  --label "io.homeserver.cleanup.task=${cleanup_task}" \
   --label io.homeserver.cleanup.lifecycle=task \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=${git_head}" \
@@ -190,7 +191,7 @@ docker run --rm --network none \
 docker network create \
   --label io.homeserver.cleanup.environment=development \
   --label io.homeserver.cleanup.project=rhaomi \
-  --label io.homeserver.cleanup.task=49-production-decoder-image \
+  --label "io.homeserver.cleanup.task=${cleanup_task}" \
   --label io.homeserver.cleanup.lifecycle=task \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=${git_head}" \
@@ -207,7 +208,7 @@ docker run --detach --rm \
   --env POSTGRES_PASSWORD=rhaomi-image-test-database-password \
   --label io.homeserver.cleanup.environment=development \
   --label io.homeserver.cleanup.project=rhaomi \
-  --label io.homeserver.cleanup.task=49-production-decoder-image \
+  --label "io.homeserver.cleanup.task=${cleanup_task}" \
   --label io.homeserver.cleanup.lifecycle=task \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=${git_head}" \
@@ -246,7 +247,7 @@ docker run --detach --rm \
   --env RHAOMI_BUILD_SERVICE_TOKEN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   --label io.homeserver.cleanup.environment=development \
   --label io.homeserver.cleanup.project=rhaomi \
-  --label io.homeserver.cleanup.task=49-production-decoder-image \
+  --label "io.homeserver.cleanup.task=${cleanup_task}" \
   --label io.homeserver.cleanup.lifecycle=task \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=${git_head}" \
@@ -263,7 +264,7 @@ media_smoke_output=$(docker run --rm \
   --env RHAOMI_BOOTSTRAP_ADMIN_PASSWORD=rhaomi-image-smoke-password-49 \
   --label io.homeserver.cleanup.environment=development \
   --label io.homeserver.cleanup.project=rhaomi \
-  --label io.homeserver.cleanup.task=49-production-decoder-image \
+  --label "io.homeserver.cleanup.task=${cleanup_task}" \
   --label io.homeserver.cleanup.lifecycle=task \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=${git_head}" \
@@ -284,7 +285,7 @@ docker run --rm --network none \
   --volume "$archive_dir/production-image.tar:/input/production-image.tar:ro" \
   --label io.homeserver.cleanup.environment=development \
   --label io.homeserver.cleanup.project=rhaomi \
-  --label io.homeserver.cleanup.task=49-production-decoder-image \
+  --label "io.homeserver.cleanup.task=${cleanup_task}" \
   --label io.homeserver.cleanup.lifecycle=task \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=${git_head}" \
@@ -302,7 +303,7 @@ docker run --rm --network none \
   --volume "$evidence_dir:/evidence" \
   --label io.homeserver.cleanup.environment=development \
   --label io.homeserver.cleanup.project=rhaomi \
-  --label io.homeserver.cleanup.task=49-production-decoder-image \
+  --label "io.homeserver.cleanup.task=${cleanup_task}" \
   --label io.homeserver.cleanup.lifecycle=task \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=${git_head}" \
@@ -314,7 +315,7 @@ docker run --rm \
   --volume "$evidence_dir/production-sbom.cdx.json:/evidence/production-sbom.cdx.json:ro" \
   --label io.homeserver.cleanup.environment=development \
   --label io.homeserver.cleanup.project=rhaomi \
-  --label io.homeserver.cleanup.task=49-production-decoder-image \
+  --label "io.homeserver.cleanup.task=${cleanup_task}" \
   --label io.homeserver.cleanup.lifecycle=task \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=${git_head}" \
@@ -330,7 +331,7 @@ docker run --rm --network none \
   --volume "$evidence_dir:/evidence" \
   --label io.homeserver.cleanup.environment=development \
   --label io.homeserver.cleanup.project=rhaomi \
-  --label io.homeserver.cleanup.task=49-production-decoder-image \
+  --label "io.homeserver.cleanup.task=${cleanup_task}" \
   --label io.homeserver.cleanup.lifecycle=task \
   --label io.homeserver.cleanup.retain=false \
   --label "io.homeserver.cleanup.git-head=${git_head}" \

@@ -3,7 +3,7 @@ title: "ADR-010: Production topology와 코드 릴리스"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "운영 진입 경로·배포·마이그레이션·릴리스 보존 변경 시"
 ---
 
@@ -17,7 +17,7 @@ review_trigger: "운영 진입 경로·배포·마이그레이션·릴리스 보
 
 Rhaomi는 macOS Mac mini에서 다른 홈서버 서비스와 함께 운영될 예정이며 공개 정적 사이트, same-origin 관리자 API, PostgreSQL과 private media를 서로 다른 신뢰 경계로 분리해야 한다. macOS의 root system volume은 일반 Linux host와 같은 writable `/srv` 계약을 제공하지 않고 Docker Desktop의 기본 host file sharing에도 `/srv`가 포함되지 않는다. `main` merge, image 생성, 운영 반영과 Flyway migration도 하나의 암묵적 자동 단계로 묶지 않아야 한다.
 
-이 결정은 목표 운영 계약만 확정한다. production Compose, Nginx, Cloudflare Tunnel, GHCR image, GitHub Environment와 Mac mini deploy entrypoint는 아직 구현·provisioning되지 않았다.
+이 결정의 D-IMP-2 source implementation으로 production Compose와 project Nginx, task-scoped validation overlay를 추가했다. Cloudflare Tunnel, host edge, GHCR, GitHub Environment, Mac mini deploy entrypoint와 actual host/Secret/volume/FQDN은 아직 구현·provisioning되지 않았다.
 
 Issue #43은 같은 계약의 build·validate·private manifest·immutable install·`previous/current` switch·post-switch smoke·rollback·retention primitive를 격리된 local/CI filesystem과 actual Java→Node executor로 구현했다. 이 증거는 `/private/var/lib/rhaomi` ownership·Docker Desktop bind, production image/digest·secret, Nginx·Cloudflare, public HTTPS 또는 deploy entrypoint provisioning 완료를 뜻하지 않는다.
 
@@ -38,6 +38,8 @@ Internet
 
 - 공유기 port forwarding을 사용하지 않는다.
 - `cloudflared`가 외부로 연결하며 Rhaomi project web은 host loopback에만 bind한다.
+- public origin은 Cloudflare/host edge에서 종료되는 HTTPS다. project Nginx의 내부 HTTP scheme·8080·provisioning loopback port는 외부 redirect authority가 아니며, Nginx-generated redirect는 relative `Location`만 사용한다.
+- project Nginx는 `/api/admin/**`에 `X-Forwarded-Proto: https`, `X-Forwarded-Port: 443`을 직접 설정한다. client가 보낸 forwarded scheme/port를 신뢰하거나 내부 `$scheme`을 external origin으로 전달하지 않는다.
 - 고객 공개 화면과 `/admin/`은 같은 origin을 사용한다.
 - `/admin/`은 검색 제외 대상일 뿐 인증 경계가 아니다. Spring session·CSRF, 출시 전 WebAuthn/passkey 2차 인증과 rate limit이 업무 경계다. password-only production은 허용하지 않는다.
 - PostgreSQL, backend direct port, publisher, backup과 HomeOps는 public exposure가 없다.
@@ -193,7 +195,7 @@ Docker Desktop host sharing·path와 DB internal layout에 결합되고 portable
 
 ## 실행 계획
 
-- [ ] production Compose와 project Nginx 구현
+- [x] production Compose와 project Nginx source·task-scoped local/Hosted validation 구현
 - [ ] GHCR immutable multi-architecture image와 SBOM pipeline 구현
 - [ ] GitHub production environment·required reviewer·branch policy 설정
 - [ ] Tailscale 전용 고정 deploy entrypoint 구현

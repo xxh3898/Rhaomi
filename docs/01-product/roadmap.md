@@ -3,7 +3,7 @@ title: "로드맵"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "릴리스 범위 변경 시"
 ---
 
@@ -256,13 +256,13 @@ Phase 1C-8f8은 local/CI synthetic acceptance gate다. 실제 Mac `/private/var/
 - ADR-014 pinned source HEIC decoder-only production runtime
 - [Production readiness matrix](../07-operations/production-readiness.md)의 계약·local/CI·구현·provisioning·외부 승인·물리 acceptance 분리
 
-Phase 1D는 `Production operating architecture CONTRACT COMPLETE`다. D-IMP-1은 canonical decoder-only application image와 SBOM·actual HEIC·amd64/arm64 acceptance까지 구현했지만 이는 `Production provisioning/deploy COMPLETE`가 아니다. 실제 Mac directory ownership·bind smoke, PostgreSQL restart·일반 Compose `down` persistence·isolated `pg_restore`, production Compose/Nginx, GitHub Environment, publisher와 production build credential 주입, local backup repository, HomeOps 설정과 approved image digest 배치는 후속 Issue에서 구현·검증한다.
+Phase 1D는 `Production operating architecture CONTRACT COMPLETE`다. D-IMP-1 canonical decoder-only image에 이어 D-IMP-2 external-image production Compose, project Nginx와 task-scoped Mac/Linux bind·named-volume validator를 구현했다. 이는 `Production provisioning/deploy COMPLETE`가 아니다. 실제 Mac directory ownership·permission, production bind·volume·Secret·FQDN, isolated `pg_restore`, GitHub Environment, local backup repository, HomeOps 설정과 approved image digest 배치는 후속 Issue에서 구현·검증한다.
 
 후속 production implementation은 dependency 순서대로 진행한다.
 
 1. D-IMP-1 decoder-only production image·SBOM/supply-chain evidence — implementation/local·Hosted acceptance 완료, production provisioning 미완료
-2. D-IMP-2 production Compose/project Nginx·Mac bind/PostgreSQL named-volume provisioning validator
-3. D-IMP-3 private GHCR·GitHub production Environment·fixed Tailscale entrypoint·one-shot Flyway/schema validate/maintenance
+2. D-IMP-2 production Compose/project Nginx·Mac bind/PostgreSQL named-volume provisioning validator — source와 task-scoped local/Hosted acceptance 완료, actual provisioning 미완료
+3. D-IMP-3 private GHCR·GitHub production Environment·fixed Tailscale entrypoint·one-shot Flyway/schema validate/maintenance — 다음 구현 slice
 4. D-IMP-4 local-only application-consistent backup·isolated `pg_restore`/media restore evidence
 5. D-IMP-5 HomeOps monitoring/event/status·bounded stateless restart
 6. D-IMP-6 actual domain/content/public HTTPS·iPhone Safari/VoiceOver·rollback/recovery first-production acceptance
