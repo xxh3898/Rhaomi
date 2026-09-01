@@ -78,7 +78,7 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 - command exit code만으로 성공 처리하지 않고 완료 artifact와 manifest를 다시 읽는다.
 - secret, repository password, session/token과 private endpoint를 manifest에 기록하지 않는다.
 - deploy와 backup은 `/private/var/lib/rhaomi/state/locks/rhaomi-deploy.lock`을 공유한다. backend/publisher physical exit 전 snapshot이나 media permission 전환을 시작하지 않는다. media runtime state와 같은 source image의 backend health·publisher running이 복구된 뒤에만 complete 승격·lock release·success evidence를 허용한다.
-- D-IMP-5b automatic recovery도 같은 shared lock을 먼저 확인한다. Public HTTPS/keyword 3회 실패의 `rhaomi-web` mapping만 후속 activation 후보이고 backend mapping은 없으며, `FAILED`·`OUTCOME_UNKNOWN` no-auto-retry와 30분 cooldown을 backup retry로 우회하지 않는다.
+- D-IMP-5b automatic recovery도 같은 shared lock을 먼저 확인한다. Public HTTPS expected HTTP status 3회 실패의 `rhaomi-web` mapping만 후속 activation 후보이고 backend mapping은 없으며, keyword/body/content probe는 current trigger에서 제외한다. `FAILED`·`OUTCOME_UNKNOWN` no-auto-retry와 30분 cooldown을 backup retry로 우회하지 않는다.
 - backup create lifecycle은 safe logical backup-set ID와 같은 `eventKey`·`startedAt`으로 `RUNNING`→`SUCCESS` 또는 stable-code `FAILED`를 HomeOps current reporter에 전달한다. absolute repository/media path, credential과 raw failure log는 payload에 없다. spool/authority 결과는 `homeOpsTelemetry`로 backup transaction과 분리한다.
 
 ### Linux task validation media permission lifecycle

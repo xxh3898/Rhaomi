@@ -37,7 +37,7 @@ actual HomeOps endpoint/HMAC secret은 task validation에서 접근하지 않는
 ### 공개 사이트
 
 - HTTPS 200
-- 홈 핵심 문구 존재
+- 홈 핵심 문구 존재 — current HomeOps checker 미지원, future monitoring enhancement
 - 정적 asset 200
 - 응답시간
 - 인증서 만료
@@ -87,7 +87,8 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. 실제 log
 
 | 신호 | 조건 | 결과 |
 |---|---|---|
-| public HTTPS·핵심 문구 | 3회 연속 실패 | 즉시 alert |
+| public HTTPS expected HTTP status | 3회 연속 실패 | 즉시 alert |
+| keyword/body/content probe | 별도 HomeOps monitoring 구현 필요 | current automatic recovery trigger 제외 |
 | container health | 2회 연속 unhealthy | 즉시 alert |
 | local backup | 마지막 성공 36시간 초과 | critical |
 | offsite backup | future hardening 미구성 | `NOT_CONFIGURED / DEFERRED`, 초기 critical trigger 아님 |
@@ -103,7 +104,9 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. 실제 log
 
 ## 자동 복구 경계
 
-architecture상 local fixed action은 `rhaomi-web`, `backend` 각각의 단일 restart뿐이다. 승인된 automatic recovery mapping은 public HTTPS/keyword 3회 consecutive failure incident → `rhaomi-web` 하나다. `backend`는 unmapped/default-none이고 automatic recovery가 비활성이다. D-IMP-5a local target allowlist에 backend가 남아 있다는 사실은 mapping 또는 activation authority가 아니다.
+architecture상 local fixed action은 `rhaomi-web`, `backend` 각각의 단일 restart뿐이다. 승인된 automatic recovery mapping은 public HTTPS response status가 monitored-service의 `expectedStatus`와 다른 상태로 3회 연속 판정된 incident → `rhaomi-web` 하나다. `backend`는 unmapped/default-none이고 automatic recovery가 비활성이다. D-IMP-5a local target allowlist에 backend가 남아 있다는 사실은 mapping 또는 activation authority가 아니다.
+
+Current HomeOps `MonitoredServiceRequest`는 GET/HEAD와 `expectedStatus`를 제공하고 `HttpServiceChecker`는 response body를 버린 뒤 status equality만 판정한다. Keyword/body/content probe는 별도 future monitoring 구현 뒤 재검토하며 current automatic recovery trigger가 아니다.
 
 필수 조건:
 

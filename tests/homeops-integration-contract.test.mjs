@@ -41,6 +41,27 @@ test("HomeOps compatibility snapshot이 current main DTO와 reporter authority�
   assert.equal(contract.managedLabel, "homeops.managed");
   assert.equal(contract.managedValue, "true");
   assert.equal(contract.writableBindOrVolumeControl, "DENIED");
+  assert.deepEqual(Object.keys(contract.monitoringRequest), [
+    "methods",
+    "expectedStatusMinimum",
+    "expectedStatusMaximum",
+    "timeoutMsMinimum",
+    "timeoutMsMaximum",
+    "intervalSecondsMinimum",
+    "intervalSecondsMaximum",
+    "failureThresholdMinimum",
+    "failureThresholdMaximum",
+    "recoveryThresholdMinimum",
+    "recoveryThresholdMaximum",
+    "productionThresholds",
+    "notificationEnabled",
+  ]);
+  assert.deepEqual(contract.monitoringRequest.methods, ["GET", "HEAD"]);
+  assert.equal(contract.monitoringRequest.expectedStatusMinimum, 100);
+  assert.equal(contract.monitoringRequest.expectedStatusMaximum, 599);
+  assert.equal(contract.monitoringRequest.failureThresholdMinimum, 1);
+  assert.equal(contract.monitoringRequest.failureThresholdMaximum, 100);
+  assert.doesNotMatch(JSON.stringify(contract.monitoringRequest), /keyword|body|content/iu);
   assert.equal(contract.monitoringRequest.productionThresholds, "PROVISIONING_REQUIRED");
   assert.equal(contract.monitoringRequest.notificationEnabled, false);
 });
@@ -96,7 +117,8 @@ test("D-IMP-5b source evidence와 web-only production activation preflight를 �
   assert.deepEqual(preflight.automaticRecoveryPolicy, {
     mappings: [
       {
-        monitorSignal: "PUBLIC_HTTPS_KEYWORD",
+        monitorSignal: "PUBLIC_HTTPS_STATUS",
+        expectedStatusAuthority: "MONITORED_SERVICE_EXPECTED_STATUS",
         failureThreshold: 3,
         target: "rhaomi-web",
         action: "RESTART",
@@ -126,9 +148,13 @@ test("D-IMP-5b source evidence와 web-only production activation preflight를 �
 
   for (const document of [adr, monitoring]) {
     assert.match(document, /HomeOps release[^\n]*live compatibility[^\n]*Rhaomi release\/provisioning/u);
-    assert.match(document, /public HTTPS\/keyword[^\n]*3회[^\n]*rhaomi-web/u);
+    assert.match(document, /public HTTPS[^\n]*(?:expected HTTP status|expectedStatus|HTTP status)[^\n]*3회[^\n]*rhaomi-web/iu);
+    assert.match(document, /keyword[^\n]*(?:별도|future|IMPLEMENTATION_REQUIRED)[^\n]*(?:구현|재검토|enhancement)/iu);
     assert.match(document, /backend[^\n]*(?:unmapped|mapping 없음|매핑 없음|미매핑)/u);
     assert.match(document, /FAILED[^\n]*OUTCOME_UNKNOWN[^\n]*(?:자동 재실행 금지|no-auto-retry)/u);
+  }
+  for (const document of [adr, readiness, monitoring, deployment, backup, checklist, strategy]) {
+    assert.doesNotMatch(document, /PUBLIC_HTTPS_KEYWORD/iu);
   }
   for (const document of [readiness, deployment, checklist, strategy]) {
     assert.match(document, /HomeOps release[^\n]*live compatibility[^\n]*Rhaomi release\/provisioning/u);
@@ -192,6 +218,12 @@ test("task validator가 status/event/recovery privacy와 fail-closed 계약을 �
   assert.equal(summary.events.actualHomeOpsNetworkCalls, 0);
   assert.equal(summary.events.actualHomeOpsSecretReads, 0);
   assert.equal(summary.activationPreflight.overallProductionReadiness, "HOLD");
+  assert.equal(summary.activationPreflight.webMonitorSignal, "PUBLIC_HTTPS_STATUS");
+  assert.equal(
+    summary.activationPreflight.webExpectedStatusAuthority,
+    "MONITORED_SERVICE_EXPECTED_STATUS",
+  );
+  assert.equal(summary.activationPreflight.keywordBodyMatcherSupported, false);
   assert.equal(summary.activationPreflight.webFailureThreshold, 3);
   assert.equal(summary.activationPreflight.webTarget, "rhaomi-web");
   assert.equal(summary.activationPreflight.backendMapping, "ABSENT");

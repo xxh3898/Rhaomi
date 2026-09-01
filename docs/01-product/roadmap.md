@@ -265,7 +265,7 @@ Phase 1D는 `Production operating architecture CONTRACT COMPLETE`다. D-IMP-1 ca
 3. D-IMP-3 private GHCR·GitHub production Environment·fixed Tailscale entrypoint·one-shot Flyway/schema validate/maintenance — required exact-head build arg, published platform attestation/scan verifier, post-start failure writer quiescence를 포함한 workflow/entrypoint/task source와 local·Hosted acceptance 완료, actual external/Mac provisioning·dispatch·deploy 미완료
 4. D-IMP-4 local-only application-consistent backup·isolated `pg_restore`/media restore evidence — source와 task-scoped local/Hosted acceptance 완료, actual repository/schedule·production backup/restore provisioning 미완료
 5. D-IMP-5a Rhaomi status/event adapter·HomeOps compatibility·fixed bounded restart target — source와 task-scoped local/Hosted acceptance 완료, actual installation/activation 미완료
-6. D-IMP-5b HomeOps incident decision·V14 mapping/audit·30분 cooldown — source/local·Hosted evidence 완료; public HTTPS/keyword 3회→`rhaomi-web` only, backend unmapped preflight 승인; `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning`과 actual activation 미완료
+6. D-IMP-5b HomeOps incident decision·V14 mapping/audit·30분 cooldown — source/local·Hosted evidence 완료; public HTTPS expected HTTP status 3회→`rhaomi-web` only, backend unmapped preflight 승인; keyword/content probe는 별도 future monitoring 구현, `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning`과 actual activation 미완료
 7. D-IMP-6 actual domain/content/public HTTPS·iPhone Safari/VoiceOver·rollback/recovery first-production acceptance
 
 외장 SSD·iCloud 3-2-1은 초기 production blocker가 아니라 별도 승인 후의 future hardening이다. Phase 2 진입도 production deploy 또는 위 readiness blocker 완료를 뜻하지 않는다.

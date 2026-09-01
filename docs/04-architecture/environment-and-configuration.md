@@ -259,7 +259,7 @@ workflow·fixed entrypoint·one-shot task source와 task-only validator는 구�
 - future hardening 도입 시 외장 SSD exact path는 `/Volumes/<provisioned-volume>/...` 아래에서 확인하고 iCloud local repository integrity와 Apple remote sync evidence를 분리한다. restic password는 root-owned 제한 파일 또는 macOS Keychain password command로 공급한다.
 - HomeOps endpoint·identity와 Discord 수신자는 Rhaomi public configuration에 넣지 않고 Tailscale·운영 Secret 경계에서 관리한다.
 - Rhaomi는 fixed privacy-safe bounded status, deployment/backup event adapter와 bounded recovery target source만 제공한다. Incident/notification/automatic recovery decision은 HomeOps authority이며 D-IMP-5b source 구현만 완료됐다.
-- [Activation preflight](../../ops/production/homeops-activation-preflight.json)는 production HomeOps `main` pin과 next `dev` source evidence, public HTTPS/keyword 3회→`rhaomi-web` only mapping, backend unmapped, 30분 cooldown/no-auto-retry와 release 순서를 secret 없는 tracked contract로 분리한다.
+- [Activation preflight](../../ops/production/homeops-activation-preflight.json)는 production HomeOps `main` pin과 next `dev` source evidence, public HTTPS expected HTTP status 3회→`rhaomi-web` only mapping, backend unmapped, 30분 cooldown/no-auto-retry와 release 순서를 secret 없는 tracked contract로 분리한다. Keyword/body/content probe는 별도 HomeOps monitoring implementation 전 current trigger에서 제외한다.
 
 Local backup repository와 HomeOps monitored-service/control/notification 설정은 아직 생성·변경하지 않았다. D-IMP-5a source도 actual Mac fixed inventory에 설치하지 않았고 HomeOps release·V14 migration·mapping create/enable·Agent rollout·restart/drill도 수행하지 않았다. Production 순서는 HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning이며 각 단계는 별도 승인이다.
 

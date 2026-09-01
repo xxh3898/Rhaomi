@@ -188,7 +188,8 @@ review_trigger: "출시 기준 변경 시"
 
 - [x] HomeOps PR #120 merge `dev@e4d5c598...`, exact tree와 post-merge Validate run `33527901223` source evidence
 - [x] production compatibility authority `main@f3845396...`와 unreleased `dev` source evidence 분리
-- [x] public HTTPS/keyword 3회 consecutive failure → disabled `rhaomi-web` mapping only, backend unmapped/default-none
+- [x] public HTTPS expected HTTP status 3회 consecutive failure → disabled `rhaomi-web` mapping only, backend unmapped/default-none
+- [x] current compatibility shape에 keyword/body/content matcher 부재와 automatic trigger 제외 고정
 - [x] durable 30분 cooldown과 `FAILED`·`OUTCOME_UNKNOWN` no-auto-retry
 - [x] `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning` ordering과 fail-closed stop/rollback contract
 - [x] exact-shape tracked preflight와 task evidence의 mapping enable 0·actual restart/drill 0·secret/private path 0
@@ -243,7 +244,8 @@ review_trigger: "출시 기준 변경 시"
 - [ ] initial local-only backup의 single-host disaster accepted risk가 release evidence·HomeOps에 명시됨
 - [ ] `current`·`previous` atomic switch·rollback과 성공 release 5개 보존
 - [ ] HomeOps 단일 관제·incident·Activity·Discord authority production provisioning
-- [ ] public/internal/container/host/DB/publisher/backup monitor와 public HTTPS/keyword 3회 threshold
+- [ ] public/internal/container/host/DB/publisher/backup monitor와 public HTTPS expected HTTP status 3회 threshold
+- [ ] keyword/body/content probe 별도 HomeOps monitoring 구현·재검토
 - [ ] `rhaomi-web` only mapping, backend mapping 없음, stateless single restart의 lock·30분 cooldown·audit와 금지 범위
 - [ ] same-host blind spot 수용 기록
 - [ ] service당 약 100 MiB bounded log와 일반 14일·incident hold

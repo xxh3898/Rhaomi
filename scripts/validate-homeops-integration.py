@@ -56,7 +56,8 @@ EXPECTED_ACTIVATION_PREFLIGHT = {
     "automaticRecoveryPolicy": {
         "mappings": [
             {
-                "monitorSignal": "PUBLIC_HTTPS_KEYWORD",
+                "monitorSignal": "PUBLIC_HTTPS_STATUS",
+                "expectedStatusAuthority": "MONITORED_SERVICE_EXPECTED_STATUS",
                 "failureThreshold": 3,
                 "target": "rhaomi-web",
                 "action": "RESTART",
@@ -253,7 +254,53 @@ def validate_activation_preflight(compatibility: dict[str, object]) -> dict[str,
     )
     policy = preflight["automaticRecoveryPolicy"]
     mapping = policy["mappings"][0]
+    monitoring_request = compatibility["monitoringRequest"]
+    require(type(monitoring_request) is dict, "monitoring request contract type drift")
+    require(
+        set(monitoring_request)
+        == {
+            "methods",
+            "expectedStatusMinimum",
+            "expectedStatusMaximum",
+            "timeoutMsMinimum",
+            "timeoutMsMaximum",
+            "intervalSecondsMinimum",
+            "intervalSecondsMaximum",
+            "failureThresholdMinimum",
+            "failureThresholdMaximum",
+            "recoveryThresholdMinimum",
+            "recoveryThresholdMaximum",
+            "productionThresholds",
+            "notificationEnabled",
+        },
+        "monitoring request capability drift",
+    )
+    require(monitoring_request["methods"] == ["GET", "HEAD"], "monitoring methods drift")
+    require(
+        monitoring_request["expectedStatusMinimum"] == 100
+        and monitoring_request["expectedStatusMaximum"] == 599,
+        "expected status contract drift",
+    )
+    require(
+        not any(
+            marker in str(field).lower()
+            for field in monitoring_request
+            for marker in ("keyword", "body", "content")
+        ),
+        "unsupported response matcher entered monitoring contract",
+    )
+    require(mapping["monitorSignal"] == "PUBLIC_HTTPS_STATUS", "web signal drift")
+    require(
+        mapping["expectedStatusAuthority"] == "MONITORED_SERVICE_EXPECTED_STATUS",
+        "expected status authority drift",
+    )
     require(type(mapping["failureThreshold"]) is int, "web failure threshold type drift")
+    require(
+        monitoring_request["failureThresholdMinimum"]
+        <= mapping["failureThreshold"]
+        <= monitoring_request["failureThresholdMaximum"],
+        "web failure threshold exceeds monitoring contract",
+    )
     require(type(policy["cooldownSeconds"]) is int, "cooldown type drift")
     require(
         preflight["productionCompatibilityAuthority"]["homeOpsCommit"]
@@ -271,6 +318,9 @@ def validate_activation_preflight(compatibility: dict[str, object]) -> dict[str,
         "overallProductionReadiness": preflight["overallProductionReadiness"],
         "productionAuthorityPinnedToCurrentMain": True,
         "sourceEvidenceSeparated": True,
+        "webMonitorSignal": mapping["monitorSignal"],
+        "webExpectedStatusAuthority": mapping["expectedStatusAuthority"],
+        "keywordBodyMatcherSupported": False,
         "webFailureThreshold": mapping["failureThreshold"],
         "webTarget": mapping["target"],
         "backendMapping": preflight["productionState"]["backendMapping"],

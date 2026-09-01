@@ -396,7 +396,9 @@ Mac native Linux arm64와 Hosted Backend Linux amd64는 같은 production image/
 - fixed recovery의 `restart rhaomi-web|backend` only, publisher/PostgreSQL/unknown mutation 0, shared lock contention mutation 0, current image/config 보존과 exactly-one restart·post-health
 - restart command 완료 불확실 시 success 0·own shared lock release 0, post-health failure false success 0, Compose down/up·image pull·filesystem/volume mutation 0
 - tracked activation preflight exact shape, overall `HOLD`, production `main` compatibility pin과 HomeOps `dev` source evidence 분리
-- public HTTPS/keyword failure threshold 3·`rhaomi-web` only mapping, backend unmapped/default-none, 30분 cooldown과 `FAILED`·`OUTCOME_UNKNOWN` no-auto-retry
+- compatibility `monitoringRequest`의 GET/HEAD·`expectedStatus`·threshold exact shape와 keyword/body/content matcher field 부재
+- public HTTPS expected HTTP status failure threshold 3·`rhaomi-web` only mapping, backend unmapped/default-none, 30분 cooldown과 `FAILED`·`OUTCOME_UNKNOWN` no-auto-retry
+- legacy keyword-labelled automatic capability 표현 0과 keyword/content probe의 separate future implementation 상태
 - `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning` ordering, V14→disabled mapping→inventory→Agent capability→read-only check→별도 enable/drill approval sequence
 - production state의 release·migration·mapping create/enable·Agent rollout·notification·restart/drill `NOT_RUN`, task evidence의 mapping enable/restart-drill mutation 0
 - activation preflight와 evidence의 secret marker·private path 0, actual HomeOps network/Secret/repository 접근 0

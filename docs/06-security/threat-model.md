@@ -116,7 +116,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | local-only backup 동시 손실 | host/storage 전체 장애에서 production data와 backup 동시 손실 | 초기 accepted risk 명시, local manifest/check·isolated restore; external/offsite는 future hardening |
 | future backup key 탈취·분실 | 민감 원본 노출 또는 복구 불가 | external hardening 도입 시 별도 encrypted repository, 제한된 password source, password manager+offline recovery key |
 | PostgreSQL volume 오삭제 | 전체 운영 DB 손실 | project-scoped named volume, 일반 `down` 보존, production `down -v`·prune·direct delete 금지, logical backup·isolated `pg_restore` |
-| 자동 복구 오작동 | 장애 확대·data mutation | D-IMP-5a fixed web/backend one-restart target과 D-IMP-5b incident/mapping/audit·30분 cooldown source; public HTTPS/keyword 3회→`rhaomi-web` only, backend unmapped, shared lock·identity·pre/post health·no-auto-retry. Actual enable/drill은 별도 승인 전 금지 |
+| 자동 복구 오작동 | 장애 확대·data mutation | D-IMP-5a fixed web/backend one-restart target과 D-IMP-5b incident/mapping/audit·30분 cooldown source; public HTTPS expected HTTP status 3회→`rhaomi-web` only, backend unmapped, keyword/body matcher 제외, shared lock·identity·pre/post health·no-auto-retry. Actual enable/drill은 별도 승인 전 금지 |
 | native codec 공급망 | image 처리 RCE·license 위반 | pinned source commit, decoder-only, x265 absence, SBOM·scan·actual fixture |
 
 ## 출시 차단

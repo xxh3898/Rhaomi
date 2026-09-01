@@ -32,7 +32,8 @@ Issue #57의 D-IMP-5a는 HomeOps `main@f3845396bd4d6bf677d1d8bf6bbcb82113851c14`
 
 ### Rhaomi가 제공할 privacy-safe contract
 
-- public HTTPS와 핵심 문구 probe 대상
+- public HTTPS expected HTTP status probe 대상
+- keyword/body/content probe는 별도 HomeOps monitoring 구현 뒤 재검토
 - Spring Boot internal minimal health
 - Docker container healthcheck
 - secret 없는 bounded status script
@@ -47,7 +48,8 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. health/sta
 
 ### HomeOps 통합 대상
 
-- public HTTPS·핵심 문구 synthetic check
+- public HTTPS expected HTTP status synthetic check
+- keyword/body/content synthetic probe는 future monitoring enhancement
 - internal application health
 - Docker container state·health
 - Mac mini CPU, memory와 load
@@ -62,7 +64,8 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. health/sta
 
 | 신호 | 조건 | 결과 |
 |---|---|---|
-| public HTTPS·keyword | 3회 연속 실패 | 즉시 alert |
+| public HTTPS expected HTTP status | 3회 연속 실패 | 즉시 alert |
+| keyword/body/content probe | 별도 HomeOps monitoring 구현 필요 | current automatic recovery trigger 제외 |
 | container health | 2회 연속 unhealthy | 즉시 alert |
 | local backup | 마지막 성공 36시간 초과 | critical |
 | offsite backup | future hardening 미구성 | `NOT_CONFIGURED / DEFERRED`, 초기 critical trigger 아님 |
@@ -76,7 +79,7 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. health/sta
 
 ### 자동 복구
 
-Rhaomi fixed target source가 허용하는 local action 범위는 `rhaomi-web`, `backend` 각각의 단일 restart뿐이다. production Compose의 HomeOps generic control opt-in은 read-only bind+tmpfs만 가진 `rhaomi-web` 하나이며, canonical media RW bind가 있는 backend는 current HomeOps mount protection과 호환되지 않으므로 opt-in하지 않는다. 실제 automatic recovery mapping은 public HTTPS/keyword 3회 consecutive failure incident에서 `rhaomi-web` 하나만 선택한다. `backend`는 unmapped/default-none이며 automatic recovery를 활성화하지 않는다.
+Rhaomi fixed target source가 허용하는 local action 범위는 `rhaomi-web`, `backend` 각각의 단일 restart뿐이다. production Compose의 HomeOps generic control opt-in은 read-only bind+tmpfs만 가진 `rhaomi-web` 하나이며, canonical media RW bind가 있는 backend는 current HomeOps mount protection과 호환되지 않으므로 opt-in하지 않는다. 실제 automatic recovery mapping은 public HTTPS response status가 monitored-service의 `expectedStatus`와 다른 상태로 3회 연속 판정된 incident에서 `rhaomi-web` 하나만 선택한다. `backend`는 unmapped/default-none이며 automatic recovery를 활성화하지 않는다. Current HomeOps checker는 response body를 소비하지 않으므로 keyword/content probe는 별도 implementation 전 automatic trigger로 사용하지 않는다.
 
 다음 조건을 모두 만족해야 한다.
 
@@ -96,7 +99,7 @@ Cross-repository 순서는 `HomeOps release → live compatibility 재검증 →
 후속 production activation은 다음 순서를 따른다.
 
 1. HomeOps production release와 V14 production provisioning을 별도 승인·검증한다.
-2. public HTTPS/keyword monitored-service의 private exact identity를 확인하고 `rhaomi-web` mapping을 disabled 상태로만 생성한다. backend mapping은 만들지 않는다.
+2. public HTTPS expected HTTP status monitored-service의 private exact identity와 `expectedStatus`를 확인하고 `rhaomi-web` mapping을 disabled 상태로만 생성한다. backend mapping은 만들지 않는다.
 3. Rhaomi fixed inventory source identity·owner·mode와 current runtime image/config를 검증한다.
 4. previous rollback identity를 보존한 exact HomeOps Agent를 별도 승인으로 rollout하고 fresh `supportsRhaomiRecovery=true`를 확인한다.
 5. read-only end-to-end compatibility, deploy/backup shared lock 부재와 정상 backup/restore eligibility를 확인한다.
@@ -171,7 +174,8 @@ DB·migration·volume과 공통 infra에 대한 자동 mutation은 장애를 확
 - [x] Rhaomi bounded status와 deployment/backup event adapter source 구현
 - [x] web-only HomeOps label compatibility와 fixed web/backend recovery target task 검증
 - [x] HomeOps D-IMP-5b incident decision·V14 mapping/audit·durable 30분 cooldown source 및 post-merge CI 확인
-- [x] public HTTPS/keyword 3회 → `rhaomi-web` only, backend unmapped activation contract와 release ordering 확정
+- [x] public HTTPS expected HTTP status 3회 → `rhaomi-web` only, backend unmapped activation contract와 release ordering 확정
+- [ ] keyword/body/content probe HomeOps 별도 구현·재검토
 - [ ] HomeOps production release와 live compatibility 재검증
 - [ ] HomeOps public/internal/container/host/DB/publisher/backup monitor 등록
 - [ ] 임계값과 Discord·Activity routing 검증

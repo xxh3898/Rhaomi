@@ -63,7 +63,7 @@ Spring Boot 콘텐츠 transaction
 - backup control harness는 deploy/backup lock contention, writer physical exit 전 dump 금지, complete 승격 전 writer 재기동 금지, capture/restart failure와 lock hold를 검증한다.
 - actual task validator는 상태 A를 backup한 뒤 source DB/media를 B로 바꾸고 fresh named volume·media root에 A를 `pg_restore`/복사해 schema·audit/relation·media decode·static publication·restart/down-up persistence를 확인한다.
 - HomeOps task harness는 deploy RUNNING→SUCCESS/FAILED의 같은 lifecycle identity, spool acknowledgement와 local telemetry failure 분리, secret/private path 0을 확인한다. operation lock·writer fail-close는 event reporter 장애 때문에 바뀌지 않는다.
-- production Compose의 HomeOps generic control label은 `rhaomi-web` 하나이고 backend/publisher/PostgreSQL/task service opt-in은 0이다. Fixed recovery target source는 web/backend allowlist를 제공하지만 automatic recovery mapping은 public HTTPS/keyword 3회 실패 → `rhaomi-web` 하나만 승인됐고 backend는 unmapped/default-none이다.
+- production Compose의 HomeOps generic control label은 `rhaomi-web` 하나이고 backend/publisher/PostgreSQL/task service opt-in은 0이다. Fixed recovery target source는 web/backend allowlist를 제공하지만 automatic recovery mapping은 public HTTPS expected HTTP status 3회 실패 → `rhaomi-web` 하나만 승인됐고 backend는 unmapped/default-none이다. Keyword/body/content matcher는 current trigger에서 제외한다.
 - task container/network는 정리하지만 task PostgreSQL volume과 image는 삭제하지 않는다.
 - 위 evidence는 아래 최초 배포 사전 조건의 actual Mac·production 항목을 완료 처리하지 않는다.
 
@@ -73,7 +73,7 @@ Spring Boot 콘텐츠 transaction
 
 Cross-repository release 순서는 `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning`이다. HomeOps release 전 reviewed tree/check, release 뒤 live `main` reporter·DTO·monitoring·Agent contract, Rhaomi release 전 updated compatibility authority와 exact candidate를 각각 확인한다. 앞 단계가 실패하거나 HomeOps `main` merge/deploy 결과가 불확실하면 다음 release/provisioning을 시작하지 않는다.
 
-Activation은 V14 production state 확인 → public HTTPS/keyword monitored-service의 disabled `rhaomi-web` mapping → fixed Rhaomi inventory → exact Agent rollout과 fresh capability → read-only end-to-end compatibility → explicit enable approval → controlled single drill approval → post-health/audit/Activity → observation window 순서다. Backend mapping은 만들지 않는다. Deploy/backup shared lock, current runtime identity, 정상 backup/restore eligibility와 previous Agent rollback identity 중 하나라도 불확실하면 중단한다.
+Activation은 V14 production state 확인 → public HTTPS expected HTTP status monitored-service의 disabled `rhaomi-web` mapping → fixed Rhaomi inventory → exact Agent rollout과 fresh capability → read-only end-to-end compatibility → explicit enable approval → controlled single drill approval → post-health/audit/Activity → observation window 순서다. Backend mapping은 만들지 않는다. Deploy/backup shared lock, current runtime identity, 정상 backup/restore eligibility와 previous Agent rollback identity 중 하나라도 불확실하면 중단한다.
 
 Durable cooldown은 30분이고 `FAILED`·`OUTCOME_UNKNOWN` no-auto-retry를 유지한다. Mapping enable과 actual restart/drill은 각각 별도 승인 대상이며 Issue #59에서는 수행 금지다. HomeOps release, Rhaomi release, V14 production migration, mapping create/enable, Agent rollout과 notification activation도 이 Issue에서 실행하지 않는다.
 
@@ -105,7 +105,7 @@ Durable cooldown은 30분이고 `FAILED`·`OUTCOME_UNKNOWN` no-auto-retry를 유
 - [ ] one-shot Flyway·schema validate·expand/contract 검증
 - [ ] publisher immediate/due event·overdue recovery·두 revision·lock·retry·atomic switch 검증
 - [ ] `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning` 순서와 exact candidate/authority evidence
-- [ ] D-IMP-5a fixed inventory, D-IMP-5b V14와 public HTTPS/keyword 3회→`rhaomi-web` disabled mapping·30분 cooldown·Agent capability·alert/control provisioning; backend mapping 없음
+- [ ] D-IMP-5a fixed inventory, D-IMP-5b V14와 public HTTPS expected HTTP status 3회→`rhaomi-web` disabled mapping·30분 cooldown·Agent capability·alert/control provisioning; backend mapping 없음
 - [ ] 별도 승인된 mapping enable과 controlled single restart/drill, post-health/audit/Activity·observation evidence
 - [ ] decoder-only HEIC image와 x265 absence·SBOM 검증
 - [ ] 실제 매장 운영자의 NAP·영업정보·정책·문구·링크 최종 승인

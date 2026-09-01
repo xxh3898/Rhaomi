@@ -15,7 +15,8 @@ review_trigger: "운영 주기 변경 시"
 
 ## 매일 자동
 
-- HomeOps의 public HTTPS·핵심 문구와 internal healthcheck
+- HomeOps의 public HTTPS expected HTTP status와 internal healthcheck
+- keyword/body/content probe는 별도 HomeOps monitoring 구현 전 `IMPLEMENTATION_REQUIRED`
 - Docker container·host CPU/memory/load·disk/inode 확인
 - Mac `/private/var/lib/rhaomi` filesystem과 production PostgreSQL named volume capacity·mount identity 확인
 - 매일 03:30 `Asia/Seoul` application-consistent PostgreSQL·canonical media backup

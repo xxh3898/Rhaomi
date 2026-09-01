@@ -17,7 +17,8 @@
   "automaticRecoveryPolicy": {
     "mappings": [
       {
-        "monitorSignal": "PUBLIC_HTTPS_KEYWORD",
+        "monitorSignal": "PUBLIC_HTTPS_STATUS",
+        "expectedStatusAuthority": "MONITORED_SERVICE_EXPECTED_STATUS",
         "failureThreshold": 3,
         "target": "rhaomi-web",
         "action": "RESTART",
