@@ -334,7 +334,7 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - source contract test가 service inventory, external same-image backend/publisher, pinned web/PostgreSQL image, `build:`·`latest` 부재를 확인
 - canonical base `/private/var/lib/rhaomi` source와 overlay-only temp source가 분리되고 host `/srv/rhaomi`, source checkout·Docker socket mount가 없음을 확인
 - rendered JSON에서 web-only `127.0.0.1` port와 전용 `loopback-edge`, 세 service internal network adjacency, bind target/mode, project-scoped PostgreSQL volume name과 cleanup label 확인
-- validation-only schema bootstrap으로 PostgreSQL 18.6·Flyway V1~V9를 적용한 뒤 normal backend/publisher의 Flyway·bootstrap 비활성 확인
+- profile opt-in non-web migration task로 PostgreSQL 18.6·Flyway V1~V9를 적용하고 Flyway-disabled schema task로 재검증한 뒤 normal backend/publisher의 Flyway·bootstrap 비활성 확인
 - actual container inspect의 `PortBindings`, `NetworkSettings`, `Mounts`와 web public RO, backend media RW, publisher public/state/lock RW·media RO probe
 - static home/admin·immutable asset, anonymous admin upstream, `Secure` session cookie, build/internal/actuator/manifest/dot/unknown 404와 internal valid Bearer authentication 확인
 - external형 Host로 `/admin`을 요청해 `308`, exact `Location: /admin/`, internal `http://`·`:8080`·validation loopback port 부재를 확인하고 runtime Nginx config의 fixed `X-Forwarded-Proto: https`·`X-Forwarded-Port: 443`을 확인
@@ -343,7 +343,24 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - pre-existing volume/image 보존, task container/network 0과 task volume retained evidence 확인; volume/image delete·prune 없음
 - Mac mini Docker Desktop Linux arm64와 Hosted Backend Linux amd64가 same entrypoint를 exact HEAD production image로 실행
 
-이 검증은 actual `/private/var/lib/rhaomi` ownership·permission, production named volume·Secret·FQDN·Cloudflare·GHCR/deploy·one-shot Flyway 증거가 아니다. 해당 항목은 production readiness에서 계속 미완료다.
+이 검증은 actual `/private/var/lib/rhaomi` ownership·permission, production named volume·Secret·FQDN·Cloudflare·private GHCR/deploy·production migration 증거가 아니다. 해당 항목은 production readiness에서 계속 미완료다.
+
+## 현재 D-IMP-3 production release·migration gate 자동 검증
+
+- production workflow의 `workflow_dispatch`-only trigger와 모든 release job의 `refs/heads/main`·requested exact SHA gate, PR/push/schedule/workflow-run trigger 0
+- validation `contents: read`, publish job만 `packages: write`, deploy job만 `environment: production`과 environment secret을 사용하는 권한 분리
+- canonical production Dockerfile, amd64+arm64, exact SHA tag·existing-tag overwrite 거부, returned manifest digest, OCI source/revision, SBOM·provenance·scan evidence와 `latest` 0
+- pinned Tailscale action/binary checksum, strict SSH host authority, fixed remote executable과 세 scalar argv; heredoc·free-form shell·credential argv 0
+- Java one-shot mode의 exact/unknown/duplicate/publisher-mode mutual exclusion, `WebApplicationType.NONE`, controller·admin bootstrap·publisher loop 0
+- actual PostgreSQL 18.6 clean schema의 migration V1~V9·JPA validate 성공, Flyway-disabled schema validate 성공, empty schema 실패
+- production Compose default four-service 불변, `production-task` profile의 same-image `migration`·`schema-validate`, data network only·port/mount 0·restart 0
+- fixed Mac entrypoint의 lower-case SHA·fixed GHCR digest·SBOM strict input, fixed root/config/Docker credential, owner/mode, release-bound backup gate, atomic mkdir lock·own-token cleanup
+- exact digest pull·RepoDigest·OCI revision을 writer stop 전 검증하고 backend/publisher `exited` 후에만 migration→schema validation 실행
+- task fake Docker의 command ordering, public-static-during-maintenance Compose regression, concurrent lock 거부, migration/schema failure 후 writer auto-resume 0, runtime backend/publisher image ID 일치
+- wrong registry·malformed digest·duplicate option·OCI revision mismatch의 mutation 전 fail, synthetic DB/build marker의 output/evidence 노출 0, destructive volume/image command 0
+- Mac mini native Linux arm64 D-IMP-1 image·D-IMP-2 Compose·D-IMP-3 task validator와 Hosted Linux amd64 동일 source/entrypoint 실행
+
+이 검증은 synthetic/task-scoped source acceptance다. actual GHCR push, GitHub Environment·reviewer·secret 설정, Tailscale production 연결, Mac `/private/var/lib/rhaomi` installation, production volume/data/backup gate·migration·deploy를 수행하지 않는다.
 
 ## 현재 Phase 1C-8f4 transformer 자동 검증
 
@@ -421,8 +438,8 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 ## 후속 배포 테스트
 
 - content publish/archive
-- exact main SHA·image digest·manual environment approval와 고정 deploy entrypoint
-- write maintenance·one-shot Flyway·schema validate와 expand/contract compatibility
+- actual current main SHA·published image digest·provisioned manual Environment approval과 Mac에 설치된 fixed deploy entrypoint
+- actual backup eligibility·write maintenance·one-shot Flyway·schema validate와 expand/contract compatibility
 - immediate/due publishing event·overdue recovery·service auth·debounce·lock
 - failed build does not switch
 - atomic switch와 rollback

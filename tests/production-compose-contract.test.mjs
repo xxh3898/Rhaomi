@@ -33,7 +33,9 @@ test("production Compose가 external same-image와 최소 service topology를 �
   const compose = await source("compose.production.yaml");
   const web = serviceBlock(compose, "rhaomi-web", "backend");
   const backend = serviceBlock(compose, "backend", "publisher");
-  const publisher = serviceBlock(compose, "publisher", "postgres");
+  const publisher = serviceBlock(compose, "publisher", "migration");
+  const migration = serviceBlock(compose, "migration", "schema-validate");
+  const schemaValidate = serviceBlock(compose, "schema-validate", "postgres");
   const postgres = serviceBlock(compose, "postgres");
 
   assert.match(
@@ -44,9 +46,23 @@ test("production Compose가 external same-image와 최소 service topology를 �
     [...compose.matchAll(/^  [a-z0-9-]+:\s*$/gmu)]
       .map((match) => match[0].trim())
       .filter((entry) =>
-        ["rhaomi-web:", "backend:", "publisher:", "postgres:"].includes(entry),
+        [
+          "rhaomi-web:",
+          "backend:",
+          "publisher:",
+          "migration:",
+          "schema-validate:",
+          "postgres:",
+        ].includes(entry),
       ),
-    ["rhaomi-web:", "backend:", "publisher:", "postgres:"],
+    [
+      "rhaomi-web:",
+      "backend:",
+      "publisher:",
+      "migration:",
+      "schema-validate:",
+      "postgres:",
+    ],
   );
   assert.doesNotMatch(compose, /^\s+build:/mu);
   assert.doesNotMatch(compose, /(?:^|:)latest(?:$|\s)/imu);
@@ -91,6 +107,14 @@ test("production Compose가 external same-image와 최소 service topology를 �
     /--rhaomi\.publisher\.mode=control-loop/u,
   );
   assert.match(publisher, /BUILD_API_INTERNAL_URL: http:\/\/backend:8080/u);
+  assert.match(migration, /profiles: \["production-task"\]/u);
+  assert.match(migration, /--rhaomi\.production-task=migrate/u);
+  assert.match(migration, /SPRING_FLYWAY_ENABLED: "true"/u);
+  assert.match(migration, /SPRING_JPA_HIBERNATE_DDL_AUTO: validate/u);
+  assert.match(schemaValidate, /profiles: \["production-task"\]/u);
+  assert.match(schemaValidate, /--rhaomi\.production-task=schema-validate/u);
+  assert.match(schemaValidate, /SPRING_FLYWAY_ENABLED: "false"/u);
+  assert.match(schemaValidate, /SPRING_JPA_HIBERNATE_DDL_AUTO: validate/u);
   assert.match(backend, /RHAOMI_BUILD_SERVICE_TOKEN:/u);
   assert.doesNotMatch(web, /BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN|POSTGRES_PASSWORD/u);
   assert.doesNotMatch(postgres, /BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN/u);
@@ -139,7 +163,7 @@ test("production Nginx가 static/admin 경계와 fail-closed route를 고정한�
   assert.doesNotMatch(nginx, /ssl_certificate|listen\s+443|cloudflare|websocket|upgrade/iu);
 });
 
-test("validation overlay만 task temp source와 schema bootstrap seam을 사용한다", async () => {
+test("validation overlay가 task temp source와 one-shot service label만 덮어쓴다", async () => {
   const overlay = await source("compose.production.validation.yaml");
 
   assertEveryBindMountDisablesHostPathCreation(overlay);
@@ -147,9 +171,9 @@ test("validation overlay만 task temp source와 schema bootstrap seam을 사용�
   assert.match(overlay, /source: \$\{RHAOMI_PRODUCTION_VALIDATION_ROOT:\?[^}]+\}\/data\/media/u);
   assert.match(overlay, /source: \$\{RHAOMI_PRODUCTION_VALIDATION_ROOT:\?[^}]+\}\/state\/publisher/u);
   assert.match(overlay, /source: \$\{RHAOMI_PRODUCTION_VALIDATION_ROOT:\?[^}]+\}\/state\/locks/u);
-  assert.match(overlay, /schema-bootstrap:/u);
-  assert.match(overlay, /profiles: \["production-validation"\]/u);
-  assert.match(overlay, /SPRING_FLYWAY_ENABLED: "true"/u);
+  assert.match(overlay, /migration:[\s\S]*labels: \*validation-labels/u);
+  assert.match(overlay, /schema-validate:[\s\S]*labels: \*validation-labels/u);
+  assert.doesNotMatch(overlay, /schema-bootstrap|SPRING_FLYWAY_ENABLED/u);
   assert.match(overlay, /io\.homeserver\.cleanup\.task:/u);
   assert.doesNotMatch(overlay, /\/private\/var\/lib\/rhaomi|down -v|volume prune/u);
 });
@@ -167,6 +191,10 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(entrypoint, /\/validation\/compose\.production\.yaml/u);
   assert.match(entrypoint, /\/validation\/compose\.production\.validation\.yaml/u);
   assert.match(entrypoint, /CREATE TABLE[\s\S]*validation_sentinel/u);
+  assert.match(entrypoint, /run --rm --no-deps migration/u);
+  assert.match(entrypoint, /run --rm --no-deps schema-validate/u);
+  assert.match(entrypoint, /verify_writers_stopped/u);
+  assert.match(entrypoint, /publicStaticDuringMaintenance=200/u);
   assert.match(entrypoint, /compose_runtime down/u);
   assert.match(entrypoint, /sentinel/u);
   assert.match(entrypoint, /ps --all --quiet/u);

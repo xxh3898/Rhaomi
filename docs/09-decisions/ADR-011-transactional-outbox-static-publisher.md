@@ -92,6 +92,7 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 - release host source는 `/private/var/lib/rhaomi/public`이고 publisher container target은 `/srv/rhaomi/public`이다. `releases`, `current`, `previous` 조작은 container target에서 수행되지만 Mac host authority는 `/private/var/lib/rhaomi/public`이다.
 - publisher state host source는 `/private/var/lib/rhaomi/state/publisher`, lock source는 `/private/var/lib/rhaomi/state/locks`다. 둘을 각각 publisher container `/var/lib/rhaomi/publisher`, `/var/lib/rhaomi/locks`로 read-write mount한다.
 - D-IMP-2 `compose.production.yaml`은 backend와 동일 external image, exact non-web mode, internal Build API/DB network, public/state/lock RW와 media RO target을 구현했다. task overlay의 native smoke는 이 lifetime/mount 경계를 검증하지만 actual host source·Secret·approved digest provisioning은 아니다.
+- D-IMP-3 fixed code deploy source는 global deploy lock 안에서 backend과 publisher를 정지·physical exit 확인한 뒤에만 one-shot Flyway/schema validation을 실행한다. migration/schema 실패 후 publisher를 자동 resume하지 않고, backend health 후에만 승인된 같은 digest의 publisher를 시작한다. 이는 actual GHCR·Environment·Tailscale·Mac provisioning·deploy 완료를 뜻하지 않는다.
 - code release와 content release는 같은 build·validate·switch 구현을 사용한다.
 - content release는 임의 branch가 아니라 현재 승인된 production `main` image/digest만 사용한다.
 

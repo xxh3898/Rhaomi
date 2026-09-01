@@ -23,13 +23,14 @@ review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 
 ## 현재 구현 범위
 
-Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1~8f7에서 transactional outbox, generation state, internal Build API, strict transformer, non-web control loop, generated V2 Next Static Export와 immutable release·atomic switch를 구현했다. Phase 1C-8f8은 synthetic production-like dataset을 실제 local bootstrap·same-origin Admin HTTP로 저장하고, 30초 scheduled publish·expiry·overdue·stale/coalesce에서 Build API→transformer→Next→release를 끝까지 실행한 뒤 backend·PostgreSQL을 중단한 read-only Nginx에서 홈·공지·media·SEO·접근성·runtime 독립을 검증한다. Phase 1D는 [Production readiness matrix](docs/07-operations/production-readiness.md)에서 승인 계약, local/CI 증거, 구현·provisioning, 외부 콘텐츠 승인과 physical-device acceptance를 분리해 contract를 freeze한다. D-IMP-1 canonical image에 이어 D-IMP-2 production Compose·project Nginx source와 task-scoped Mac/Linux validation overlay를 구현했다. 이는 actual `/private/var/lib/rhaomi`, 운영 PostgreSQL volume·Secret·FQDN·Cloudflare/GHCR/deploy provisioning 또는 실제 콘텐츠 공개를 뜻하지 않는다.
+Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1~8f7에서 transactional outbox, generation state, internal Build API, strict transformer, non-web control loop, generated V2 Next Static Export와 immutable release·atomic switch를 구현했다. Phase 1C-8f8은 synthetic production-like dataset을 실제 local bootstrap·same-origin Admin HTTP로 저장하고, 30초 scheduled publish·expiry·overdue·stale/coalesce에서 Build API→transformer→Next→release를 끝까지 실행한 뒤 backend·PostgreSQL을 중단한 read-only Nginx에서 홈·공지·media·SEO·접근성·runtime 독립을 검증한다. Phase 1D는 [Production readiness matrix](docs/07-operations/production-readiness.md)에서 승인 계약, local/CI 증거, 구현·provisioning, 외부 콘텐츠 승인과 physical-device acceptance를 분리해 contract를 freeze한다. D-IMP-1 canonical image, D-IMP-2 production Compose·project Nginx에 이어 D-IMP-3에서 exact-main 수동 release workflow, immutable multi-arch GHCR contract, protected `production` Environment 경계, fixed Mac deploy entrypoint와 one-shot Flyway/schema validation source를 구현했다. 이는 actual `/private/var/lib/rhaomi`, 운영 PostgreSQL volume·Secret·FQDN·Cloudflare/GHCR/Environment/Tailscale provisioning, workflow dispatch·deploy 또는 실제 콘텐츠 공개를 뜻하지 않는다.
 
 ```text
 .
 ├── .github/
 │   ├── CODEOWNERS
 │   ├── workflows/validate.yml
+│   ├── workflows/production-release.yml # manual exact-main release/deploy source
 │   ├── pull_request_template.md
 │   └── ISSUE_TEMPLATE/
 ├── src/
@@ -41,12 +42,13 @@ Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Bo
 │   └── features/            # admin auth/transport, dashboard, media·shop·breed·service·gallery UI
 ├── backend/                 # Spring Boot API·publisher와 canonical decoder-only production Dockerfile
 ├── infra/nginx/             # local gateway와 production static/admin fail-closed config
+├── ops/production/           # fixed Mac deploy wrapper·core
 ├── scripts/                 # 정적 산출물·gateway·HEIC·Compose smoke 검증
 ├── tests/                   # frontend·runtime contract test
 ├── docs/                    # 제품·아키텍처·운영 기준 문서
 ├── compose.dev.yaml         # 개발 전용 gateway/frontend/backend/PostgreSQL
 ├── compose.production.yaml  # canonical Mac bind·named-volume production inventory
-├── compose.production.validation.yaml # task temp source·schema bootstrap 검증 overlay
+├── compose.production.validation.yaml # task temp source·one-shot task 검증 overlay
 ├── next.config.ts
 ├── package.json
 ├── package-lock.json
@@ -163,13 +165,24 @@ evidence 경로에는 secret이 아닌 exact image ID·Git HEAD, CMake contract,
 
 ```bash
 RHAOMI_PRODUCTION_IMAGE='rhaomi-production-validation:<exact-head>' \
-RHAOMI_WEB_LOOPBACK_PORT=18051 \
-RHAOMI_CLEANUP_TASK=51-production-compose-nginx \
+RHAOMI_WEB_LOOPBACK_PORT=18053 \
+RHAOMI_CLEANUP_TASK=53-production-release-gate \
 RHAOMI_PRODUCTION_COMPOSE_EVIDENCE_DIR=/path/to/task-evidence \
 sh scripts/validate-production-compose.sh
 ```
 
-script는 image OCI revision과 current Git HEAD 일치, validation-only Flyway V1~V9 bootstrap, normal backend/publisher의 Flyway·bootstrap 비활성, web-only loopback port, internal network adjacency, bind RO/RW, public deny route, `Secure` session cookie와 일반 Compose `down`→`up` sentinel persistence를 확인한다. task container/network와 marker temp root는 정리하지만 PostgreSQL task volume과 image는 삭제하지 않고 exact retained volume을 보고한다. base의 `/private/var/lib/rhaomi`를 만들거나 변경하지 않으며 production Secret·FQDN·Cloudflare·GHCR·deploy도 다루지 않는다.
+script는 image OCI revision과 current Git HEAD 일치, profile opt-in one-shot Flyway V1~V9 migration·Flyway-disabled schema validation, malformed task mode 거부, normal backend/publisher의 Flyway·bootstrap 비활성, writer 정지 중 public static 200, web-only loopback port, internal network adjacency, bind RO/RW, public deny route, `Secure` session cookie와 일반 Compose `down`→`up` sentinel persistence를 확인한다. task container/network와 marker temp root는 정리하지만 PostgreSQL task volume과 image는 삭제하지 않고 exact retained volume을 보고한다. base의 `/private/var/lib/rhaomi`를 만들거나 변경하지 않으며 production Secret·FQDN·Cloudflare·GHCR·deploy도 다루지 않는다.
+
+### Production release/deploy contract acceptance
+
+actual GHCR·Tailscale·Mac production root에 접속하지 않고 fixed deploy entrypoint의 strict input, global lock, backup prerequisite, digest/revision 검증, writer quiescence, one-shot task 순서와 실패 후 maintenance hold를 task fixture로 검증한다.
+
+```bash
+RHAOMI_PRODUCTION_DEPLOY_EVIDENCE_DIR=/path/to/task-evidence \
+sh scripts/validate-production-deploy.sh
+```
+
+`.github/workflows/production-release.yml`은 `workflow_dispatch` only, exact current `main` SHA, job별 최소 권한, existing exact-SHA tag 덮어쓰기 거부, `linux/amd64`+`linux/arm64` digest·SBOM·provenance, `environment: production` 승인 후 pinned Tailscale와 fixed remote argv만 소스 계약으로 고정한다. PR/Hosted Validate는 이 workflow를 dispatch하거나 package를 push하지 않는다.
 
 ## 현재 핵심 결론
 

@@ -57,58 +57,14 @@ services:
         bind:
           create_host_path: false
 
-  postgres:
+  migration:
     labels: *validation-labels
 
-  schema-bootstrap:
-    profiles: ["production-validation"]
-    image: ${RHAOMI_PRODUCTION_IMAGE:?RHAOMI_PRODUCTION_IMAGE is required}
-    init: true
-    read_only: true
-    cap_drop: ["ALL"]
-    security_opt:
-      - no-new-privileges:true
-    working_dir: /opt/rhaomi
-    command: ["java", "-jar", "/opt/rhaomi/backend.jar"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      SPRING_PROFILES_ACTIVE: production
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${RHAOMI_POSTGRES_DB:?RHAOMI_POSTGRES_DB is required}
-      SPRING_DATASOURCE_USERNAME: ${RHAOMI_POSTGRES_USER:?RHAOMI_POSTGRES_USER is required}
-      SPRING_DATASOURCE_PASSWORD: ${RHAOMI_POSTGRES_PASSWORD:?RHAOMI_POSTGRES_PASSWORD is required}
-      SPRING_FLYWAY_ENABLED: "true"
-      RHAOMI_SESSION_COOKIE_SECURE: "true"
-      RHAOMI_BOOTSTRAP_ADMIN_ENABLED: "false"
-      RHAOMI_BUILD_SERVICE_TOKEN: ${RHAOMI_BUILD_SERVICE_TOKEN:?RHAOMI_BUILD_SERVICE_TOKEN is required}
-      RHAOMI_MEDIA_ROOT: /var/lib/rhaomi/media
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=256m
-    volumes:
-      - type: bind
-        source: ${RHAOMI_PRODUCTION_VALIDATION_ROOT:?RHAOMI_PRODUCTION_VALIDATION_ROOT is required}/data/media
-        target: /var/lib/rhaomi/media
-        bind:
-          create_host_path: false
+  schema-validate:
     labels: *validation-labels
-    networks:
-      - data-internal
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q '\"status\":\"UP\"'",
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 60
-      start_period: 20s
-    logging:
-      driver: local
-      options:
-        max-size: "20m"
-        max-file: "5"
+
+  postgres:
+    labels: *validation-labels
 
 volumes:
   postgres-data:

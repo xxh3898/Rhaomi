@@ -47,6 +47,14 @@ build-time 공개 콘텐츠 조회는 [ADR-011](../09-decisions/ADR-011-transact
 
 build API와 stateless credential 경계, Node full release adapter와 credential을 직접 해석하지 않는 publisher control loop를 구현했다. Java executor는 같은 secret source의 `BUILD_API_CREDENTIAL`을 allowlist environment로만 child에 전달하고 URL/query/argv/output에는 넣지 않으며 no-redirect bounded GET과 manifest-scoped memory media provider만 사용한다. D-IMP-2 Compose는 backend와 publisher만 build internal network를 공유하고 같은 required secret source를 각각 `RHAOMI_BUILD_SERVICE_TOKEN`, `BUILD_API_CREDENTIAL` key로 받는다. web에는 credential environment·file·source mount가 없고 public `/api/build/**`는 404다. task validator는 synthetic token을 출력하지 않고 internal valid Bearer가 인증 계층을 통과하는지만 확인한다. actual production Secret·image/path provisioning은 아직 수행하지 않았다.
 
+### Production deploy identity
+
+- validation/build job은 `contents: read`만 가지고 GHCR publish job만 `packages: write`를 갖는다.
+- deploy identity는 GitHub `production` Environment 승인 후 job에만 주입하며 admin session·build service credential과 공유하지 않는다.
+- Tailscale identity는 fixed production host/user에 SSH 접속하는 운송 권한이고 arbitrary remote shell input을 허용하지 않는다.
+- remote entrypoint는 exact release SHA, fixed GHCR repository digest, SBOM reference만 받고 production credential을 argv로 받지 않는다.
+- workflow source는 구현했지만 actual Environment·reviewer·branch policy·secret·Tailscale identity·host install은 provisioning 전이며, 이 상태를 production approval 완료로 표현하지 않는다.
+
 ### Static admin client
 
 - `/admin/` HTML은 누구나 받을 수 있는 Static Export이며 그 존재나 client-side session check를 접근제어로 보지 않는다.

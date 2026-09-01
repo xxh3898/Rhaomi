@@ -21,7 +21,7 @@ review_trigger: "호스트·파이프라인 변경 시"
 
 ## 구현 상태
 
-[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)의 topology와 release 절차에 따라 `compose.production.yaml`, `infra/nginx/production.conf`와 task validation overlay를 구현했다. external exact image, web-only loopback, same-image backend/publisher, internal network, canonical bind와 project-scoped PostgreSQL volume source contract는 local/Hosted evidence가 있다. GHCR, GitHub `production` environment, actual host path·volume·Secret·FQDN, deploy entrypoint와 one-shot Flyway는 아직 구현·provision되지 않았다. 이 문서는 현재 운영 배포 완료를 뜻하지 않는다.
+[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)의 topology와 release 절차에 따라 canonical image·Compose·project Nginx에 이어 `.github/workflows/production-release.yml`, `ops/production/deploy-rhaomi.sh`와 non-web one-shot Flyway/schema task를 구현했다. exact-main manual gate, immutable multi-arch digest·SBOM/provenance contract, protected Environment 소스 경계, fixed Mac argv·lock·backup prerequisite·writer quiescence·failure hold는 task-scoped local/Hosted evidence를 갖는다. private GHCR package/visibility, GitHub `production` Environment·reviewer·secret, Tailscale identity, actual host entrypoint/path·volume·Secret·FQDN은 아직 provision되지 않았고 workflow dispatch·deploy·production migration을 수행하지 않았다. 이 문서는 현재 운영 배포 완료를 뜻하지 않는다.
 
 [Production readiness matrix](production-readiness.md)는 이 승인 계약, local/CI evidence, production provisioning, 외부 콘텐츠 승인과 physical-device acceptance를 분리한다. Phase 1D contract 완료만으로 아래 production 항목을 통과 처리하지 않는다.
 
@@ -54,11 +54,12 @@ Spring Boot 콘텐츠 transaction
 
 두 경로는 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)의 build·검증·원자적 전환 구현을 공유한다. transactional outbox, generation state, dedicated polling/debounce/lock control loop, Build API→transformer staging, Next Static Export, private release manifest·`BigInt` stale guard·`previous/current` atomic switch·post-switch smoke·rollback·retention과 실제 Java executor binding을 구현했다. production Compose는 같은 image의 exact non-web publisher argv와 public/state/lock/media mount target을 고정한다. actual Secret·Mac canonical path·approved digest provisioning과 public HTTPS acceptance는 아직 수행하지 않았다.
 
-## D-IMP-2 source validation
+## D-IMP-2·D-IMP-3 source validation
 
 - canonical base는 `/private/var/lib/rhaomi` bind source와 project-scoped PostgreSQL named volume을 유지한다.
-- validation overlay만 task temp root와 validation-only schema bootstrap을 사용한다.
-- native architecture에서 web-only loopback, network adjacency, mount RO/RW, static/admin/deny route, internal Build API auth와 일반 Compose `down`→`up` sentinel persistence를 검증한다.
+- validation overlay만 task temp root와 labeled one-shot service를 사용한다.
+- native architecture에서 web-only loopback, network adjacency, mount RO/RW, static/admin/deny route, internal Build API auth, migration·schema one-shot·malformed mode, writer 정지 중 public serving과 일반 Compose `down`→`up` sentinel persistence를 검증한다.
+- fake Docker task harness가 wrong registry·malformed/duplicate input의 mutation 전 거부, lock contention, digest/revision 검증, migration/schema 실패 후 writer auto-resume 0과 secret redaction을 검증한다.
 - task container/network는 정리하지만 task PostgreSQL volume과 image는 삭제하지 않는다.
 - 위 evidence는 아래 최초 배포 사전 조건의 actual Mac·production 항목을 완료 처리하지 않는다.
 
@@ -74,6 +75,11 @@ Spring Boot 콘텐츠 transaction
 - [ ] production entrypoint·runbook의 `docker compose down -v`, `docker volume prune`, named volume direct delete 금지
 - [ ] canonical media `/private/var/lib/rhaomi/data/media` 영속화
 - [ ] 운영 비밀값
+- [ ] private GHCR package 생성·visibility·pull 권한과 exact-SHA tag/digest evidence
+- [ ] GitHub `production` Environment, required reviewer·self-review policy·main deployment policy·secret/value
+- [ ] Tailscale deploy identity·target host/user·SSH known-hosts와 public internet SSH 미노출
+- [ ] fixed entrypoint·Compose·`production.env`·Docker credential config의 Mac installation·owner·mode
+- [ ] exact release SHA에 바인딩된 D-IMP-4 backup eligibility evidence
 - [ ] 관리자 password+WebAuthn/passkey 2차 인증, authenticator private key server 비수집, RP-side credential ID·public key·필요 metadata, registration revoke/remove, recovery-code secret의 password manager+별도 offline copy·rotation
 - [ ] protected source와 분리된 Mac mini local backup repository/path·ownership·permission·capacity
 - [ ] `pg_dump -Fc`와 canonical media를 묶은 동일 backup-set manifest·retention·check
@@ -91,33 +97,25 @@ Spring Boot 콘텐츠 transaction
 
 외장 SSD·iCloud 3-2-1, restic recovery key와 remotely verified offsite RPO는 초기 production 사전 조건이 아니라 future hardening이다. 미구성 상태는 `NOT_CONFIGURED / DEFERRED`이며 local backup 성공으로 offsite `PASS`를 만들지 않는다. 초기 local-only backup은 Mac mini 전체 손실에서 함께 사라질 수 있다는 accepted risk를 release evidence에 남긴다.
 
-## 코드 배포 단계
+## D-IMP-3 코드 image apply 단계
 
-1. global deploy lock 획득
-2. exact `main` SHA, image digest와 `contentRevision`·`publishGeneration`·`generatedAt` release manifest 확인
-3. Mac canonical directory ownership·permission, public/media/state bind source와 access mode 확인
-4. PostgreSQL named volume exact identity·mount와 보존 정책 확인
-5. disk 여유와 `current`·`previous` 확인
-6. 최근 정상 local backup set·isolated restore drill과 single-host risk 승인 상태 확인
-7. migration·major update면 on-demand application-consistent backup 생성·검증
-8. immutable image pull과 digest 검증
-9. 관리자 write maintenance 활성화
-10. one-shot Flyway migration 실행
-11. 새 backend의 schema validation과 internal health 확인
-12. 승인된 image/digest의 동일 publisher pipeline으로 static release 생성
-13. 새 release directory의 HTML·link·SEO·asset·route smoke
-14. 기존 `current`를 `previous`로 기록
-15. `current` symlink 원자적 전환
-16. public HTTPS·핵심 문구·asset·관리자 API smoke
-17. 관리자 write maintenance 해제
-18. release evidence와 HomeOps status/event 기록
+1. exact release SHA·fixed GHCR digest·SBOM reference를 strict 검증하고 canonical host root의 directory/symlink/owner 계약을 확인
+2. `/private/var/lib/rhaomi/state/locks/rhaomi-deploy.lock`을 atomic `mkdir`로 획득하고 자신의 owner token으로만 해제
+3. fixed Compose·`production.env`·Docker credential config의 regular-file·owner·mode와 exact release SHA에 바인딩된 backup eligibility evidence를 확인
+4. exact manifest digest를 pull하고 RepoDigest·OCI revision·image ID를 writer 정지 전에 확인
+5. `rhaomi-web`과 PostgreSQL을 유지하고 backend·publisher를 graceful stop한 뒤 두 container의 `exited`를 확인; public static home 200 재확인
+6. 같은 exact image의 `migration` one-shot을 실행하고 writer quiescence를 재확인
+7. Flyway-disabled `schema-validate` one-shot을 실행하고 writer quiescence·public web을 재확인
+8. backend만 exact digest로 recreate하고 internal health `UP` 후 publisher를 recreate
+9. backend·publisher의 runtime image ID가 pulled image ID와 같은지 확인한 뒤에만 bounded·redacted success evidence와 maintenance release를 기록
 
-검증 전에는 `current`를 바꾸지 않는다. public static site는 write maintenance 중에도 계속 제공한다.
+input·path·backup·digest 실패는 writer 정지 전에 fail-closed를 우선한다. migration·schema validation 실패 후는 old backend/publisher를 자동 resume하지 않고 maintenance 상태를 유지한다. backend health 실패 전에 publisher를 시작하지 않는다. 이 slice는 production `current` content release를 변경하지 않으며 actual public HTTPS·content switch·first-production acceptance는 D-IMP-6에서 수행한다.
 
 ## Flyway
 
-- production backend 일반 기동은 migration을 실행하지 않고 schema validate만 한다.
+- production backend 일반 기동은 migration을 실행하지 않고 JPA schema validate만 한다.
 - migration은 deploy lock과 write maintenance 안의 one-shot service만 수행한다.
+- exact `--rhaomi.production-task=migrate`는 Flyway를 활성하고 적용 후 JPA validate를 수행하며, `schema-validate`는 Flyway를 비활성하고 JPA validate만 수행한다. unknown·duplicate task mode는 기동 전 거부한다.
 - additive expand/contract를 우선한다.
 - column/table 삭제·대량 변환은 별도 승인, on-demand backup과 isolated restore가 필요하다.
 - destructive rollback은 검증 전 실행하지 않는다.
@@ -161,6 +159,7 @@ Mac host source는 `/private/var/lib/rhaomi/public`이며 web container `/srv/rh
 ## release evidence·보존
 
 - exact Git SHA, image tag·digest, SBOM과 scan 결과
+- workflow run ID, amd64/arm64 manifest identity와 provenance/attestation 활성 evidence
 - Flyway version·migration 여부와 backup-set ID
 - publisher content revision, release ID와 smoke 결과
 - `current`·`previous` 전후 target
@@ -185,6 +184,10 @@ Mac host source는 `/private/var/lib/rhaomi/public`이며 web container `/srv/rh
 - Nginx 전환 후 healthcheck 실패
 - 디스크 여유 부족
 - image tag·digest 불일치 또는 SBOM·scan 증거 누락
+- requested exact SHA tag가 이미 존재해 immutable publish가 덮어쓰기를 필요로 함
+- GitHub `production` Environment·required reviewer·main policy·Tailscale/SSH authority가 actual provisioning되지 않음
+- fixed host config·Docker credential·backup eligibility·global lock 검증 실패
+- backend/publisher 정지 확인 전 migration 시도, one-shot migration/schema 또는 backend health/publisher start 실패
 - 최근 정상 backup·on-demand backup 검증 실패
 - publisher lock·revision 순서 오류
 - Mac canonical path·permission 또는 bind mount smoke 실패
@@ -197,9 +200,12 @@ Mac host source는 `/private/var/lib/rhaomi/public`이며 web container `/srv/rh
 - 백업 확인 없는 major upgrade
 - `latest` 이미지 pull 후 즉시 운영 재시작
 - feature branch를 운영 배포
+- 이미 존재하는 exact SHA image tag 덮어쓰기
 - `main` merge를 production apply 승인으로 간주
 - production Mac mini에서 public PR source build
 - 임의 SSH shell body 실행
+- caller-supplied production env-file·Docker config·Compose override를 deploy authority로 사용
+- migration/schema 실패 후 old backend/publisher 자동 resume
 - production backend 일반 기동의 자동 Flyway mutation
 - public `/api/build/**`, `/internal/**` 또는 actuator 노출
 - 관리자 password·session·bootstrap credential을 CI log에 출력

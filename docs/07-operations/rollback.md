@@ -11,7 +11,7 @@ review_trigger: "배포 저장구조 변경 시"
 
 ## 구현 상태
 
-이 문서는 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)의 목표 rollback 계약이다. publisher control loop와 local/CI release adapter는 이전 `current/previous` link snapshot을 보존하고 post-switch loopback smoke 실패 시 같은 global lock에서 복구하며, 첫 release 실패 시 `current`를 제거하는 low-level primitive를 구현했다. production service/image/path와 승인된 higher-generation rollback trigger, local-only backup/restore runtime은 아직 구현되지 않았다. 초기 backup은 Mac mini 내부에만 있으므로 host/storage 전체 손실 복구를 보장하지 않는다.
+이 문서는 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)의 목표 rollback 계약이다. publisher control loop와 local/CI release adapter는 이전 `current/previous` link snapshot을 보존하고 post-switch loopback smoke 실패 시 같은 global lock에서 복구하며, 첫 release 실패 시 `current`를 제거하는 low-level primitive를 구현했다. D-IMP-3 fixed deploy source는 migration/schema 실패 후 backend/publisher를 자동 resume하지 않는 maintenance hold를 구현했다. production service/image/path installation, 승인된 higher-generation rollback trigger, actual backup/restore runtime은 아직 provision되지 않았다. 초기 backup은 Mac mini 내부에만 있으므로 host/storage 전체 손실 복구를 보장하지 않는다.
 
 local/CI의 same-attempt smoke rollback은 실패한 candidate가 publication success로 기록되기 전 filesystem을 복구하는 동작이다. 이미 성공한 낮은 generation release를 운영에서 직접 재활성화하는 절차와 다르며, 아래 production rollback은 계속 더 높은 새 `publishGeneration`을 요구한다.
 
@@ -80,6 +80,8 @@ Nginx 설정이 바뀌지 않았다면 reload 없이 전환하는 구조를 우�
 - 현재 DB data와 이전 code의 호환성 확인
 - 단순 `git reset`만으로 운영 데이터를 되돌리지 않는다.
 - `latest` tag나 production host source rebuild를 rollback 근거로 사용하지 않는다.
+- 호환성·backup eligibility를 새 exact release SHA에 대해 다시 확인한 뒤에만 직전 정상 digest를 fixed entrypoint의 새 수동 deploy 승인 입력으로 사용한다.
+- migration·schema validation 실패로 writer가 정지된 상태에서 old image를 자동 기동하지 않는다. current schema와 직전 code의 호환성이 입증된 별도 수동 recovery/deploy 승인이 필요하다.
 
 ## Flyway schema rollback
 
