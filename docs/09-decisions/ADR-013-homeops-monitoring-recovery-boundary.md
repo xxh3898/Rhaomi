@@ -3,7 +3,7 @@ title: "ADR-013: HomeOps 통합 관제·알림·자동 복구 경계"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "관제 authority·임계값·자동 복구·로그 보존 변경 시"
 ---
 
@@ -18,6 +18,8 @@ review_trigger: "관제 authority·임계값·자동 복구·로그 보존 변�
 Mac mini에서 프로젝트별 dashboard·heartbeat·alert stack을 중복 운영하면 같은 장애가 여러 채널에서 다르게 판정되고 host 자원을 소비한다. Rhaomi는 필요한 privacy-safe 상태만 제공하고 incident, Activity, Discord 알림과 일일 요약의 단일 authority를 기존 HomeOps로 유지해야 한다.
 
 HomeOps와 Rhaomi가 같은 host에 있으므로 전원, 회선 또는 Docker 전체 장애 때 알림을 보내지 못할 수 있다. 초기 서비스는 이 blind spot을 명시적으로 수용한다.
+
+Issue #57의 D-IMP-5a는 HomeOps `main@f3845396bd4d6bf677d1d8bf6bbcb82113851c14`를 read-only compatibility authority로 고정하고 Rhaomi 쪽 bounded status, deployment/backup payload adapter, web-only Agent opt-in과 fixed recovery target source를 구현했다. HomeOps incident가 target을 선택하는 결정, durable 30분 cooldown, actual monitor/control/notification 등록과 Mac installation은 D-IMP-5b와 production provisioning에 남아 있다.
 
 ## 결정
 
@@ -38,6 +40,10 @@ HomeOps와 Rhaomi가 같은 host에 있으므로 전원, 회선 또는 Docker �
 - disk·PostgreSQL·publisher에 필요한 최소 metric source
 
 CSRF 발급 endpoint를 availability probe로 호출하지 않는다. health/status response에는 콘텐츠 body, email, path, credential, token과 session 식별자를 포함하지 않는다.
+
+구현된 `status-rhaomi.py`는 production root·Compose·container·query를 caller가 바꿀 수 없는 host-side fixed entrypoint다. Docker `.Config.Env`나 `production.env` 내용을 출력하지 않고 release SHA·image digest, allowlisted service state/health, public loopback availability, shared operation lock과 safe backup eligibility identity만 최대 4 KiB JSON으로 반환한다. 새 public HTTP status route는 없다.
+
+`report-rhaomi-event.py`는 Rhaomi 안에 HMAC/network client를 만들지 않고 HomeOps current reporter의 owner·mode·SHA-256을 확인해 exact deployment/backup DTO만 전달한다. reporter exit 0은 remote delivery가 아니라 private spool retention acknowledgement인 `RETAINED`이며, 설치 전은 `NOT_CONFIGURED`, malformed payload·authority/local spool 실패는 `FAILED`다. deploy/backup transaction 결과와 이 telemetry 상태는 서로 덮어쓰지 않는다.
 
 ### HomeOps 통합 대상
 
@@ -70,7 +76,7 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. health/sta
 
 ### 자동 복구
 
-허용 범위는 명시적으로 opt-in한 stateless `rhaomi-web`, `rhaomi-backend` container 각각의 단일 restart뿐이다.
+Rhaomi fixed target이 허용하는 범위는 `rhaomi-web`, `backend` 각각의 단일 restart뿐이다. production Compose의 HomeOps generic control opt-in은 read-only bind+tmpfs만 가진 `rhaomi-web` 하나이며, canonical media RW bind가 있는 backend는 current HomeOps mount protection과 호환되지 않으므로 opt-in하지 않는다.
 
 다음 조건을 모두 만족해야 한다.
 
@@ -78,6 +84,8 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. health/sta
 - deploy lock과 backup lock 없음
 - 같은 service restart 후 30분 cooldown
 - trigger, 전후 health와 결과 audit 기록
+
+D-IMP-5a의 `recover-rhaomi-service.py`는 이 action boundary만 구현한다. shared deploy/backup lock을 원자적으로 소유하고 current container/image/config identity를 유지한 채 exact service를 한 번만 restart하며 post-health를 확인한다. restart 물리 완료가 불확실하면 own lock을 남겨 fail-closed한다. consecutive failure 판단, incident→target mapping과 durable 30분 cooldown은 HomeOps-owned D-IMP-5b이며 현재 자동 실행되지 않는다.
 
 다음 작업은 자동 복구에서 금지한다.
 
@@ -140,10 +148,11 @@ DB·migration·volume과 공통 infra에 대한 자동 mutation은 장애를 확
 
 ## 실행 계획
 
-- [ ] Rhaomi minimal health/status/event schema 구현
+- [x] Rhaomi bounded status와 deployment/backup event adapter source 구현
+- [x] web-only HomeOps label compatibility와 fixed web/backend recovery target task 검증
 - [ ] HomeOps public/internal/container/host/DB/publisher/backup monitor 등록
 - [ ] 임계값과 Discord·Activity routing 검증
-- [ ] opt-in stateless single-restart allowlist와 lock/cooldown/audit 구현
+- [ ] HomeOps incident→exact target mapping, 30분 cooldown과 live control activation 구현
 - [ ] bounded log rotation과 secret redaction 검증
 - [ ] same-host outage 수동 확인 runbook 작성
 

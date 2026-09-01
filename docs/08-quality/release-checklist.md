@@ -171,6 +171,19 @@ review_trigger: "출시 기준 변경 시"
 
 위 항목은 workflow·entrypoint·one-shot task implementation evidence다. actual private GHCR package, GitHub `production` Environment/reviewer/secret, Tailscale identity, Mac entrypoint/config/path/volume, backup set을 provision하지 않았고 production workflow dispatch·package push·deploy·migration을 수행하지 않았으므로 아래 운영 항목은 계속 미완료다.
 
+### D-IMP-5a source·task validation
+
+- [x] HomeOps exact main commit·reporter SHA·deployment/backup DTO/status·managed-label compatibility snapshot
+- [x] fixed bounded status JSON, secret/content/private path/Docker Env/raw log 0과 stable failure code
+- [x] deployment·backup RUNNING→SUCCESS/FAILED same event key·startedAt, exact payload와 unknown field 0
+- [x] reporter `RETAINED`·`NOT_CONFIGURED`·`FAILED` 분리와 telemetry failure의 deploy/backup transaction outcome 변조 0
+- [x] `rhaomi-web`만 `homeops.managed=true`, backend/publisher/PostgreSQL/task service control opt-in 0
+- [x] fixed `restart rhaomi-web|backend`, shared lock contention mutation 0, exactly one restart·same identity·post-health와 불확실 restart lock 보존
+- [x] fake reporter/Docker task에서 actual HomeOps endpoint/HMAC Secret, production path, volume/image delete 0
+- [x] exact-head Hosted 3-job 구조 안의 HomeOps evidence와 Mac native arm64 task validator
+
+위 완료 표시는 Rhaomi D-IMP-5a source evidence다. HomeOps incident→target mapping·durable 30분 cooldown(D-IMP-5b), monitored-service/control/notification 설정과 Mac fixed inventory installation은 아래 production 항목처럼 미완료다.
+
 ### D-IMP-4 source·task validation
 
 - [x] deploy와 같은 global operation lock, backend/publisher physical quiescence, public static serving 유지

@@ -150,4 +150,5 @@ build API와 stateless credential 경계, Node full release adapter와 credentia
 - schema, role, user, setting 변경 endpoint를 일반 콘텐츠 API에 포함하지 않는다.
 - 공개 build API와 관리자 write API의 credential·DTO·감사 경계를 분리한다.
 - build service는 snapshot·media read 외 권한을 받지 않고 `POST`, `PUT`, `PATCH`, `DELETE`와 share 동작을 사용할 수 없다.
-- HomeOps는 CSRF endpoint를 probe하지 않고 privacy-safe internal health/status만 읽는다. HomeOps identity에 관리자 콘텐츠 write 권한을 주지 않는다.
+- HomeOps는 CSRF endpoint를 probe하지 않고 fixed privacy-safe health/status만 읽는다. Rhaomi event adapter는 existing HomeOps reporter에 deployment/backup exact payload만 주고 관리자 콘텐츠 write 권한이나 HMAC secret을 받지 않는다.
+- HomeOps generic container control label은 read-only `rhaomi-web` 하나에만 둔다. backend는 local fixed recovery allowlist에 있어도 media RW mount 때문에 generic control opt-in하지 않으며 publisher·PostgreSQL·migration·backup service는 항상 제외한다.

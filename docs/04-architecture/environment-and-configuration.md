@@ -108,6 +108,9 @@ acceptance PostgreSQL은 `/var/lib/postgresql` tmpfs를 사용하고 host port·
 | Fixed Docker credential config | Y | `/private/var/lib/rhaomi/app/docker/config.json`, directory `0700`·file `0600` |
 | Fixed deploy entrypoint | N | `/private/var/lib/rhaomi/app/bin/deploy-rhaomi.sh` |
 | Fixed backup entrypoint | N | `/private/var/lib/rhaomi/app/bin/backup-rhaomi.sh`; repository path CLI override 금지 |
+| Fixed HomeOps status entrypoint | N | `/private/var/lib/rhaomi/app/bin/status-rhaomi.py`; argument·public route 없음 |
+| Fixed HomeOps event adapter | N | `/private/var/lib/rhaomi/app/bin/report-rhaomi-event.py`; reporter/URL/Secret override 없음 |
+| Fixed recovery target | N | `/private/var/lib/rhaomi/app/bin/recover-rhaomi-service.py restart rhaomi-web\|backend`; shared lock과 exact allowlist |
 | Backup Docker CLI | Y | fixed wrapper `PATH`의 `docker` + standalone `docker-compose`; owner-only Docker config 사용, actual binary/version/권한 provisioning 필요 |
 | Tracked backup schedule source | N | `ops/production/com.rhaomi.backup.plist`; host-local 03:30, actual install 전 `Asia/Seoul` timezone 확인 |
 | Mac release root | N | `/private/var/lib/rhaomi/public/releases` |
@@ -236,6 +239,7 @@ validator는 exact-HEAD production image를 재사용하고 Darwin에서는 `/pr
 - `backend/Dockerfile.production`의 required `RHAOMI_GIT_HEAD` build arg에 exact release SHA를 전달해 `linux/amd64`·`linux/arm64`를 exact SHA tag에 publish하고, 이미 존재하는 SHA tag는 덮어쓰지 않는다. apply authority는 returned manifest digest다. publish 뒤 platform manifest·attestation, OCI source/revision, attached SPDX SBOM·SLSA provenance와 attached-SBOM scan을 machine-check하며 local pre-publish evidence와 분리한다.
 - protected GitHub `production` Environment 승인 뒤에만 pinned Tailscale identity와 fixed SSH target을 사용한다. remote argv는 `--release-sha`, `--image`, `--sbom`만 허용하고 credential을 전달하지 않는다.
 - tracked `ops/production/deploy-rhaomi.sh`는 production에서 `/private/var/lib/rhaomi/app/bin/deploy-rhaomi.sh`로 versioned provisioning할 fixed wrapper다. fixed Compose/env/Docker config, backup eligibility와 global deploy lock를 검증하고 requested digest·OCI revision을 writer 정지 전에 확인한다.
+- tracked HomeOps integration inventory는 compatibility JSON, shared Python core와 status/event/recovery entrypoint를 같은 fixed bin root에 versioned provisioning한다. actual HomeOps reporter absolute path를 Rhaomi env에 저장하지 않고 OS account home 아래 current HomeOps runtime inventory와 pinned owner·mode·SHA를 검증한다. HomeOps endpoint/HMAC secret은 Rhaomi `production.env`, container environment와 CLI에 없다.
 - production backend/publisher 일반 기동은 Flyway mutation을 수행하지 않는다. global deploy lock을 보유한 채 public web을 유지하고 두 writer의 physical exit를 확인한 뒤에만 `migration`→`schema-validate`를 실행한다.
 - migration은 Flyway V1~V9을 적용하고 JPA validate를 수행하며, schema task는 Flyway를 끌 채 JPA validate만 수행한다. 두 task는 exact CLI opt-in, non-web, admin bootstrap·publisher worker 0이고 성공 후 종료한다.
 - writer maintenance 시작 뒤 migration/schema/backend health/publisher start/runtime image identity 실패는 false success를 금지하고 backend/publisher를 다시 정지한다. quiescence 확인 뒤에만 own lock을 해제하며 확인 실패 시 lock을 보존한다. old writer를 자동 resume하지 않는다.
@@ -246,7 +250,7 @@ validator는 exact-HEAD production image를 재사용하고 Darwin에서는 `/pr
 
 workflow·fixed entrypoint·one-shot task source와 task-only validator는 구현했지만 private GHCR package/visibility, GitHub `production` Environment·required reviewer·branch policy·secret, Tailscale identity, actual Mac entrypoint/config/path/volume·loopback/FQDN은 생성·provision하지 않았다. production workflow도 dispatch하지 않았고 GHCR push·deploy·migration을 수행하지 않았다.
 
-## Backup·HomeOps inventory — planned
+## Backup·HomeOps inventory — source implemented, provisioning planned
 
 - 초기 production은 protected source와 분리된 Mac mini local backup repository/path를 provisioning 입력으로 확정한다. exact path·owner·permission·capacity는 저장소에 추측하지 않는다.
 - local backup은 `pg_dump -Fc`와 canonical media를 동일 backup-set ID로 묶고 retention/check·isolated restore를 제공한다. raw PostgreSQL volume은 backup authority가 아니다.
@@ -254,9 +258,9 @@ workflow·fixed entrypoint·one-shot task source와 task-only validator는 구�
 - 외장 SSD·iCloud 3-2-1, restic recovery key와 offsite RPO는 future hardening이며 초기 production blocker가 아니다. 미구성 상태는 `NOT_CONFIGURED / DEFERRED`로 표시한다.
 - future hardening 도입 시 외장 SSD exact path는 `/Volumes/<provisioned-volume>/...` 아래에서 확인하고 iCloud local repository integrity와 Apple remote sync evidence를 분리한다. restic password는 root-owned 제한 파일 또는 macOS Keychain password command로 공급한다.
 - HomeOps endpoint·identity와 Discord 수신자는 Rhaomi public configuration에 넣지 않고 Tailscale·운영 Secret 경계에서 관리한다.
-- Rhaomi는 privacy-safe health/status/event/metric source만 제공한다.
+- Rhaomi는 fixed privacy-safe bounded status, deployment/backup event adapter와 bounded recovery target source만 제공한다. incident/notification/automatic recovery decision은 HomeOps authority다.
 
-local backup repository와 HomeOps 설정은 아직 생성·변경하지 않았다. external repository와 key도 future hardening 전까지 만들지 않는다.
+local backup repository와 HomeOps monitored-service/control/notification 설정은 아직 생성·변경하지 않았다. D-IMP-5a source도 actual Mac fixed inventory에 설치하지 않았고 external repository와 key도 future hardening 전까지 만들지 않는다.
 
 ## `.env.example`
 
@@ -265,7 +269,7 @@ local backup repository와 HomeOps 설정은 아직 생성·변경하지 않았�
 - 실제 key, password, 실사용 email 금지
 - 운영 `.env`와 credential source를 참조하지 않음
 
-현재 example에는 default Compose가 쓰는 PostgreSQL, session cookie, 비활성 local/test bootstrap, 빈 backend-only build token·Build API adapter 값과 local-safe private media root만 둔다. actual `.env.dev.local`은 frontend filesystem에 mount하지 않는다. publisher는 default Compose service가 아니므로 full executor의 path·code identity 설정을 `.env.example`에 기본 주입하지 않는다. production deploy, publisher credential/path, backup와 HomeOps secret은 해당 implementation Issue 전까지 추가하지 않는다.
+현재 example에는 default Compose가 쓰는 PostgreSQL, session cookie, 비활성 local/test bootstrap, 빈 backend-only build token·Build API adapter 값과 local-safe private media root만 둔다. actual `.env.dev.local`은 frontend filesystem에 mount하지 않는다. publisher는 default Compose service가 아니므로 full executor의 path·code identity 설정을 `.env.example`에 기본 주입하지 않는다. production deploy, publisher credential/path, backup와 HomeOps endpoint/HMAC secret은 추가하지 않는다.
 
 ## domain — provisioning
 

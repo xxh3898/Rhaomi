@@ -46,6 +46,10 @@ main() {
   backup_repository="$validation_parent/backup-repository"
   raw_dir="$validation_parent/raw"
   mkdir -m 700 "$backup_repository" "$backup_repository/sets" "$raw_dir"
+  RHAOMI_HOMEOPS_TEST_LOG="$raw_dir/homeops-events.log"
+  RHAOMI_HOMEOPS_TEST_OUTCOME=RETAINED
+  export RHAOMI_HOMEOPS_TEST_LOG RHAOMI_HOMEOPS_TEST_OUTCOME
+  : >"$RHAOMI_HOMEOPS_TEST_LOG"
   printf '%s\n' rhaomi-backup-repository-v1 \
     >"$backup_repository/.rhaomi-backup-repository"
   chmod 600 "$backup_repository/.rhaomi-backup-repository"
@@ -94,6 +98,14 @@ main() {
     --mode predeploy \
     --target-release-sha "$git_head")
   printf '%s\n' "$backup_output" >"$raw_dir/backup-result.json"
+  printf '%s\n' "$backup_output" | grep -Fq '"homeOpsTelemetry": "retained"' ||
+    backup_validation_fail BACKUP_HOMEOPS_LIFECYCLE_INVALID
+  [ "$(grep -c '^backup ' "$RHAOMI_HOMEOPS_TEST_LOG")" = 2 ] ||
+    backup_validation_fail BACKUP_HOMEOPS_LIFECYCLE_INVALID
+  [ "$(sed -n '1s/^backup \([^ ]*\).*/\1/p' "$RHAOMI_HOMEOPS_TEST_LOG")" = RUNNING ] ||
+    backup_validation_fail BACKUP_HOMEOPS_LIFECYCLE_INVALID
+  [ "$(sed -n '2s/^backup \([^ ]*\).*/\1/p' "$RHAOMI_HOMEOPS_TEST_LOG")" = SUCCESS ] ||
+    backup_validation_fail BACKUP_HOMEOPS_LIFECYCLE_INVALID
   backup_set_id=$(printf '%s\n' "$backup_output" |
     sed -n 's/^[[:space:]]*"backupSetId": "\([0-9A-Za-z-]*\)",$/\1/p')
   printf '%s' "$backup_set_id" | grep -Eq '^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}$' ||
@@ -226,6 +238,7 @@ main() {
     '  "restoreHostPermissionState": "owner-only",' \
     '  "restoreRuntimePermissionState": "verified",' \
     '  "finalHostPermissionState": "owner-only",' \
+    '  "homeOpsBackupLifecycle": "verified",' \
     "  \"durationSeconds\": $duration_seconds," \
     '  "sameHostFailureDomain": true,' \
     '  "productionPathMutation": 0,' \
@@ -258,6 +271,7 @@ main() {
     'restoreHostPermissionState=owner-only' \
     'restoreRuntimePermissionState=verified' \
     'finalHostPermissionState=owner-only' \
+    'homeOpsBackupLifecycle=verified' \
     "durationSeconds=$duration_seconds" \
     'sameHostFailureDomain=true' \
     'productionPathMutation=0' \
@@ -293,6 +307,7 @@ prepare_validation_host() {
   mkdir -m 700 \
     "$host_root" \
     "$host_root/app" \
+    "$host_root/app/bin" \
     "$host_root/app/docker" \
     "$host_root/app/nginx" \
     "$host_root/data" \
@@ -320,6 +335,9 @@ prepare_validation_host() {
   cp "$repo_dir/compose.production.validation.yaml" \
     "$host_root/app/compose.production.validation.yaml"
   cp "$repo_dir/infra/nginx/production.conf" "$host_root/app/nginx/production.conf"
+  cp "$repo_dir/scripts/fixtures/fake-homeops-event-adapter.sh" \
+    "$host_root/app/bin/report-rhaomi-event.py"
+  chmod 700 "$host_root/app/bin/report-rhaomi-event.py"
   chmod 644 "$host_root/app/nginx/production.conf"
   printf '%s\n' '{}' >"$host_root/app/docker/config.json"
   printf '%s\n' \

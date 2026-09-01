@@ -3,7 +3,7 @@ title: "모니터링·장애 대응"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "모니터링 도구·장애 등급 변경 시"
 ---
 
@@ -17,8 +17,19 @@ review_trigger: "모니터링 도구·장애 등급 변경 시"
 - 별도 availability·host metrics dashboard나 push heartbeat를 만들지 않는다.
 - Prometheus·Grafana·Loki는 초기 범위에 포함하지 않는다.
 - HomeOps UI와 운영 endpoint는 Tailscale 전용이다.
-- Rhaomi용 HomeOps monitor·alert·restart 설정은 아직 구현되지 않았다.
-- [Production readiness matrix](production-readiness.md)의 HomeOps 행은 `IMPLEMENTATION_REQUIRED`이며 문서 승인만으로 실제 monitor가 존재한다고 보지 않는다.
+- D-IMP-5a는 fixed bounded status, HomeOps current deployment/backup adapter, `rhaomi-web` source label과 web/backend fixed one-restart target을 task-scoped local/CI에서 구현했다.
+- HomeOps incident→exact target decision, 30분 cooldown, backend RW-media compatibility 결정과 actual monitor·alert·control·notification 등록은 D-IMP-5b/production provisioning에 남아 있다.
+- [Production readiness matrix](production-readiness.md)의 HomeOps 행은 따라서 `IMPLEMENTATION_REQUIRED`이며 D-IMP-5a source evidence만으로 실제 monitor나 automatic recovery가 존재한다고 보지 않는다.
+
+## 구현된 D-IMP-5a 경계
+
+- `status-rhaomi.py`: fixed production inventory만 읽는 최대 4 KiB JSON. secret·content·private path·Docker Env와 raw log는 출력하지 않는다.
+- `report-rhaomi-event.py`: HomeOps pinned reporter를 재사용하는 exact DTO adapter. lifecycle은 같은 event key·startedAt으로 RUNNING→SUCCESS/FAILED를 갱신한다.
+- telemetry outcome: private spool acknowledgement `RETAINED`, 미설치 `NOT_CONFIGURED`, authority/local spool failure `FAILED`. deploy/backup transaction 결과와 별도다.
+- `recover-rhaomi-service.py`: `restart rhaomi-web|backend`만 허용하고 shared deploy/backup lock, current identity, exactly-one restart와 pre/post health를 확인한다. restart 완료가 불확실하면 lock을 유지한다.
+- Compose source의 `homeops.managed=true`는 read-only `rhaomi-web` 하나뿐이다. backend·publisher·PostgreSQL·task service는 generic control opt-in 0이다.
+
+actual HomeOps endpoint/HMAC secret은 task validation에서 접근하지 않는다. reporter·status/recovery source와 compatibility snapshot은 production provisioning 때 fixed `/private/var/lib/rhaomi/app/bin` inventory로 설치·검증해야 한다.
 
 ## 모니터링 대상
 
@@ -91,7 +102,7 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. 실제 log
 
 ## 자동 복구 경계
 
-명시적으로 opt-in한 stateless `rhaomi-web`, `rhaomi-backend` container 각각의 단일 restart만 허용한다.
+architecture상 허용 action은 `rhaomi-web`, `backend` 각각의 단일 restart뿐이다. D-IMP-5a local target은 둘 다 allowlist하지만 current HomeOps generic label 대상은 `rhaomi-web` 하나다.
 
 필수 조건:
 
@@ -99,6 +110,8 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. 실제 log
 - deploy lock과 backup lock 없음
 - 같은 service restart 후 30분 cooldown
 - trigger, 전후 health와 결과 audit
+
+위 consecutive-failure·incident mapping·30분 cooldown은 아직 HomeOps에 연결하지 않았다. fixed target의 존재를 automatic recovery 활성화로 해석하지 않는다.
 
 자동 복구에서 금지:
 
