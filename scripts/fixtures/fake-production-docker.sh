@@ -36,7 +36,13 @@ inspect_container() {
       fi
       ;;
     *State.Status*) cat "$state_dir/$service" ;;
-    *Image*) printf '%s\n' "$image_id" ;;
+    *Image*)
+      if [ "$failure_stage" = "runtime-${service}-image" ]; then
+        printf 'sha256:%064d\n' 0
+      else
+        printf '%s\n' "$image_id"
+      fi
+      ;;
     *) exit 64 ;;
   esac
 }

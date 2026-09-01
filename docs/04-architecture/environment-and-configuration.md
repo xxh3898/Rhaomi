@@ -149,7 +149,7 @@ production release manifest에는 exact `main` SHA, image tag·digest, Flyway ve
 | `RHAOMI_CODE_IMAGE_TAG` | N | non-secret immutable image identity |
 | `RHAOMI_CODE_IMAGE_DIGEST` | N | `sha256:<64 lowercase hex>` |
 | `RHAOMI_FLYWAY_VERSION` | N | release DB contract version, 현재 `9` |
-| `RHAOMI_SBOM_REFERENCE` | N | `sha256:<64 lowercase hex>` reference |
+| `RHAOMI_SBOM_REFERENCE` | N | published OCI index의 `sha256:<64 lowercase hex>` digest. amd64/arm64 attached SBOM·provenance attestation을 소유하는 index authority |
 | `RHAOMI_PUBLISHER_BUILD_TIMEOUT_MS` | N | Next build timeout, 1,000~3,600,000ms; 미설정 600,000ms |
 | `RHAOMI_RELEASE_RETENTION` | N | 1~100, 기본 5; current·previous 별도 보호 |
 
@@ -223,12 +223,12 @@ validator는 exact-HEAD production image를 재사용하고 Darwin에서는 `/pr
 ## Production deploy·migration — source implemented, external/host provisioning planned
 
 - `.github/workflows/production-release.yml`은 `workflow_dispatch` only며 exact current `main` SHA와 요청 40자 SHA 일치를 검증한다. validation은 read-only, publish만 `packages: write`, deploy만 `environment: production`과 environment secret을 받는다.
-- `backend/Dockerfile.production`으로 `linux/amd64`·`linux/arm64`를 exact SHA tag에 publish하고, 이미 존재하는 SHA tag는 덮어쓰지 않는다. apply authority는 returned manifest digest이며 SBOM·provenance·scan evidence를 release SHA에 묶는다.
+- `backend/Dockerfile.production`의 required `RHAOMI_GIT_HEAD` build arg에 exact release SHA를 전달해 `linux/amd64`·`linux/arm64`를 exact SHA tag에 publish하고, 이미 존재하는 SHA tag는 덮어쓰지 않는다. apply authority는 returned manifest digest다. publish 뒤 platform manifest·attestation, OCI source/revision, attached SPDX SBOM·SLSA provenance와 attached-SBOM scan을 machine-check하며 local pre-publish evidence와 분리한다.
 - protected GitHub `production` Environment 승인 뒤에만 pinned Tailscale identity와 fixed SSH target을 사용한다. remote argv는 `--release-sha`, `--image`, `--sbom`만 허용하고 credential을 전달하지 않는다.
 - tracked `ops/production/deploy-rhaomi.sh`는 production에서 `/private/var/lib/rhaomi/app/bin/deploy-rhaomi.sh`로 versioned provisioning할 fixed wrapper다. fixed Compose/env/Docker config, backup eligibility와 global deploy lock를 검증하고 requested digest·OCI revision을 writer 정지 전에 확인한다.
 - production backend/publisher 일반 기동은 Flyway mutation을 수행하지 않는다. global deploy lock을 보유한 채 public web을 유지하고 두 writer의 physical exit를 확인한 뒤에만 `migration`→`schema-validate`를 실행한다.
 - migration은 Flyway V1~V9을 적용하고 JPA validate를 수행하며, schema task는 Flyway를 끌 채 JPA validate만 수행한다. 두 task는 exact CLI opt-in, non-web, admin bootstrap·publisher worker 0이고 성공 후 종료한다.
-- migration/schema/backend health/publisher start 실패는 false success를 금지한다. migration/schema 실패 후 old writer를 자동 resume하지 않는다.
+- writer maintenance 시작 뒤 migration/schema/backend health/publisher start/runtime image identity 실패는 false success를 금지하고 backend/publisher를 다시 정지한다. quiescence 확인 뒤에만 own lock을 해제하며 확인 실패 시 lock을 보존한다. old writer를 자동 resume하지 않는다.
 - production session cookie는 TLS에서 `Secure=true`가 아니면 기동을 실패시킨다.
 - 실제 Mac mini에서 canonical directory 생성·ownership·permission, public/media/state bind mount와 PostgreSQL named volume identity를 검증한다.
 - PostgreSQL restart와 일반 Compose `down`·`up` 뒤 data persistence를 검증하고 `down -v`·volume prune/delete가 고정 entrypoint·runbook에 없음을 확인한다.

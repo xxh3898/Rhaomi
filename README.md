@@ -150,7 +150,7 @@ sh scripts/validate-local-publication-acceptance.sh
 
 ### Production image acceptance
 
-production deploy 없이 현재 native Docker architecture에서 canonical Java 25+Node 24 application image를 build하고 libheif/libde265 allowlist, x265 부재, publisher Static Export, actual HEIC/HEIF HTTP 정규화, CycloneDX SBOM과 pinned scanner를 검증한다.
+production deploy 없이 현재 native Docker architecture에서 canonical Java 25+Node 24 application image를 build하고 libheif/libde265 allowlist, x265 부재, publisher Static Export, actual HEIC/HEIF HTTP 정규화, CycloneDX SBOM과 pinned scanner를 검증한다. 이 local SBOM·scan은 pre-publish auxiliary evidence이며 실제 GHCR manifest의 attached attestation·scan으로 표현하지 않는다.
 
 ```bash
 RHAOMI_PRODUCTION_EVIDENCE_DIR=/path/to/task-evidence \
@@ -175,14 +175,14 @@ script는 image OCI revision과 current Git HEAD 일치, profile opt-in one-shot
 
 ### Production release/deploy contract acceptance
 
-actual GHCR·Tailscale·Mac production root에 접속하지 않고 fixed deploy entrypoint의 strict input, global lock, backup prerequisite, digest/revision 검증, writer quiescence, one-shot task 순서와 실패 후 maintenance hold를 task fixture로 검증한다.
+actual GHCR·Tailscale·Mac production root에 접속하지 않고 fixed deploy entrypoint의 strict input, global lock, backup prerequisite, digest/revision 검증, writer quiescence, one-shot task 순서와 실패 후 maintenance hold를 task fixture로 검증한다. backend/publisher runtime image mismatch와 publisher start 실패 뒤 두 writer 정지, writer 정지를 확인할 수 없을 때 own lock 보존도 포함한다.
 
 ```bash
 RHAOMI_PRODUCTION_DEPLOY_EVIDENCE_DIR=/path/to/task-evidence \
 sh scripts/validate-production-deploy.sh
 ```
 
-`.github/workflows/production-release.yml`은 `workflow_dispatch` only, exact current `main` SHA, job별 최소 권한, existing exact-SHA tag 덮어쓰기 거부, `linux/amd64`+`linux/arm64` digest·SBOM·provenance, `environment: production` 승인 후 pinned Tailscale와 fixed remote argv만 소스 계약으로 고정한다. PR/Hosted Validate는 이 workflow를 dispatch하거나 package를 push하지 않는다.
+`.github/workflows/production-release.yml`은 `workflow_dispatch` only, exact current `main` SHA, required Docker build arg, job별 최소 권한, existing exact-SHA tag 덮어쓰기 거부, `linux/amd64`+`linux/arm64` digest와 platform별 attached SBOM·provenance·scan 검증, `environment: production` 승인 후 pinned Tailscale와 fixed remote argv만 소스 계약으로 고정한다. `SBOM_REFERENCE`는 두 platform attestation을 소유하는 published OCI index digest다. PR/Hosted Validate는 이 workflow를 dispatch하거나 package를 push하지 않는다.
 
 ## 현재 핵심 결론
 

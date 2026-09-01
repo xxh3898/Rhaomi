@@ -114,7 +114,7 @@ feature → dev
 - 임의 SSH command body 대신 exact SHA·digest와 제한된 매개변수만 받는 고정 entrypoint를 사용한다.
 - image에는 commit SHA tag를 붙이고 실제 배포는 digest로 고정한다. `latest`는 금지한다.
 - exact SHA tag가 이미 존재하면 덮어쓰지 않고 immutable publish를 fail-closed한다. canonical production Dockerfile로 `linux/amd64`·`linux/arm64` 하나의 manifest/index를 만든다.
-- release evidence에 exact SHA, image digest, SBOM, dependency/image scan, migration과 smoke 결과를 기록한다. public release manifest에는 [ADR-011](ADR-011-transactional-outbox-static-publisher.md)의 `contentRevision`, `publishGeneration`, `generatedAt`을 포함한다.
+- production publish는 canonical Dockerfile에 exact release SHA를 required build arg로 전달한다. release evidence는 published OCI index digest, amd64/arm64 manifest·attestation identity, attached SPDX SBOM·SLSA provenance, OCI source/revision과 attached SBOM 기반 scan을 machine-check해 기록한다. `SBOM_REFERENCE`는 두 platform attestation을 소유하는 OCI index digest이며 pre-publish local SBOM·scan은 auxiliary evidence로만 구분한다. public release manifest에는 [ADR-011](ADR-011-transactional-outbox-static-publisher.md)의 `contentRevision`, `publishGeneration`, `generatedAt`을 포함한다.
 
 ### 배포 순서
 
@@ -129,7 +129,7 @@ D-IMP-3 fixed code-image apply source는 다음 경계를 구현한다.
 7. backend recreate·health 후 publisher recreate, 두 runtime image ID 일치 확인
 8. bounded·redacted evidence와 explicit maintenance release
 
-input·path·backup·digest/revision 실패는 writer 정지 전에 거부하고 migration/schema validation 실패 후에는 old writer를 자동 resume하지 않는다. backend health 실패 전 publisher 시작도 금지한다. D-IMP-4 backup이 actual provision되지 않으면 release-bound eligibility를 생성할 authority가 없으므로 production deploy는 fail-closed한다.
+input·path·backup·digest/revision 실패는 writer 정지 전에 거부한다. writer maintenance가 시작된 뒤 migration/schema/backend health/publisher start/runtime image identity 중 하나라도 실패하면 backend와 publisher를 다시 정지하고 quiescence를 확인한 뒤에만 own global lock을 해제한다. quiescence를 확인할 수 없으면 own lock을 보존해 다음 deploy를 막으며 old writer를 자동 resume하지 않는다. backend health 실패 전 publisher 시작도 금지한다. D-IMP-4 backup이 actual provision되지 않으면 release-bound eligibility를 생성할 authority가 없으므로 production deploy는 fail-closed한다.
 
 아래는 D-IMP-4~6 provisioning·content release까지 포함한 전체 production 목표 순서다.
 
@@ -218,13 +218,13 @@ Docker Desktop host sharing·path와 DB internal layout에 결합되고 portable
 ## 실행 계획
 
 - [x] production Compose와 project Nginx source·task-scoped local/Hosted validation 구현
-- [x] GHCR immutable multi-architecture image·SBOM/provenance·scan workflow source와 existing-SHA overwrite 거부 구현
+- [x] required exact-head build arg와 GHCR immutable multi-architecture image·published platform SBOM/provenance·scan workflow source, existing-SHA overwrite 거부 구현
 - [ ] actual private GHCR package 생성·visibility·pull 권한 검증
 - [x] GitHub `production` Environment deploy job·pre-approval secret isolation source 구현
 - [ ] GitHub production environment·required reviewer·branch policy 설정
 - [x] pinned Tailscale transport·fixed SSH argv·Mac deploy entrypoint source 구현
 - [ ] actual Tailscale deploy identity·host/user/known-hosts·Mac entrypoint/config installation
-- [x] one-shot Flyway/schema task·writer quiescence·failure maintenance hold 구현
+- [x] one-shot Flyway/schema task·writer quiescence와 post-start/runtime identity failure maintenance hold 구현
 - [ ] 실제 Mac mini에서 `/private/var/lib/rhaomi` directory ownership·permission과 public/media/state bind mount 검증
 - [ ] PostgreSQL project-scoped named volume restart·일반 Compose `down` persistence와 destructive volume command 금지 검증
 - [ ] application-consistent backup에서 isolated named volume로 `pg_restore` 검증

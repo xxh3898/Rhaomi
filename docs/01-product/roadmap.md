@@ -262,7 +262,7 @@ Phase 1D는 `Production operating architecture CONTRACT COMPLETE`다. D-IMP-1 ca
 
 1. D-IMP-1 decoder-only production image·SBOM/supply-chain evidence — implementation/local·Hosted acceptance 완료, production provisioning 미완료
 2. D-IMP-2 production Compose/project Nginx·Mac bind/PostgreSQL named-volume provisioning validator — source와 task-scoped local/Hosted acceptance 완료, actual provisioning 미완료
-3. D-IMP-3 private GHCR·GitHub production Environment·fixed Tailscale entrypoint·one-shot Flyway/schema validate/maintenance — workflow/entrypoint/task source와 local·Hosted acceptance 완료, actual external/Mac provisioning·dispatch·deploy 미완료
+3. D-IMP-3 private GHCR·GitHub production Environment·fixed Tailscale entrypoint·one-shot Flyway/schema validate/maintenance — required exact-head build arg, published platform attestation/scan verifier, post-start failure writer quiescence를 포함한 workflow/entrypoint/task source와 local·Hosted acceptance 완료, actual external/Mac provisioning·dispatch·deploy 미완료
 4. D-IMP-4 local-only application-consistent backup·isolated `pg_restore`/media restore evidence
 5. D-IMP-5 HomeOps monitoring/event/status·bounded stateless restart
 6. D-IMP-6 actual domain/content/public HTTPS·iPhone Safari/VoiceOver·rollback/recovery first-production acceptance

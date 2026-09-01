@@ -29,6 +29,7 @@ deploy_rhaomi() {
   pull_and_verify_release_image
   verify_public_web
 
+  writer_maintenance_active=true
   compose_production stop --timeout 30 backend publisher
   verify_writer_quiescence
   verify_public_web
@@ -48,6 +49,7 @@ deploy_rhaomi() {
   # success evidence의 maintenanceReleased는 global deploy lock 소유권을
   # 실제로 반납한 뒤에만 기록한다.
   release_deploy_lock || deploy_fail DEPLOY_LOCK_RELEASE_FAILED
+  writer_maintenance_active=false
 
   printf '%s\n' \
     '{' \
@@ -124,6 +126,7 @@ initialize_fixed_authorities() {
   deploy_lock_owner="$deploy_lock/owner"
   deploy_lock_token="${release_sha}:$$"
   deploy_lock_owned=false
+  writer_maintenance_active=false
 }
 
 validate_host_root() {
@@ -148,6 +151,15 @@ acquire_deploy_lock() {
 deploy_on_exit() {
   deploy_result=$?
   trap - EXIT HUP INT TERM
+  if [ "$deploy_result" -ne 0 ] &&
+    [ "${writer_maintenance_active:-false}" = true ]; then
+    if ! quiesce_writers_after_failure; then
+      printf '%s\n' DEPLOY_FAILURE_QUIESCENCE_UNCONFIRMED >&2
+      # writer 배제를 확인하지 못하면 own lock도 남겨 다음 deploy를 차단한다.
+      exit 1
+    fi
+    writer_maintenance_active=false
+  fi
   if [ "${deploy_lock_owned:-false}" = true ]; then
     if ! release_deploy_lock; then
       deploy_result=1
@@ -287,13 +299,23 @@ verify_public_web() {
 }
 
 verify_writer_quiescence() {
+  writers_are_quiescent || deploy_fail DEPLOY_WRITER_ACTIVE
+}
+
+writers_are_quiescent() {
   for writer in backend publisher; do
-    writer_id=$(compose_production ps --all --quiet "$writer")
-    if [ -n "$writer_id" ] &&
-      [ "$(docker inspect --format '{{.State.Status}}' "$writer_id")" != exited ]; then
-      deploy_fail DEPLOY_WRITER_ACTIVE
+    writer_id=$(compose_production ps --all --quiet "$writer") || return 1
+    if [ -n "$writer_id" ]; then
+      writer_status=$(docker inspect --format '{{.State.Status}}' "$writer_id") || return 1
+      [ "$writer_status" = exited ] || return 1
     fi
   done
+  return 0
+}
+
+quiesce_writers_after_failure() {
+  compose_production stop --timeout 30 backend publisher || return 1
+  writers_are_quiescent
 }
 
 wait_for_backend_health() {

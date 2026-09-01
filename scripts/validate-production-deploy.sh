@@ -41,6 +41,8 @@ main() {
   validate_failure_hold schema-validate
   validate_backend_health_failure
   validate_publisher_start_failure
+  validate_runtime_image_mismatch backend
+  validate_runtime_image_mismatch publisher
   validate_revision_mismatch
   validate_secret_redaction
 
@@ -58,7 +60,10 @@ main() {
     "migrationFailureMaintenanceHold=verified" \
     "schemaFailureMaintenanceHold=verified" \
     "backendHealthFailureBlocksPublisher=verified" \
-    "publisherStartFailureIsNotSuccess=verified" \
+    "publisherStartFailureMaintenanceHold=verified" \
+    "runtimeBackendImageMismatchMaintenanceHold=verified" \
+    "runtimePublisherImageMismatchMaintenanceHold=verified" \
+    "failureQuiescence=verified" \
     "lockContention=verified" \
     "secretRedaction=verified" \
     "productionPathMutation=0" \
@@ -325,7 +330,8 @@ validate_writer_stop_failure() {
   fi
   [ "$(cat "$case_state/backend")" = running ]
   [ "$(cat "$case_state/publisher")" = running ]
-  [ ! -d "$case_root/state/locks/rhaomi-deploy.lock" ]
+  grep -Fq DEPLOY_FAILURE_QUIESCENCE_UNCONFIRMED "$case_output"
+  [ -d "$case_root/state/locks/rhaomi-deploy.lock" ]
 }
 
 validate_backend_health_failure() {
@@ -341,6 +347,7 @@ validate_backend_health_failure() {
     echo "backend health 실패 뒤 publisher가 시작됐습니다." >&2
     exit 1
   fi
+  [ "$(cat "$case_state/backend")" = exited ]
   [ "$(cat "$case_state/publisher")" = exited ]
   [ ! -d "$case_root/state/locks/rhaomi-deploy.lock" ]
 }
@@ -354,12 +361,33 @@ validate_publisher_start_failure() {
     echo "publisher start failure injection이 성공했습니다." >&2
     exit 1
   fi
-  [ "$(cat "$case_state/backend")" = running ]
+  [ "$(cat "$case_state/backend")" = exited ]
   [ "$(cat "$case_state/publisher")" = exited ]
   if grep -Fq '"status": "success"' "$case_output"; then
     echo "publisher start 실패이 success evidence로 오기록됐습니다." >&2
     exit 1
   fi
+  [ ! -d "$case_root/state/locks/rhaomi-deploy.lock" ]
+}
+
+validate_runtime_image_mismatch() {
+  runtime_service=$1
+  prepare_case "runtime-${runtime_service}-image-mismatch"
+  if run_case "runtime-${runtime_service}-image" \
+    --release-sha "$release_sha" \
+    --image "$image_reference" \
+    --sbom "$sbom_reference" >"$case_output" 2>&1; then
+    echo "${runtime_service} runtime image mismatch injection이 성공했습니다." >&2
+    exit 1
+  fi
+  grep -Fq DEPLOY_RUNTIME_IMAGE_INVALID "$case_output"
+  [ "$(cat "$case_state/backend")" = exited ]
+  [ "$(cat "$case_state/publisher")" = exited ]
+  if grep -Fq '"status": "success"' "$case_output"; then
+    echo "runtime image mismatch가 success evidence로 오기록됐습니다." >&2
+    exit 1
+  fi
+  [ "$(grep -c ' stop --timeout 30 backend publisher$' "$case_log")" = 2 ]
   [ ! -d "$case_root/state/locks/rhaomi-deploy.lock" ]
 }
 

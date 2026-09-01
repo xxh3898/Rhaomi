@@ -103,7 +103,7 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 - `/me`와 login response는 관리자 id, email, role만 반환
 - entity의 `passwordHash`는 API DTO에 포함하지 않음
 - WebAuthn RP-side credential record와 raw recovery code를 일반 API response·application log·release evidence에 포함하지 않음
-- production workflow의 artifact·output에는 exact SHA·image digest·SBOM reference·scan summary만 기록하고 GitHub token·Tailscale credential·SSH authority·DB/build secret은 포함하지 않음
+- production workflow의 artifact·output에는 exact SHA·published OCI index/platform·attestation digest, SBOM reference, attached SBOM·provenance hash와 scan summary만 기록하고 GitHub token·Tailscale credential·SSH authority·DB/build secret은 포함하지 않음. pre-publish local evidence는 auxiliary scope로 구분
 - 장애 분석에는 request id, endpoint, 결과 status 중심으로 기록
 - media cleanup 실패는 operation과 asset id만 structured log에 남기고 root·storage key·absolute path는 남기지 않음
 

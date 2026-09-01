@@ -161,6 +161,11 @@ jobs:
         with:
           ref: ${{ inputs.release_sha }}
 
+      - name: Node.js 설정
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.20.0
+
       - name: validation evidence 복원
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -196,6 +201,8 @@ jobs:
           context: .
           file: backend/Dockerfile.production
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            RHAOMI_GIT_HEAD=${{ inputs.release_sha }}
           push: true
           tags: ghcr.io/xxh3898/rhaomi:${{ inputs.release_sha }}
           labels: |
@@ -213,24 +220,50 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$MANIFEST_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
-          docker buildx imagetools inspect "${IMAGE_REPOSITORY}@${MANIFEST_DIGEST}" >/dev/null
-          sbom_path="${RUNNER_TEMP}/release-validation-evidence/image/production-sbom.cdx.json"
-          test -f "$sbom_path"
-          sbom_reference="sha256:$(sha256sum "$sbom_path" | cut -d' ' -f1)"
-          mkdir -p "${RUNNER_TEMP}/release-publish-evidence"
-          printf '%s\n' \
-            '{' \
-            "  \"releaseSha\": \"${RELEASE_SHA}\"," \
-            "  \"imageTag\": \"${IMAGE_REPOSITORY}:${RELEASE_SHA}\"," \
-            "  \"manifestDigest\": \"${MANIFEST_DIGEST}\"," \
-            '  "platforms": ["linux/amd64", "linux/arm64"],' \
-            "  \"sbomReference\": \"${sbom_reference}\"," \
-            '  "provenance": "buildkit-attestation",' \
-            '  "scanSummary": "release-validation-evidence/image/production-supply-chain-summary.json",' \
-            '  "flywayTarget": "9",' \
-            "  \"workflowRunId\": \"${WORKFLOW_RUN_ID}\"" \
-            '}' \
-            >"${RUNNER_TEMP}/release-publish-evidence/release-evidence.json"
+          image_reference="${IMAGE_REPOSITORY}@${MANIFEST_DIGEST}"
+          evidence_dir="${RUNNER_TEMP}/release-publish-evidence"
+          validation_summary="${RUNNER_TEMP}/release-validation-evidence/image/supply-chain-summary.json"
+          test -f "$validation_summary"
+          mkdir -p "$evidence_dir"
+
+          docker buildx imagetools inspect "$image_reference" \
+            --format '{{json .Manifest}}' >"$evidence_dir/manifest-index.json"
+          for platform_entry in linux/amd64:linux-amd64 linux/arm64:linux-arm64; do
+            platform=${platform_entry%%:*}
+            key=${platform_entry#*:}
+            docker buildx imagetools inspect "$image_reference" \
+              --format "{{json (index .Image \"${platform}\")}}" \
+              >"$evidence_dir/${key}-image.json"
+            docker buildx imagetools inspect "$image_reference" \
+              --format "{{json (index (index .SBOM \"${platform}\") \"SPDX\")}}" \
+              >"$evidence_dir/${key}-sbom.spdx.json"
+            docker buildx imagetools inspect "$image_reference" \
+              --format "{{json (index .SLSA \"${platform}\")}}" \
+              >"$evidence_dir/${key}-provenance.json"
+
+            docker run --rm \
+              --volume "$evidence_dir/${key}-sbom.spdx.json:/evidence/sbom.spdx.json:ro" \
+              --label io.homeserver.cleanup.environment=development \
+              --label io.homeserver.cleanup.project=rhaomi \
+              --label io.homeserver.cleanup.task=53-production-release-gate \
+              --label io.homeserver.cleanup.lifecycle=task \
+              --label io.homeserver.cleanup.retain=false \
+              --label "io.homeserver.cleanup.git-head=${RELEASE_SHA}" \
+              --env GRYPE_CHECK_FOR_APP_UPDATE=false \
+              anchore/grype:v0.104.1@sha256:e7d3cb36d2ebfb522141d83a5d0df9cda301f7e9f8747ee4af41f12c478fa77c \
+              sbom:/evidence/sbom.spdx.json --output json \
+              >"$evidence_dir/${key}-grype.json"
+          done
+
+          node scripts/verify-published-production-image.mjs \
+            "$evidence_dir" \
+            "$validation_summary" \
+            "$evidence_dir/release-evidence.json" \
+            "$IMAGE_REPOSITORY" \
+            "$RELEASE_SHA" \
+            "$MANIFEST_DIGEST" \
+            "$WORKFLOW_RUN_ID"
+          sbom_reference="$MANIFEST_DIGEST"
           printf 'digest=%s\n' "$MANIFEST_DIGEST" >>"$GITHUB_OUTPUT"
           printf 'sbom_reference=%s\n' "$sbom_reference" >>"$GITHUB_OUTPUT"
 

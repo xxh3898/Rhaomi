@@ -40,7 +40,7 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - scheduled claim은 current Notice·Gallery의 published 상태와 expected boundary만 최소 검증한다. build API는 claim 뒤 current row가 다시 바뀔 수 있음을 전제로 전체 snapshot의 relation·media·file·`generatedAt` eligibility를 재검증하고, 후속 transformer도 response를 다시 검증한다.
 - executor 직전 container-side configurable `FileChannel.tryLock` global lock을 획득하고, 해당 executor body가 종료됐거나 시작 불가능하다는 wrapper acknowledgment까지 같은 lock scope를 유지한다. production Compose target은 `/var/lib/rhaomi/locks`이며 task validation은 temp bind만 사용하고 actual production host path를 만들지 않는다.
 - code release와 콘텐츠 release가 같은 검증·atomic switch 구현을 사용한다.
-- D-IMP-3 code image apply는 public static web을 계속 serving하는 채 backend·publisher의 physical exit를 확인한 후에만 DB migration/schema validation을 실행하고, backend health 후에만 같은 digest의 publisher를 재기동한다. 실패 후 old publisher를 자동 resume하지 않는다.
+- D-IMP-3 code image apply는 public static web을 계속 serving하는 채 backend·publisher의 physical exit를 확인한 후에만 DB migration/schema validation을 실행하고, backend health 후에만 같은 digest의 publisher를 재기동한다. maintenance 시작 뒤 task/start/runtime image identity가 실패하면 두 writer를 다시 정지하고 physical quiescence 확인 뒤에만 own lock을 해제하며, 확인하지 못하면 lock을 보존한다. 실패 후 old publisher를 자동 resume하지 않는다.
 
 ## 현재 producer 경계
 

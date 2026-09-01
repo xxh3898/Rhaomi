@@ -50,6 +50,7 @@ build API와 stateless credential 경계, Node full release adapter와 credentia
 ### Production deploy identity
 
 - validation/build job은 `contents: read`만 가지고 GHCR publish job만 `packages: write`를 갖는다.
+- publish job은 actual OCI index digest를 authority로 amd64/arm64 attached SBOM·provenance와 scan을 검증하며 pre-publish validation artifact를 동일 artifact 증거로 승격하지 않는다.
 - deploy identity는 GitHub `production` Environment 승인 후 job에만 주입하며 admin session·build service credential과 공유하지 않는다.
 - Tailscale identity는 fixed production host/user에 SSH 접속하는 운송 권한이고 arbitrary remote shell input을 허용하지 않는다.
 - remote entrypoint는 exact release SHA, fixed GHCR repository digest, SBOM reference만 받고 production credential을 argv로 받지 않는다.

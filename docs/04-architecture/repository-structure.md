@@ -78,6 +78,7 @@ Rhaomi/
 │   ├── validate-libheif-build-contract.sh
 │   ├── finalize-production-sbom.mjs
 │   ├── validate-production-supply-chain.mjs
+│   ├── verify-published-production-image.mjs # published index·platform attestation evidence 검증
 │   └── validate-export.mjs
 ├── tests/                         # frontend·runtime contract
 ├── docs/

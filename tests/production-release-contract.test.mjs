@@ -44,15 +44,41 @@ test("production release workflow가 exact main manual gate와 최소 job 권한
 });
 
 test("production release workflow가 immutable multi-arch image와 fixed remote entrypoint만 사용한다", async () => {
-  const workflow = await source(".github/workflows/production-release.yml");
+  const [workflow, dockerfile] = await Promise.all([
+    source(".github/workflows/production-release.yml"),
+    source("backend/Dockerfile.production"),
+  ]);
 
+  assert.match(dockerfile, /ARG RHAOMI_GIT_HEAD/u);
+  assert.match(dockerfile, /grep -Eq '\^\[0-9a-f\]\{40\}\$'/u);
   assert.match(workflow, /backend\/Dockerfile\.production/u);
   assert.match(workflow, /platforms:\s*linux\/amd64,linux\/arm64/u);
+  assert.match(
+    workflow,
+    /build-args:\s*\|\s*\n\s+RHAOMI_GIT_HEAD=\$\{\{ inputs\.release_sha \}\}/u,
+  );
   assert.match(workflow, /ghcr\.io\/xxh3898\/rhaomi:\$\{\{ inputs\.release_sha \}\}/u);
   assert.match(workflow, /org\.opencontainers\.image\.revision=\$\{\{ inputs\.release_sha \}\}/u);
   assert.match(workflow, /org\.opencontainers\.image\.source=https:\/\/github\.com\/xxh3898\/Rhaomi/u);
   assert.match(workflow, /provenance:\s*mode=max/u);
   assert.match(workflow, /sbom:\s*true/u);
+  assert.match(workflow, /\{\{json \.Manifest\}\}/u);
+  assert.match(
+    workflow,
+    /for platform_entry in linux\/amd64:linux-amd64 linux\/arm64:linux-arm64/u,
+  );
+  assert(workflow.includes('--format "{{json (index .Image \\"${platform}\\")}}"'));
+  assert(
+    workflow.includes(
+      '--format "{{json (index (index .SBOM \\"${platform}\\") \\"SPDX\\")}}"',
+    ),
+  );
+  assert(workflow.includes('--format "{{json (index .SLSA \\"${platform}\\")}}"'));
+  assert.match(workflow, /verify-published-production-image\.mjs/u);
+  assert.match(workflow, /anchore\/grype:v0\.104\.1@sha256:e7d3cb36/u);
+  assert.match(workflow, /sbom_reference="\$MANIFEST_DIGEST"/u);
+  assert.doesNotMatch(workflow, /sha256sum "\$sbom_path"/u);
+  assert.doesNotMatch(workflow, /"provenance": "buildkit-attestation"/u);
   assert.match(workflow, /steps\.publish\.outputs\.digest/u);
   assert.match(workflow, /digest: \$\{\{ steps\.release_evidence\.outputs\.digest \}\}/u);
   assert.match(
@@ -120,9 +146,11 @@ test("fixed Mac deploy entrypoint가 lock, backup, digest, writer quiescence와 
   assert.match(core, /compose_production --profile production-task run --rm --no-deps schema-validate/u);
   assert.match(core, /wait_for_backend_health/u);
   assert.match(core, /verify_runtime_image_identity/u);
+  assert.match(core, /writer_maintenance_active=true/u);
+  assert.match(core, /quiesce_writers_after_failure/u);
   assert.match(
     core,
-    /verify_runtime_image_identity[\s\S]*release_deploy_lock \|\| deploy_fail DEPLOY_LOCK_RELEASE_FAILED[\s\S]*"maintenanceReleased": true/u,
+    /verify_runtime_image_identity[\s\S]*release_deploy_lock \|\| deploy_fail DEPLOY_LOCK_RELEASE_FAILED[\s\S]*writer_maintenance_active=false[\s\S]*"maintenanceReleased": true/u,
   );
   assert.doesNotMatch(core, /down -v|docker (?:volume|image) (?:rm|prune)|docker system prune/u);
   assert.doesNotMatch(core, /\|\| true|eval|source .*production\.env/u);
@@ -140,6 +168,9 @@ test("task deploy validator가 fail-before-mutation, contention, failure hold와
   assert.match(validator, /writer-stop-failure/u);
   assert.match(validator, /backend-health-failure/u);
   assert.match(validator, /publisher-start-failure/u);
+  assert.match(validator, /validate_runtime_image_mismatch backend/u);
+  assert.match(validator, /validate_runtime_image_mismatch publisher/u);
+  assert.match(validator, /failureQuiescence=verified/u);
   assert.match(validator, /lock/u);
   assert.match(validator, /[Mm]aintenance/u);
   assert.match(validator, /REDACTED/u);

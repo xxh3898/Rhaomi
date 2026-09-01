@@ -21,7 +21,7 @@ review_trigger: "호스트·파이프라인 변경 시"
 
 ## 구현 상태
 
-[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)의 topology와 release 절차에 따라 canonical image·Compose·project Nginx에 이어 `.github/workflows/production-release.yml`, `ops/production/deploy-rhaomi.sh`와 non-web one-shot Flyway/schema task를 구현했다. exact-main manual gate, immutable multi-arch digest·SBOM/provenance contract, protected Environment 소스 경계, fixed Mac argv·lock·backup prerequisite·writer quiescence·failure hold는 task-scoped local/Hosted evidence를 갖는다. private GHCR package/visibility, GitHub `production` Environment·reviewer·secret, Tailscale identity, actual host entrypoint/path·volume·Secret·FQDN은 아직 provision되지 않았고 workflow dispatch·deploy·production migration을 수행하지 않았다. 이 문서는 현재 운영 배포 완료를 뜻하지 않는다.
+[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)의 topology와 release 절차에 따라 canonical image·Compose·project Nginx에 이어 `.github/workflows/production-release.yml`, `ops/production/deploy-rhaomi.sh`와 non-web one-shot Flyway/schema task를 구현했다. exact-main manual gate, required exact-head build arg, immutable multi-arch digest와 published platform별 SBOM/provenance/scan 검증 계약, protected Environment 소스 경계, fixed Mac argv·lock·backup prerequisite·writer quiescence·failure hold는 task-scoped local/Hosted evidence를 갖는다. private GHCR package/visibility, GitHub `production` Environment·reviewer·secret, Tailscale identity, actual host entrypoint/path·volume·Secret·FQDN은 아직 provision되지 않았고 workflow dispatch·deploy·production migration을 수행하지 않았다. 이 문서는 현재 운영 배포 완료를 뜻하지 않는다.
 
 [Production readiness matrix](production-readiness.md)는 이 승인 계약, local/CI evidence, production provisioning, 외부 콘텐츠 승인과 physical-device acceptance를 분리한다. Phase 1D contract 완료만으로 아래 production 항목을 통과 처리하지 않는다.
 
@@ -59,7 +59,7 @@ Spring Boot 콘텐츠 transaction
 - canonical base는 `/private/var/lib/rhaomi` bind source와 project-scoped PostgreSQL named volume을 유지한다.
 - validation overlay만 task temp root와 labeled one-shot service를 사용한다.
 - native architecture에서 web-only loopback, network adjacency, mount RO/RW, static/admin/deny route, internal Build API auth, migration·schema one-shot·malformed mode, writer 정지 중 public serving과 일반 Compose `down`→`up` sentinel persistence를 검증한다.
-- fake Docker task harness가 wrong registry·malformed/duplicate input의 mutation 전 거부, lock contention, digest/revision 검증, migration/schema 실패 후 writer auto-resume 0과 secret redaction을 검증한다.
+- fake Docker task harness가 wrong registry·malformed/duplicate input의 mutation 전 거부, lock contention, digest/revision 검증, migration/schema·backend health·publisher start·runtime backend/publisher image mismatch 실패 뒤 writer auto-resume 0과 quiescence, secret redaction을 검증한다.
 - task container/network는 정리하지만 task PostgreSQL volume과 image는 삭제하지 않는다.
 - 위 evidence는 아래 최초 배포 사전 조건의 actual Mac·production 항목을 완료 처리하지 않는다.
 
@@ -107,9 +107,9 @@ Spring Boot 콘텐츠 transaction
 6. 같은 exact image의 `migration` one-shot을 실행하고 writer quiescence를 재확인
 7. Flyway-disabled `schema-validate` one-shot을 실행하고 writer quiescence·public web을 재확인
 8. backend만 exact digest로 recreate하고 internal health `UP` 후 publisher를 recreate
-9. backend·publisher의 runtime image ID가 pulled image ID와 같은지 확인한 뒤에만 bounded·redacted success evidence와 maintenance release를 기록
+9. backend·publisher의 runtime image ID가 pulled image ID와 같은지 확인한 뒤에만 own lock을 해제하고 bounded·redacted success evidence와 maintenance release를 기록
 
-input·path·backup·digest 실패는 writer 정지 전에 fail-closed를 우선한다. migration·schema validation 실패 후는 old backend/publisher를 자동 resume하지 않고 maintenance 상태를 유지한다. backend health 실패 전에 publisher를 시작하지 않는다. 이 slice는 production `current` content release를 변경하지 않으며 actual public HTTPS·content switch·first-production acceptance는 D-IMP-6에서 수행한다.
+input·path·backup·digest 실패는 writer 정지 전에 fail-closed를 우선한다. writer maintenance가 시작된 뒤 migration·schema validation·backend health·publisher start·runtime image identity가 실패하면 backend/publisher를 다시 stop하고 physical quiescence를 확인한 뒤에만 own lock을 해제한다. 정지를 확인할 수 없으면 own lock을 남겨 다음 deploy를 차단하며 old writer를 자동 resume하지 않는다. backend health 실패 전에 publisher를 시작하지 않는다. 이 slice는 production `current` content release를 변경하지 않으며 actual public HTTPS·content switch·first-production acceptance는 D-IMP-6에서 수행한다.
 
 ## Flyway
 
@@ -158,8 +158,9 @@ Mac host source는 `/private/var/lib/rhaomi/public`이며 web container `/srv/rh
 
 ## release evidence·보존
 
-- exact Git SHA, image tag·digest, SBOM과 scan 결과
-- workflow run ID, amd64/arm64 manifest identity와 provenance/attestation 활성 evidence
+- exact Git SHA, image tag·published OCI index digest와 index-bound `SBOM_REFERENCE`
+- workflow run ID, amd64/arm64 manifest·attestation identity, attached SPDX SBOM·SLSA provenance hash와 attached-SBOM scan 결과
+- 별도 local validation image의 pre-publish SBOM·scan은 `auxiliary` scope로 명시
 - Flyway version·migration 여부와 backup-set ID
 - publisher content revision, release ID와 smoke 결과
 - `current`·`previous` 전후 target
