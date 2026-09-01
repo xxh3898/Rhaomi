@@ -433,7 +433,11 @@ function validateValidation(config) {
   );
 
   for (const [serviceName, service] of Object.entries(config.services)) {
-    validateLabels(service.labels, `${serviceName} labels`);
+    validateLabels(
+      service.labels,
+      `${serviceName} labels`,
+      serviceName === "rhaomi-web" ? { "homeops.managed": "true" } : {},
+    );
   }
   validateLabels(config.volumes["postgres-data"].labels, "PostgreSQL volume labels");
   for (const [networkName, network] of Object.entries(config.networks)) {
@@ -558,10 +562,11 @@ function validateBaseMounts(
   assert.equal(mount(backupVerifier, "/var/lib/rhaomi/deploy-state").read_only, true);
 }
 
-function validateLabels(labels, subject) {
+function validateLabels(labels, subject, sourceLabels = {}) {
   assert.deepEqual(
     labels,
     {
+      ...sourceLabels,
       "io.homeserver.cleanup.environment": "development",
       "io.homeserver.cleanup.git-head": expectedHead,
       "io.homeserver.cleanup.lifecycle": "task",
