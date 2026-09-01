@@ -21,7 +21,7 @@ review_trigger: "호스트·파이프라인 변경 시"
 
 ## 구현 상태
 
-[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)의 topology와 release 절차에 따라 canonical image·Compose·project Nginx, `.github/workflows/production-release.yml`, fixed deploy entrypoint와 non-web one-shot Flyway/schema task를 구현했다. D-IMP-4는 같은 operation lock을 쓰는 fixed backup entrypoint, strict complete set과 exact-release eligibility bridge를 추가했다. approved job은 deploy 호출 전에 fresh predeploy backup을 강제하고, deploy는 pull 전 host envelope와 pull 후 read-only target-image full-read를 writer mutation 전에 분리한다. 이 source와 task-scoped local/Hosted evidence는 private GHCR package/visibility, GitHub `production` Environment·reviewer·secret, Tailscale identity, actual host entrypoint/path·volume·backup repository·schedule·Secret·FQDN을 provision한 것이 아니며 workflow dispatch·deploy·production migration·backup을 수행하지 않았다.
+[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)의 topology와 release 절차에 따라 canonical image·Compose·project Nginx, `.github/workflows/production-release.yml`, fixed deploy entrypoint와 non-web one-shot Flyway/schema task를 구현했다. D-IMP-4는 같은 operation lock을 쓰는 fixed backup entrypoint, strict complete set과 exact-release eligibility bridge를 추가했다. D-IMP-5a는 deploy/backup lifecycle의 HomeOps current exact payload adapter와 bounded status/recovery target을 추가했다. approved job은 deploy 호출 전에 fresh predeploy backup을 강제하고, deploy는 pull 전 host envelope와 pull 후 read-only target-image full-read를 writer mutation 전에 분리한다. 이 source와 task-scoped local/Hosted evidence는 private GHCR package/visibility, GitHub `production` Environment·reviewer·secret, Tailscale identity, actual host entrypoint/path·volume·backup repository·HomeOps reporter/monitor/control·schedule·Secret·FQDN을 provision한 것이 아니며 workflow dispatch·deploy·production migration·backup·restart를 수행하지 않았다.
 
 [Production readiness matrix](production-readiness.md)는 이 승인 계약, local/CI evidence, production provisioning, 외부 콘텐츠 승인과 physical-device acceptance를 분리한다. Phase 1D contract 완료만으로 아래 production 항목을 통과 처리하지 않는다.
 
@@ -54,7 +54,7 @@ Spring Boot 콘텐츠 transaction
 
 두 경로는 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)의 build·검증·원자적 전환 구현을 공유한다. transactional outbox, generation state, dedicated polling/debounce/lock control loop, Build API→transformer staging, Next Static Export, private release manifest·`BigInt` stale guard·`previous/current` atomic switch·post-switch smoke·rollback·retention과 실제 Java executor binding을 구현했다. production Compose는 같은 image의 exact non-web publisher argv와 public/state/lock/media 및 isolated build-workspace mount target을 고정하고 나머지 image source는 read-only로 유지한다. actual Secret·Mac canonical path·approved digest provisioning과 public HTTPS acceptance는 아직 수행하지 않았다.
 
-## D-IMP-2·D-IMP-3·D-IMP-4 source validation
+## D-IMP-2·D-IMP-3·D-IMP-4·D-IMP-5a source validation
 
 - canonical base는 `/private/var/lib/rhaomi` bind source와 project-scoped PostgreSQL named volume을 유지한다.
 - validation overlay만 task temp root와 labeled one-shot service를 사용한다.
@@ -62,6 +62,8 @@ Spring Boot 콘텐츠 transaction
 - fake Docker task harness가 wrong registry·malformed/duplicate input의 mutation 전 거부, lock contention, digest/revision, missing/malformed/stale eligibility와 target verifier failure에서 writer stop 0·repository mutation 0, migration/schema·backend health·publisher start·runtime backend/publisher image mismatch 실패 뒤 writer auto-resume 0과 quiescence, secret redaction을 검증한다.
 - backup control harness는 deploy/backup lock contention, writer physical exit 전 dump 금지, complete 승격 전 writer 재기동 금지, capture/restart failure와 lock hold를 검증한다.
 - actual task validator는 상태 A를 backup한 뒤 source DB/media를 B로 바꾸고 fresh named volume·media root에 A를 `pg_restore`/복사해 schema·audit/relation·media decode·static publication·restart/down-up persistence를 확인한다.
+- HomeOps task harness는 deploy RUNNING→SUCCESS/FAILED의 같은 lifecycle identity, spool acknowledgement와 local telemetry failure 분리, secret/private path 0을 확인한다. operation lock·writer fail-close는 event reporter 장애 때문에 바뀌지 않는다.
+- production Compose의 HomeOps generic control label은 `rhaomi-web` 하나이고 backend/publisher/PostgreSQL/task service opt-in은 0이다. fixed recovery target은 web/backend allowlist를 제공하지만 D-IMP-5b가 연결되기 전 자동 호출하지 않는다.
 - task container/network는 정리하지만 task PostgreSQL volume과 image는 삭제하지 않는다.
 - 위 evidence는 아래 최초 배포 사전 조건의 actual Mac·production 항목을 완료 처리하지 않는다.
 
@@ -90,7 +92,7 @@ Spring Boot 콘텐츠 transaction
 - [ ] Flyway migration 적용·검증
 - [ ] one-shot Flyway·schema validate·expand/contract 검증
 - [ ] publisher immediate/due event·overdue recovery·두 revision·lock·retry·atomic switch 검증
-- [ ] HomeOps health·event·alert와 bounded restart 경계 검증
+- [ ] D-IMP-5a fixed inventory를 Mac에 설치하고 D-IMP-5b HomeOps monitor·incident mapping·30분 cooldown·alert/control을 provision한 bounded restart 검증
 - [ ] decoder-only HEIC image와 x265 absence·SBOM 검증
 - [ ] 실제 매장 운영자의 NAP·영업정보·정책·문구·링크 최종 승인
 - [ ] 실제 매장 운영자의 Hero/OG/프로필/시술 사진과 반려견/고객 사진 게시 권한 승인
@@ -111,6 +113,8 @@ Spring Boot 콘텐츠 transaction
 8. Flyway-disabled `schema-validate` one-shot을 실행하고 writer quiescence·public web을 재확인한다.
 9. backend만 exact digest로 recreate하고 internal health `UP` 후 publisher를 recreate한다.
 10. backend·publisher의 runtime image ID가 pulled image ID와 같은지 확인한 뒤에만 own lock을 해제하고 bounded·redacted success evidence와 maintenance release를 기록한다.
+
+fixed deploy entrypoint는 host/config 검증 뒤 같은 `eventKey`·`startedAt`으로 HomeOps deployment `RUNNING`을 기록하고 transaction 종료에 `SUCCESS` 또는 stable failure code의 `FAILED`를 기록한다. HomeOps reporter가 private spool에 보존하지 못하면 `homeOpsTelemetry=failed`로 분리하지만 deployment transaction 자체를 credential/network 오류로 바꾸지 않는다. reporter·HMAC endpoint와 secret은 caller input이나 Rhaomi environment가 아니다.
 
 input·path·backup envelope·digest·target verifier 실패는 writer 정지 전에 fail-closed한다. compatibility marker만 신뢰하지 않으며 host envelope는 pull 전에, target-image full-read는 pull 뒤에 수행한다. verifier root/repository/deploy-state는 read-only이고 media·network·credential이 없으므로 target image code가 recovery authority를 mutate할 수 없다. writer maintenance가 시작된 뒤 migration·schema validation·backend health·publisher start·runtime image identity가 실패하면 backend/publisher를 다시 stop하고 physical quiescence를 확인한 뒤에만 own lock을 해제한다. 정지를 확인할 수 없으면 own lock을 남겨 다음 deploy를 차단하며 old writer를 자동 resume하지 않는다. backend health 실패 전에 publisher를 시작하지 않는다. 이 slice는 production `current` content release를 변경하지 않으며 actual public HTTPS·content switch·first-production acceptance는 D-IMP-6에서 수행한다.
 

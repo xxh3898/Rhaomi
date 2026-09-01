@@ -6,6 +6,7 @@ umask 077
 repository_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 core="$repository_root/ops/production/backup-rhaomi-core.sh"
 fake_docker="$repository_root/scripts/fixtures/fake-production-backup-docker.sh"
+fake_homeops="$repository_root/scripts/fixtures/fake-homeops-event-adapter.sh"
 evidence_dir=${RHAOMI_PRODUCTION_BACKUP_CONTROL_EVIDENCE_DIR:-}
 validation_succeeded=false
 release_sha=$(git -C "$repository_root" rev-parse HEAD)
@@ -78,9 +79,11 @@ prepare_case() {
   state_dir="$validation_parent/state-$case_name"
   fake_bin="$validation_parent/bin-$case_name"
   log_file="$validation_parent/$case_name.log"
+  homeops_log="$validation_parent/$case_name-homeops.log"
   mkdir -m 700 \
     "$case_root" \
     "$case_root/app" \
+    "$case_root/app/bin" \
     "$case_root/app/docker" \
     "$case_root/data" \
     "$case_root/data/media" \
@@ -110,9 +113,15 @@ prepare_case() {
   printf '%s\n' runtime >"$state_dir/media-permission"
   cp "$fake_docker" "$fake_bin/docker"
   cp "$fake_docker" "$fake_bin/docker-compose"
+  cp "$fake_homeops" "$case_root/app/bin/report-rhaomi-event.py"
   printf '%s\n' '#!/bin/sh' 'printf "%s\n" Linux' >"$fake_bin/uname"
-  chmod 700 "$fake_bin/docker" "$fake_bin/docker-compose" "$fake_bin/uname"
+  chmod 700 \
+    "$fake_bin/docker" \
+    "$fake_bin/docker-compose" \
+    "$fake_bin/uname" \
+    "$case_root/app/bin/report-rhaomi-event.py"
   : >"$log_file"
+  : >"$homeops_log"
   export \
     RHAOMI_BACKUP_TEST_LOG="$log_file" \
     RHAOMI_BACKUP_TEST_STATE_DIR="$state_dir" \
@@ -121,6 +130,9 @@ prepare_case() {
     RHAOMI_BACKUP_TEST_IMAGE_REFERENCE="$image_reference" \
     RHAOMI_BACKUP_TEST_IMAGE_ID="$image_id" \
     RHAOMI_BACKUP_TEST_FAIL_STAGE="$failure_stage" \
+    RHAOMI_BACKUP_TEST_LOCK_OWNER="$case_root/state/locks/rhaomi-deploy.lock/owner" \
+    RHAOMI_HOMEOPS_TEST_LOG="$homeops_log" \
+    RHAOMI_HOMEOPS_TEST_OUTCOME=RETAINED \
     RHAOMI_BACKUP_VALIDATION_COMPOSE_FILE="$case_root/app/compose.production.validation.yaml"
   PATH="$fake_bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
   export PATH
@@ -138,6 +150,7 @@ validate_success() {
   prepare_case success
   output=$(run_backup --mode scheduled)
   printf '%s\n' "$output" | grep -Fq '"status": "complete"'
+  printf '%s\n' "$output" | grep -Fq '"homeOpsTelemetry": "retained"'
   complete_count=$(find "$case_repository/sets" -mindepth 1 -maxdepth 1 -type d ! -name '.incomplete-*' | wc -l | tr -d ' ')
   [ "$complete_count" = 1 ]
   [ "$(cat "$state_dir/backend")" = running ]
@@ -156,6 +169,44 @@ validate_success() {
   [ "$runtime_permission_line" -lt "$backend_line" ]
   [ "$backend_line" -lt "$finalize_line" ]
   [ "$(cat "$state_dir/media-permission")" = runtime ]
+  assert_backup_event_lifecycle "$homeops_log" SUCCESS
+}
+
+validate_telemetry_failure() {
+  prepare_case telemetry-failure
+  RHAOMI_HOMEOPS_TEST_OUTCOME=FAILED
+  export RHAOMI_HOMEOPS_TEST_OUTCOME
+  output=$(run_backup --mode on-demand 2>"$validation_parent/telemetry-failure.err")
+  printf '%s\n' "$output" | grep -Fq '"status": "complete"'
+  printf '%s\n' "$output" | grep -Fq '"homeOpsTelemetry": "failed"'
+  grep -Fq HOMEOPS_TELEMETRY_FAILED "$validation_parent/telemetry-failure.err"
+  assert_backup_event_lifecycle "$homeops_log" SUCCESS
+}
+
+validate_lock_release_failure() {
+  prepare_case lock-release-failure lock-release
+  if run_backup --mode scheduled >"$validation_parent/lock-release.out" \
+    2>"$validation_parent/lock-release.err"; then
+    echo "lock release failure가 성공했습니다." >&2
+    exit 1
+  fi
+  ! grep -Fq '"status": "complete"' "$validation_parent/lock-release.out"
+  grep -Fq BACKUP_LOCK_RELEASE_FAILED "$validation_parent/lock-release.err"
+  assert_backup_event_lifecycle "$homeops_log" FAILED
+  [ -d "$case_root/state/locks/rhaomi-deploy.lock" ]
+  [ "$(cat "$state_dir/backend")" = running ]
+  [ "$(cat "$state_dir/publisher")" = running ]
+}
+
+assert_backup_event_lifecycle() {
+  event_log=$1
+  terminal_status=$2
+  [ "$(grep -c '^backup ' "$event_log")" = 2 ]
+  [ "$(sed -n '1s/^backup \([^ ]*\).*/\1/p' "$event_log")" = RUNNING ]
+  [ "$(sed -n '2s/^backup \([^ ]*\).*/\1/p' "$event_log")" = "$terminal_status" ]
+  running_started=$(sed -n '1s/^backup [^ ]* [^ ]* \([^ ]*\).*/\1/p' "$event_log")
+  terminal_started=$(sed -n '2s/^backup [^ ]* [^ ]* \([^ ]*\).*/\1/p' "$event_log")
+  [ -n "$running_started" ] && [ "$running_started" = "$terminal_started" ]
 }
 
 validate_failure_recovery() {
@@ -176,6 +227,7 @@ validate_failure_recovery() {
   [ "$capture_permission_line" -lt "$capture_line" ]
   [ "$capture_line" -lt "$runtime_permission_line" ]
   [ "$runtime_permission_line" -lt "$backend_line" ]
+  assert_backup_event_lifecycle "$homeops_log" FAILED
 
   prepare_case runtime-permission-failure runtime-permission
   if run_backup --mode scheduled >"$validation_parent/runtime-permission.out" 2>"$validation_parent/runtime-permission.err"; then
@@ -227,6 +279,8 @@ validate_predeploy_and_redaction() {
 }
 
 validate_success
+validate_telemetry_failure
+validate_lock_release_failure
 validate_failure_recovery
 validate_lock_contention
 validate_predeploy_and_redaction
@@ -239,6 +293,9 @@ if [ -n "$evidence_dir" ]; then
     '  "sharedOperationLock": "verified",' \
     '  "writerPhysicalQuiescence": "verified",' \
     '  "failureRecovery": "verified",' \
+    '  "homeOpsBackupLifecycle": "verified",' \
+    '  "homeOpsTelemetryFailureDoesNotRewriteBackupOutcome": "verified",' \
+    '  "lockReleaseFailureDoesNotEmitSuccess": "verified",' \
     '  "permissionFailureLockHold": "verified",' \
     '  "restartFailureLockHold": "verified",' \
     '  "predeployEligibilityMode": "verified",' \
@@ -253,6 +310,9 @@ printf '%s\n' \
   'sharedOperationLock=verified' \
   'writerPhysicalQuiescence=verified' \
   'failureRecovery=verified' \
+  'homeOpsBackupLifecycle=verified' \
+  'homeOpsTelemetryFailureDoesNotRewriteBackupOutcome=verified' \
+  'lockReleaseFailureDoesNotEmitSuccess=verified' \
   'permissionFailureLockHold=verified' \
   'restartFailureLockHold=verified' \
   'predeployEligibilityMode=verified' \

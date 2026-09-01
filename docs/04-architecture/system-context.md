@@ -94,4 +94,4 @@ Mac host source와 Linux container target을 분리한다. `/private/var/lib/rha
 4. build 실패는 기존 공개 사이트를 변경하지 않는다.
 5. 원본 이미지는 공개 web root에 두지 않는다.
 6. 외부 link가 없는 채널은 UI에 나타나지 않는다.
-7. HomeOps는 privacy-safe health/status/event만 읽고 관리자 콘텐츠 권한을 갖지 않는다.
+7. HomeOps는 fixed privacy-safe status와 deployment/backup event만 읽고 관리자 콘텐츠 권한을 갖지 않는다. current generic control opt-in은 read-only web 하나이며 automatic decision은 D-IMP-5b 전 비활성이다.

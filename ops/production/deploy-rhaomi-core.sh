@@ -25,6 +25,9 @@ deploy_rhaomi() {
 
   validate_fixed_configuration
   configure_release_environment
+  deploy_started_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+  deploy_event_started=true
+  record_deploy_event RUNNING - -
   validate_backup_eligibility_envelope
   pull_and_verify_release_image
   validate_backup_eligibility_full_read
@@ -51,6 +54,8 @@ deploy_rhaomi() {
   # 실제로 반납한 뒤에만 기록한다.
   release_deploy_lock || deploy_fail DEPLOY_LOCK_RELEASE_FAILED
   writer_maintenance_active=false
+  record_deploy_event SUCCESS "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" -
+  deploy_event_terminal=true
 
   printf '%s\n' \
     '{' \
@@ -63,6 +68,7 @@ deploy_rhaomi() {
     '  "backendHealth": "UP",' \
     '  "publisher": "running",' \
     '  "maintenanceReleased": true,' \
+    "  \"homeOpsTelemetry\": \"${homeops_telemetry}\"," \
     '  "status": "success"' \
     '}'
 }
@@ -129,6 +135,11 @@ initialize_fixed_authorities() {
   deploy_lock_token="${release_sha}:$$"
   deploy_lock_owned=false
   writer_maintenance_active=false
+  homeops_event_adapter="$app_root/bin/report-rhaomi-event.py"
+  deploy_event_started=false
+  deploy_event_terminal=false
+  deploy_failure_code=DEPLOY_FAILED
+  homeops_telemetry=not_configured
 }
 
 validate_host_root() {
@@ -157,10 +168,21 @@ deploy_on_exit() {
     [ "${writer_maintenance_active:-false}" = true ]; then
     if ! quiesce_writers_after_failure; then
       printf '%s\n' DEPLOY_FAILURE_QUIESCENCE_UNCONFIRMED >&2
+      if [ "${deploy_event_started:-false}" = true ] &&
+        [ "${deploy_event_terminal:-false}" = false ]; then
+        record_deploy_event FAILED "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$deploy_failure_code"
+        deploy_event_terminal=true
+      fi
       # writer 배제를 확인하지 못하면 own lock도 남겨 다음 deploy를 차단한다.
       exit 1
     fi
     writer_maintenance_active=false
+  fi
+  if [ "$deploy_result" -ne 0 ] &&
+    [ "${deploy_event_started:-false}" = true ] &&
+    [ "${deploy_event_terminal:-false}" = false ]; then
+    record_deploy_event FAILED "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$deploy_failure_code"
+    deploy_event_terminal=true
   fi
   if [ "${deploy_lock_owned:-false}" = true ]; then
     if ! release_deploy_lock; then
@@ -195,6 +217,10 @@ validate_fixed_configuration() {
   require_regular_file "$docker_config_file"
   require_file_mode "$docker_config_file" 600
   [ "$(portable_owner_id "$docker_config_file")" = "$(id -u)" ] ||
+    deploy_fail DEPLOY_HOST_INVALID
+  require_regular_file "$homeops_event_adapter"
+  require_file_mode "$homeops_event_adapter" 700
+  [ "$(portable_owner_id "$homeops_event_adapter")" = "$(id -u)" ] ||
     deploy_fail DEPLOY_HOST_INVALID
   compose_mode=$(portable_file_mode "$compose_file")
   case "$compose_mode" in
@@ -473,7 +499,38 @@ portable_owner_id() {
   fi
 }
 
+record_deploy_event() {
+  event_status=$1
+  event_finished_at=$2
+  event_failure_code=$3
+  event_outcome=FAILED
+  if event_output=$("$homeops_event_adapter" \
+    deployment \
+    "$event_status" \
+    "$release_sha" \
+    "$image_digest" \
+    "$deploy_started_at" \
+    "$event_finished_at" \
+    "$event_failure_code" 2>/dev/null); then
+    case "$event_output" in
+      RETAINED | NOT_CONFIGURED) event_outcome=$event_output ;;
+      *) event_outcome=FAILED ;;
+    esac
+  fi
+  case "$event_outcome" in
+    RETAINED)
+      [ "$homeops_telemetry" = failed ] || homeops_telemetry=retained
+      ;;
+    NOT_CONFIGURED) ;;
+    FAILED)
+      homeops_telemetry=failed
+      printf '%s\n' HOMEOPS_TELEMETRY_FAILED >&2
+      ;;
+  esac
+}
+
 deploy_fail() {
+  deploy_failure_code=$1
   printf '%s\n' "$1" >&2
   exit 1
 }

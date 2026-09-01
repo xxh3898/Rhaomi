@@ -156,6 +156,7 @@ services:
     command: ["npm", "test"]
     environment:
       NEXT_TELEMETRY_DISABLED: "1"
+      RHAOMI_HOMEOPS_VALIDATION_GIT_HEAD: ${RHAOMI_HOMEOPS_VALIDATION_GIT_HEAD:-0000000000000000000000000000000000000000}
     network_mode: "none"
     volumes:
       - ./.github/workflows/validate.yml:/workspace/.github/workflows/validate.yml:ro
@@ -173,6 +174,11 @@ services:
       - ./infra/nginx/publication-acceptance-admin.conf:/workspace/infra/nginx/publication-acceptance-admin.conf:ro
       - ./infra/nginx/publication-acceptance.conf:/workspace/infra/nginx/publication-acceptance.conf:ro
       - ./infra/nginx/production.conf:/workspace/infra/nginx/production.conf:ro
+      - ./ops/production/homeops-compatibility.json:/workspace/ops/production/homeops-compatibility.json:ro
+      - ./ops/production/recover-rhaomi-service.py:/workspace/ops/production/recover-rhaomi-service.py:ro
+      - ./ops/production/report-rhaomi-event.py:/workspace/ops/production/report-rhaomi-event.py:ro
+      - ./ops/production/rhaomi_homeops.py:/workspace/ops/production/rhaomi_homeops.py:ro
+      - ./ops/production/status-rhaomi.py:/workspace/ops/production/status-rhaomi.py:ro
       - ./scripts:/workspace/scripts:ro
       - ./src:/workspace/src:ro
       - ./tests:/workspace/tests:ro

@@ -9,6 +9,7 @@ release_sha=${RHAOMI_BACKUP_TEST_RELEASE_SHA:?RHAOMI_BACKUP_TEST_RELEASE_SHA is 
 image_reference=${RHAOMI_BACKUP_TEST_IMAGE_REFERENCE:?RHAOMI_BACKUP_TEST_IMAGE_REFERENCE is required}
 image_id=${RHAOMI_BACKUP_TEST_IMAGE_ID:?RHAOMI_BACKUP_TEST_IMAGE_ID is required}
 failure_stage=${RHAOMI_BACKUP_TEST_FAIL_STAGE:-}
+lock_owner=${RHAOMI_BACKUP_TEST_LOCK_OWNER:-}
 
 printf '%s\n' "$*" >>"$log_file"
 
@@ -133,6 +134,10 @@ compose_command() {
           [ "$failure_stage" != finalize ] || exit 1
           set_id=$1
           mv "$repository/sets/.incomplete-$set_id" "$repository/sets/$set_id"
+          if [ "$failure_stage" = lock-release ]; then
+            [ -n "$lock_owner" ] || exit 64
+            printf '%s\n' synthetic-other-owner >"$lock_owner"
+          fi
           ;;
         issue-eligibility)
           if [ "$failure_stage" = eligibility ]; then exit 1; fi

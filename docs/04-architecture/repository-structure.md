@@ -64,6 +64,11 @@ Rhaomi/
 │   ├── deploy-rhaomi-core.sh      # strict input·lock·maintenance·digest apply core
 │   ├── backup-rhaomi.sh           # fixed Mac backup wrapper
 │   ├── backup-rhaomi-core.sh      # shared lock·dump/media·complete/eligibility core
+│   ├── homeops-compatibility.json # pinned HomeOps reporter·DTO·control contract
+│   ├── rhaomi_homeops.py          # status/event/recovery shared fail-closed core
+│   ├── report-rhaomi-event.py     # deployment/backup exact payload adapter
+│   ├── status-rhaomi.py           # bounded privacy-safe production status
+│   ├── recover-rhaomi-service.py  # fixed web/backend one-restart target
 │   └── com.rhaomi.backup.plist    # 미설치 03:30 KST schedule source
 ├── scripts/
 │   ├── generate-synthetic-media-fixtures.mjs
@@ -81,6 +86,8 @@ Rhaomi/
 │   ├── rhaomi-backup-verifier.sh  # fixed read-only deploy eligibility entrypoint
 │   ├── validate-production-backup-control.sh
 │   ├── validate-production-backup.sh
+│   ├── validate-homeops-integration.sh
+│   ├── validate-homeops-integration.py
 │   ├── fixtures/fake-production-docker.sh
 │   ├── fixtures/fake-production-backup-docker.sh
 │   ├── validate-libheif-build-contract.sh
@@ -119,7 +126,7 @@ Rhaomi/
 - `scripts/prepare-publication-staging.mts`는 generation과 private output path만 argv로 받고 URL/credential은 environment에서 읽으며 safe JSON/exit family만 출력한다.
 - `scripts/publish-static-release.mts`는 generation만 argv로 받고 full release result를 safe one-line JSON과 fixed exit family로 출력한다.
 - `.github/workflows/production-release.yml`은 exact current `main` SHA의 수동 release만 받고 validation→immutable multi-arch GHCR publish→protected Environment·Tailscale→fixed Mac argv를 분리한다. PR Validate는 이 workflow를 dispatch하거나 package를 push하지 않는다.
-- `ops/production` source는 production host의 fixed `/private/var/lib/rhaomi/app/bin` inventory로 provision할 대상이지 현재 Git worktree에서 production root를 변경하는 installer가 아니다. task validator는 marker temp root와 fake Docker만 사용한다.
+- `ops/production` source는 production host의 fixed `/private/var/lib/rhaomi/app/bin` inventory로 provision할 대상이지 현재 Git worktree에서 production root를 변경하는 installer가 아니다. HomeOps adapter도 HMAC/endpoint를 복제하지 않고 pinned current reporter를 account-home inventory에서 검증해 호출한다. task validator는 marker temp root와 fake reporter/Docker만 사용한다.
 
 ## 전체 제품 목표 구조 — planned
 

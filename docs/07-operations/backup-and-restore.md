@@ -20,7 +20,7 @@ backup-set manifest = DB dump + media + checksum·size·file count + Git SHA/ima
 destination = protected source와 분리된 Mac mini local backup repository/path
 ```
 
-fixed backup entrypoint·manifest/eligibility tool·retention source와 task-scoped PostgreSQL/media/static restore validator는 구현됐다. 다만 actual local repository/path, schedule installation, production backup set과 production restore evidence는 생성하지 않았다. [Production readiness matrix](production-readiness.md)의 초기 backup 행은 따라서 `PROVISIONING_REQUIRED`다.
+fixed backup entrypoint·manifest/eligibility tool·retention source와 task-scoped PostgreSQL/media/static restore validator는 구현됐다. D-IMP-5a는 application-consistent create mode에 HomeOps current backup lifecycle adapter를 연결했다. 다만 actual local repository/path, schedule·HomeOps reporter installation, production backup set과 production restore evidence는 생성하지 않았다. [Production readiness matrix](production-readiness.md)의 초기 backup 행은 따라서 `PROVISIONING_REQUIRED`다.
 
 ## 보호 대상
 
@@ -76,6 +76,7 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 - command exit code만으로 성공 처리하지 않고 완료 artifact와 manifest를 다시 읽는다.
 - secret, repository password, session/token과 private endpoint를 manifest에 기록하지 않는다.
 - deploy와 backup은 `/private/var/lib/rhaomi/state/locks/rhaomi-deploy.lock`을 공유한다. backend/publisher physical exit 전 snapshot이나 media permission 전환을 시작하지 않는다. media runtime state와 같은 source image의 backend health·publisher running이 복구된 뒤에만 complete 승격·lock release·success evidence를 허용한다.
+- backup create lifecycle은 safe logical backup-set ID와 같은 `eventKey`·`startedAt`으로 `RUNNING`→`SUCCESS` 또는 stable-code `FAILED`를 HomeOps current reporter에 전달한다. absolute repository/media path, credential과 raw failure log는 payload에 없다. spool/authority 결과는 `homeOpsTelemetry`로 backup transaction과 분리한다.
 
 ### Linux task validation media permission lifecycle
 
@@ -173,6 +174,7 @@ tracked `ops/production/com.rhaomi.backup.plist`는 매일 host local 03:30에 f
 4. 별도 Compose project의 fresh named volume·빈 owner-only media root에 restore하고 directory `0700`/file `0600` 확인
 5. isolated backend/publisher 시작 직전에만 runtime state로 전환해 복구 결과가 B가 아닌 A인지, Flyway V1~V9/JPA schema, representative checksum/decode와 static publication 확인
 6. PostgreSQL restart와 일반 Compose `down`→`up` 뒤 같은 named-volume identity·row 지속을 확인하고 writer 종료 뒤 media를 최종 host `0700`/`0600`으로 복귀
+7. fake HomeOps adapter에서 backup RUNNING→SUCCESS lifecycle identity, telemetry failure의 backup false-failure 0과 actual endpoint/HMAC 접근 0 확인
 
 static publication은 production image source를 read-only로 둔 채 task `/state/publisher/build-workspace`만 `/opt/rhaomi/source/.rhaomi-publication-work`에 RW mount해 실제 Next/Turbopack release를 생성한다. validator는 task container/network만 정리하고 source/restore named volume을 삭제하지 않는다. production path/data, workflow dispatch, GHCR/Tailscale와 Docker volume/image delete·prune는 0이다.
 

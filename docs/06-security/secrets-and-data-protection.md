@@ -50,6 +50,8 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 - fixed entrypoint는 caller-supplied env-file·Docker config path와 inherited Compose/Docker override를 authority로 사용하지 않음
 - 임의 SSH command body 대신 exact SHA·digest·SBOM scalar만 받는 고정 deploy entrypoint 사용, credential/token argv 전달 금지
 - deploy evidence는 release SHA·digest·bounded status만 담고 environment·Docker credential·Tailscale identity·SSH known-hosts 원문을 담지 않음
+- HomeOps status/event/recovery output은 exact allowlist와 bounded stable code만 사용하고 `production.env`, Docker `.Config.Env`, raw log, content·media path를 읽어 출력하지 않음
+- HomeOps endpoint/HMAC secret은 Rhaomi env·CLI·artifact에 복제하지 않고 pinned owner/mode/hash의 existing reporter가 소유함
 - restic password를 command argument·일반 environment literal로 전달하지 않고 root-owned `0600` password file 또는 제한된 Keychain command 사용
 - `RHAOMI_MEDIA_ROOT`, storage key와 absolute path를 response·client field·일반 log에 노출하지 않음
 - raw multipart body·file byte를 logging하지 않음

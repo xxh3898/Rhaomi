@@ -385,6 +385,20 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 
 Mac native Linux arm64와 Hosted Backend Linux amd64는 같은 production image/entrypoint를 실행한다. source/restore task named volume은 직접 삭제하지 않고 task container/network만 정리한다. 이 결과는 actual local repository·schedule·production DB/media backup 또는 production restore evidence가 아니다.
 
+## 현재 D-IMP-5a HomeOps integration 자동 검증
+
+- HomeOps `main@f3845396bd4d6bf677d1d8bf6bbcb82113851c14`, reporter owner/mode/SHA와 deployment/backup DTO exact field·status compatibility
+- deployment와 backup의 deterministic same-lifecycle `eventKey`·microsecond `startedAt`, RUNNING→SUCCESS/FAILED exact shape와 malformed SHA/status/timestamp 거부
+- private spool acknowledgement `RETAINED`, reporter 미설치 `NOT_CONFIGURED`, authority/local spool `FAILED`를 transaction outcome과 분리하고 telemetry false success/failure 0
+- fake reporter에서 actual HomeOps endpoint/HMAC secret 접근 0, payload/stdout/stderr/evidence의 secret marker·private absolute path·unknown field 0
+- fixed status의 최대 4 KiB exact JSON, safe release/service/public/lock/eligibility 항목과 Docker `.Config.Env`·content/raw log 부재
+- `rhaomi-web` source label exactly one, backend·publisher·PostgreSQL·one-shot/backup service generic control opt-in 0
+- fixed recovery의 `restart rhaomi-web|backend` only, publisher/PostgreSQL/unknown mutation 0, shared lock contention mutation 0, current image/config 보존과 exactly-one restart·post-health
+- restart command 완료 불확실 시 success 0·own shared lock release 0, post-health failure false success 0, Compose down/up·image pull·filesystem/volume mutation 0
+- existing deploy/backup failure/quiescence/permission lifecycle과 production Compose regression, Flyway V1~V9·public route·3-job Hosted structure 불변
+
+이 검증은 Rhaomi source/task evidence다. HomeOps incident→exact target mapping, 30분 durable cooldown, backend RW-media compatibility 결정과 actual monitored-service/control/notification·Mac installation은 D-IMP-5b/production provisioning이며 실행하지 않는다.
+
 ## 현재 Phase 1C-8f4 transformer 자동 검증
 
 - strict snapshot exact key·schema·semantic·published/time/relation/media manifest와 typed safe error

@@ -86,6 +86,11 @@ test("production Compose가 external same-image와 최소 service topology를 �
     /nginx:1\.31\.4-alpine3\.24@sha256:db35bfc6b2951e7f8a72db5db120288c127ffaeeb4a6d4b95a26fead017d5913/u,
   );
   assert.match(web, /user: "101:101"/u);
+  assert.match(web, /homeops\.managed: "true"/u);
+  assert.doesNotMatch(
+    `${backend}\n${publisher}\n${migration}\n${schemaValidate}\n${backupTool}\n${backupVerifier}\n${postgres}`,
+    /homeops\.managed/u,
+  );
   assert.match(web, /\/var\/cache\/nginx:rw,noexec,nosuid,size=64m,uid=101,gid=101,mode=0750/u);
   assert.match(
     postgres,

@@ -47,6 +47,11 @@ backup_rhaomi() {
   esac
 
   release_backup_lock || backup_fail BACKUP_LOCK_RELEASE_FAILED
+  if [ "$backup_event_started" = true ] && [ "$backup_event_terminal" = false ]; then
+    record_backup_event SUCCESS "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" -
+    backup_event_terminal=true
+    print_backup_result complete "$backup_set_id"
+  fi
 }
 
 parse_backup_arguments() {
@@ -112,6 +117,11 @@ initialize_backup_authorities() {
   backup_lock_owned=false
   writer_maintenance_active=false
   backup_lock_preserve=false
+  backup_event_started=false
+  backup_event_terminal=false
+  backup_failure_code=BACKUP_FAILED
+  homeops_telemetry=not_configured
+  homeops_event_adapter="$backup_app_root/bin/report-rhaomi-event.py"
   backup_linux_validation_permissions=false
   if [ -n "$backup_validation_compose_file" ] && [ "$(uname -s)" = Linux ]; then
     backup_linux_validation_permissions=true
@@ -153,8 +163,15 @@ backup_on_exit() {
     else
       backup_lock_preserve=true
       backup_result=1
+      backup_failure_code=BACKUP_WRITER_RECOVERY_FAILED
       printf '%s\n' BACKUP_WRITER_RECOVERY_FAILED >&2
     fi
+  fi
+  if [ "$backup_result" -ne 0 ] &&
+    [ "${backup_event_started:-false}" = true ] &&
+    [ "${backup_event_terminal:-false}" = false ]; then
+    record_backup_event FAILED "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$backup_failure_code"
+    backup_event_terminal=true
   fi
   if [ "${backup_lock_owned:-false}" = true ] &&
     [ "${backup_lock_preserve:-false}" = false ]; then
@@ -192,6 +209,10 @@ validate_backup_fixed_configuration() {
     backup_fail BACKUP_HOST_INVALID
   backup_require_regular_file "$backup_docker_config_file"
   backup_require_file_mode "$backup_docker_config_file" 600
+  backup_require_regular_file "$homeops_event_adapter"
+  backup_require_file_mode "$homeops_event_adapter" 700
+  [ "$(backup_owner_id "$homeops_event_adapter")" = "$(id -u)" ] ||
+    backup_fail BACKUP_HOST_INVALID
 }
 
 load_backup_repository_authority() {
@@ -306,6 +327,9 @@ create_application_consistent_backup() {
   backup_purpose=on-demand
   [ "$backup_mode" = scheduled ] && backup_purpose=scheduled
 
+  backup_event_started=true
+  record_backup_event RUNNING - -
+
   backup_tool begin "$backup_set_id" >/dev/null || backup_fail BACKUP_BEGIN_FAILED
   writer_maintenance_active=true
   compose_backup_production stop --timeout 30 backend publisher ||
@@ -340,7 +364,6 @@ create_application_consistent_backup() {
     backup_tool issue-eligibility "$backup_set_id" "$target_release_sha" >/dev/null ||
       backup_fail BACKUP_ELIGIBILITY_FAILED
   fi
-  print_backup_result complete "$backup_set_id"
 }
 
 inspect_backup_source_identity() {
@@ -443,6 +466,7 @@ print_backup_result() {
     "  \"mode\": \"${backup_mode}\"," \
     "  \"backupSetId\": \"${result_set_id}\"," \
     "  \"status\": \"${result_status}\"," \
+    "  \"homeOpsTelemetry\": \"${homeops_telemetry}\"," \
     '  "sameHostFailureDomain": true' \
     '}'
 }
@@ -483,7 +507,37 @@ backup_owner_id() {
   fi
 }
 
+record_backup_event() {
+  event_status=$1
+  event_finished_at=$2
+  event_failure_code=$3
+  event_outcome=FAILED
+  if event_output=$("$homeops_event_adapter" \
+    backup \
+    "$event_status" \
+    "$backup_set_id" \
+    "$backup_started_at" \
+    "$event_finished_at" \
+    "$event_failure_code" 2>/dev/null); then
+    case "$event_output" in
+      RETAINED | NOT_CONFIGURED) event_outcome=$event_output ;;
+      *) event_outcome=FAILED ;;
+    esac
+  fi
+  case "$event_outcome" in
+    RETAINED)
+      [ "$homeops_telemetry" = failed ] || homeops_telemetry=retained
+      ;;
+    NOT_CONFIGURED) ;;
+    FAILED)
+      homeops_telemetry=failed
+      printf '%s\n' HOMEOPS_TELEMETRY_FAILED >&2
+      ;;
+  esac
+}
+
 backup_fail() {
+  backup_failure_code=$1
   printf '%s\n' "$1" >&2
   exit 1
 }

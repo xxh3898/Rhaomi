@@ -151,6 +151,22 @@ function validateBase(config) {
   assert.equal(backupVerifier.image, expectedImage);
   assert.match(web.image, /^nginx:[^@]+@sha256:[0-9a-f]{64}$/u);
   assert.match(postgres.image, /^postgres:18\.6-[^@]+@sha256:[0-9a-f]{64}$/u);
+  assert.equal(web.labels?.["homeops.managed"], "true");
+  for (const service of [
+    backend,
+    publisher,
+    migration,
+    schemaValidate,
+    backupTool,
+    backupVerifier,
+    postgres,
+  ]) {
+    assert.equal(
+      service.labels?.["homeops.managed"],
+      undefined,
+      "writable mount 또는 protected service는 HomeOps control 대상이면 안 됩니다.",
+    );
+  }
   assert.equal(web.user, "101:101", "production Nginx는 non-root UID/GID로 실행해야 합니다.");
   assert.deepEqual(web.tmpfs, [
     "/var/cache/nginx:rw,noexec,nosuid,size=64m,uid=101,gid=101,mode=0750",
@@ -417,7 +433,11 @@ function validateValidation(config) {
   );
 
   for (const [serviceName, service] of Object.entries(config.services)) {
-    validateLabels(service.labels, `${serviceName} labels`);
+    validateLabels(
+      service.labels,
+      `${serviceName} labels`,
+      serviceName === "rhaomi-web" ? { "homeops.managed": "true" } : {},
+    );
   }
   validateLabels(config.volumes["postgres-data"].labels, "PostgreSQL volume labels");
   for (const [networkName, network] of Object.entries(config.networks)) {
@@ -542,10 +562,11 @@ function validateBaseMounts(
   assert.equal(mount(backupVerifier, "/var/lib/rhaomi/deploy-state").read_only, true);
 }
 
-function validateLabels(labels, subject) {
+function validateLabels(labels, subject, sourceLabels = {}) {
   assert.deepEqual(
     labels,
     {
+      ...sourceLabels,
       "io.homeserver.cleanup.environment": "development",
       "io.homeserver.cleanup.git-head": expectedHead,
       "io.homeserver.cleanup.lifecycle": "task",

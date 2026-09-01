@@ -6,6 +6,7 @@ main() {
   repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
   core_script="$repo_dir/ops/production/deploy-rhaomi-core.sh"
   fake_docker_source="$repo_dir/scripts/fixtures/fake-production-docker.sh"
+  fake_homeops_source="$repo_dir/scripts/fixtures/fake-homeops-event-adapter.sh"
   git_head=$(git -C "$repo_dir" rev-parse HEAD)
   evidence_dir=${RHAOMI_PRODUCTION_DEPLOY_EVIDENCE_DIR:-}
   validation_parent=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
@@ -36,6 +37,7 @@ main() {
   validate_invalid_inputs
   validate_host_and_backup_gates
   validate_success_path
+  validate_telemetry_failure
   validate_lock_contention
   validate_writer_stop_failure
   validate_failure_hold migration
@@ -69,6 +71,8 @@ main() {
     "runtimeBackendImageMismatchMaintenanceHold=verified" \
     "runtimePublisherImageMismatchMaintenanceHold=verified" \
     "failureQuiescence=verified" \
+    "homeOpsDeploymentLifecycle=verified" \
+    "homeOpsTelemetryFailureDoesNotRewriteDeployOutcome=verified" \
     "lockContention=verified" \
     "secretRedaction=verified" \
     "productionPathMutation=0" \
@@ -89,8 +93,10 @@ prepare_case() {
   case_bin="$validation_root/$case_name/bin"
   case_log="$validation_root/$case_name/docker.log"
   case_output="$validation_root/$case_name/output.log"
+  case_homeops_log="$validation_root/$case_name/homeops.log"
   mkdir -p \
     "$case_root/app" \
+    "$case_root/app/bin" \
     "$case_root/app/docker" \
     "$case_root/state/deploy" \
     "$case_root/state/locks" \
@@ -146,6 +152,9 @@ prepare_case() {
   : >"$case_log"
   cp "$fake_docker_source" "$case_bin/docker"
   chmod 700 "$case_bin/docker"
+  cp "$fake_homeops_source" "$case_root/app/bin/report-rhaomi-event.py"
+  chmod 700 "$case_root/app/bin/report-rhaomi-event.py"
+  : >"$case_homeops_log"
 }
 
 run_case() {
@@ -159,6 +168,8 @@ run_case() {
     RHAOMI_DEPLOY_TEST_IMAGE_ID="$image_id" \
     RHAOMI_DEPLOY_TEST_DEPLOY_STATE_DIR="$case_root/state/deploy" \
     RHAOMI_DEPLOY_TEST_FAIL_STAGE="$failure_stage" \
+    RHAOMI_HOMEOPS_TEST_LOG="$case_homeops_log" \
+    RHAOMI_HOMEOPS_TEST_OUTCOME="${RHAOMI_HOMEOPS_TEST_OUTCOME:-RETAINED}" \
     /bin/sh -eu -c '
       . "$1"
       shift
@@ -365,11 +376,36 @@ validate_success_path() {
     --image "$image_reference" \
     --sbom "$sbom_reference" >"$case_output" 2>&1
   grep -Fq '"status": "success"' "$case_output"
+  grep -Fq '"homeOpsTelemetry": "retained"' "$case_output"
   [ "$(cat "$case_state/backend")" = running ]
   [ "$(cat "$case_state/publisher")" = running ]
   [ ! -e "$case_state/quiescence-violation" ]
   [ ! -d "$case_root/state/locks/rhaomi-deploy.lock" ]
   assert_command_order "$case_log"
+  assert_deployment_event_lifecycle "$case_homeops_log" SUCCESS
+}
+
+validate_telemetry_failure() {
+  prepare_case telemetry-failure
+  RHAOMI_HOMEOPS_TEST_OUTCOME=FAILED run_case '' \
+    --release-sha "$release_sha" \
+    --image "$image_reference" \
+    --sbom "$sbom_reference" >"$case_output" 2>&1
+  grep -Fq '"status": "success"' "$case_output"
+  grep -Fq '"homeOpsTelemetry": "failed"' "$case_output"
+  [ "$(grep -c '^deployment ' "$case_homeops_log")" = 2 ]
+  assert_deployment_event_lifecycle "$case_homeops_log" SUCCESS
+}
+
+assert_deployment_event_lifecycle() {
+  event_log=$1
+  terminal_status=$2
+  [ "$(grep -c '^deployment ' "$event_log")" = 2 ]
+  [ "$(sed -n '1s/^deployment \([^ ]*\).*/\1/p' "$event_log")" = RUNNING ]
+  [ "$(sed -n '2s/^deployment \([^ ]*\).*/\1/p' "$event_log")" = "$terminal_status" ]
+  running_started=$(sed -n '1s/^deployment [^ ]* [^ ]* [^ ]* \([^ ]*\).*/\1/p' "$event_log")
+  terminal_started=$(sed -n '2s/^deployment [^ ]* [^ ]* [^ ]* \([^ ]*\).*/\1/p' "$event_log")
+  [ -n "$running_started" ] && [ "$running_started" = "$terminal_started" ]
 }
 
 assert_command_order() {
@@ -400,6 +436,8 @@ validate_lock_contention() {
     RHAOMI_DEPLOY_TEST_IMAGE_ID="$image_id" \
     RHAOMI_DEPLOY_TEST_DEPLOY_STATE_DIR="$case_root/state/deploy" \
     RHAOMI_DEPLOY_TEST_PULL_RELEASE_FILE="$pull_release" \
+    RHAOMI_HOMEOPS_TEST_LOG="$case_homeops_log" \
+    RHAOMI_HOMEOPS_TEST_OUTCOME=RETAINED \
     /bin/sh -eu -c '
       . "$1"
       shift
@@ -444,6 +482,7 @@ validate_failure_hold() {
     echo "failure 뒤 writer가 자동 resume됐습니다." >&2
     exit 1
   fi
+  assert_deployment_event_lifecycle "$case_homeops_log" FAILED
   [ ! -d "$case_root/state/locks/rhaomi-deploy.lock" ]
 }
 
@@ -534,6 +573,8 @@ validate_revision_mismatch() {
     RHAOMI_DEPLOY_TEST_IMAGE_REFERENCE="$image_reference" \
     RHAOMI_DEPLOY_TEST_IMAGE_ID="$image_id" \
     RHAOMI_DEPLOY_TEST_DEPLOY_STATE_DIR="$case_root/state/deploy" \
+    RHAOMI_HOMEOPS_TEST_LOG="$case_homeops_log" \
+    RHAOMI_HOMEOPS_TEST_OUTCOME=RETAINED \
     /bin/sh -eu -c '
       . "$1"
       shift
