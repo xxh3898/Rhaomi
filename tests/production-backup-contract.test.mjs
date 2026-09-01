@@ -147,6 +147,27 @@ test("task validator가 A backup/B mutation/fresh restore A와 persistence를 ex
   assert.match(orchestrator, /\.rhaomi-publication-work/u);
   assert.match(nextBuild, /relative\(input\.sourceRoot, input\.workspaceRoot\)/u);
   assert.match(validator, /state\/publisher\/build-workspace/u);
+  assert.match(validator, /prepare_runtime_bind_ownership "\$source_root"/u);
+  assert.match(validator, /restore_runtime_bind_ownership "\$source_root"/u);
+  assert.equal(
+    [...validator.matchAll(/prepare_runtime_bind_ownership "\$restore_root"/gu)].length,
+    2,
+  );
+  assert.equal(
+    [...validator.matchAll(/restore_runtime_bind_ownership "\$restore_root"/gu)].length,
+    2,
+  );
+  assert.match(
+    validator,
+    /chown -R 0:0[\s\S]*\/validation\/state\/publisher/u,
+  );
+  assert.match(validator, /chown -R "0:\$3" \/validation\/data\/media/u);
+  assert.match(validator, /find \/validation\/data\/media -type d -exec chmod 0750/u);
+  assert.match(validator, /find \/validation\/data\/media -type f -exec chmod 0640/u);
+  assert.match(
+    validator,
+    /chown -R "\$2:\$3"[\s\S]*\/validation\/state\/publisher/u,
+  );
   assert.match(control, /capture-failure/u);
   assert.match(control, /restart-failure/u);
   assert.match(control, /contention/u);

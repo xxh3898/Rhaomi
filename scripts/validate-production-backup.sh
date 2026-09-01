@@ -74,11 +74,13 @@ main() {
   compose_for "$source_root" "$source_project" --profile production-task run --rm --no-deps migration \
     >"$raw_dir/source-migration.txt" 2>&1
   seed_source_a
+  prepare_runtime_bind_ownership "$source_root"
   compose_for "$source_root" "$source_project" up --detach rhaomi-web backend publisher postgres >/dev/null
   wait_healthy "$source_root" "$source_project" postgres 90
   wait_healthy "$source_root" "$source_project" backend 180
   wait_healthy "$source_root" "$source_project" rhaomi-web 90
   wait_running "$source_root" "$source_project" publisher 90
+  restore_runtime_bind_ownership "$source_root"
 
   RHAOMI_BACKUP_VALIDATION_COMPOSE_FILE="$source_root/app/compose.production.validation.yaml"
   export RHAOMI_BACKUP_VALIDATION_COMPOSE_FILE
@@ -135,6 +137,7 @@ main() {
   verify_restored_a
   compose_for "$restore_root" "$restore_project" --profile production-task run --rm --no-deps schema-validate \
     >"$raw_dir/restore-schema-validation.txt" 2>&1
+  prepare_runtime_bind_ownership "$restore_root"
   compose_for "$restore_root" "$restore_project" up --detach backend >/dev/null
   wait_healthy "$restore_root" "$restore_project" backend 180
   compose_for "$restore_root" "$restore_project" up --detach publisher >/dev/null
@@ -154,7 +157,9 @@ main() {
   verify_restored_a
 
   compose_for "$restore_root" "$restore_project" down --remove-orphans >/dev/null
+  restore_runtime_bind_ownership "$restore_root"
   docker volume inspect "$restore_volume" >/dev/null
+  prepare_runtime_bind_ownership "$restore_root"
   compose_for "$restore_root" "$restore_project" up --detach postgres backend publisher >/dev/null
   wait_healthy "$restore_root" "$restore_project" postgres 90
   wait_healthy "$restore_root" "$restore_project" backend 180
@@ -171,6 +176,7 @@ main() {
     "SELECT version FROM flyway_schema_history WHERE success AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1")
 
   compose_for "$restore_root" "$restore_project" down --remove-orphans >/dev/null
+  restore_runtime_bind_ownership "$restore_root"
   restore_started=false
   docker volume inspect "$source_volume" >/dev/null
   docker volume inspect "$restore_volume" >/dev/null
@@ -308,6 +314,71 @@ prepare_validation_host() {
     "RHAOMI_CLEANUP_GIT_HEAD=$git_head" \
     >"$host_root/app/production.env"
   chmod 600 "$host_root/app/production.env" "$host_root/app/docker/config.json"
+}
+
+prepare_runtime_bind_ownership() {
+  host_root=$1
+  if [ "$(uname -s)" != Linux ]; then
+    return 0
+  fi
+  run_runtime_bind_ownership_helper "$host_root" prepare
+}
+
+restore_runtime_bind_ownership() {
+  host_root=$1
+  if [ "$(uname -s)" != Linux ]; then
+    return 0
+  fi
+  run_runtime_bind_ownership_helper "$host_root" restore
+}
+
+run_runtime_bind_ownership_helper() {
+  host_root=$1
+  action=$2
+  docker run --rm --network none --read-only \
+    --user 0:0 \
+    --security-opt no-new-privileges=true \
+    --cap-drop ALL \
+    --cap-add CHOWN \
+    --cap-add DAC_OVERRIDE \
+    --cap-add FOWNER \
+    --label io.homeserver.cleanup.environment=development \
+    --label io.homeserver.cleanup.project=rhaomi \
+    --label "io.homeserver.cleanup.task=$cleanup_task" \
+    --label io.homeserver.cleanup.lifecycle=task \
+    --label io.homeserver.cleanup.retain=false \
+    --label "io.homeserver.cleanup.git-head=$git_head" \
+    --volume "$host_root:/validation" \
+    "$production_image" \
+    sh -ec '
+      case "$1" in
+        prepare)
+          chown -R 0:0 \
+            /validation/public \
+            /validation/state/deploy \
+            /validation/state/locks \
+            /validation/state/publisher
+          chown -R "0:$3" /validation/data/media
+          chmod 0755 /validation/public
+          chmod 0750 \
+            /validation/state/deploy \
+            /validation/state/locks \
+            /validation/state/publisher \
+            /validation/state/publisher/build-workspace
+          find /validation/data/media -type d -exec chmod 0750 {} +
+          find /validation/data/media -type f -exec chmod 0640 {} +
+          ;;
+        restore)
+          chown -R "$2:$3" \
+            /validation/public \
+            /validation/data/media \
+            /validation/state/deploy \
+            /validation/state/locks \
+            /validation/state/publisher
+          ;;
+        *) exit 64 ;;
+      esac
+    ' sh "$action" "$(id -u)" "$(id -g)"
 }
 
 compose_for() {
