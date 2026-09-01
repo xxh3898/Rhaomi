@@ -230,7 +230,7 @@ def load_compatibility(app_root: Path) -> dict[str, object]:
     if (
         type(value["schemaVersion"]) is not int
         or value["schemaVersion"] != 1
-        or value["homeOpsCommit"] != "f3845396bd4d6bf677d1d8bf6bbcb82113851c14"
+        or value["homeOpsCommit"] != "0a8ce9090c76f5ad7afba19ca896e923b96b0cbf"
         or value["reporterRelativePath"]
         != "Server/apps/homeops/runtime-config/current/scripts/report-homeops-event.py"
         or value["reporterSha256"]

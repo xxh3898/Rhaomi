@@ -187,17 +187,19 @@ review_trigger: "출시 기준 변경 시"
 ### D-IMP-5b source·activation preflight validation
 
 - [x] HomeOps PR #120 merge `dev@e4d5c598...`, exact tree와 post-merge Validate run `33527901223` source evidence
-- [x] production compatibility authority `main@f3845396...`와 unreleased `dev` source evidence 분리
+- [x] HomeOps Release PR #122, production `main@0a8ce9090c76f5ad7afba19ca896e923b96b0cbf`와 run `33569523762` application deploy·V14 `APPLIED` live evidence
+- [x] Agent artifact `PUBLISHED` exact digest와 Agent rollout `NOT_RUN` 분리
+- [x] current main reporter·DTO·monitoring 재계산 뒤 production compatibility authority pin 갱신
 - [x] public HTTPS expected HTTP status 3회 consecutive failure → disabled `rhaomi-web` mapping only, backend unmapped/default-none
 - [x] current compatibility shape에 keyword/body/content matcher 부재와 automatic trigger 제외 고정
 - [x] durable 30분 cooldown과 `FAILED`·`OUTCOME_UNKNOWN` no-auto-retry
 - [x] `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning` ordering과 fail-closed stop/rollback contract
 - [x] exact-shape tracked preflight와 task evidence의 mapping enable 0·actual restart/drill 0·secret/private path 0
-- [ ] HomeOps production release·V14 migration과 live compatibility 재검증
+- [x] HomeOps production release·V14 migration과 live compatibility 재검증
 - [ ] Rhaomi fixed inventory·disabled web mapping·Agent current/rollback identity와 fresh capability provisioning
 - [ ] 별도 승인된 mapping enable, controlled single restart/drill과 observation window
 
-위 완료 표시는 source와 preflight contract다. HomeOps/Rhaomi release, V14 production migration, mapping create/enable, Agent rollout, notification activation과 restart/drill을 수행하지 않았으며 overall production readiness는 `HOLD`다.
+위 완료 표시는 HomeOps release/application deploy·V14와 read-only compatibility evidence를 포함한다. Rhaomi release/provisioning, mapping create/enable, Agent rollout, notification activation과 restart/drill은 수행하지 않았으며 overall production readiness는 `HOLD`다.
 
 ### D-IMP-4 source·task validation
 
