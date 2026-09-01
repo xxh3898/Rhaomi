@@ -16,7 +16,7 @@ async function source(path) {
 test("HomeOps compatibility snapshot이 current main DTO와 reporter authority를 고정한다", async () => {
   const contract = JSON.parse(await source("ops/production/homeops-compatibility.json"));
   assert.equal(contract.schemaVersion, 1);
-  assert.equal(contract.homeOpsCommit, "f3845396bd4d6bf677d1d8bf6bbcb82113851c14");
+  assert.equal(contract.homeOpsCommit, "0a8ce9090c76f5ad7afba19ca896e923b96b0cbf");
   assert.equal(
     contract.reporterSha256,
     "7a7ea2f7597efdc0d174775f28626dac7d330bddd638446fd0fe0f4e0f3acf9c",
@@ -66,8 +66,19 @@ test("HomeOps compatibility snapshot이 current main DTO와 reporter authority�
   assert.equal(contract.monitoringRequest.notificationEnabled, false);
 });
 
-test("D-IMP-5b source evidence와 web-only production activation preflight를 고정한다", async () => {
-  const [preflight, compatibility, adr, readiness, monitoring, deployment, backup, checklist, strategy] =
+test("HomeOps live release evidence와 web-only production activation preflight를 고정한다", async () => {
+  const [
+    preflight,
+    compatibility,
+    adr,
+    readiness,
+    monitoring,
+    deployment,
+    backup,
+    checklist,
+    strategy,
+    environment,
+  ] =
     await Promise.all([
       source("ops/production/homeops-activation-preflight.json").then(JSON.parse),
       source("ops/production/homeops-compatibility.json").then(JSON.parse),
@@ -78,6 +89,7 @@ test("D-IMP-5b source evidence와 web-only production activation preflight를 �
       source("docs/07-operations/backup-and-restore.md"),
       source("docs/08-quality/release-checklist.md"),
       source("docs/08-quality/test-strategy.md"),
+      source("docs/04-architecture/environment-and-configuration.md"),
     ]);
 
   assert.deepEqual(Object.keys(preflight), [
@@ -85,6 +97,7 @@ test("D-IMP-5b source evidence와 web-only production activation preflight를 �
     "overallProductionReadiness",
     "productionCompatibilityAuthority",
     "sourceImplementationEvidence",
+    "productionReleaseEvidence",
     "automaticRecoveryPolicy",
     "releaseOrder",
     "activationSequence",
@@ -95,7 +108,7 @@ test("D-IMP-5b source evidence와 web-only production activation preflight를 �
   assert.equal(preflight.overallProductionReadiness, "HOLD");
   assert.deepEqual(preflight.productionCompatibilityAuthority, {
     homeOpsBranch: "main",
-    homeOpsCommit: "f3845396bd4d6bf677d1d8bf6bbcb82113851c14",
+    homeOpsCommit: "0a8ce9090c76f5ad7afba19ca896e923b96b0cbf",
     compatibilityFile: "ops/production/homeops-compatibility.json",
   });
   assert.equal(
@@ -113,6 +126,21 @@ test("D-IMP-5b source evidence와 web-only production activation preflight를 �
   assert.notEqual(
     preflight.sourceImplementationEvidence.homeOpsCommit,
     compatibility.homeOpsCommit,
+  );
+  assert.deepEqual(preflight.productionReleaseEvidence, {
+    status: "RELEASED_AND_DEPLOYED",
+    homeOpsBranch: "main",
+    homeOpsCommit: "0a8ce9090c76f5ad7afba19ca896e923b96b0cbf",
+    homeOpsTree: "f8f77091383931f36dc96aa35242193bb5ab1f01",
+    pullRequest: 122,
+    publishAndDeployRun: 33569523762,
+    agentArtifactDigest:
+      "sha256:305c0f216bf00097ae8532b33991aed99e752669a32956b85eebfbf7351bcf4b",
+  });
+  assert.equal(preflight.productionReleaseEvidence.homeOpsCommit, compatibility.homeOpsCommit);
+  assert.equal(
+    preflight.productionReleaseEvidence.homeOpsTree,
+    preflight.sourceImplementationEvidence.homeOpsTree,
   );
   assert.deepEqual(preflight.automaticRecoveryPolicy, {
     mappings: [
@@ -135,9 +163,11 @@ test("D-IMP-5b source evidence와 web-only production activation preflight를 �
     "RHAOMI_RELEASE_PROVISIONING",
   ]);
   assert.deepEqual(preflight.productionState, {
-    homeOpsRelease: "NOT_RUN",
+    homeOpsRelease: "COMPLETED",
+    homeOpsApplicationDeploy: "COMPLETED",
     rhaomiRelease: "NOT_RUN",
-    v14ProductionMigration: "NOT_RUN",
+    v14ProductionMigration: "APPLIED",
+    agentArtifact: "PUBLISHED",
     webMapping: "NOT_CREATED",
     backendMapping: "ABSENT",
     agentRollout: "NOT_RUN",
@@ -162,6 +192,12 @@ test("D-IMP-5b source evidence와 web-only production activation preflight를 �
   assert.match(readiness, /HomeOps monitoring \/ recovery[^\n]*`PROVISIONING_REQUIRED`/u);
   assert.match(deployment, /mapping enable[^\n]*restart\/drill[^\n]*(?:별도 승인|수행 금지)/iu);
   assert.match(backup, /recovery preflight[^\n]*shared deploy\/backup lock/u);
+  for (const document of [adr, readiness, monitoring, deployment, checklist, strategy, environment]) {
+    assert.match(document, /0a8ce9090c76f5ad7afba19ca896e923b96b0cbf/u);
+    assert.match(document, /33569523762/u);
+    assert.match(document, /Agent[^\n]*(?:artifact|아티팩트)[^\n]*(?:PUBLISHED|게시|publish)/iu);
+    assert.match(document, /Agent[^\n]*(?:rollout|롤아웃)[^\n]*(?:NOT_RUN|미수행|수행하지)/iu);
+  }
 });
 
 test("production entrypoint가 root·reporter·URL·command override를 받지 않는다", async () => {
@@ -218,6 +254,19 @@ test("task validator가 status/event/recovery privacy와 fail-closed 계약을 �
   assert.equal(summary.events.actualHomeOpsNetworkCalls, 0);
   assert.equal(summary.events.actualHomeOpsSecretReads, 0);
   assert.equal(summary.activationPreflight.overallProductionReadiness, "HOLD");
+  assert.equal(
+    summary.activationPreflight.homeOpsProductionCommit,
+    "0a8ce9090c76f5ad7afba19ca896e923b96b0cbf",
+  );
+  assert.equal(summary.activationPreflight.homeOpsRelease, "COMPLETED");
+  assert.equal(summary.activationPreflight.homeOpsApplicationDeploy, "COMPLETED");
+  assert.equal(summary.activationPreflight.v14ProductionMigration, "APPLIED");
+  assert.equal(summary.activationPreflight.agentArtifact, "PUBLISHED");
+  assert.equal(
+    summary.activationPreflight.agentArtifactDigest,
+    "sha256:305c0f216bf00097ae8532b33991aed99e752669a32956b85eebfbf7351bcf4b",
+  );
+  assert.equal(summary.activationPreflight.agentRollout, "NOT_RUN");
   assert.equal(summary.activationPreflight.webMonitorSignal, "PUBLIC_HTTPS_STATUS");
   assert.equal(
     summary.activationPreflight.webExpectedStatusAuthority,
@@ -229,6 +278,14 @@ test("task validator가 status/event/recovery privacy와 fail-closed 계약을 �
   assert.equal(summary.activationPreflight.backendMapping, "ABSENT");
   assert.equal(summary.activationPreflight.mappingEnableCount, 0);
   assert.equal(summary.activationPreflight.actualRestartOrDrillCount, 0);
+  assert.equal(summary.activationPreflight.productionPinDriftRejected, true);
+  assert.equal(summary.activationPreflight.policyDriftRejected, true);
+  assert.equal(summary.activationPreflight.activationStateDriftRejected, true);
+  assert.equal(summary.activationPreflight.readinessDriftRejected, true);
+  assert.equal(summary.events.productionPinDriftRejected, true);
+  assert.equal(summary.events.reporterHashDriftRejected, true);
+  assert.equal(summary.events.deploymentRequestHashDriftRejected, true);
+  assert.equal(summary.events.backupRequestHashDriftRejected, true);
   assert.equal(summary.status.secretMarkerCount, 0);
   assert.equal(summary.status.privatePathCount, 0);
   assert.equal(summary.status.dockerEnvironmentInspectCount, 0);

@@ -24,6 +24,8 @@ fixed backup entrypoint·manifest/eligibility tool·retention source와 task-sco
 
 HomeOps recovery preflight는 shared deploy/backup lock 부재, 정상 `<24h` release-bound eligibility와 isolated restore evidence를 mapping enable 전 필수로 확인한다. Backup 또는 writer recovery가 진행 중이거나 physical quiescence·runtime identity가 불확실하면 automatic recovery activation과 drill을 시작하지 않는다. HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning 뒤에도 이 recovery authority를 우회하지 않는다.
 
+HomeOps `main@0a8ce9090c76f5ad7afba19ca896e923b96b0cbf`와 run `33569523762`에서 application deploy·V14 적용 및 Agent artifact `PUBLISHED`를 확인했지만 Agent rollout은 `NOT_RUN`이다. 이 release evidence는 Rhaomi backup eligibility, fixed inventory, disabled mapping과 recovery drill의 대체 근거가 아니다.
+
 ## 보호 대상
 
 ### 필수

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "homeOpsCommit": "f3845396bd4d6bf677d1d8bf6bbcb82113851c14",
+  "homeOpsCommit": "0a8ce9090c76f5ad7afba19ca896e923b96b0cbf",
   "reporterRelativePath": "Server/apps/homeops/runtime-config/current/scripts/report-homeops-event.py",
   "reporterSha256": "7a7ea2f7597efdc0d174775f28626dac7d330bddd638446fd0fe0f4e0f3acf9c",
   "deploymentRequestSha256": "737f49a2fd5398501f6bcb18ea7935f1e17438338e23388cf93c6b1d2a42fbc5",

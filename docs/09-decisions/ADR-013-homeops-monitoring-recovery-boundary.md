@@ -19,7 +19,9 @@ Mac mini에서 프로젝트별 dashboard·heartbeat·alert stack을 중복 운�
 
 HomeOps와 Rhaomi가 같은 host에 있으므로 전원, 회선 또는 Docker 전체 장애 때 알림을 보내지 못할 수 있다. 초기 서비스는 이 blind spot을 명시적으로 수용한다.
 
-Issue #57의 D-IMP-5a는 HomeOps `main@f3845396bd4d6bf677d1d8bf6bbcb82113851c14`를 read-only compatibility authority로 고정하고 Rhaomi 쪽 bounded status, deployment/backup payload adapter, web-only Agent opt-in과 fixed recovery target source를 구현했다. 이후 HomeOps Issue #119/PR #120은 `dev@e4d5c59841e30fdc20bf1ce55fa419ac3f766a13`, tree `f8f77091383931f36dc96aa35242193bb5ab1f01`에 incident decision, V14 mapping/audit와 durable 30분 cooldown source를 병합했고 post-merge Validate run `33527901223`이 성공했다. 이는 `LOCAL_CI_VERIFIED` source evidence이며 HomeOps production `main` release, V14 production migration, monitor/mapping/Agent provisioning과 activation은 수행하지 않았다.
+Issue #57의 D-IMP-5a는 당시 HomeOps `main@f3845396bd4d6bf677d1d8bf6bbcb82113851c14`를 read-only compatibility authority로 고정하고 Rhaomi 쪽 bounded status, deployment/backup payload adapter, web-only Agent opt-in과 fixed recovery target source를 구현했다. 이후 HomeOps Issue #119/PR #120은 `dev@e4d5c59841e30fdc20bf1ce55fa419ac3f766a13`, tree `f8f77091383931f36dc96aa35242193bb5ab1f01`에 incident decision, V14 mapping/audit와 durable 30분 cooldown source를 병합했고 post-merge Validate run `33527901223`이 성공했다.
+
+HomeOps Release PR #122의 merge 뒤 production `main@0a8ce9090c76f5ad7afba19ca896e923b96b0cbf`가 동일 tree를 가리키며 Publish and Deploy run `33569523762`에서 application deploy와 Flyway V14 적용이 성공했다. 같은 run의 HomeOps Agent artifact는 `PUBLISHED`이고 exact digest는 `sha256:305c0f216bf00097ae8532b33991aed99e752669a32956b85eebfbf7351bcf4b`다. Agent live rollout은 `NOT_RUN`이다.
 
 ## 결정
 
@@ -88,17 +90,17 @@ Rhaomi fixed target source가 허용하는 local action 범위는 `rhaomi-web`, 
 - 같은 service restart 후 30분 cooldown
 - trigger, 전후 health와 결과 audit 기록
 
-D-IMP-5a의 `recover-rhaomi-service.py`는 이 action boundary만 구현한다. shared deploy/backup lock을 원자적으로 소유하고 current container/image/config identity를 유지한 채 exact service를 한 번만 restart하며 post-health를 확인한다. restart 물리 완료가 불확실하면 own lock을 남겨 fail-closed한다. HomeOps-owned D-IMP-5b source는 incident winner, mapping row lock과 durable 30분 cooldown을 구현했지만 production에는 release·provision하지 않았다. `FAILED`와 `OUTCOME_UNKNOWN`은 자동 재실행 금지이며 cooldown reservation을 우회하지 않는다.
+D-IMP-5a의 `recover-rhaomi-service.py`는 이 action boundary만 구현한다. shared deploy/backup lock을 원자적으로 소유하고 current container/image/config identity를 유지한 채 exact service를 한 번만 restart하며 post-health를 확인한다. restart 물리 완료가 불확실하면 own lock을 남겨 fail-closed한다. HomeOps-owned D-IMP-5b application과 V14 schema는 production에 release·적용됐지만 mapping·Agent capability·automatic recovery는 provision하거나 활성화하지 않았다. `FAILED`와 `OUTCOME_UNKNOWN`은 자동 재실행 금지이며 cooldown reservation을 우회하지 않는다.
 
 ### D-IMP-5b activation preflight
 
-tracked [activation preflight](../../ops/production/homeops-activation-preflight.json)는 source evidence와 production authority를 분리한다. production compatibility authority는 계속 HomeOps `main@f3845396bd4d6bf677d1d8bf6bbcb82113851c14`이며, unreleased HomeOps `dev` SHA를 [compatibility snapshot](../../ops/production/homeops-compatibility.json)의 authority로 사용하지 않는다. Overall production readiness는 `HOLD`다.
+tracked [activation preflight](../../ops/production/homeops-activation-preflight.json)는 historical source evidence와 production release evidence를 분리한다. read-only live 재검증을 통과한 production compatibility authority는 HomeOps `main@0a8ce9090c76f5ad7afba19ca896e923b96b0cbf`이며 [compatibility snapshot](../../ops/production/homeops-compatibility.json)도 이 exact commit을 고정한다. Overall production readiness는 `HOLD`다.
 
 Cross-repository 순서는 `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning`으로 고정한다. 각 단계는 별도 승인이고 앞 단계의 exact main SHA·reviewed tree·required checks와 현재 runtime authority를 확인하지 못하면 다음 단계로 진행하지 않는다. HomeOps release가 reporter/DTO/monitoring/Agent contract를 바꾸면 live `main` 기준으로 compatibility snapshot 변경 여부를 먼저 결정한다.
 
 후속 production activation은 다음 순서를 따른다.
 
-1. HomeOps production release와 V14 production provisioning을 별도 승인·검증한다.
+1. HomeOps production release, application deploy와 V14 적용은 run `33569523762`의 완료 근거를 유지하고 current runtime authority가 바뀌지 않았는지 다시 확인한다.
 2. public HTTPS expected HTTP status monitored-service의 private exact identity와 `expectedStatus`를 확인하고 `rhaomi-web` mapping을 disabled 상태로만 생성한다. backend mapping은 만들지 않는다.
 3. Rhaomi fixed inventory source identity·owner·mode와 current runtime image/config를 검증한다.
 4. previous rollback identity를 보존한 exact HomeOps Agent를 별도 승인으로 rollout하고 fresh `supportsRhaomiRecovery=true`를 확인한다.
@@ -106,7 +108,7 @@ Cross-repository 순서는 `HomeOps release → live compatibility 재검증 →
 6. 별도 수동 승인 뒤에만 mapping enable을 수행한다.
 7. 다시 별도 승인된 controlled single restart/drill 뒤 post-health, audit/Activity와 observation window를 확인한다.
 
-V14 또는 mapping initial state, fixed inventory, Agent capability, shared lock, backup/rollback evidence, live compatibility 중 하나라도 불확실하면 mapping을 enable하지 않는다. Mapping enable, Agent rollout과 actual restart/drill은 Issue #59의 수행 범위가 아니다. 실제 monitored-service UUID, private endpoint, Tailnet/host metadata와 Secret은 repository, GitHub body, log와 evidence artifact에 기록하지 않는다. Notification/Discord activation도 recovery acceptance와 별도 authority로 유지한다.
+V14 또는 mapping initial state, fixed inventory, Agent capability, shared lock, backup/rollback evidence, live compatibility 중 하나라도 불확실하면 mapping을 enable하지 않는다. Mapping create/enable, Agent rollout과 actual restart/drill은 Issue #61의 수행 범위가 아니다. 실제 monitored-service UUID, private endpoint, Tailnet/host metadata와 Secret은 repository, GitHub body, log와 evidence artifact에 기록하지 않는다. Notification/Discord activation도 recovery acceptance와 별도 authority로 유지한다.
 
 후속 activation의 rollback authority는 web mapping disable/default-none 복귀다. `FAILED`·`OUTCOME_UNKNOWN` 뒤 즉시 수동·자동 재실행하지 않고, 이미 소비된 reservation의 30분 cooldown을 보존한다. V14 mapping/audit table과 attempt evidence를 삭제하지 않으며 previous exact Agent artifact rollback과 HomeOps application rollback을 DB migration 상태와 별도 축으로 판정한다. Shared lock의 owner·operation 종료가 불확실하면 lock을 임의 삭제하지 않는다.
 
@@ -175,8 +177,9 @@ DB·migration·volume과 공통 infra에 대한 자동 mutation은 장애를 확
 - [x] web-only HomeOps label compatibility와 fixed web/backend recovery target task 검증
 - [x] HomeOps D-IMP-5b incident decision·V14 mapping/audit·durable 30분 cooldown source 및 post-merge CI 확인
 - [x] public HTTPS expected HTTP status 3회 → `rhaomi-web` only, backend unmapped activation contract와 release ordering 확정
+- [x] HomeOps `main@0a8ce909...` production release/application deploy·V14 적용 및 run `33569523762` live compatibility 재검증
+- [x] Agent artifact `PUBLISHED` exact digest와 Agent rollout `NOT_RUN` 상태 분리
 - [ ] keyword/body/content probe HomeOps 별도 구현·재검토
-- [ ] HomeOps production release와 live compatibility 재검증
 - [ ] HomeOps public/internal/container/host/DB/publisher/backup monitor 등록
 - [ ] 임계값과 Discord·Activity routing 검증
 - [ ] disabled web mapping·fixed inventory·Agent capability production provisioning

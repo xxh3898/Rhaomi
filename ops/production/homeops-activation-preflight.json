@@ -3,7 +3,7 @@
   "overallProductionReadiness": "HOLD",
   "productionCompatibilityAuthority": {
     "homeOpsBranch": "main",
-    "homeOpsCommit": "f3845396bd4d6bf677d1d8bf6bbcb82113851c14",
+    "homeOpsCommit": "0a8ce9090c76f5ad7afba19ca896e923b96b0cbf",
     "compatibilityFile": "ops/production/homeops-compatibility.json"
   },
   "sourceImplementationEvidence": {
@@ -13,6 +13,15 @@
     "homeOpsTree": "f8f77091383931f36dc96aa35242193bb5ab1f01",
     "pullRequest": 120,
     "postMergeValidateRun": 33527901223
+  },
+  "productionReleaseEvidence": {
+    "status": "RELEASED_AND_DEPLOYED",
+    "homeOpsBranch": "main",
+    "homeOpsCommit": "0a8ce9090c76f5ad7afba19ca896e923b96b0cbf",
+    "homeOpsTree": "f8f77091383931f36dc96aa35242193bb5ab1f01",
+    "pullRequest": 122,
+    "publishAndDeployRun": 33569523762,
+    "agentArtifactDigest": "sha256:305c0f216bf00097ae8532b33991aed99e752669a32956b85eebfbf7351bcf4b"
   },
   "automaticRecoveryPolicy": {
     "mappings": [
@@ -52,9 +61,11 @@
     "OBSERVATION_WINDOW"
   ],
   "productionState": {
-    "homeOpsRelease": "NOT_RUN",
+    "homeOpsRelease": "COMPLETED",
+    "homeOpsApplicationDeploy": "COMPLETED",
     "rhaomiRelease": "NOT_RUN",
-    "v14ProductionMigration": "NOT_RUN",
+    "v14ProductionMigration": "APPLIED",
+    "agentArtifact": "PUBLISHED",
     "webMapping": "NOT_CREATED",
     "backendMapping": "ABSENT",
     "agentRollout": "NOT_RUN",

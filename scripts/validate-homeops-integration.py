@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import datetime as dt
 import hashlib
 import json
@@ -36,13 +37,18 @@ RELEASE_SHA = "a" * 40
 IMAGE_DIGEST = f"sha256:{'b' * 64}"
 IMAGE_ID = f"sha256:{'c' * 64}"
 SECRET_MARKER = "synthetic-homeops-secret-must-not-escape"
+HOMEOPS_PRODUCTION_COMMIT = "0a8ce9090c76f5ad7afba19ca896e923b96b0cbf"
+HOMEOPS_PRODUCTION_TREE = "f8f77091383931f36dc96aa35242193bb5ab1f01"
+HOMEOPS_AGENT_ARTIFACT_DIGEST = (
+    "sha256:305c0f216bf00097ae8532b33991aed99e752669a32956b85eebfbf7351bcf4b"
+)
 
 EXPECTED_ACTIVATION_PREFLIGHT = {
     "schemaVersion": 1,
     "overallProductionReadiness": "HOLD",
     "productionCompatibilityAuthority": {
         "homeOpsBranch": "main",
-        "homeOpsCommit": "f3845396bd4d6bf677d1d8bf6bbcb82113851c14",
+        "homeOpsCommit": HOMEOPS_PRODUCTION_COMMIT,
         "compatibilityFile": "ops/production/homeops-compatibility.json",
     },
     "sourceImplementationEvidence": {
@@ -52,6 +58,15 @@ EXPECTED_ACTIVATION_PREFLIGHT = {
         "homeOpsTree": "f8f77091383931f36dc96aa35242193bb5ab1f01",
         "pullRequest": 120,
         "postMergeValidateRun": 33527901223,
+    },
+    "productionReleaseEvidence": {
+        "status": "RELEASED_AND_DEPLOYED",
+        "homeOpsBranch": "main",
+        "homeOpsCommit": HOMEOPS_PRODUCTION_COMMIT,
+        "homeOpsTree": HOMEOPS_PRODUCTION_TREE,
+        "pullRequest": 122,
+        "publishAndDeployRun": 33569523762,
+        "agentArtifactDigest": HOMEOPS_AGENT_ARTIFACT_DIGEST,
     },
     "automaticRecoveryPolicy": {
         "mappings": [
@@ -86,9 +101,11 @@ EXPECTED_ACTIVATION_PREFLIGHT = {
         "OBSERVATION_WINDOW",
     ],
     "productionState": {
-        "homeOpsRelease": "NOT_RUN",
+        "homeOpsRelease": "COMPLETED",
+        "homeOpsApplicationDeploy": "COMPLETED",
         "rhaomiRelease": "NOT_RUN",
-        "v14ProductionMigration": "NOT_RUN",
+        "v14ProductionMigration": "APPLIED",
+        "agentArtifact": "PUBLISHED",
         "webMapping": "NOT_CREATED",
         "backendMapping": "ABSENT",
         "agentRollout": "NOT_RUN",
@@ -234,16 +251,14 @@ def validate_compatibility() -> dict[str, object]:
     return compatibility
 
 
-def validate_activation_preflight(compatibility: dict[str, object]) -> dict[str, object]:
-    preflight_path = REPO_ROOT / "ops" / "production" / "homeops-activation-preflight.json"
-    try:
-        encoded = preflight_path.read_bytes()
-        preflight = json.loads(encoded)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise AssertionError("activation preflight is unreadable") from error
+def validate_activation_preflight_value(
+    preflight: object,
+    compatibility: dict[str, object],
+    encoded: bytes,
+) -> dict[str, object]:
     require(type(preflight) is dict, "activation preflight must be an object")
-    require(preflight == EXPECTED_ACTIVATION_PREFLIGHT, "activation preflight contract drift")
     require(type(preflight["schemaVersion"]) is int, "preflight schemaVersion type drift")
+    require(preflight["overallProductionReadiness"] == "HOLD", "production readiness drift")
     require(
         type(preflight["sourceImplementationEvidence"]["pullRequest"]) is int,
         "preflight pull request type drift",
@@ -251,6 +266,32 @@ def validate_activation_preflight(compatibility: dict[str, object]) -> dict[str,
     require(
         type(preflight["sourceImplementationEvidence"]["postMergeValidateRun"]) is int,
         "preflight run id type drift",
+    )
+    release_evidence = preflight["productionReleaseEvidence"]
+    require(type(release_evidence) is dict, "production release evidence type drift")
+    require(
+        type(release_evidence["pullRequest"]) is int,
+        "production release pull request type drift",
+    )
+    require(
+        type(release_evidence["publishAndDeployRun"]) is int,
+        "production release run id type drift",
+    )
+    require(
+        release_evidence["status"] == "RELEASED_AND_DEPLOYED",
+        "HomeOps release evidence drift",
+    )
+    require(
+        release_evidence["homeOpsCommit"] == HOMEOPS_PRODUCTION_COMMIT,
+        "HomeOps release commit drift",
+    )
+    require(
+        release_evidence["homeOpsTree"] == HOMEOPS_PRODUCTION_TREE,
+        "HomeOps release tree drift",
+    )
+    require(
+        release_evidence["agentArtifactDigest"] == HOMEOPS_AGENT_ARTIFACT_DIGEST,
+        "HomeOps Agent artifact digest drift",
     )
     policy = preflight["automaticRecoveryPolicy"]
     mapping = policy["mappings"][0]
@@ -289,6 +330,14 @@ def validate_activation_preflight(compatibility: dict[str, object]) -> dict[str,
         ),
         "unsupported response matcher entered monitoring contract",
     )
+    require(
+        not any(
+            marker in str(field).lower()
+            for field in mapping
+            for marker in ("keyword", "body", "content")
+        ),
+        "unsupported response matcher entered recovery policy",
+    )
     require(mapping["monitorSignal"] == "PUBLIC_HTTPS_STATUS", "web signal drift")
     require(
         mapping["expectedStatusAuthority"] == "MONITORED_SERVICE_EXPECTED_STATUS",
@@ -301,23 +350,66 @@ def validate_activation_preflight(compatibility: dict[str, object]) -> dict[str,
         <= monitoring_request["failureThresholdMaximum"],
         "web failure threshold exceeds monitoring contract",
     )
+    require(mapping["failureThreshold"] == 3, "web failure threshold policy drift")
+    require(mapping["target"] == "rhaomi-web", "web recovery target drift")
+    require(mapping["action"] == "RESTART", "web recovery action drift")
+    require(mapping["initialState"] == "DISABLED", "web mapping initial state drift")
+    require(policy["unmappedTargets"] == ["backend"], "backend mapping authority drift")
     require(type(policy["cooldownSeconds"]) is int, "cooldown type drift")
+    require(policy["cooldownSeconds"] == 1800, "cooldown policy drift")
+    require(
+        policy["noAutoRetryOutcomes"] == ["FAILED", "OUTCOME_UNKNOWN"],
+        "no-auto-retry policy drift",
+    )
     require(
         preflight["productionCompatibilityAuthority"]["homeOpsCommit"]
         == compatibility["homeOpsCommit"],
         "production compatibility authority drift",
     )
     require(
-        preflight["sourceImplementationEvidence"]["homeOpsCommit"]
-        != compatibility["homeOpsCommit"],
-        "unreleased source evidence replaced production authority",
+        release_evidence["homeOpsCommit"] == compatibility["homeOpsCommit"],
+        "production release evidence and compatibility authority drift",
     )
+    require(
+        preflight["sourceImplementationEvidence"]["homeOpsTree"]
+        == release_evidence["homeOpsTree"],
+        "released tree differs from reviewed source tree",
+    )
+    production_state = preflight["productionState"]
+    require(production_state["homeOpsRelease"] == "COMPLETED", "HomeOps release state drift")
+    require(
+        production_state["homeOpsApplicationDeploy"] == "COMPLETED",
+        "HomeOps application deploy state drift",
+    )
+    require(
+        production_state["v14ProductionMigration"] == "APPLIED",
+        "HomeOps V14 production state drift",
+    )
+    require(production_state["agentArtifact"] == "PUBLISHED", "Agent artifact state drift")
+    require(production_state["agentRollout"] == "NOT_RUN", "Agent rollout state drift")
+    require(production_state["webMapping"] == "NOT_CREATED", "web mapping state drift")
+    require(production_state["backendMapping"] == "ABSENT", "backend mapping state drift")
+    require(production_state["mappingEnable"] == "NOT_RUN", "mapping enable state drift")
+    require(production_state["restartDrill"] == "NOT_RUN", "restart drill state drift")
+    require(
+        production_state["notificationActivation"] == "NOT_RUN",
+        "notification activation state drift",
+    )
+    require(production_state["rhaomiRelease"] == "NOT_RUN", "Rhaomi release state drift")
+    require(preflight == EXPECTED_ACTIVATION_PREFLIGHT, "activation preflight contract drift")
     require(SECRET_MARKER.encode() not in encoded, "secret marker leaked into preflight")
     require(b"/private/" not in encoded and b"/Users/" not in encoded, "private path leaked")
     return {
         "overallProductionReadiness": preflight["overallProductionReadiness"],
         "productionAuthorityPinnedToCurrentMain": True,
         "sourceEvidenceSeparated": True,
+        "homeOpsProductionCommit": release_evidence["homeOpsCommit"],
+        "homeOpsRelease": production_state["homeOpsRelease"],
+        "homeOpsApplicationDeploy": production_state["homeOpsApplicationDeploy"],
+        "v14ProductionMigration": production_state["v14ProductionMigration"],
+        "agentArtifact": production_state["agentArtifact"],
+        "agentArtifactDigest": release_evidence["agentArtifactDigest"],
+        "agentRollout": production_state["agentRollout"],
         "webMonitorSignal": mapping["monitorSignal"],
         "webExpectedStatusAuthority": mapping["expectedStatusAuthority"],
         "keywordBodyMatcherSupported": False,
@@ -331,6 +423,56 @@ def validate_activation_preflight(compatibility: dict[str, object]) -> dict[str,
         "secretMarkerCount": 0,
         "privatePathCount": 0,
     }
+
+
+def set_nested(value: object, path: tuple[object, ...], replacement: object) -> None:
+    target = value
+    for segment in path[:-1]:
+        target = target[segment]  # type: ignore[index]
+    target[path[-1]] = replacement  # type: ignore[index]
+
+
+def validate_activation_preflight_regressions(compatibility: dict[str, object]) -> dict[str, bool]:
+    cases = (
+        ("production pin", ("productionCompatibilityAuthority", "homeOpsCommit"), "0" * 40),
+        ("keyword matcher", ("automaticRecoveryPolicy", "mappings", 0, "keywordMatcher"), "SUPPORTED"),
+        ("failure threshold", ("automaticRecoveryPolicy", "mappings", 0, "failureThreshold"), 2),
+        ("web target", ("automaticRecoveryPolicy", "mappings", 0, "target"), "backend"),
+        ("backend mapping", ("productionState", "backendMapping"), "PRESENT"),
+        ("cooldown", ("automaticRecoveryPolicy", "cooldownSeconds"), 1799),
+        ("no-auto-retry", ("automaticRecoveryPolicy", "noAutoRetryOutcomes"), ["FAILED"]),
+        ("Agent rollout", ("productionState", "agentRollout"), "PUBLISHED"),
+        ("mapping enable", ("productionState", "mappingEnable"), "COMPLETED"),
+        ("restart drill", ("productionState", "restartDrill"), "COMPLETED"),
+        ("readiness", ("overallProductionReadiness",), "READY"),
+    )
+    for label, path, replacement in cases:
+        candidate = copy.deepcopy(EXPECTED_ACTIVATION_PREFLIGHT)
+        set_nested(candidate, path, replacement)
+        encoded = canonical_json(candidate)
+        try:
+            validate_activation_preflight_value(candidate, compatibility, encoded)
+        except AssertionError:
+            continue
+        raise AssertionError(f"{label} drift was accepted")
+    return {
+        "productionPinDriftRejected": True,
+        "policyDriftRejected": True,
+        "activationStateDriftRejected": True,
+        "readinessDriftRejected": True,
+    }
+
+
+def validate_activation_preflight(compatibility: dict[str, object]) -> dict[str, object]:
+    preflight_path = REPO_ROOT / "ops" / "production" / "homeops-activation-preflight.json"
+    try:
+        encoded = preflight_path.read_bytes()
+        preflight = json.loads(encoded)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise AssertionError("activation preflight is unreadable") from error
+    evidence = validate_activation_preflight_value(preflight, compatibility, encoded)
+    evidence.update(validate_activation_preflight_regressions(compatibility))
+    return evidence
 
 
 def validate_events(compatibility: dict[str, object], temporary: Path) -> dict[str, object]:
@@ -386,20 +528,25 @@ def validate_events(compatibility: dict[str, object], temporary: Path) -> dict[s
     require(SECRET_MARKER.encode() not in combined, "secret marker leaked into payload")
     require(b"/private/" not in combined and b"/Users/" not in combined, "private path leaked")
 
-    invalid_compatibility_root = temporary / "invalid-compatibility"
-    invalid_compatibility = dict(compatibility)
-    invalid_compatibility["deploymentRequestSha256"] = "0" * 64
-    write(
-        invalid_compatibility_root / "homeops-compatibility.json",
-        json.dumps(invalid_compatibility) + "\n",
-        0o644,
-    )
-    try:
-        load_compatibility(invalid_compatibility_root)
-    except HomeOpsContractError:
-        pass
-    else:
-        raise AssertionError("drifted HomeOps DTO authority was accepted")
+    for field, replacement in (
+        ("homeOpsCommit", "0" * 40),
+        ("reporterSha256", "0" * 64),
+        ("deploymentRequestSha256", "0" * 64),
+        ("backupRequestSha256", "0" * 64),
+    ):
+        invalid_compatibility_root = temporary / f"invalid-compatibility-{field}"
+        invalid_compatibility = dict(compatibility)
+        invalid_compatibility[field] = replacement
+        write(
+            invalid_compatibility_root / "homeops-compatibility.json",
+            json.dumps(invalid_compatibility) + "\n",
+            0o644,
+        )
+        try:
+            load_compatibility(invalid_compatibility_root)
+        except HomeOpsContractError:
+            continue
+        raise AssertionError(f"drifted HomeOps {field} authority was accepted")
 
     for invalid_call in (
         lambda: build_deployment_event("SUCCESS", "bad", IMAGE_DIGEST, started, finished, None),
@@ -471,6 +618,10 @@ def validate_events(compatibility: dict[str, object], temporary: Path) -> dict[s
         "lifecycleEventKeyStable": True,
         "retainedTransientSeparated": True,
         "localSpoolFailureSeparated": True,
+        "productionPinDriftRejected": True,
+        "reporterHashDriftRejected": True,
+        "deploymentRequestHashDriftRejected": True,
+        "backupRequestHashDriftRejected": True,
         "actualHomeOpsNetworkCalls": 0,
         "actualHomeOpsSecretReads": 0,
     }
