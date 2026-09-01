@@ -207,11 +207,12 @@ image에는 production credential, domain, Mac host path를 bake하지 않는다
 | service inventory | `rhaomi-web`, `backend`, `publisher`, `postgres` |
 | network | web 전용 non-internal `loopback-edge`; `web-backend`, `build-internal`, `data-internal`은 internal |
 | published port | `127.0.0.1:${RHAOMI_WEB_LOOPBACK_PORT}:8080`만 허용 |
+| external origin | redirect는 relative `Location`; backend forwarded origin은 config가 고정한 `https:443` |
 | DB persistence | Compose project-scoped `postgres-data`, container `/var/lib/postgresql` |
 
 base는 `RHAOMI_PRODUCTION_COMPOSE_PROJECT`, exact `RHAOMI_PRODUCTION_IMAGE`, loopback port, PostgreSQL credential, build service token, publisher owner, public site URL과 release metadata를 required input으로 받는다. actual 값은 repository나 `.env.example`에 두지 않는다. validation overlay만 `RHAOMI_PRODUCTION_VALIDATION_ROOT`, cleanup task/head를 받아 task temp bind와 schema bootstrap seam을 추가한다. normal backend/publisher의 `SPRING_FLYWAY_ENABLED=false`, bootstrap 비활성과 secure session cookie는 overlay에서도 바뀌지 않는다.
 
-validator는 exact-HEAD production image를 재사용하고 Darwin에서는 `/private/var/tmp`, Hosted Linux에서는 runner temp에 marker root를 만든다. base `/private/var/lib/rhaomi`는 생성·수정하지 않는다. general `down`→`up` 뒤 task named-volume sentinel과 Flyway history를 확인하며 `down -v`, volume/image delete 또는 prune을 실행하지 않는다. task volume은 evidence와 함께 retained resource로 보고한다.
+validator는 exact-HEAD production image를 재사용하고 Darwin에서는 `/private/var/tmp`, Hosted Linux에서는 runner temp에 marker root를 만든다. base `/private/var/lib/rhaomi`는 생성·수정하지 않는다. external형 synthetic Host의 `/admin` 요청이 `308`과 exact relative `Location: /admin/`을 반환하고 runtime loaded config가 client 입력이 아닌 `https:443`을 backend forwarded origin으로 사용하는지 확인한다. general `down`→`up` 뒤 task named-volume sentinel과 Flyway history를 확인하며 `down -v`, volume/image delete 또는 prune을 실행하지 않는다. task volume은 evidence와 함께 retained resource로 보고한다.
 
 ## Production deploy·migration — planned
 

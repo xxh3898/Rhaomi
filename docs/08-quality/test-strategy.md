@@ -337,6 +337,7 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - validation-only schema bootstrap으로 PostgreSQL 18.6·Flyway V1~V9를 적용한 뒤 normal backend/publisher의 Flyway·bootstrap 비활성 확인
 - actual container inspect의 `PortBindings`, `NetworkSettings`, `Mounts`와 web public RO, backend media RW, publisher public/state/lock RW·media RO probe
 - static home/admin·immutable asset, anonymous admin upstream, `Secure` session cookie, build/internal/actuator/manifest/dot/unknown 404와 internal valid Bearer authentication 확인
+- external형 Host로 `/admin`을 요청해 `308`, exact `Location: /admin/`, internal `http://`·`:8080`·validation loopback port 부재를 확인하고 runtime Nginx config의 fixed `X-Forwarded-Proto: https`·`X-Forwarded-Port: 443`을 확인
 - `/admin/`, `/_next/static/`, `/generated/media/` 아래 실제 dot-prefixed fixture가 존재해도 404인지 확인하고 synthetic query-bearing Referer marker가 actual web access log에 남지 않는지 확인
 - synthetic sentinel을 기록하고 일반 Compose `down` 뒤 같은 task volume identity로 다시 `up`해 row·Flyway history 불변 확인
 - pre-existing volume/image 보존, task container/network 0과 task volume retained evidence 확인; volume/image delete·prune 없음

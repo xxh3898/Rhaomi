@@ -13,7 +13,7 @@ review_trigger: "호스트·파이프라인 변경 시"
 
 - Host: Mac mini
 - Runtime: Docker Compose
-- Public ingress: Cloudflare Tunnel → 기존 host edge Nginx → loopback Rhaomi project Nginx
+- Public ingress: Cloudflare Tunnel → 기존 host edge Nginx → loopback Rhaomi project Nginx. 외부 origin은 HTTPS이며 project Nginx redirect는 relative `Location`, backend forwarded origin은 client 입력이 아닌 고정 `https:443`을 사용한다.
 - Public web: Mac `/private/var/lib/rhaomi/public`을 read-only mount한 web container `/srv/rhaomi/public/current`의 Nginx static files
 - Admin API: Spring Boot, same-origin `/api/admin/**`
 - DB: PostgreSQL

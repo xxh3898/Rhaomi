@@ -107,7 +107,19 @@ test("production Nginx가 static/admin 경계와 fail-closed route를 고정한�
   const nginx = await source("infra/nginx/production.conf");
 
   assert.match(nginx, /root \/srv\/rhaomi\/public\/current;/u);
-  assert.match(nginx, /location \^~ \/api\/admin\/[\s\S]*proxy_pass/u);
+  assert.match(nginx, /absolute_redirect off;/u);
+  const adminProxy = nginx.match(
+    /location \^~ \/api\/admin\/ \{([\s\S]*?)\n    \}/u,
+  )?.[1];
+  assert.ok(adminProxy, "/api/admin/** proxy location이 필요합니다.");
+  assert.match(adminProxy, /proxy_pass/u);
+  assert.match(adminProxy, /proxy_set_header X-Forwarded-Proto https;/u);
+  assert.match(adminProxy, /proxy_set_header X-Forwarded-Port 443;/u);
+  assert.doesNotMatch(
+    adminProxy,
+    /proxy_set_header X-Forwarded-(?:Proto|Port) \$/u,
+  );
+  assert.match(nginx, /location = \/admin[\s\S]*return 308 \/admin\/;/u);
   for (const path of ["api/build", "internal", "actuator"]) {
     assert.match(nginx, new RegExp(`location \\^~ \\/${path}\\/`, "u"));
   }
@@ -182,6 +194,13 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(entrypoint, /Referer: https:\/\/referrer\.invalid/u);
   assert.match(entrypoint, /docker logs/u);
   assert.match(entrypoint, /queryBearingRefererLogged=false/u);
+  assert.match(entrypoint, /Host: external-origin\.invalid/u);
+  assert.match(entrypoint, /admin-redirect-headers\.txt/u);
+  assert.match(entrypoint, /adminRedirectStatus=308/u);
+  assert.match(entrypoint, /adminRedirectLocation=\/admin\//u);
+  assert.match(entrypoint, /adminRedirectInternalAuthorityLeak=false/u);
+  assert.match(entrypoint, /X-Forwarded-Proto https/u);
+  assert.match(entrypoint, /X-Forwarded-Port 443/u);
   assert.doesNotMatch(
     entrypoint,
     /down -v|docker (?:volume|image) (?:rm|prune)|docker system prune|rm -rf/u,

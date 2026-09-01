@@ -294,6 +294,10 @@ printf '%s\n' \
   >"$evidence_dir/production-compose-persistence.txt"
 printf '%s\n' \
   "staticHome=200" \
+  "adminRedirectStatus=308" \
+  "adminRedirectLocation=/admin/" \
+  "adminRedirectInternalAuthorityLeak=false" \
+  "backendForwardedOrigin=https:443" \
   "staticAdmin=200" \
   "adminUpstreamAnonymous=401" \
   "csrfSecureSessionCookie=verified" \
@@ -553,8 +557,47 @@ verify_mount_permissions() {
 
 verify_http_contract() {
   base_url="http://127.0.0.1:${loopback_port}"
+  web_id=$(compose_runtime ps --quiet rhaomi-web)
+  docker exec "$web_id" nginx -T \
+    >"$validation_root/raw/nginx-runtime-config.txt" 2>&1
+  grep -Fq 'absolute_redirect off;' \
+    "$validation_root/raw/nginx-runtime-config.txt"
+  grep -Fq 'proxy_set_header X-Forwarded-Proto https;' \
+    "$validation_root/raw/nginx-runtime-config.txt"
+  grep -Fq 'proxy_set_header X-Forwarded-Port 443;' \
+    "$validation_root/raw/nginx-runtime-config.txt"
+  if grep -Eq 'proxy_set_header X-Forwarded-(Proto|Port)[[:space:]]+\$' \
+    "$validation_root/raw/nginx-runtime-config.txt"; then
+    echo "production Nginx가 internal/client forwarded origin을 backend authority로 사용합니다." >&2
+    exit 1
+  fi
+
   assert_http_status "$base_url/" 200
   curl --silent --show-error "$base_url/" | grep -Fq 'rhaomi production compose validation'
+  admin_redirect_status=$(curl --silent --show-error \
+    --output /dev/null \
+    --dump-header "$validation_root/raw/admin-redirect-headers.txt" \
+    --header "Host: external-origin.invalid" \
+    --write-out '%{http_code}' \
+    "$base_url/admin")
+  if [ "$admin_redirect_status" != "308" ]; then
+    echo "external origin /admin redirect status가 308이 아닙니다." >&2
+    exit 1
+  fi
+  admin_redirect_location=$(grep -i '^location:' \
+    "$validation_root/raw/admin-redirect-headers.txt" |
+    sed 's/^[^:]*:[[:space:]]*//' |
+    tr -d '\r')
+  if [ "$admin_redirect_location" != "/admin/" ]; then
+    echo "external origin /admin redirect Location이 relative canonical path가 아닙니다." >&2
+    exit 1
+  fi
+  case "$admin_redirect_location" in
+    http://* | https://* | *:8080* | *:"$loopback_port"*)
+      echo "external origin redirect가 internal scheme 또는 port를 노출합니다." >&2
+      exit 1
+      ;;
+  esac
   assert_http_status "$base_url/admin/" 200
   curl --silent --show-error --dump-header "$validation_root/raw/admin-headers.txt" \
     --output /dev/null "$base_url/admin/"
@@ -585,7 +628,6 @@ verify_http_contract() {
   curl --silent --show-error --output /dev/null \
     --header "Referer: https://referrer.invalid/source?marker=${referer_query_marker}" \
     "$base_url/"
-  web_id=$(compose_runtime ps --quiet rhaomi-web)
   if docker logs "$web_id" 2>&1 | grep -Fq "$referer_query_marker"; then
     echo "query-bearing Referer가 production access log에 기록됐습니다." >&2
     exit 1
