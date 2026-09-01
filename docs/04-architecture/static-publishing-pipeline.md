@@ -11,7 +11,7 @@ review_trigger: "콘텐츠 배포 방식 변경 시"
 
 ## 구현 상태
 
-Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Phase 1C-8f1~8f8은 Flyway V8/V9 producer·claim/generation state, internal Build API, strict transformer, dedicated control loop, generated V2 Static Export와 immutable release/atomic switch를 task-scoped end-to-end로 구현했다. D-IMP-2는 same-image non-web publisher service, canonical public/media/state/lock target과 project Nginx source를 구현하고 validation overlay에서 실제 mount·network·route를 검증한다. actual Mac path ownership·Secret·approved digest·public HTTPS provisioning은 후속 운영 gate다.
+Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Phase 1C-8f1~8f8은 Flyway V8/V9 producer·claim/generation state, internal Build API, strict transformer, dedicated control loop, generated V2 Static Export와 immutable release/atomic switch를 task-scoped end-to-end로 구현했다. D-IMP-2는 same-image non-web publisher service, canonical public/media/state/lock target과 project Nginx source를 구현했고, D-IMP-3은 exact-main digest release workflow·fixed deploy lock과 writer quiescence 후 one-shot migration/schema validation·publisher 재기동 source를 연결했다. actual Mac path ownership·Secret·private GHCR·Environment·Tailscale·approved digest·public HTTPS provisioning은 후속 운영 gate다.
 
 [Production readiness matrix](../07-operations/production-readiness.md)는 이 `LOCAL_CI_VERIFIED` evidence와 production publisher service·credential·Mac bind·approved image/digest·actual HTTPS·HomeOps integration의 `PROVISIONING_REQUIRED` 상태를 분리한다.
 
@@ -40,6 +40,7 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - scheduled claim은 current Notice·Gallery의 published 상태와 expected boundary만 최소 검증한다. build API는 claim 뒤 current row가 다시 바뀔 수 있음을 전제로 전체 snapshot의 relation·media·file·`generatedAt` eligibility를 재검증하고, 후속 transformer도 response를 다시 검증한다.
 - executor 직전 container-side configurable `FileChannel.tryLock` global lock을 획득하고, 해당 executor body가 종료됐거나 시작 불가능하다는 wrapper acknowledgment까지 같은 lock scope를 유지한다. production Compose target은 `/var/lib/rhaomi/locks`이며 task validation은 temp bind만 사용하고 actual production host path를 만들지 않는다.
 - code release와 콘텐츠 release가 같은 검증·atomic switch 구현을 사용한다.
+- D-IMP-3 code image apply는 public static web을 계속 serving하는 채 backend·publisher의 physical exit를 확인한 후에만 DB migration/schema validation을 실행하고, backend health 후에만 같은 digest의 publisher를 재기동한다. maintenance 시작 뒤 task/start/runtime image identity가 실패하면 두 writer를 다시 정지하고 physical quiescence 확인 뒤에만 own lock을 해제하며, 확인하지 못하면 lock을 보존한다. 실패 후 old publisher를 자동 resume하지 않는다.
 
 ## 현재 producer 경계
 

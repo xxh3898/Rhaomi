@@ -152,10 +152,24 @@ review_trigger: "출시 기준 변경 시"
 - [x] canonical Mac public/media/state bind mapping과 web/media RO·backend/publisher 최소 RW rendered contract
 - [x] project-scoped PostgreSQL named volume, task 일반 Compose `down`→`up` sentinel·identity persistence
 - [x] project Nginx static/admin proxy, relative `/admin` redirect, fixed backend forwarded `https:443`, build/internal/actuator/manifest deny, nested hidden file 404와 query-bearing Referrer access-log 제외
-- [x] task temp overlay·validation-only V1~V9 bootstrap, normal backend/publisher Flyway·bootstrap 비활성
+- [x] task temp overlay·one-shot V1~V9 migration/schema validation, normal backend/publisher Flyway·bootstrap 비활성
 - [x] native amd64/arm64 validator와 Hosted exact-head evidence, task container/network cleanup
 
 위 완료 표시는 repository source와 task-scoped local/Hosted 환경에만 적용된다. actual `/private/var/lib/rhaomi`·production volume·Secret·loopback/FQDN·Cloudflare/GHCR/deploy evidence 없이 아래 production 항목을 완료 처리하지 않는다.
+
+### D-IMP-3 source·task validation
+
+- [x] `workflow_dispatch` only와 `refs/heads/main`·exact requested 40자 SHA fail-closed gate
+- [x] validation read-only, publish-only `packages: write`, deploy-only `environment: production`·environment secret 권한 분리
+- [x] canonical Dockerfile required exact-head build arg, `linux/amd64`·`linux/arm64`, exact SHA tag, existing tag overwrite 거부, returned digest apply, published platform manifest·attestation와 OCI source/revision·attached SBOM·provenance·scan evidence
+- [x] pinned Tailscale/SSH known-host authority와 fixed `/private/var/lib/rhaomi/app/bin/deploy-rhaomi.sh` + strict `--release-sha`·`--image`·`--sbom` argv
+- [x] fixed host config/Docker credential, release-bound backup prerequisite, atomic global deploy lock와 caller override 폐기
+- [x] public web 유지 + backend/publisher physical exit 후에만 one-shot Flyway V1~V9→Flyway-disabled schema validation
+- [x] migration/schema/backend health/publisher start/runtime image mismatch 뒤 writer quiescence·auto-resume 0, quiescence 미확인 시 own lock 보존, runtime same-image verification·bounded redacted evidence
+- [x] malformed task mode·wrong registry/digest/revision·duplicate option·lock contention·secret marker task regression
+- [x] Mac mini native Linux arm64와 Hosted Linux amd64의 exact-head D-IMP-1·2·3 source/runtime acceptance
+
+위 항목은 workflow·entrypoint·one-shot task implementation evidence다. actual private GHCR package, GitHub `production` Environment/reviewer/secret, Tailscale identity, Mac entrypoint/config/path/volume, backup set을 provision하지 않았고 production workflow dispatch·package push·deploy·migration을 수행하지 않았으므로 아래 운영 항목은 계속 미완료다.
 
 ## 보안·운영
 

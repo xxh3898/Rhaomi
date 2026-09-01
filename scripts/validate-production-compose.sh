@@ -66,7 +66,7 @@ compose_validation() {
     --project-name "$project_name" \
     --file "$repo_dir/compose.production.yaml" \
     --file "$repo_dir/compose.production.validation.yaml" \
-    --profile production-validation \
+    --profile production-task \
     "$@"
 }
 
@@ -173,6 +173,7 @@ docker compose \
   --project-directory "$repo_dir" \
   --project-name "$project_name" \
   --file "$repo_dir/compose.production.yaml" \
+  --profile production-task \
   config --format json >"$validation_root/raw/base-config.json"
 compose_validation config --format json \
   >"$validation_root/raw/validation-config.json"
@@ -202,16 +203,24 @@ docker run --rm --network none \
   >"$evidence_dir/production-compose-contract.json"
 
 compose_started=true
-compose_validation up --detach postgres schema-bootstrap >/dev/null
-wait_healthy schema-bootstrap 120
+compose_validation up --detach postgres >/dev/null
+wait_healthy postgres 90
+compose_validation run --rm --no-deps migration \
+  >"$validation_root/raw/migration-task.txt" 2>&1
 flyway_version=$(database_query \
   "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1")
 if [ "$flyway_version" != "9" ]; then
-  echo "validation schema bootstrap이 Flyway V1~V9를 적용하지 못했습니다." >&2
+  echo "one-shot migration이 Flyway V1~V9를 적용하지 못했습니다." >&2
   exit 1
 fi
-compose_validation stop --timeout 30 schema-bootstrap >/dev/null
-compose_validation rm --force schema-bootstrap >/dev/null
+compose_validation run --rm --no-deps schema-validate \
+  >"$validation_root/raw/schema-validation-task.txt" 2>&1
+if compose_validation run --rm --no-deps schema-validate \
+  java -jar /opt/rhaomi/backend.jar --rhaomi.production-task=invalid \
+  >"$validation_root/raw/invalid-production-task.txt" 2>&1; then
+  echo "malformed production task mode가 성공했습니다." >&2
+  exit 1
+fi
 
 compose_runtime up --detach rhaomi-web backend publisher postgres >/dev/null
 wait_healthy postgres 90
@@ -223,6 +232,21 @@ verify_runtime_surface
 verify_mount_permissions
 verify_http_contract
 verify_internal_build_authentication
+
+compose_runtime stop --timeout 30 backend publisher >/dev/null
+verify_writers_stopped
+assert_http_status "http://127.0.0.1:${loopback_port}/" 200
+compose_validation run --rm --no-deps migration \
+  >"$validation_root/raw/maintenance-migration-task.txt" 2>&1
+verify_writers_stopped
+compose_validation run --rm --no-deps schema-validate \
+  >"$validation_root/raw/maintenance-schema-validation-task.txt" 2>&1
+verify_writers_stopped
+assert_http_status "http://127.0.0.1:${loopback_port}/" 200
+compose_runtime up --detach --no-deps backend >/dev/null
+wait_healthy backend 180
+compose_runtime up --detach --no-deps publisher >/dev/null
+wait_running publisher 90
 
 database_query \
   "CREATE TABLE IF NOT EXISTS validation_sentinel (id integer PRIMARY KEY, marker text NOT NULL); INSERT INTO validation_sentinel (id, marker) VALUES (1, 'compose-down-up') ON CONFLICT (id) DO UPDATE SET marker = EXCLUDED.marker;" \
@@ -279,7 +303,11 @@ printf '%s\n' \
   "credentialIsolation=verified" \
   "normalFlywayDisabled=true" \
   "normalBootstrapDisabled=true" \
-  "schemaBootstrapValidationOnly=true" \
+  "oneShotMigration=true" \
+  "oneShotSchemaValidation=true" \
+  "oneShotHttpListener=false" \
+  "writerQuiescenceBeforeMigration=true" \
+  "publicStaticDuringMaintenance=200" \
   "validationBindOwnershipMode=${validation_bind_ownership_mode}" \
   >"$evidence_dir/production-compose-runtime.txt"
 printf '%s\n' \
@@ -436,6 +464,17 @@ wait_running() {
   compose_validation ps >&2 || true
   echo "${service} running timeout" >&2
   exit 1
+}
+
+verify_writers_stopped() {
+  for service in backend publisher; do
+    container_id=$(compose_validation ps --all --quiet "$service")
+    if [ -n "$container_id" ] &&
+      [ "$(docker inspect "$container_id" --format '{{.State.Status}}')" != exited ]; then
+      echo "${service} writer가 migration 전에 종료되지 않았습니다." >&2
+      exit 1
+    fi
+  done
 }
 
 database_query() {

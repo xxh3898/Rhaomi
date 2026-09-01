@@ -15,7 +15,7 @@ review_trigger: "비밀관리·인증·저장소 변경 시"
 - 관리자 bootstrap 비밀번호
 - 관리자 session id
 - CSRF token
-- 향후 internal build/publisher service credential
+- internal build/publisher service credential
 - GitHub production environment deploy credential
 - Tailscale deploy identity
 - TLS/DNS credential
@@ -45,7 +45,10 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 - 사람 비밀번호와 향후 서비스 credential 분리
 - build/publisher credential에 internal read-only snapshot·media 권한만 부여하고 admin session과 분리
 - production deploy Secret은 protected GitHub environment 승인 전 job에 주입하지 않음
-- 임의 SSH command body 대신 exact SHA·digest만 받는 고정 deploy entrypoint 사용
+- production host의 credential/config authority는 `/private/var/lib/rhaomi/app/production.env`·`app/docker/config.json`으로 고정하고 각각 owner-only `0600`, Docker config directory `0700`을 요구
+- fixed entrypoint는 caller-supplied env-file·Docker config path와 inherited Compose/Docker override를 authority로 사용하지 않음
+- 임의 SSH command body 대신 exact SHA·digest·SBOM scalar만 받는 고정 deploy entrypoint 사용, credential/token argv 전달 금지
+- deploy evidence는 release SHA·digest·bounded status만 담고 environment·Docker credential·Tailscale identity·SSH known-hosts 원문을 담지 않음
 - restic password를 command argument·일반 environment literal로 전달하지 않고 root-owned `0600` password file 또는 제한된 Keychain command 사용
 - `RHAOMI_MEDIA_ROOT`, storage key와 absolute path를 response·client field·일반 log에 노출하지 않음
 - raw multipart body·file byte를 logging하지 않음
@@ -76,6 +79,7 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 | DB password | 노출·계정 변경·정책 주기 |
 | GitHub production credential | runner 침해·권한 변경 |
 | Tailscale deploy identity | host·operator 변경 또는 노출 의심 |
+| Mac private GHCR pull credential | package 권한·host·operator 변경 또는 노출 의심 |
 | WebAuthn RP-side registration | authenticator 분실·폐기, 무단 등록 의심 또는 운영자 변경 시 해당 credential record revoke/remove. server-side private key rotation 대상으로 취급하지 않음 |
 | recovery code | 사용·노출 의심·재발급 또는 운영자 변경 시 기존 code를 무효화하고 새 set으로 rotation |
 | future restic repository password·recovery key | 노출 의심·복구 사본 훼손·접근자 변경 |
@@ -99,6 +103,7 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 - `/me`와 login response는 관리자 id, email, role만 반환
 - entity의 `passwordHash`는 API DTO에 포함하지 않음
 - WebAuthn RP-side credential record와 raw recovery code를 일반 API response·application log·release evidence에 포함하지 않음
+- production workflow의 artifact·output에는 exact SHA·published OCI index/platform·attestation digest, SBOM reference, attached SBOM·provenance hash와 scan summary만 기록하고 GitHub token·Tailscale credential·SSH authority·DB/build secret은 포함하지 않음. pre-publish local evidence는 auxiliary scope로 구분
 - 장애 분석에는 request id, endpoint, 결과 status 중심으로 기록
 - media cleanup 실패는 operation과 asset id만 structured log에 남기고 root·storage key·absolute path는 남기지 않음
 

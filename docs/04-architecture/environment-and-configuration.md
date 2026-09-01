@@ -103,12 +103,17 @@ acceptance PostgreSQL은 `/var/lib/postgresql` tmpfs를 사용하고 host port·
 | 항목 | 비밀 | 계약 |
 |---|---:|---|
 | Mac application root | N | `/private/var/lib/rhaomi/app` |
+| Fixed Compose inventory | N | `/private/var/lib/rhaomi/app/compose.production.yaml` |
+| Fixed production environment | Y | `/private/var/lib/rhaomi/app/production.env`, owner-only `0600`, caller-supplied path 금지 |
+| Fixed Docker credential config | Y | `/private/var/lib/rhaomi/app/docker/config.json`, directory `0700`·file `0600` |
+| Fixed deploy entrypoint | N | `/private/var/lib/rhaomi/app/bin/deploy-rhaomi.sh` |
 | Mac release root | N | `/private/var/lib/rhaomi/public/releases` |
 | Mac current/previous | N | `/private/var/lib/rhaomi/public/current`, `/private/var/lib/rhaomi/public/previous` |
 | PostgreSQL primary PGDATA | Y 취급 | production Compose project-scoped Docker named volume, host bind source 없음 |
 | Mac canonical media | Y 취급 | `/private/var/lib/rhaomi/data/media` |
 | Mac publisher state | Y 취급 | `/private/var/lib/rhaomi/state/publisher` |
 | Mac global lock | N | `/private/var/lib/rhaomi/state/locks` |
+| Deploy backup eligibility | Y 취급 | `/private/var/lib/rhaomi/state/deploy/backup-eligible.env`, exact release SHA에 바인딩된 `0600` gate |
 | Mac logs | Y 취급 | `/private/var/lib/rhaomi/logs` |
 
 production release manifest에는 exact `main` SHA, image tag·digest, Flyway version, release ID, SBOM reference와 public build의 `contentRevision`, `publishGeneration`, `generatedAt`을 기록한다. actual ownership, UID/GID, rendered named-volume name과 Secret source는 provisioning에서 확정하며 Git에 실제 값을 기록하지 않는다.
@@ -144,7 +149,7 @@ production release manifest에는 exact `main` SHA, image tag·digest, Flyway ve
 | `RHAOMI_CODE_IMAGE_TAG` | N | non-secret immutable image identity |
 | `RHAOMI_CODE_IMAGE_DIGEST` | N | `sha256:<64 lowercase hex>` |
 | `RHAOMI_FLYWAY_VERSION` | N | release DB contract version, 현재 `9` |
-| `RHAOMI_SBOM_REFERENCE` | N | `sha256:<64 lowercase hex>` reference |
+| `RHAOMI_SBOM_REFERENCE` | N | published OCI index의 `sha256:<64 lowercase hex>` digest. amd64/arm64 attached SBOM·provenance attestation을 소유하는 index authority |
 | `RHAOMI_PUBLISHER_BUILD_TIMEOUT_MS` | N | Next build timeout, 1,000~3,600,000ms; 미설정 600,000ms |
 | `RHAOMI_RELEASE_RETENTION` | N | 1~100, 기본 5; current·previous 별도 보호 |
 
@@ -194,7 +199,7 @@ publisher는 normal backend profile이나 환경변수만으로 시작하지 않
 | publisher source | `/opt/rhaomi/source`, runtime install 없이 preinstalled lockfile dependency 사용 |
 | acceptance | `sh scripts/validate-production-image.sh` |
 
-image에는 production credential, domain, Mac host path를 bake하지 않는다. `RHAOMI_PUBLISHER_NODE_EXECUTABLE`, release script와 source root의 container 내부 non-secret default만 제공한다. D-IMP-2 Compose는 backend/publisher argv·profile·credential key·public/media/state target을 고정하고, D-IMP-3와 host provisioning이 actual image digest·Secret·FQDN·ownership을 주입한다.
+image에는 production credential, domain, Mac host path를 bake하지 않는다. `RHAOMI_PUBLISHER_NODE_EXECUTABLE`, release script와 source root의 container 내부 non-secret default만 제공한다. D-IMP-2 Compose는 backend/publisher argv·profile·credential key·public/media/state target을 고정하고, D-IMP-3 workflow와 fixed entrypoint는 exact digest·SHA·SBOM을 주입하는 소스 경계를 구현한다. actual image package·Secret·FQDN·ownership은 외부/host provisioning에서 확정한다.
 
 ## Production Compose inventory — implemented, not deployed
 
@@ -204,29 +209,32 @@ image에는 production credential, domain, Mac host path를 bake하지 않는다
 | validation overlay | `compose.production.validation.yaml` |
 | project Nginx | `infra/nginx/production.conf` |
 | runtime validator | `scripts/validate-production-compose.sh` |
-| service inventory | `rhaomi-web`, `backend`, `publisher`, `postgres` |
+| default service inventory | `rhaomi-web`, `backend`, `publisher`, `postgres` |
+| opt-in one-shot inventory | `production-task` profile의 `migration`, `schema-validate`; port·host mount 없이 `data-internal`만 사용 |
 | network | web 전용 non-internal `loopback-edge`; `web-backend`, `build-internal`, `data-internal`은 internal |
 | published port | `127.0.0.1:${RHAOMI_WEB_LOOPBACK_PORT}:8080`만 허용 |
 | external origin | redirect는 relative `Location`; backend forwarded origin은 config가 고정한 `https:443` |
 | DB persistence | Compose project-scoped `postgres-data`, container `/var/lib/postgresql` |
 
-base는 `RHAOMI_PRODUCTION_COMPOSE_PROJECT`, exact `RHAOMI_PRODUCTION_IMAGE`, loopback port, PostgreSQL credential, build service token, publisher owner, public site URL과 release metadata를 required input으로 받는다. actual 값은 repository나 `.env.example`에 두지 않는다. validation overlay만 `RHAOMI_PRODUCTION_VALIDATION_ROOT`, cleanup task/head를 받아 task temp bind와 schema bootstrap seam을 추가한다. normal backend/publisher의 `SPRING_FLYWAY_ENABLED=false`, bootstrap 비활성과 secure session cookie는 overlay에서도 바뀌지 않는다.
+base는 `RHAOMI_PRODUCTION_COMPOSE_PROJECT`, exact `RHAOMI_PRODUCTION_IMAGE`, loopback port, PostgreSQL credential, build service token, publisher owner, public site URL과 release metadata를 required input으로 받는다. actual 값은 repository나 `.env.example`에 두지 않는다. validation overlay만 `RHAOMI_PRODUCTION_VALIDATION_ROOT`, cleanup task/head를 받아 task temp bind와 one-shot service label seam을 추가한다. normal backend/publisher의 `SPRING_FLYWAY_ENABLED=false`, bootstrap 비활성과 secure session cookie는 overlay에서도 바뀌지 않는다.
 
 validator는 exact-HEAD production image를 재사용하고 Darwin에서는 `/private/var/tmp`, Hosted Linux에서는 runner temp에 marker root를 만든다. base `/private/var/lib/rhaomi`는 생성·수정하지 않는다. external형 synthetic Host의 `/admin` 요청이 `308`과 exact relative `Location: /admin/`을 반환하고 runtime loaded config가 client 입력이 아닌 `https:443`을 backend forwarded origin으로 사용하는지 확인한다. general `down`→`up` 뒤 task named-volume sentinel과 Flyway history를 확인하며 `down -v`, volume/image delete 또는 prune을 실행하지 않는다. task volume은 evidence와 함께 retained resource로 보고한다.
 
-## Production deploy·migration — planned
+## Production deploy·migration — source implemented, external/host provisioning planned
 
-- protected GitHub `production` environment의 수동 승인 뒤에만 environment secret을 사용한다.
-- exact `main` SHA tag와 image digest를 모두 확인하고 digest 기준으로 배포한다.
-- Tailscale SSH와 고정·versioned deploy entrypoint를 사용하며 임의 shell body를 전달하지 않는다.
-- production backend 일반 기동은 Flyway mutation을 수행하지 않고 schema validate만 한다.
-- Flyway는 global deploy lock·write maintenance 안의 one-shot service로만 실행한다.
+- `.github/workflows/production-release.yml`은 `workflow_dispatch` only며 exact current `main` SHA와 요청 40자 SHA 일치를 검증한다. validation은 read-only, publish만 `packages: write`, deploy만 `environment: production`과 environment secret을 받는다.
+- `backend/Dockerfile.production`의 required `RHAOMI_GIT_HEAD` build arg에 exact release SHA를 전달해 `linux/amd64`·`linux/arm64`를 exact SHA tag에 publish하고, 이미 존재하는 SHA tag는 덮어쓰지 않는다. apply authority는 returned manifest digest다. publish 뒤 platform manifest·attestation, OCI source/revision, attached SPDX SBOM·SLSA provenance와 attached-SBOM scan을 machine-check하며 local pre-publish evidence와 분리한다.
+- protected GitHub `production` Environment 승인 뒤에만 pinned Tailscale identity와 fixed SSH target을 사용한다. remote argv는 `--release-sha`, `--image`, `--sbom`만 허용하고 credential을 전달하지 않는다.
+- tracked `ops/production/deploy-rhaomi.sh`는 production에서 `/private/var/lib/rhaomi/app/bin/deploy-rhaomi.sh`로 versioned provisioning할 fixed wrapper다. fixed Compose/env/Docker config, backup eligibility와 global deploy lock를 검증하고 requested digest·OCI revision을 writer 정지 전에 확인한다.
+- production backend/publisher 일반 기동은 Flyway mutation을 수행하지 않는다. global deploy lock을 보유한 채 public web을 유지하고 두 writer의 physical exit를 확인한 뒤에만 `migration`→`schema-validate`를 실행한다.
+- migration은 Flyway V1~V9을 적용하고 JPA validate를 수행하며, schema task는 Flyway를 끌 채 JPA validate만 수행한다. 두 task는 exact CLI opt-in, non-web, admin bootstrap·publisher worker 0이고 성공 후 종료한다.
+- writer maintenance 시작 뒤 migration/schema/backend health/publisher start/runtime image identity 실패는 false success를 금지하고 backend/publisher를 다시 정지한다. quiescence 확인 뒤에만 own lock을 해제하며 확인 실패 시 lock을 보존한다. old writer를 자동 resume하지 않는다.
 - production session cookie는 TLS에서 `Secure=true`가 아니면 기동을 실패시킨다.
 - 실제 Mac mini에서 canonical directory 생성·ownership·permission, public/media/state bind mount와 PostgreSQL named volume identity를 검증한다.
 - PostgreSQL restart와 일반 Compose `down`·`up` 뒤 data persistence를 검증하고 `down -v`·volume prune/delete가 고정 entrypoint·runbook에 없음을 확인한다.
 - application-consistent backup을 새 isolated PostgreSQL named volume에 `pg_restore`해 복구 authority를 확인한다.
 
-production service inventory와 project Nginx source는 구현했지만 GitHub production environment, actual Secret·image digest·host path·loopback/FQDN, fixed deploy entrypoint와 one-shot migration service는 아직 생성·provision하지 않았다.
+workflow·fixed entrypoint·one-shot task source와 task-only validator는 구현했지만 private GHCR package/visibility, GitHub `production` Environment·required reviewer·branch policy·secret, Tailscale identity, actual Mac entrypoint/config/path/volume·loopback/FQDN은 생성·provision하지 않았다. production workflow도 dispatch하지 않았고 GHCR push·deploy·migration을 수행하지 않았다.
 
 ## Backup·HomeOps inventory — planned
 

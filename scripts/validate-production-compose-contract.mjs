@@ -46,7 +46,8 @@ process.stdout.write(
       networks: Object.keys(base.networks).sort(),
       publishedServices: ["rhaomi-web"],
       postgresVolume: base.volumes["postgres-data"].name,
-      validationSchemaBootstrap: true,
+      oneShotMigration: true,
+      oneShotSchemaValidation: true,
       secretsPrinted: false,
       status: "verified",
     },
@@ -105,7 +106,7 @@ function validateBindSourceContract(source, subject) {
 function validateBase(config) {
   assert.deepEqual(
     Object.keys(config.services).sort(),
-    ["backend", "postgres", "publisher", "rhaomi-web"],
+    ["backend", "migration", "postgres", "publisher", "rhaomi-web", "schema-validate"],
     "base production service inventory가 다릅니다.",
   );
   assert.deepEqual(
@@ -121,9 +122,18 @@ function validateBase(config) {
   );
   assert.equal(config.volumes["postgres-data"].external, undefined);
 
-  const { backend, postgres, publisher, "rhaomi-web": web } = config.services;
+  const {
+    backend,
+    migration,
+    postgres,
+    publisher,
+    "rhaomi-web": web,
+    "schema-validate": schemaValidate,
+  } = config.services;
   assert.equal(backend.image, expectedImage);
   assert.equal(publisher.image, expectedImage);
+  assert.equal(migration.image, expectedImage);
+  assert.equal(schemaValidate.image, expectedImage);
   assert.match(web.image, /^nginx:[^@]+@sha256:[0-9a-f]{64}$/u);
   assert.match(postgres.image, /^postgres:18\.6-[^@]+@sha256:[0-9a-f]{64}$/u);
   assert.equal(web.user, "101:101", "production Nginx는 non-root UID/GID로 실행해야 합니다.");
@@ -149,6 +159,8 @@ function validateBase(config) {
   assert.deepEqual(networks(web), ["loopback-edge", "web-backend"]);
   assert.deepEqual(networks(backend), ["build-internal", "data-internal", "web-backend"]);
   assert.deepEqual(networks(publisher), ["build-internal", "data-internal"]);
+  assert.deepEqual(networks(migration), ["data-internal"]);
+  assert.deepEqual(networks(schemaValidate), ["data-internal"]);
   assert.deepEqual(networks(postgres), ["data-internal"]);
   assert.equal(config.networks["loopback-edge"].internal ?? false, false);
   for (const networkName of ["web-backend", "build-internal", "data-internal"]) {
@@ -162,7 +174,7 @@ function validateBase(config) {
     { host_ip: "127.0.0.1", target: 8080, protocol: "tcp" },
   );
   assert.match(String(web.ports[0].published), /^[1-9][0-9]{0,4}$/u);
-  for (const service of [backend, publisher, postgres]) {
+  for (const service of [backend, publisher, migration, schemaValidate, postgres]) {
     assert.equal(service.ports, undefined, "web 외 host port는 금지됩니다.");
   }
 
@@ -173,10 +185,24 @@ function validateBase(config) {
     "/opt/rhaomi/backend.jar",
     "--rhaomi.publisher.mode=control-loop",
   ]);
+  assert.deepEqual(migration.command, [
+    "java",
+    "-jar",
+    "/opt/rhaomi/backend.jar",
+    "--rhaomi.production-task=migrate",
+  ]);
+  assert.deepEqual(schemaValidate.command, [
+    "java",
+    "-jar",
+    "/opt/rhaomi/backend.jar",
+    "--rhaomi.production-task=schema-validate",
+  ]);
+  assert.deepEqual(migration.profiles, ["production-task"]);
+  assert.deepEqual(schemaValidate.profiles, ["production-task"]);
 
-  validateEnvironmentBoundary(web, backend, publisher, postgres);
-  validateBaseMounts(web, backend, publisher, postgres);
-  for (const service of [web, backend, publisher]) {
+  validateEnvironmentBoundary(web, backend, publisher, migration, schemaValidate, postgres);
+  validateBaseMounts(web, backend, publisher, migration, schemaValidate, postgres);
+  for (const service of [web, backend, publisher, migration, schemaValidate]) {
     assert.equal(service.read_only, true, "application container root는 read-only여야 합니다.");
     assert.deepEqual(service.cap_drop, ["ALL"]);
     assert.deepEqual(service.security_opt, ["no-new-privileges:true"]);
@@ -186,21 +212,28 @@ function validateBase(config) {
 function validateValidation(config) {
   assert.deepEqual(
     Object.keys(config.services).sort(),
-    ["backend", "postgres", "publisher", "rhaomi-web", "schema-bootstrap"],
+    ["backend", "migration", "postgres", "publisher", "rhaomi-web", "schema-validate"],
   );
   assert.equal(config.services.backend.image, expectedImage);
   assert.equal(config.services.publisher.image, expectedImage);
-  assert.equal(config.services["schema-bootstrap"].image, expectedImage);
-  assert.equal(config.services["schema-bootstrap"].environment.SPRING_FLYWAY_ENABLED, "true");
+  assert.equal(config.services.migration.image, expectedImage);
+  assert.equal(config.services["schema-validate"].image, expectedImage);
+  assert.equal(config.services.migration.environment.SPRING_FLYWAY_ENABLED, "true");
   assert.equal(
-    config.services["schema-bootstrap"].environment.RHAOMI_BOOTSTRAP_ADMIN_ENABLED,
+    config.services.migration.environment.RHAOMI_BOOTSTRAP_ADMIN_ENABLED,
     "false",
   );
   assert.equal(
-    config.services["schema-bootstrap"].environment.RHAOMI_SESSION_COOKIE_SECURE,
-    "true",
+    config.services["schema-validate"].environment.SPRING_FLYWAY_ENABLED,
+    "false",
   );
-  assert.deepEqual(networks(config.services["schema-bootstrap"]), ["data-internal"]);
+  assert.equal(config.services.migration.environment.SPRING_JPA_HIBERNATE_DDL_AUTO, "validate");
+  assert.equal(
+    config.services["schema-validate"].environment.SPRING_JPA_HIBERNATE_DDL_AUTO,
+    "validate",
+  );
+  assert.deepEqual(networks(config.services.migration), ["data-internal"]);
+  assert.deepEqual(networks(config.services["schema-validate"]), ["data-internal"]);
 
   const root = resolve(validationRoot);
   const expectedMounts = {
@@ -215,7 +248,6 @@ function validateValidation(config) {
       "/var/lib/rhaomi/publisher": `${root}/state/publisher`,
       "/var/lib/rhaomi/locks": `${root}/state/locks`,
     },
-    "schema-bootstrap": { "/var/lib/rhaomi/media": `${root}/data/media` },
   };
   for (const [serviceName, mounts] of Object.entries(expectedMounts)) {
     const service = config.services[serviceName];
@@ -252,12 +284,23 @@ function validateValidation(config) {
   }
 }
 
-function validateEnvironmentBoundary(web, backend, publisher, postgres) {
+function validateEnvironmentBoundary(
+  web,
+  backend,
+  publisher,
+  migration,
+  schemaValidate,
+  postgres,
+) {
   assert.deepEqual(web.environment ?? {}, {});
   assert.equal(backend.environment.SPRING_FLYWAY_ENABLED, "false");
   assert.equal(backend.environment.RHAOMI_SESSION_COOKIE_SECURE, "true");
   assert.equal(backend.environment.RHAOMI_BOOTSTRAP_ADMIN_ENABLED, "false");
   assert.equal(publisher.environment.SPRING_FLYWAY_ENABLED, "false");
+  assert.equal(migration.environment.SPRING_FLYWAY_ENABLED, "true");
+  assert.equal(schemaValidate.environment.SPRING_FLYWAY_ENABLED, "false");
+  assert.equal(migration.environment.SPRING_JPA_HIBERNATE_DDL_AUTO, "validate");
+  assert.equal(schemaValidate.environment.SPRING_JPA_HIBERNATE_DDL_AUTO, "validate");
   assert.equal(publisher.environment.BUILD_API_INTERNAL_URL, "http://backend:8080");
   assert.equal(
     publisher.environment.BUILD_API_CREDENTIAL,
@@ -268,12 +311,16 @@ function validateEnvironmentBoundary(web, backend, publisher, postgres) {
   assert.equal(backend.environment.BUILD_API_CREDENTIAL, undefined);
   assert.equal(postgres.environment.RHAOMI_BUILD_SERVICE_TOKEN, undefined);
   assert.equal(postgres.environment.BUILD_API_CREDENTIAL, undefined);
+  for (const service of [migration, schemaValidate]) {
+    assert.equal(service.environment.RHAOMI_BUILD_SERVICE_TOKEN, undefined);
+    assert.equal(service.environment.BUILD_API_CREDENTIAL, undefined);
+  }
   for (const service of [web, postgres]) {
     assert.equal(service.environment?.SPRING_DATASOURCE_PASSWORD, undefined);
   }
 }
 
-function validateBaseMounts(web, backend, publisher, postgres) {
+function validateBaseMounts(web, backend, publisher, migration, schemaValidate, postgres) {
   assert.deepEqual(mountMap(web), {
     "/etc/nginx/conf.d/default.conf": "/private/var/lib/rhaomi/app/nginx/production.conf",
     "/srv/rhaomi/public": "/private/var/lib/rhaomi/public",
@@ -290,6 +337,8 @@ function validateBaseMounts(web, backend, publisher, postgres) {
   assert.deepEqual(postgres.volumes, [
     { type: "volume", source: "postgres-data", target: "/var/lib/postgresql" },
   ]);
+  assert.equal(migration.volumes, undefined);
+  assert.equal(schemaValidate.volumes, undefined);
   for (const service of [web, backend, publisher]) {
     for (const item of service.volumes) {
       assert.equal(item.type, "bind");

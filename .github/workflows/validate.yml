@@ -52,7 +52,7 @@ jobs:
   backend:
     name: Backend
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     services:
       postgres:
         image: postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f
@@ -111,18 +111,23 @@ jobs:
 
       - name: Production decoder-only image·SBOM 검증
         env:
-          RHAOMI_CLEANUP_TASK: 51-production-compose-nginx
+          RHAOMI_CLEANUP_TASK: 53-production-release-gate
           RHAOMI_PRODUCTION_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-production-image-evidence
           RHAOMI_PRODUCTION_IMAGE_TAG: rhaomi-production-ci:${{ github.event.pull_request.head.sha }}
         run: sh scripts/validate-production-image.sh
 
       - name: Production Compose·project Nginx 검증
         env:
-          RHAOMI_CLEANUP_TASK: 51-production-compose-nginx
+          RHAOMI_CLEANUP_TASK: 53-production-release-gate
           RHAOMI_PRODUCTION_COMPOSE_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-production-compose-evidence
           RHAOMI_PRODUCTION_IMAGE: rhaomi-production-ci:${{ github.event.pull_request.head.sha }}
           RHAOMI_WEB_LOOPBACK_PORT: "18051"
         run: sh scripts/validate-production-compose.sh
+
+      - name: Production release·fixed deploy 계약 검증
+        env:
+          RHAOMI_PRODUCTION_DEPLOY_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-production-deploy-evidence
+        run: sh scripts/validate-production-deploy.sh
 
       - name: Production image 공급망 evidence 보존
         if: always()
@@ -139,6 +144,15 @@ jobs:
         with:
           name: production-compose-evidence-${{ github.event.pull_request.head.sha }}
           path: ${{ runner.temp }}/rhaomi-production-compose-evidence
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Production deploy evidence 보존
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-deploy-evidence-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/rhaomi-production-deploy-evidence
           if-no-files-found: error
           retention-days: 14
 

@@ -17,7 +17,7 @@ review_trigger: "운영 진입 경로·배포·마이그레이션·릴리스 보
 
 Rhaomi는 macOS Mac mini에서 다른 홈서버 서비스와 함께 운영될 예정이며 공개 정적 사이트, same-origin 관리자 API, PostgreSQL과 private media를 서로 다른 신뢰 경계로 분리해야 한다. macOS의 root system volume은 일반 Linux host와 같은 writable `/srv` 계약을 제공하지 않고 Docker Desktop의 기본 host file sharing에도 `/srv`가 포함되지 않는다. `main` merge, image 생성, 운영 반영과 Flyway migration도 하나의 암묵적 자동 단계로 묶지 않아야 한다.
 
-이 결정의 D-IMP-2 source implementation으로 production Compose와 project Nginx, task-scoped validation overlay를 추가했다. Cloudflare Tunnel, host edge, GHCR, GitHub Environment, Mac mini deploy entrypoint와 actual host/Secret/volume/FQDN은 아직 구현·provisioning되지 않았다.
+이 결정의 D-IMP-2 source implementation으로 production Compose와 project Nginx, task-scoped validation overlay를 추가했다. D-IMP-3은 exact-main manual release workflow, immutable multi-arch artifact contract, protected Environment job, fixed Mac deploy entrypoint와 one-shot migration/schema validation을 source로 구현했다. Cloudflare Tunnel·host edge, private GHCR package/visibility, actual GitHub Environment/reviewer/secret, Tailscale identity, Mac entrypoint/config/path/volume/FQDN은 아직 provision되지 않았고 workflow dispatch·deploy·production migration을 수행하지 않았다.
 
 Issue #43은 같은 계약의 build·validate·private manifest·immutable install·`previous/current` switch·post-switch smoke·rollback·retention primitive를 격리된 local/CI filesystem과 actual Java→Node executor로 구현했다. 이 증거는 `/private/var/lib/rhaomi` ownership·Docker Desktop bind, production image/digest·secret, Nginx·Cloudflare, public HTTPS 또는 deploy entrypoint provisioning 완료를 뜻하지 않는다.
 
@@ -52,6 +52,10 @@ Internet
 ```text
 /private/var/lib/rhaomi/
 ├── app/
+│   ├── bin/deploy-rhaomi.sh
+│   ├── compose.production.yaml
+│   ├── production.env
+│   └── docker/config.json
 ├── public/
 │   ├── releases/<release-id>/
 │   ├── current -> releases/...
@@ -60,6 +64,7 @@ Internet
 │   └── media/
 ├── state/
 │   ├── publisher/
+│   ├── deploy/backup-eligible.env
 │   └── locks/
 └── logs/
 ```
@@ -73,7 +78,7 @@ Internet
 - PostgreSQL backup/restore authority는 `pg_dump -Fc`와 `pg_restore`다. raw named volume은 required restic backup input이 아니다.
 - media는 Mac canonical root의 host bind mount로 container lifecycle과 분리한다.
 - publisher 상태와 전역 lock은 `state`에 두고 release 산출물과 구분한다.
-- `app`에는 versioned production Compose inventory와 고정 deploy entrypoint를 두되 production source build worktree로 사용하지 않는다.
+- `app`에는 versioned production Compose inventory와 고정 deploy entrypoint, owner-only production env·Docker credential config를 두되 production source build worktree로 사용하지 않는다. caller-supplied env/config path나 inherited Compose/Docker override를 production authority로 사용하지 않는다.
 - `logs`에는 host-side deploy·publisher·backup evidence를 bounded·redacted 형태로 두고 service stdout/stderr의 Docker `local` driver rotation과 구분한다.
 
 ### host source와 container target
@@ -108,9 +113,25 @@ feature → dev
 - production job은 보호된 environment 승인 뒤에만 environment secret에 접근한다.
 - 임의 SSH command body 대신 exact SHA·digest와 제한된 매개변수만 받는 고정 entrypoint를 사용한다.
 - image에는 commit SHA tag를 붙이고 실제 배포는 digest로 고정한다. `latest`는 금지한다.
-- release evidence에 exact SHA, image digest, SBOM, dependency/image scan, migration과 smoke 결과를 기록한다. public release manifest에는 [ADR-011](ADR-011-transactional-outbox-static-publisher.md)의 `contentRevision`, `publishGeneration`, `generatedAt`을 포함한다.
+- exact SHA tag가 이미 존재하면 덮어쓰지 않고 immutable publish를 fail-closed한다. canonical production Dockerfile로 `linux/amd64`·`linux/arm64` 하나의 manifest/index를 만든다.
+- production publish는 canonical Dockerfile에 exact release SHA를 required build arg로 전달한다. release evidence는 published OCI index digest, amd64/arm64 manifest·attestation identity, attached SPDX SBOM·SLSA provenance, OCI source/revision과 attached SBOM 기반 scan을 machine-check해 기록한다. `SBOM_REFERENCE`는 두 platform attestation을 소유하는 OCI index digest이며 pre-publish local SBOM·scan은 auxiliary evidence로만 구분한다. public release manifest에는 [ADR-011](ADR-011-transactional-outbox-static-publisher.md)의 `contentRevision`, `publishGeneration`, `generatedAt`을 포함한다.
 
 ### 배포 순서
+
+D-IMP-3 fixed code-image apply source는 다음 경계를 구현한다.
+
+1. exact SHA·fixed GHCR digest·SBOM·canonical host root 검증
+2. `/private/var/lib/rhaomi/state/locks`의 atomic global deploy lock 획득
+3. fixed Compose·environment·Docker credential 권한과 release-bound backup eligibility 검증
+4. digest pull, RepoDigest·OCI revision·image ID 검증
+5. public web·PostgreSQL을 유지하고 backend/publisher graceful stop·physical exit 확인
+6. same-image non-web `migration`→Flyway-disabled `schema-validate`; 각 단계 전후 writer quiescence·public web 재확인
+7. backend recreate·health 후 publisher recreate, 두 runtime image ID 일치 확인
+8. bounded·redacted evidence와 explicit maintenance release
+
+input·path·backup·digest/revision 실패는 writer 정지 전에 거부한다. writer maintenance가 시작된 뒤 migration/schema/backend health/publisher start/runtime image identity 중 하나라도 실패하면 backend와 publisher를 다시 정지하고 quiescence를 확인한 뒤에만 own global lock을 해제한다. quiescence를 확인할 수 없으면 own lock을 보존해 다음 deploy를 막으며 old writer를 자동 resume하지 않는다. backend health 실패 전 publisher 시작도 금지한다. D-IMP-4 backup이 actual provision되지 않으면 release-bound eligibility를 생성할 authority가 없으므로 production deploy는 fail-closed한다.
+
+아래는 D-IMP-4~6 provisioning·content release까지 포함한 전체 production 목표 순서다.
 
 1. global deploy lock 획득
 2. exact `main` SHA와 `contentRevision`·`publishGeneration`·`generatedAt` release manifest 확인
@@ -137,6 +158,7 @@ feature → dev
 
 - production backend 일반 기동은 schema를 자동 변경하지 않고 validate만 한다.
 - Flyway migration은 deploy lock과 maintenance 안의 one-shot service만 수행한다.
+- one-shot mode는 exact `--rhaomi.production-task=migrate|schema-validate`로만 활성하고 non-web·admin bootstrap 0·publisher loop 0을 강제한다. migration은 Flyway 후 JPA validate, schema task는 Flyway disabled + JPA validate다.
 - additive expand/contract를 우선하고 새 code와 직전 code가 전환 구간에서 공존 가능한 schema를 유지한다.
 - column/table 삭제, 대량 변환과 비가역 migration은 별도 승인, on-demand backup과 isolated restore 검증이 필요하다.
 - 검증되지 않은 destructive rollback을 실행하지 않는다.
@@ -166,7 +188,7 @@ feature → dev
 
 ### 비용·위험
 
-- GitHub environment, GHCR, Tailscale deploy identity와 제한된 entrypoint를 별도로 구현해야 한다.
+- GitHub Environment/reviewer, private GHCR, Tailscale deploy identity와 fixed Mac inventory를 실제 계정·host에 별도 provisioning해야 한다.
 - Mac canonical directory permission과 Docker named volume identity를 provisioning evidence로 관리해야 한다.
 - Mac mini, host edge Nginx와 Cloudflare Tunnel은 공통 장애 지점이다.
 - schema가 비호환이면 image rollback만으로 복구할 수 없다.
@@ -196,10 +218,13 @@ Docker Desktop host sharing·path와 DB internal layout에 결합되고 portable
 ## 실행 계획
 
 - [x] production Compose와 project Nginx source·task-scoped local/Hosted validation 구현
-- [ ] GHCR immutable multi-architecture image와 SBOM pipeline 구현
+- [x] required exact-head build arg와 GHCR immutable multi-architecture image·published platform SBOM/provenance·scan workflow source, existing-SHA overwrite 거부 구현
+- [ ] actual private GHCR package 생성·visibility·pull 권한 검증
+- [x] GitHub `production` Environment deploy job·pre-approval secret isolation source 구현
 - [ ] GitHub production environment·required reviewer·branch policy 설정
-- [ ] Tailscale 전용 고정 deploy entrypoint 구현
-- [ ] one-shot Flyway와 write maintenance 구현
+- [x] pinned Tailscale transport·fixed SSH argv·Mac deploy entrypoint source 구현
+- [ ] actual Tailscale deploy identity·host/user/known-hosts·Mac entrypoint/config installation
+- [x] one-shot Flyway/schema task·writer quiescence와 post-start/runtime identity failure maintenance hold 구현
 - [ ] 실제 Mac mini에서 `/private/var/lib/rhaomi` directory ownership·permission과 public/media/state bind mount 검증
 - [ ] PostgreSQL project-scoped named volume restart·일반 Compose `down` persistence와 destructive volume command 금지 검증
 - [ ] application-consistent backup에서 isolated named volume로 `pg_restore` 검증
