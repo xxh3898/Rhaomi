@@ -186,6 +186,7 @@ COPY --from=native-builder /opt/libheif-runtime/usr/local/lib /usr/local/lib
 COPY --from=native-builder /opt/rhaomi/evidence /opt/rhaomi/evidence
 COPY --from=application-builder /workspace/backend.jar /opt/rhaomi/backend.jar
 COPY --from=publisher-builder /workspace/source /opt/rhaomi/source
+COPY --chmod=0555 scripts/rhaomi-backup-media-permissions.sh /usr/local/bin/rhaomi-backup-media-permissions
 COPY backend/production-image-components.json /opt/rhaomi/evidence/production-image-components.json
 COPY backend/production-image-NOTICE.md /opt/rhaomi/evidence/production-image-NOTICE.md
 

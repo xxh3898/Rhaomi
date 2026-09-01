@@ -368,10 +368,12 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 
 - fixed wrapper와 exact mode/argument, fixed `production.env` repository authority, private owner/mode/sentinel과 symlink/path traversal/special-file 거부
 - deploy와 같은 `rhaomi-deploy.lock`, public web 유지, backend/publisher physical `exited` 뒤에만 dump/media capture
+- Linux validation media의 writer runtime `0750`/`0640`과 physical exit 뒤 host capture `0700`/`0600` recursive 전환, capture 성공·실패 뒤 writer recreate 전 runtime 복원
 - `pg_dump -Fc` archive header/list, canonical private media byte-order inventory, strict manifest V1 full-read와 same-filesystem `.incomplete`→read-only complete rename
-- complete promotion 뒤 같은 source image backend health·publisher running 복구; capture failure는 complete 0, writer 복구 실패는 success 0과 own lock 보존
+- same source image backend health·publisher running 복구 뒤 complete promotion; capture failure는 complete 0과 runtime 복구, runtime permission·writer 복구 실패는 complete/success 0과 own lock 보존
 - exact target release eligibility JSON·compatibility hash chain과 deploy의 stale target/missing set/evidence·manifest·artifact drift fail-before-writer-mutation
-- source A backup 뒤 DB/media B mutation, fresh Compose project·PostgreSQL named volume·빈 media root의 `pg_restore`/media restore가 A인지 확인
+- source A backup 뒤 writer physical stop+host capture state에서만 DB/media B mutation, fresh Compose project·PostgreSQL named volume·빈 media root의 `pg_restore`/media restore가 A인지 확인
+- isolated media restore 직후와 final writer stop 뒤 host `0700`/`0600`, runtime validation 직전 `0750`/`0640`, nested directory/file 동일 계약 확인
 - Flyway V1~V9/JPA schema, Shop·Breed·Service·Gallery·Notice·audit/relation row, representative PNG checksum/decode와 동일 static publisher 성공
 - PostgreSQL restart와 일반 Compose `down`→`up` 뒤 restored row/schema·same volume identity persistence
 - retention KST daily 7/weekly 4/monthly 6, 최신 3·on-demand 보호, incomplete·same-size latest corruption·정상 set 3개 미만의 apply refusal와 post-check

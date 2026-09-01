@@ -59,11 +59,14 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 
 ```text
 관리자 write maintenance
+→ backend/publisher graceful stop + 두 writer physical exited 확인
+→ canonical media owner-only capture state 확인
 → pg_dump -Fc
 → canonical media snapshot·manifest 확정
+→ writer runtime-access state 복원
+→ backend health·publisher running·same-image 확인
 → `.incomplete-<id>` dump/media/manifest full-read
 → same-filesystem atomic rename과 read-only complete set 승격
-→ write maintenance 해제
 → local backup evidence 기록
 ```
 
@@ -72,7 +75,15 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 - manifest에 Git SHA, image digest, Flyway version, backup-set ID, 시작·완료·검증 시각을 기록한다.
 - command exit code만으로 성공 처리하지 않고 완료 artifact와 manifest를 다시 읽는다.
 - secret, repository password, session/token과 private endpoint를 manifest에 기록하지 않는다.
-- deploy와 backup은 `/private/var/lib/rhaomi/state/locks/rhaomi-deploy.lock`을 공유한다. backend/publisher physical exit 전 snapshot을 시작하지 않고, complete 승격 뒤 같은 source image로 backend health·publisher running이 복구되어야 lock과 success evidence를 내준다.
+- deploy와 backup은 `/private/var/lib/rhaomi/state/locks/rhaomi-deploy.lock`을 공유한다. backend/publisher physical exit 전 snapshot이나 media permission 전환을 시작하지 않는다. media runtime state와 같은 source image의 backend health·publisher running이 복구된 뒤에만 complete 승격·lock release·success evidence를 허용한다.
+
+### Linux task validation media permission lifecycle
+
+- production Mac media authority는 계속 host owner-only다. Linux task validation에서만 tracked validation overlay의 fixed `backup-permission` service가 고정 target을 전환한다.
+- writer runtime state는 container runtime owner, directory `0750`, regular file `0640`이며 writer가 실행 중인 동안 host capture state로 바꾸지 않는다.
+- backup capture state는 두 writer의 physical `exited` 뒤 host validation UID/GID, directory `0700`, regular file `0600`으로 바꾸고 nested tree 전체를 확인한다.
+- capture 성공·실패 모두 writer recreate 전에 runtime state를 복구한다. 이 전환 또는 writer health/running 확인이 실패하면 complete 승격과 success evidence는 없고 own operation lock을 보존한다.
+- helper는 `runtime`, `capture`, `assert-runtime`, `assert-capture`와 fixed container path만 허용하며 caller-supplied command/path나 production free-form hook을 제공하지 않는다.
 
 ### manifest V1
 
@@ -150,11 +161,11 @@ tracked `ops/production/com.rhaomi.backup.plist`는 매일 host local 03:30에 f
 `scripts/validate-production-backup.sh`는 production image와 validation overlay만 사용해 다음을 순서대로 증명한다.
 
 1. fresh source PostgreSQL에 Shop·Breed·Service·Gallery·Notice·audit/relation row와 합성 private PNG 상태 A 구성
-2. shared lock과 writer quiescence 아래 custom dump+media complete set 및 exact-release eligibility 발급
-3. source DB/media를 상태 B로 변경
-4. 별도 Compose project의 fresh named volume·빈 media root에 restore
-5. 복구 결과가 B가 아닌 A인지, Flyway V1~V9/JPA schema, representative checksum/decode와 static publication 확인
-6. PostgreSQL restart와 일반 Compose `down`→`up` 뒤 같은 named-volume identity·row 지속 확인
+2. shared lock과 writer quiescence 뒤 host owner-only capture state에서 custom dump+media를 캡처하고 runtime state·writer 복구 후 complete set 및 exact-release eligibility 발급
+3. source writer를 다시 physical stop하고 host capture state에서만 DB/media를 상태 B로 변경
+4. 별도 Compose project의 fresh named volume·빈 owner-only media root에 restore하고 directory `0700`/file `0600` 확인
+5. isolated backend/publisher 시작 직전에만 runtime state로 전환해 복구 결과가 B가 아닌 A인지, Flyway V1~V9/JPA schema, representative checksum/decode와 static publication 확인
+6. PostgreSQL restart와 일반 Compose `down`→`up` 뒤 같은 named-volume identity·row 지속을 확인하고 writer 종료 뒤 media를 최종 host `0700`/`0600`으로 복귀
 
 static publication은 production image source를 read-only로 둔 채 task `/state/publisher/build-workspace`만 `/opt/rhaomi/source/.rhaomi-publication-work`에 RW mount해 실제 Next/Turbopack release를 생성한다. validator는 task container/network만 정리하고 source/restore named volume을 삭제하지 않는다. production path/data, workflow dispatch, GHCR/Tailscale와 Docker volume/image delete·prune는 0이다.
 

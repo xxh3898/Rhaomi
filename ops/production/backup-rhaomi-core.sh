@@ -27,6 +27,7 @@ backup_rhaomi() {
   load_backup_repository_authority
   validate_backup_repository
   configure_backup_environment
+  validate_backup_media_authority
 
   case "$backup_mode" in
     scheduled | on-demand | predeploy) create_application_consistent_backup ;;
@@ -111,6 +112,10 @@ initialize_backup_authorities() {
   backup_lock_owned=false
   writer_maintenance_active=false
   backup_lock_preserve=false
+  backup_linux_validation_permissions=false
+  if [ -n "$backup_validation_compose_file" ] && [ "$(uname -s)" = Linux ]; then
+    backup_linux_validation_permissions=true
+  fi
 }
 
 validate_backup_host_root() {
@@ -118,12 +123,19 @@ validate_backup_host_root() {
     "$backup_root" \
     "$backup_app_root" \
     "$backup_root/data" \
-    "$backup_root/data/media" \
     "$backup_root/state" \
-    "$backup_root/state/deploy" \
-    "$backup_lock_parent"; do
+    "$backup_root/state/deploy"; do
     backup_require_owned_private_directory "$directory"
   done
+  if [ "$backup_linux_validation_permissions" = true ]; then
+    [ -d "$backup_root/data/media" ] && [ ! -L "$backup_root/data/media" ] ||
+      backup_fail BACKUP_HOST_INVALID
+    [ -d "$backup_lock_parent" ] && [ ! -L "$backup_lock_parent" ] ||
+      backup_fail BACKUP_HOST_INVALID
+  else
+    backup_require_owned_private_directory "$backup_root/data/media"
+    backup_require_owned_private_directory "$backup_lock_parent"
+  fi
 }
 
 acquire_backup_lock() {
@@ -241,6 +253,15 @@ configure_backup_environment() {
   export RHAOMI_BACKUP_REPOSITORY_ROOT DOCKER_CONFIG
 }
 
+validate_backup_media_authority() {
+  if [ "$backup_linux_validation_permissions" = true ]; then
+    transition_backup_validation_media_state assert-runtime ||
+      backup_fail BACKUP_MEDIA_PERMISSION_INVALID
+  else
+    backup_require_owned_private_directory "$backup_root/data/media"
+  fi
+}
+
 compose_backup_production() {
   if [ -n "$backup_validation_compose_file" ]; then
     docker-compose \
@@ -265,6 +286,17 @@ backup_tool() {
     node /opt/rhaomi/source/scripts/rhaomi-backup-tool.mjs "$@"
 }
 
+transition_backup_validation_media_state() {
+  action=$1
+  case "$action" in
+    runtime | capture | assert-runtime | assert-capture) ;;
+    *) return 1 ;;
+  esac
+  [ "$backup_linux_validation_permissions" = true ] || return 0
+  compose_backup_production --profile production-backup run --rm --no-deps \
+    backup-permission "$action" "$(id -u)" "$(id -g)" >/dev/null
+}
+
 create_application_consistent_backup() {
   verify_backup_public_web
   inspect_backup_source_identity
@@ -280,6 +312,8 @@ create_application_consistent_backup() {
     backup_fail BACKUP_WRITER_STOP_FAILED
   verify_backup_writer_quiescence
   verify_backup_public_web
+  transition_backup_validation_media_state capture ||
+    backup_fail BACKUP_MEDIA_PERMISSION_INVALID
 
   dump_path="$backup_repository_root/sets/.incomplete-$backup_set_id/postgres.dump"
   compose_backup_production exec --no-TTY postgres sh -ec \
@@ -290,6 +324,10 @@ create_application_consistent_backup() {
     backup_fail BACKUP_DUMP_INVALID
   backup_tool capture-media "$backup_set_id" >/dev/null ||
     backup_fail BACKUP_MEDIA_CAPTURE_FAILED
+
+  restore_backup_writers || backup_fail BACKUP_WRITER_RECOVERY_FAILED
+  writer_maintenance_active=false
+
   backup_tool finalize \
     "$backup_set_id" \
     "$backup_purpose" \
@@ -297,9 +335,6 @@ create_application_consistent_backup() {
     "$backup_source_release_sha" \
     "$backup_source_image_digest" \
     "$backup_source_flyway_version" >/dev/null || backup_fail BACKUP_FINALIZE_FAILED
-
-  restore_backup_writers || backup_fail BACKUP_WRITER_RECOVERY_FAILED
-  writer_maintenance_active=false
 
   if [ "$backup_mode" = predeploy ]; then
     backup_tool issue-eligibility "$backup_set_id" "$target_release_sha" >/dev/null ||
@@ -357,6 +392,7 @@ verify_backup_writer_quiescence() {
 }
 
 restore_backup_writers() {
+  transition_backup_validation_media_state runtime || return 1
   compose_backup_production up --detach --no-deps --force-recreate backend || return 1
   backup_backend_id=$(compose_backup_production ps --quiet backend) || return 1
   [ -n "$backup_backend_id" ] || return 1

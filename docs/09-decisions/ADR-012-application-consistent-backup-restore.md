@@ -48,11 +48,13 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 
 ```text
 관리자 write maintenance
+→ backend/publisher physical exited 확인
+→ canonical media owner-only capture state 확인
 → pg_dump -Fc
 → canonical media snapshot·manifest 확정
+→ media runtime-access state와 writer health/running 복구
 → `.incomplete-<backup-set-id>` artifact·checksum·file count full-read 재검증
 → same-filesystem rename으로 read-only complete set 승격
-→ write maintenance 해제
 → local backup evidence 기록
 ```
 
@@ -60,7 +62,8 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 - incomplete temporary set은 정상 backup으로 승격하지 않는다.
 - 완료된 backup set은 생성 중인 set과 구분하고 retention 전 check를 통과해야 한다.
 - manifest V1은 exact key allowlist로 `backupPurpose`, UTC set ID·시각, source SHA·image digest·Flyway `9`, dump hash/size와 canonical byte-order media inventory·aggregate hash, `sameHostFailureDomain=true`를 기록한다. Secret·endpoint·host config byte는 포함하지 않는다.
-- deploy와 backup은 같은 host `rhaomi-deploy.lock`을 사용한다. 두 writer의 physical `exited`를 확인한 뒤에만 snapshot을 시작하고 complete 승격과 writer health/running 복구가 모두 확인되기 전에는 backup success로 기록하지 않는다. writer 복구 실패 시 own lock을 보존한다.
+- deploy와 backup은 같은 host `rhaomi-deploy.lock`을 사용한다. 두 writer의 physical `exited`를 확인한 뒤에만 snapshot과 capture permission state를 시작한다. runtime permission state와 writer health/running 복구가 확인된 뒤에만 complete 승격·backup success·lock release를 허용하며 permission 전환 또는 writer 복구 실패 시 own lock을 보존한다.
+- Linux task validation은 validation overlay의 fixed service로만 media를 runtime(container owner, directory `0750`, file `0640`)과 capture(host validation owner, directory `0700`, file `0600`) 사이에서 전환한다. production Mac owner-only authority, backup tool strict validation과 caller command/path 부재는 바꾸지 않는다.
 - backup-set ID, source revision과 release identity를 secret 없이 HomeOps status/event에 제공할 수 있어야 한다.
 
 ### release eligibility bridge
@@ -87,7 +90,7 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 - isolated Compose project, 새 project-scoped PostgreSQL named volume과 새 media root에 restore한다.
 - `pg_restore`, manifest, checksum·file count, Flyway schema, 핵심 row/API, 대표 canonical media와 static build를 검증한다.
 - PostgreSQL container restart와 일반 Compose `down`·`up` 뒤 복구 data persistence를 확인한다.
-- task validator는 backup 시점 A 뒤 source DB/media를 B로 변경하고 fresh named volume·media root에 A가 복구되는지, audit/relation row·representative media decode·동일 static publisher와 restart/down-up persistence까지 검증한다.
+- task validator는 backup 시점 A 뒤 source writer를 physical stop하고 host capture state에서 DB/media를 B로 변경한다. fresh named volume·owner-only media root에 A를 복구한 뒤 runtime 전환에서 audit/relation row·representative media decode·동일 static publisher와 restart/down-up persistence를 검증하고, writer 종료 뒤 최종 host `0700`/`0600` 상태를 다시 확인한다.
 - 운영 DB·media를 직접 overwrite하지 않는다. 운영 전환은 exact target, backup과 rollback을 확인한 별도 명시 승인 후 수행한다.
 - production `docker compose down -v`, `docker volume prune`과 named volume direct delete는 backup 보유 여부와 무관하게 금지한다.
 

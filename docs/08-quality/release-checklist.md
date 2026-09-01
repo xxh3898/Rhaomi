@@ -181,6 +181,7 @@ review_trigger: "출시 기준 변경 시"
 - [x] fixed backup wrapper의 `docker`·standalone `docker-compose` fail-closed binary 확인
 - [x] daily 7 / weekly 4 / monthly 6, latest 3·on-demand 보호와 incomplete/latest-corrupt/<3 verified apply refusal
 - [x] source A→backup→source B mutation→fresh PostgreSQL named volume/media root restore A, schema/audit/relation/media decode/static publication 검증
+- [x] Linux validation media runtime `0750`/`0640` ↔ writer-exited host `0700`/`0600` 전환, capture failure recovery·runtime restoration failure lock hold와 isolated restore final owner-only 검증
 - [x] PostgreSQL restart·일반 Compose `down`→`up` persistence, task container/network cleanup과 volume/image deletion 0
 
 위 완료 표시는 source와 task-scoped local/Hosted evidence다. actual Mac repository path·capacity·scheduler, production DB/media backup, production restore/RPO·RTO는 계속 아래 운영 항목에서 미완료다.

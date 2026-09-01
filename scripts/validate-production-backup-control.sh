@@ -92,6 +92,7 @@ prepare_case() {
     "$state_dir" \
     "$fake_bin"
   printf '%s\n' '{}' >"$case_root/app/compose.production.yaml"
+  printf '%s\n' '{}' >"$case_root/app/compose.production.validation.yaml"
   printf '%s\n' '{}' >"$case_root/app/docker/config.json"
   printf '%s\n' \
     "RHAOMI_BACKUP_REPOSITORY_ROOT=$case_repository" \
@@ -106,9 +107,11 @@ prepare_case() {
   printf '%s\n' running >"$state_dir/rhaomi-web"
   printf '%s\n' running >"$state_dir/backend"
   printf '%s\n' running >"$state_dir/publisher"
+  printf '%s\n' runtime >"$state_dir/media-permission"
   cp "$fake_docker" "$fake_bin/docker"
   cp "$fake_docker" "$fake_bin/docker-compose"
-  chmod 700 "$fake_bin/docker" "$fake_bin/docker-compose"
+  printf '%s\n' '#!/bin/sh' 'printf "%s\n" Linux' >"$fake_bin/uname"
+  chmod 700 "$fake_bin/docker" "$fake_bin/docker-compose" "$fake_bin/uname"
   : >"$log_file"
   export \
     RHAOMI_BACKUP_TEST_LOG="$log_file" \
@@ -117,7 +120,8 @@ prepare_case() {
     RHAOMI_BACKUP_TEST_RELEASE_SHA="$release_sha" \
     RHAOMI_BACKUP_TEST_IMAGE_REFERENCE="$image_reference" \
     RHAOMI_BACKUP_TEST_IMAGE_ID="$image_id" \
-    RHAOMI_BACKUP_TEST_FAIL_STAGE="$failure_stage"
+    RHAOMI_BACKUP_TEST_FAIL_STAGE="$failure_stage" \
+    RHAOMI_BACKUP_VALIDATION_COMPOSE_FILE="$case_root/app/compose.production.validation.yaml"
   PATH="$fake_bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
   export PATH
 }
@@ -141,11 +145,17 @@ validate_success() {
   [ ! -d "$case_root/state/locks/rhaomi-deploy.lock" ]
   stop_line=$(grep -n ' stop --timeout 30 backend publisher' "$log_file" | cut -d: -f1)
   dump_line=$(grep -n ' pg_dump ' "$log_file" | cut -d: -f1)
+  capture_permission_line=$(grep -n ' backup-permission capture ' "$log_file" | cut -d: -f1)
+  runtime_permission_line=$(grep -n ' backup-permission runtime ' "$log_file" | cut -d: -f1)
   backend_line=$(grep -n ' up --detach --no-deps --force-recreate backend' "$log_file" | cut -d: -f1)
   finalize_line=$(grep -n ' finalize ' "$log_file" | cut -d: -f1)
-  [ "$stop_line" -lt "$dump_line" ]
+  [ "$stop_line" -lt "$capture_permission_line" ]
+  [ "$capture_permission_line" -lt "$dump_line" ]
   [ "$dump_line" -lt "$finalize_line" ]
-  [ "$finalize_line" -lt "$backend_line" ]
+  [ "$dump_line" -lt "$runtime_permission_line" ]
+  [ "$runtime_permission_line" -lt "$backend_line" ]
+  [ "$backend_line" -lt "$finalize_line" ]
+  [ "$(cat "$state_dir/media-permission")" = runtime ]
 }
 
 validate_failure_recovery() {
@@ -156,8 +166,29 @@ validate_failure_recovery() {
   fi
   [ "$(cat "$state_dir/backend")" = running ]
   [ "$(cat "$state_dir/publisher")" = running ]
+  [ "$(cat "$state_dir/media-permission")" = runtime ]
   [ ! -d "$case_root/state/locks/rhaomi-deploy.lock" ]
   [ "$(find "$case_repository/sets" -mindepth 1 -maxdepth 1 -type d ! -name '.incomplete-*' | wc -l | tr -d ' ')" = 0 ]
+  capture_permission_line=$(grep -n ' backup-permission capture ' "$log_file" | cut -d: -f1)
+  capture_line=$(grep -n ' capture-media ' "$log_file" | cut -d: -f1)
+  runtime_permission_line=$(grep -n ' backup-permission runtime ' "$log_file" | cut -d: -f1)
+  backend_line=$(grep -n ' up --detach --no-deps --force-recreate backend' "$log_file" | cut -d: -f1)
+  [ "$capture_permission_line" -lt "$capture_line" ]
+  [ "$capture_line" -lt "$runtime_permission_line" ]
+  [ "$runtime_permission_line" -lt "$backend_line" ]
+
+  prepare_case runtime-permission-failure runtime-permission
+  if run_backup --mode scheduled >"$validation_parent/runtime-permission.out" 2>"$validation_parent/runtime-permission.err"; then
+    echo "runtime permission restoration failure가 성공했습니다." >&2
+    exit 1
+  fi
+  [ -d "$case_root/state/locks/rhaomi-deploy.lock" ]
+  [ "$(cat "$state_dir/backend")" = exited ]
+  [ "$(cat "$state_dir/publisher")" = exited ]
+  [ "$(cat "$state_dir/media-permission")" = capture ]
+  [ "$(find "$case_repository/sets" -mindepth 1 -maxdepth 1 -type d ! -name '.incomplete-*' | wc -l | tr -d ' ')" = 0 ]
+  ! grep -Fq ' finalize ' "$log_file"
+  grep -Fq BACKUP_WRITER_RECOVERY_FAILED "$validation_parent/runtime-permission.err"
 
   prepare_case restart-failure backend-start
   if run_backup --mode scheduled >"$validation_parent/restart.out" 2>"$validation_parent/restart.err"; then
@@ -208,6 +239,7 @@ if [ -n "$evidence_dir" ]; then
     '  "sharedOperationLock": "verified",' \
     '  "writerPhysicalQuiescence": "verified",' \
     '  "failureRecovery": "verified",' \
+    '  "permissionFailureLockHold": "verified",' \
     '  "restartFailureLockHold": "verified",' \
     '  "predeployEligibilityMode": "verified",' \
     '  "secretLeakCount": 0,' \
@@ -221,6 +253,7 @@ printf '%s\n' \
   'sharedOperationLock=verified' \
   'writerPhysicalQuiescence=verified' \
   'failureRecovery=verified' \
+  'permissionFailureLockHold=verified' \
   'restartFailureLockHold=verified' \
   'predeployEligibilityMode=verified' \
   'productionPathMutation=0' \

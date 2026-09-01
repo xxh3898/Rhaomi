@@ -75,13 +75,15 @@ main() {
   compose_for "$source_root" "$source_project" --profile production-task run --rm --no-deps migration \
     >"$raw_dir/source-migration.txt" 2>&1
   seed_source_a
+  prepare_validation_media_runtime_layout "$source_root/data/media"
   prepare_runtime_bind_ownership "$source_root"
+  transition_validation_media_state "$source_root" "$source_project" runtime
+  transition_validation_media_state "$source_root" "$source_project" assert-runtime
   compose_for "$source_root" "$source_project" up --detach rhaomi-web backend publisher postgres >/dev/null
   wait_healthy "$source_root" "$source_project" postgres 90
   wait_healthy "$source_root" "$source_project" backend 180
   wait_healthy "$source_root" "$source_project" rhaomi-web 90
   wait_running "$source_root" "$source_project" publisher 90
-  restore_runtime_bind_ownership "$source_root"
 
   RHAOMI_BACKUP_VALIDATION_COMPOSE_FILE="$source_root/app/compose.production.validation.yaml"
   export RHAOMI_BACKUP_VALIDATION_COMPOSE_FILE
@@ -105,10 +107,14 @@ main() {
     --user "$(id -u):$(id -g)" backup-tool \
     node /opt/rhaomi/source/scripts/rhaomi-backup-tool.mjs \
     verify-eligibility "$git_head" >"$raw_dir/eligibility-verification.json"
+  transition_validation_media_state "$source_root" "$source_project" assert-runtime
 
+  quiesce_source_writers_for_host_mutation
   mutate_source_to_b
   verify_source_b
   compose_for "$source_root" "$source_project" down --remove-orphans >/dev/null
+  restore_runtime_bind_ownership "$source_root"
+  transition_validation_media_state "$source_root" "$source_project" assert-capture
   source_started=false
 
   restore_started=true
@@ -135,10 +141,15 @@ main() {
     backup_validation_fail BACKUP_MEDIA_RESTORE_FAILED
   fi
 
+  transition_validation_media_state "$restore_root" "$restore_project" capture
+  transition_validation_media_state "$restore_root" "$restore_project" assert-capture
   verify_restored_a
   compose_for "$restore_root" "$restore_project" --profile production-task run --rm --no-deps schema-validate \
     >"$raw_dir/restore-schema-validation.txt" 2>&1
+  prepare_validation_media_runtime_layout "$restore_root/data/media"
   prepare_runtime_bind_ownership "$restore_root"
+  transition_validation_media_state "$restore_root" "$restore_project" runtime
+  transition_validation_media_state "$restore_root" "$restore_project" assert-runtime
   compose_for "$restore_root" "$restore_project" up --detach backend >/dev/null
   wait_healthy "$restore_root" "$restore_project" backend 180
   compose_for "$restore_root" "$restore_project" up --detach publisher >/dev/null
@@ -158,9 +169,13 @@ main() {
   verify_restored_a
 
   compose_for "$restore_root" "$restore_project" down --remove-orphans >/dev/null
+  transition_validation_media_state "$restore_root" "$restore_project" capture
+  transition_validation_media_state "$restore_root" "$restore_project" assert-capture
   restore_runtime_bind_ownership "$restore_root"
   docker volume inspect "$restore_volume" >/dev/null
   prepare_runtime_bind_ownership "$restore_root"
+  transition_validation_media_state "$restore_root" "$restore_project" runtime
+  transition_validation_media_state "$restore_root" "$restore_project" assert-runtime
   compose_for "$restore_root" "$restore_project" up --detach postgres backend publisher >/dev/null
   wait_healthy "$restore_root" "$restore_project" postgres 90
   wait_healthy "$restore_root" "$restore_project" backend 180
@@ -177,6 +192,8 @@ main() {
     "SELECT version FROM flyway_schema_history WHERE success AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1")
 
   compose_for "$restore_root" "$restore_project" down --remove-orphans >/dev/null
+  transition_validation_media_state "$restore_root" "$restore_project" capture
+  transition_validation_media_state "$restore_root" "$restore_project" assert-capture
   restore_runtime_bind_ownership "$restore_root"
   restore_started=false
   docker volume inspect "$source_volume" >/dev/null
@@ -204,10 +221,16 @@ main() {
     '  "staticPublication": "success",' \
     '  "postgresRestartPersistence": "success",' \
     '  "composeDownUpPersistence": "success",' \
+    '  "sourceCapturePermissionState": "owner-only",' \
+    '  "sourceRuntimeRecoveryPermissionState": "verified",' \
+    '  "restoreHostPermissionState": "owner-only",' \
+    '  "restoreRuntimePermissionState": "verified",' \
+    '  "finalHostPermissionState": "owner-only",' \
     "  \"durationSeconds\": $duration_seconds," \
     '  "sameHostFailureDomain": true,' \
     '  "productionPathMutation": 0,' \
     '  "dockerVolumeDeletion": false,' \
+    '  "dockerImageDeletion": false,' \
     '  "status": "success"' \
     '}' >"$evidence_dir/production-backup-restore.json"
   printf '%s\n' \
@@ -230,10 +253,16 @@ main() {
     'staticPublication=success' \
     'postgresRestartPersistence=success' \
     'composeDownUpPersistence=success' \
+    'sourceCapturePermissionState=owner-only' \
+    'sourceRuntimeRecoveryPermissionState=verified' \
+    'restoreHostPermissionState=owner-only' \
+    'restoreRuntimePermissionState=verified' \
+    'finalHostPermissionState=owner-only' \
     "durationSeconds=$duration_seconds" \
     'sameHostFailureDomain=true' \
     'productionPathMutation=0' \
     'dockerVolumeDeletion=0' \
+    'dockerImageDeletion=0' \
     'status=success'
 }
 
@@ -375,32 +404,118 @@ run_runtime_bind_ownership_helper() {
     sh -ec '
       case "$1" in
         prepare)
-          chown -R 0:0 \
-            /validation/public \
-            /validation/state/deploy \
+          chown -R 0:0 /validation/public
+          chown -R "$2:$3" /validation/state/deploy
+          chown -R "0:$3" \
             /validation/state/locks \
             /validation/state/publisher
-          chown -R "0:$3" /validation/data/media
           chmod 0755 /validation/public
+          chmod 0700 /validation/state/deploy
+          find /validation/state/deploy -type d -exec chmod 0700 {} +
+          find /validation/state/deploy -type f -exec chmod 0600 {} +
+          chmod 0770 /validation/state/locks
           chmod 0750 \
-            /validation/state/deploy \
-            /validation/state/locks \
             /validation/state/publisher \
             /validation/state/publisher/build-workspace
-          find /validation/data/media -type d -exec chmod 0750 {} +
-          find /validation/data/media -type f -exec chmod 0640 {} +
           ;;
         restore)
           chown -R "$2:$3" \
             /validation/public \
-            /validation/data/media \
             /validation/state/deploy \
             /validation/state/locks \
             /validation/state/publisher
+          find /validation/public -type d -exec chmod 0755 {} +
+          find /validation/public -type f -exec chmod 0644 {} +
+          find /validation/state/deploy /validation/state/locks /validation/state/publisher \
+            -type d -exec chmod 0700 {} +
+          find /validation/state/deploy /validation/state/locks /validation/state/publisher \
+            -type f -exec chmod 0600 {} +
           ;;
         *) exit 64 ;;
       esac
     ' sh "$action" "$(id -u)" "$(id -g)"
+}
+
+transition_validation_media_state() {
+  host_root=$1
+  project_name=$2
+  action=$3
+  case "$action" in
+    runtime | capture | assert-runtime | assert-capture) ;;
+    *) backup_validation_fail BACKUP_MEDIA_PERMISSION_ACTION_INVALID ;;
+  esac
+  if [ "$(uname -s)" = Linux ]; then
+    compose_for "$host_root" "$project_name" --profile production-backup run --rm --no-deps \
+      backup-permission "$action" "$(id -u)" "$(id -g)" >/dev/null ||
+      backup_validation_fail BACKUP_MEDIA_PERMISSION_TRANSITION_FAILED
+    return 0
+  fi
+  case "$action" in
+    runtime | capture) apply_host_owner_only_media_state "$host_root/data/media" ;;
+    assert-runtime | assert-capture) ;;
+  esac
+  assert_host_owner_only_media_state "$host_root/data/media"
+}
+
+apply_host_owner_only_media_state() {
+  media_root=$1
+  [ -d "$media_root" ] && [ ! -L "$media_root" ] ||
+    backup_validation_fail BACKUP_MEDIA_PERMISSION_INVALID
+  [ -z "$(find "$media_root" ! -type d ! -type f -print -quit)" ] ||
+    backup_validation_fail BACKUP_MEDIA_PERMISSION_INVALID
+  find "$media_root" -type d -exec chgrp "$(id -g)" {} + ||
+    backup_validation_fail BACKUP_MEDIA_PERMISSION_TRANSITION_FAILED
+  find "$media_root" -type f -exec chgrp "$(id -g)" {} + ||
+    backup_validation_fail BACKUP_MEDIA_PERMISSION_TRANSITION_FAILED
+  find "$media_root" -type d -exec chmod 0700 {} + ||
+    backup_validation_fail BACKUP_MEDIA_PERMISSION_TRANSITION_FAILED
+  find "$media_root" -type f -exec chmod 0600 {} + ||
+    backup_validation_fail BACKUP_MEDIA_PERMISSION_TRANSITION_FAILED
+}
+
+prepare_validation_media_runtime_layout() {
+  media_root=$1
+  [ -d "$media_root" ] && [ ! -L "$media_root" ] ||
+    backup_validation_fail BACKUP_MEDIA_PERMISSION_INVALID
+  if [ -e "$media_root/temp" ] || [ -L "$media_root/temp" ]; then
+    [ -d "$media_root/temp" ] && [ ! -L "$media_root/temp" ] ||
+      backup_validation_fail BACKUP_MEDIA_PERMISSION_INVALID
+  else
+    mkdir -m 0700 "$media_root/temp" ||
+      backup_validation_fail BACKUP_MEDIA_PERMISSION_TRANSITION_FAILED
+  fi
+}
+
+assert_host_owner_only_media_state() {
+  media_root=$1
+  [ -d "$media_root" ] && [ ! -L "$media_root" ] ||
+    backup_validation_fail BACKUP_MEDIA_PERMISSION_INVALID
+  [ -z "$(find "$media_root" ! -type d ! -type f -print -quit)" ] ||
+    backup_validation_fail BACKUP_MEDIA_PERMISSION_INVALID
+  find "$media_root" -type d -exec sh -eu -c '
+    expected_owner=$1
+    expected_group=$2
+    shift 2
+    for candidate do
+      owner=$(stat -f %u "$candidate" 2>/dev/null || stat -c %u "$candidate")
+      group=$(stat -f %g "$candidate" 2>/dev/null || stat -c %g "$candidate")
+      mode=$(stat -f %Lp "$candidate" 2>/dev/null || stat -c %a "$candidate")
+      [ "$owner" = "$expected_owner" ] && [ "$group" = "$expected_group" ] &&
+        [ "$mode" = 700 ] || exit 1
+    done
+  ' sh "$(id -u)" "$(id -g)" {} + || backup_validation_fail BACKUP_MEDIA_PERMISSION_INVALID
+  find "$media_root" -type f -exec sh -eu -c '
+    expected_owner=$1
+    expected_group=$2
+    shift 2
+    for candidate do
+      owner=$(stat -f %u "$candidate" 2>/dev/null || stat -c %u "$candidate")
+      group=$(stat -f %g "$candidate" 2>/dev/null || stat -c %g "$candidate")
+      mode=$(stat -f %Lp "$candidate" 2>/dev/null || stat -c %a "$candidate")
+      [ "$owner" = "$expected_owner" ] && [ "$group" = "$expected_group" ] &&
+        [ "$mode" = 600 ] || exit 1
+    done
+  ' sh "$(id -u)" "$(id -g)" {} + || backup_validation_fail BACKUP_MEDIA_PERMISSION_INVALID
 }
 
 compose_for() {
@@ -512,6 +627,26 @@ seed_source_a() {
       CURRENT_TIMESTAMP + INTERVAL '15 seconds'
     );
   " >/dev/null
+}
+
+quiesce_source_writers_for_host_mutation() {
+  compose_for "$source_root" "$source_project" stop --timeout 30 backend publisher >/dev/null
+  verify_validation_writer_quiescence "$source_root" "$source_project"
+  transition_validation_media_state "$source_root" "$source_project" capture
+  transition_validation_media_state "$source_root" "$source_project" assert-capture
+}
+
+verify_validation_writer_quiescence() {
+  host_root=$1
+  project_name=$2
+  for writer in backend publisher; do
+    writer_id=$(compose_for "$host_root" "$project_name" ps --all --quiet "$writer") ||
+      backup_validation_fail BACKUP_WRITER_ACTIVE
+    if [ -n "$writer_id" ]; then
+      [ "$(docker inspect "$writer_id" --format '{{.State.Status}}')" = exited ] ||
+        backup_validation_fail BACKUP_WRITER_ACTIVE
+    fi
+  done
 }
 
 mutate_source_to_b() {

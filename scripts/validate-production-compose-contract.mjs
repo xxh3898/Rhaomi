@@ -247,6 +247,7 @@ function validateValidation(config) {
     Object.keys(config.services).sort(),
     [
       "backend",
+      "backup-permission",
       "backup-tool",
       "migration",
       "postgres",
@@ -260,6 +261,7 @@ function validateValidation(config) {
   assert.equal(config.services.migration.image, expectedImage);
   assert.equal(config.services["schema-validate"].image, expectedImage);
   assert.equal(config.services["backup-tool"].image, expectedImage);
+  assert.equal(config.services["backup-permission"].image, expectedImage);
   assert.equal(config.services.migration.environment.SPRING_FLYWAY_ENABLED, "true");
   assert.equal(
     config.services.migration.environment.RHAOMI_BOOTSTRAP_ADMIN_ENABLED,
@@ -276,6 +278,29 @@ function validateValidation(config) {
   );
   assert.deepEqual(networks(config.services.migration), ["data-internal"]);
   assert.deepEqual(networks(config.services["schema-validate"]), ["data-internal"]);
+  assert.deepEqual(networks(config.services["backup-permission"]), []);
+  assert.deepEqual(config.services["backup-permission"].profiles, ["production-backup"]);
+  assert.equal(config.services["backup-permission"].user, "0:0");
+  assert.equal(config.services["backup-permission"].read_only, true);
+  assert.deepEqual(config.services["backup-permission"].cap_drop, ["ALL"]);
+  assert.deepEqual(config.services["backup-permission"].cap_add, [
+    "CHOWN",
+    "DAC_OVERRIDE",
+    "FOWNER",
+  ]);
+  assert.deepEqual(config.services["backup-permission"].security_opt, [
+    "no-new-privileges:true",
+  ]);
+  assert.equal(config.services["backup-permission"].network_mode, "none");
+  assert.deepEqual(config.services["backup-permission"].entrypoint, [
+    "/usr/local/bin/rhaomi-backup-media-permissions",
+  ]);
+  assert.deepEqual(config.services["backup-permission"].command, [
+    "assert-runtime",
+    "0",
+    "0",
+  ]);
+  assert.deepEqual(config.services["backup-permission"].environment ?? {}, {});
 
   const root = resolve(validationRoot);
   const expectedMounts = {
@@ -296,6 +321,9 @@ function validateValidation(config) {
       "/var/lib/rhaomi/media": `${root}/data/media`,
       "/var/lib/rhaomi/deploy-state": `${root}/state/deploy`,
       "/var/lib/rhaomi/restore-media": `${root}/restore-media`,
+    },
+    "backup-permission": {
+      "/var/lib/rhaomi/media-permissions": `${root}/data/media`,
     },
   };
   for (const [serviceName, mounts] of Object.entries(expectedMounts)) {
@@ -330,6 +358,11 @@ function validateValidation(config) {
   assert.equal(mount(config.services["backup-tool"], "/var/lib/rhaomi/media").read_only, true);
   assert.equal(
     mount(config.services["backup-tool"], "/var/lib/rhaomi/deploy-state").read_only,
+    undefined,
+  );
+  assert.equal(
+    mount(config.services["backup-permission"], "/var/lib/rhaomi/media-permissions")
+      .read_only,
     undefined,
   );
 

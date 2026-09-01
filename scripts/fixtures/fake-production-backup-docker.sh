@@ -87,14 +87,36 @@ compose_command() {
       esac
       ;;
     run)
+      service=
       while [ "$#" -gt 0 ]; do
         case "$1" in
           --rm | --no-deps) shift ;;
           --user) shift 2 ;;
-          backup-tool) shift; break ;;
+          backup-tool | backup-permission) service=$1; shift; break ;;
           *) shift ;;
         esac
       done
+      [ -n "$service" ] || exit 64
+      if [ "$service" = backup-permission ]; then
+        operation=$1
+        case "$operation" in
+          assert-runtime)
+            [ "$(cat "$state_dir/media-permission")" = runtime ] || exit 1
+            ;;
+          assert-capture)
+            [ "$(cat "$state_dir/media-permission")" = capture ] || exit 1
+            ;;
+          capture)
+            printf '%s\n' capture >"$state_dir/media-permission"
+            ;;
+          runtime)
+            [ "$failure_stage" != runtime-permission ] || exit 1
+            printf '%s\n' runtime >"$state_dir/media-permission"
+            ;;
+          *) exit 64 ;;
+        esac
+        exit 0
+      fi
       [ "$1" = node ] || exit 64
       shift 2
       operation=$1

@@ -95,6 +95,26 @@ services:
         bind:
           create_host_path: false
 
+  backup-permission:
+    profiles: ["production-backup"]
+    image: ${RHAOMI_PRODUCTION_IMAGE:?RHAOMI_PRODUCTION_IMAGE is required}
+    user: "0:0"
+    read_only: true
+    cap_drop: ["ALL"]
+    cap_add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
+    security_opt:
+      - no-new-privileges:true
+    network_mode: none
+    entrypoint: ["/usr/local/bin/rhaomi-backup-media-permissions"]
+    command: ["assert-runtime", "0", "0"]
+    labels: *validation-labels
+    volumes:
+      - type: bind
+        source: ${RHAOMI_PRODUCTION_VALIDATION_ROOT:?RHAOMI_PRODUCTION_VALIDATION_ROOT is required}/data/media
+        target: /var/lib/rhaomi/media-permissions
+        bind:
+          create_host_path: false
+
   postgres:
     labels: *validation-labels
 

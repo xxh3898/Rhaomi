@@ -66,6 +66,25 @@ test("fixed backup entrypoint가 repository CLI 없이 shared lock과 writer-qui
   assert.match(core, /capture-media/u);
   assert.match(core, /restore_backup_writers/u);
   assert.match(core, /backup_tool finalize/u);
+  assert.match(core, /transition_backup_validation_media_state capture/u);
+  assert.match(core, /transition_backup_validation_media_state runtime/u);
+  const stopIndex = core.indexOf("stop --timeout 30 backend publisher");
+  const quiescenceIndex = core.indexOf("verify_backup_writer_quiescence", stopIndex);
+  const capturePermissionIndex = core.indexOf(
+    "transition_backup_validation_media_state capture",
+    quiescenceIndex,
+  );
+  const captureMediaIndex = core.indexOf('backup_tool capture-media "$backup_set_id"');
+  const writerRecoveryIndex = core.indexOf("restore_backup_writers ||");
+  const finalizeIndex = core.indexOf("backup_tool finalize");
+  assert(
+    stopIndex >= 0 &&
+      quiescenceIndex > stopIndex &&
+      capturePermissionIndex > quiescenceIndex &&
+      captureMediaIndex > capturePermissionIndex &&
+      writerRecoveryIndex > captureMediaIndex &&
+      finalizeIndex > writerRecoveryIndex,
+  );
   assert.match(core, /backup_lock_preserve=true/u);
   for (const mode of [
     "scheduled",
@@ -81,11 +100,12 @@ test("fixed backup entrypoint가 repository CLI 없이 shared lock과 writer-qui
   assert.doesNotMatch(core, /source .*production\.env|eval|down -v|volume prune|image prune/u);
 });
 
-test("backup tool production profile은 same image·no network·private mounts만 사용한다", async () => {
-  const [compose, overlay, dockerfile] = await Promise.all([
+test("backup tool production profile과 validation-only permission service가 fail-closed 경계를 유지한다", async () => {
+  const [compose, overlay, dockerfile, permissionHelper] = await Promise.all([
     source("compose.production.yaml"),
     source("compose.production.validation.yaml"),
     source("backend/Dockerfile.production"),
+    source("scripts/rhaomi-backup-media-permissions.sh"),
   ]);
   const block = compose.match(/\n  backup-tool:\n([\s\S]*?)\n  postgres:/u)?.[1];
   assert.ok(block);
@@ -100,6 +120,27 @@ test("backup tool production profile은 same image·no network·private mounts�
   assert.doesNotMatch(block, /POSTGRES_PASSWORD|BUILD_SERVICE_TOKEN|docker\.sock|ports:/u);
   assert.match(overlay, /RHAOMI_BACKUP_RESTORE_MEDIA_ROOT/u);
   assert.match(dockerfile, /COPY scripts\/rhaomi-backup-tool\.mjs/u);
+  assert.match(
+    dockerfile,
+    /COPY --chmod=0555 scripts\/rhaomi-backup-media-permissions\.sh/u,
+  );
+  const permissionBlock = overlay.match(/\n  backup-permission:\n([\s\S]*?)\n  postgres:/u)?.[1];
+  assert.ok(permissionBlock);
+  assert.match(permissionBlock, /profiles: \["production-backup"\]/u);
+  assert.match(permissionBlock, /user: "0:0"/u);
+  assert.match(permissionBlock, /cap_drop: \["ALL"\]/u);
+  assert.match(permissionBlock, /cap_add: \["CHOWN", "DAC_OVERRIDE", "FOWNER"\]/u);
+  assert.match(permissionBlock, /network_mode: none/u);
+  assert.match(permissionBlock, /target: \/var\/lib\/rhaomi\/media-permissions/u);
+  assert.doesNotMatch(permissionBlock, /POSTGRES_PASSWORD|BUILD_SERVICE_TOKEN|docker\.sock|ports:/u);
+  assert.match(permissionHelper, /media_root=\/var\/lib\/rhaomi\/media-permissions/u);
+  for (const action of ["runtime", "capture", "assert-runtime", "assert-capture"]) {
+    assert.match(permissionHelper, new RegExp(`\\n  ${action}\\)`, "u"));
+  }
+  assert.match(permissionHelper, /apply_tree_state 0 "\$host_gid" 0750 0640/u);
+  assert.match(permissionHelper, /apply_tree_state "\$host_uid" "\$host_gid" 0700 0600/u);
+  assert.match(permissionHelper, /! -type d ! -type f/u);
+  assert.doesNotMatch(permissionHelper, /eval|\/private\/var\/lib\/rhaomi/u);
 });
 
 test("deploy backup gate가 target·evidence hash·complete manifest를 writer mutation 전에 재검증한다", async () => {
@@ -150,6 +191,20 @@ test("task validator가 A backup/B mutation/fresh restore A와 persistence를 ex
   assert.match(validator, /prepare_runtime_bind_ownership "\$source_root"/u);
   assert.match(validator, /restore_runtime_bind_ownership "\$source_root"/u);
   assert.equal(
+    [...validator.matchAll(/restore_runtime_bind_ownership "\$source_root"/gu)].length,
+    1,
+  );
+  assert.match(validator, /quiesce_source_writers_for_host_mutation/u);
+  assert.match(validator, /verify_validation_writer_quiescence/u);
+  assert.match(
+    validator,
+    /transition_validation_media_state "\$source_root" "\$source_project" capture/u,
+  );
+  assert.match(
+    validator,
+    /transition_validation_media_state "\$restore_root" "\$restore_project" assert-capture/u,
+  );
+  assert.equal(
     [...validator.matchAll(/prepare_runtime_bind_ownership "\$restore_root"/gu)].length,
     2,
   );
@@ -169,14 +224,29 @@ test("task validator가 A backup/B mutation/fresh restore A와 persistence를 ex
     validator,
     /chown -R 0:0[\s\S]*\/validation\/state\/publisher/u,
   );
-  assert.match(validator, /chown -R "0:\$3" \/validation\/data\/media/u);
-  assert.match(validator, /find \/validation\/data\/media -type d -exec chmod 0750/u);
-  assert.match(validator, /find \/validation\/data\/media -type f -exec chmod 0640/u);
+  assert.match(validator, /chown -R "\$2:\$3" \/validation\/state\/deploy/u);
+  assert.match(
+    validator,
+    /chown -R "0:\$3"[\s\S]*\/validation\/state\/locks[\s\S]*\/validation\/state\/publisher/u,
+  );
+  assert.match(validator, /chmod 0700 \/validation\/state\/deploy/u);
+  assert.match(validator, /chmod 0770 \/validation\/state\/locks/u);
+  assert.match(
+    validator,
+    /chmod 0750[\s\S]*\/validation\/state\/publisher[\s\S]*\/validation\/state\/publisher\/build-workspace/u,
+  );
+  assert.doesNotMatch(validator, /chown -R "0:\$3" \/validation\/data\/media/u);
   assert.match(
     validator,
     /chown -R "\$2:\$3"[\s\S]*\/validation\/state\/publisher/u,
   );
+  assert.match(validator, /sourceCapturePermissionState/u);
+  assert.match(validator, /sourceRuntimeRecoveryPermissionState/u);
+  assert.match(validator, /finalHostPermissionState/u);
+  assert.match(validator, /dockerImageDeletion/u);
   assert.match(control, /capture-failure/u);
+  assert.match(control, /runtime-permission-failure/u);
+  assert.match(control, /permissionFailureLockHold/u);
   assert.match(control, /restart-failure/u);
   assert.match(control, /contention/u);
   assert.match(control, /secretLeakCount/u);
