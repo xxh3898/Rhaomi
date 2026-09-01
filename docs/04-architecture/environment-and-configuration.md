@@ -134,6 +134,8 @@ production release manifest에는 exact `main` SHA, image tag·digest, Flyway ve
 | `/private/var/lib/rhaomi/state/locks` | publisher `/var/lib/rhaomi/locks` | RW |
 | provisioned `RHAOMI_BACKUP_REPOSITORY_ROOT` | `backup-tool` `/var/lib/rhaomi/backup-repository` | RW |
 | `/private/var/lib/rhaomi/state/deploy` | `backup-tool` `/var/lib/rhaomi/deploy-state` | RW |
+| provisioned `RHAOMI_BACKUP_REPOSITORY_ROOT` | `backup-verifier` `/var/lib/rhaomi/backup-repository` | RO |
+| `/private/var/lib/rhaomi/state/deploy` | `backup-verifier` `/var/lib/rhaomi/deploy-state` | RO |
 | production project-scoped named volume | PostgreSQL image PGDATA target | PostgreSQL RW |
 
 `/srv/rhaomi`는 이 표의 Linux container target에만 허용하고 Mac host path로 해석하지 않는다. PostgreSQL named volume은 일반 `docker compose down`에서 보존하며 production `down -v`, `docker volume prune`과 direct delete를 금지한다.
@@ -218,7 +220,7 @@ image에는 production credential, domain, Mac host path를 bake하지 않는다
 | project Nginx | `infra/nginx/production.conf` |
 | runtime validator | `scripts/validate-production-compose.sh` |
 | default service inventory | `rhaomi-web`, `backend`, `publisher`, `postgres` |
-| opt-in one-shot inventory | `production-task` profile의 `migration`, `schema-validate`; `production-backup` profile의 network-disabled `backup-tool` |
+| opt-in one-shot inventory | `production-task` profile의 `migration`, `schema-validate`; `production-backup` profile의 network-disabled RW `backup-tool`과 read-only `backup-verifier` |
 | network | web 전용 non-internal `loopback-edge`; `web-backend`, `build-internal`, `data-internal`은 internal |
 | published port | `127.0.0.1:${RHAOMI_WEB_LOOPBACK_PORT}:8080`만 허용 |
 | external origin | redirect는 relative `Location`; backend forwarded origin은 config가 고정한 `https:443` |

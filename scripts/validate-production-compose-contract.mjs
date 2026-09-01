@@ -48,6 +48,8 @@ process.stdout.write(
       postgresVolume: base.volumes["postgres-data"].name,
       oneShotMigration: true,
       oneShotSchemaValidation: true,
+      backupVerifierReadOnly: true,
+      backupVerifierNetworkDisabled: true,
       secretsPrinted: false,
       status: "verified",
     },
@@ -109,6 +111,7 @@ function validateBase(config) {
     [
       "backend",
       "backup-tool",
+      "backup-verifier",
       "migration",
       "postgres",
       "publisher",
@@ -133,6 +136,7 @@ function validateBase(config) {
   const {
     backend,
     "backup-tool": backupTool,
+    "backup-verifier": backupVerifier,
     migration,
     postgres,
     publisher,
@@ -144,6 +148,7 @@ function validateBase(config) {
   assert.equal(migration.image, expectedImage);
   assert.equal(schemaValidate.image, expectedImage);
   assert.equal(backupTool.image, expectedImage);
+  assert.equal(backupVerifier.image, expectedImage);
   assert.match(web.image, /^nginx:[^@]+@sha256:[0-9a-f]{64}$/u);
   assert.match(postgres.image, /^postgres:18\.6-[^@]+@sha256:[0-9a-f]{64}$/u);
   assert.equal(web.user, "101:101", "production Nginx는 non-root UID/GID로 실행해야 합니다.");
@@ -173,7 +178,9 @@ function validateBase(config) {
   assert.deepEqual(networks(schemaValidate), ["data-internal"]);
   assert.deepEqual(networks(postgres), ["data-internal"]);
   assert.deepEqual(networks(backupTool), []);
+  assert.deepEqual(networks(backupVerifier), []);
   assert.equal(backupTool.network_mode, "none");
+  assert.equal(backupVerifier.network_mode, "none");
   assert.equal(config.networks["loopback-edge"].internal ?? false, false);
   for (const networkName of ["web-backend", "build-internal", "data-internal"]) {
     const network = config.networks[networkName];
@@ -186,7 +193,15 @@ function validateBase(config) {
     { host_ip: "127.0.0.1", target: 8080, protocol: "tcp" },
   );
   assert.match(String(web.ports[0].published), /^[1-9][0-9]{0,4}$/u);
-  for (const service of [backend, publisher, migration, schemaValidate, backupTool, postgres]) {
+  for (const service of [
+    backend,
+    publisher,
+    migration,
+    schemaValidate,
+    backupTool,
+    backupVerifier,
+    postgres,
+  ]) {
     assert.equal(service.ports, undefined, "web 외 host port는 금지됩니다.");
   }
 
@@ -216,6 +231,9 @@ function validateBase(config) {
     "/opt/rhaomi/source/scripts/rhaomi-backup-tool.mjs",
   ]);
   assert.deepEqual(backupTool.profiles, ["production-backup"]);
+  assert.deepEqual(backupVerifier.profiles, ["production-backup"]);
+  assert.deepEqual(backupVerifier.entrypoint, ["/usr/local/bin/rhaomi-backup-verifier"]);
+  assert.deepEqual(backupVerifier.command, ["verify-eligibility"]);
 
   validateEnvironmentBoundary(
     web,
@@ -224,6 +242,7 @@ function validateBase(config) {
     migration,
     schemaValidate,
     backupTool,
+    backupVerifier,
     postgres,
   );
   validateBaseMounts(
@@ -233,9 +252,18 @@ function validateBase(config) {
     migration,
     schemaValidate,
     backupTool,
+    backupVerifier,
     postgres,
   );
-  for (const service of [web, backend, publisher, migration, schemaValidate, backupTool]) {
+  for (const service of [
+    web,
+    backend,
+    publisher,
+    migration,
+    schemaValidate,
+    backupTool,
+    backupVerifier,
+  ]) {
     assert.equal(service.read_only, true, "application container root는 read-only여야 합니다.");
     assert.deepEqual(service.cap_drop, ["ALL"]);
     assert.deepEqual(service.security_opt, ["no-new-privileges:true"]);
@@ -249,6 +277,7 @@ function validateValidation(config) {
       "backend",
       "backup-permission",
       "backup-tool",
+      "backup-verifier",
       "migration",
       "postgres",
       "publisher",
@@ -261,6 +290,7 @@ function validateValidation(config) {
   assert.equal(config.services.migration.image, expectedImage);
   assert.equal(config.services["schema-validate"].image, expectedImage);
   assert.equal(config.services["backup-tool"].image, expectedImage);
+  assert.equal(config.services["backup-verifier"].image, expectedImage);
   assert.equal(config.services["backup-permission"].image, expectedImage);
   assert.equal(config.services.migration.environment.SPRING_FLYWAY_ENABLED, "true");
   assert.equal(
@@ -279,6 +309,7 @@ function validateValidation(config) {
   assert.deepEqual(networks(config.services.migration), ["data-internal"]);
   assert.deepEqual(networks(config.services["schema-validate"]), ["data-internal"]);
   assert.deepEqual(networks(config.services["backup-permission"]), []);
+  assert.deepEqual(networks(config.services["backup-verifier"]), []);
   assert.deepEqual(config.services["backup-permission"].profiles, ["production-backup"]);
   assert.equal(config.services["backup-permission"].user, "0:0");
   assert.equal(config.services["backup-permission"].read_only, true);
@@ -322,6 +353,10 @@ function validateValidation(config) {
       "/var/lib/rhaomi/deploy-state": `${root}/state/deploy`,
       "/var/lib/rhaomi/restore-media": `${root}/restore-media`,
     },
+    "backup-verifier": {
+      "/var/lib/rhaomi/backup-repository": `${root}/backup-repository`,
+      "/var/lib/rhaomi/deploy-state": `${root}/state/deploy`,
+    },
     "backup-permission": {
       "/var/lib/rhaomi/media-permissions": `${root}/data/media`,
     },
@@ -361,6 +396,21 @@ function validateValidation(config) {
     undefined,
   );
   assert.equal(
+    mount(config.services["backup-verifier"], "/var/lib/rhaomi/backup-repository")
+      .read_only,
+    true,
+  );
+  assert.equal(
+    mount(config.services["backup-verifier"], "/var/lib/rhaomi/deploy-state").read_only,
+    true,
+  );
+  assert.equal(
+    config.services["backup-verifier"].volumes.some(
+      (item) => item.target === "/var/lib/rhaomi/media",
+    ),
+    false,
+  );
+  assert.equal(
     mount(config.services["backup-permission"], "/var/lib/rhaomi/media-permissions")
       .read_only,
     undefined,
@@ -382,6 +432,7 @@ function validateEnvironmentBoundary(
   migration,
   schemaValidate,
   backupTool,
+  backupVerifier,
   postgres,
 ) {
   assert.deepEqual(web.environment ?? {}, {});
@@ -412,6 +463,19 @@ function validateEnvironmentBoundary(
     RHAOMI_BACKUP_MEDIA_ROOT: "/var/lib/rhaomi/media",
     RHAOMI_BACKUP_REPOSITORY_ROOT: "/var/lib/rhaomi/backup-repository",
   });
+  assert.deepEqual(backupVerifier.environment, {
+    RHAOMI_BACKUP_DEPLOY_STATE_ROOT: "/var/lib/rhaomi/deploy-state",
+    RHAOMI_BACKUP_REPOSITORY_ROOT: "/var/lib/rhaomi/backup-repository",
+  });
+  for (const variableName of [
+    "RHAOMI_BACKUP_MEDIA_ROOT",
+    "RHAOMI_BACKUP_RESTORE_MEDIA_ROOT",
+    "RHAOMI_BUILD_SERVICE_TOKEN",
+    "BUILD_API_CREDENTIAL",
+    "SPRING_DATASOURCE_PASSWORD",
+  ]) {
+    assert.equal(backupVerifier.environment[variableName], undefined);
+  }
   for (const service of [web, postgres]) {
     assert.equal(service.environment?.SPRING_DATASOURCE_PASSWORD, undefined);
   }
@@ -424,6 +488,7 @@ function validateBaseMounts(
   migration,
   schemaValidate,
   backupTool,
+  backupVerifier,
   postgres,
 ) {
   assert.deepEqual(mountMap(web), {
@@ -451,7 +516,11 @@ function validateBaseMounts(
     "/var/lib/rhaomi/media": "/private/var/lib/rhaomi/data/media",
     "/var/lib/rhaomi/deploy-state": "/private/var/lib/rhaomi/state/deploy",
   });
-  for (const service of [web, backend, publisher, backupTool]) {
+  assert.deepEqual(mountMap(backupVerifier), {
+    "/var/lib/rhaomi/backup-repository": resolve(validationRoot, "backup-repository"),
+    "/var/lib/rhaomi/deploy-state": "/private/var/lib/rhaomi/state/deploy",
+  });
+  for (const service of [web, backend, publisher, backupTool, backupVerifier]) {
     for (const item of service.volumes) {
       assert.equal(item.type, "bind");
       assert.notEqual(
@@ -466,6 +535,11 @@ function validateBaseMounts(
   assert.equal(mount(publisher, "/srv/rhaomi/public").read_only, undefined);
   assert.equal(mount(publisher, "/var/lib/rhaomi/media").read_only, true);
   assert.equal(mount(backupTool, "/var/lib/rhaomi/media").read_only, true);
+  assert.equal(
+    mount(backupVerifier, "/var/lib/rhaomi/backup-repository").read_only,
+    true,
+  );
+  assert.equal(mount(backupVerifier, "/var/lib/rhaomi/deploy-state").read_only, true);
 }
 
 function validateLabels(labels, subject) {

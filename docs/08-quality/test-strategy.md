@@ -372,6 +372,9 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - `pg_dump -Fc` archive header/list, canonical private media byte-order inventory, strict manifest V1 full-read와 same-filesystem `.incomplete`→read-only complete rename
 - same source image backend health·publisher running 복구 뒤 complete promotion; capture failure는 complete 0과 runtime 복구, runtime permission·writer 복구 실패는 complete/success 0과 own lock 보존
 - exact target release eligibility JSON·compatibility hash chain과 deploy의 stale target/missing set/evidence·manifest·artifact drift fail-before-writer-mutation
+- approved workflow run block의 fixed predeploy failure→deploy invocation 0과 same-SHA stale eligibility replay 거부
+- eligibility `createdAt`·referenced manifest `verifiedAt`의 `<24h` PASS, exact 24h/future/malformed FAIL
+- pull 전 host envelope, pull 후 read-only target verifier 순서와 repository/deploy-state write 실패·media/network/credential 0; verifier failure에서 writer stop 0·repository mutation 0
 - source A backup 뒤 writer physical stop+host capture state에서만 DB/media B mutation, fresh Compose project·PostgreSQL named volume·빈 media root의 `pg_restore`/media restore가 A인지 확인
 - isolated media restore 직후와 final writer stop 뒤 host `0700`/`0600`, runtime validation 직전 `0750`/`0640`, nested directory/file 동일 계약 확인
 - Flyway V1~V9/JPA schema, Shop·Breed·Service·Gallery·Notice·audit/relation row, representative PNG checksum/decode와 동일 static publisher 성공

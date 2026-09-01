@@ -78,6 +78,7 @@ Rhaomi/
 │   ├── validate-production-compose-contract.mjs
 │   ├── validate-production-deploy.sh
 │   ├── rhaomi-backup-tool.mjs     # strict manifest·eligibility·restore/retention tool
+│   ├── rhaomi-backup-verifier.sh  # fixed read-only deploy eligibility entrypoint
 │   ├── validate-production-backup-control.sh
 │   ├── validate-production-backup.sh
 │   ├── fixtures/fake-production-docker.sh

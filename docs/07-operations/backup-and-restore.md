@@ -110,7 +110,14 @@ backup-eligible.env
   evidenceSha256=<backup-eligibility.json SHA-256>
 ```
 
-deploy는 target image pull·revision 확인 뒤 writer를 멈추기 전에 두 파일과 complete set을 full-read한다. stale target, incomplete/missing set, evidence·manifest·artifact hash drift는 fail-before-mutation이다. scheduled mode는 release eligibility를 자동 발급하지 않는다.
+GitHub `production` Environment 승인 뒤 fixed remote argv는 항상 이 `predeploy` mode를 먼저 실행한다. backup 또는 eligibility 발급 실패 시 deploy entrypoint invocation은 0이며, 같은 target SHA 재시도도 새 set을 만든 뒤에만 진행한다.
+
+deploy entrypoint의 검증은 두 단계다.
+
+1. image pull 전 host-side envelope: fixed config·mode/owner, compatibility target/hash, evidence file SHA, repository canonical root·sentinel
+2. exact image pull·OCI revision 확인 뒤 target-image full-read: read-only `backup-verifier`가 evidence exact shape, referenced manifest/dump/media hash와 freshness 검증
+
+`backup-verifier`는 read-only root, `cap_drop: ALL`, no-new-privileges, network none이고 repository/deploy-state도 read-only다. media, Docker socket, port와 DB/build credential은 없다. eligibility `createdAt`과 referenced manifest `verifiedAt`은 각각 현재 UTC 기준 미래가 아니고 엄격히 24시간 미만이어야 한다. 정확히 24시간, future, malformed timestamp, stale target, incomplete/missing set과 evidence·manifest·artifact hash drift는 writer stop 전에 실패한다. scheduled mode는 release eligibility를 자동 발급하지 않는다.
 
 ## 주기·보존
 
@@ -135,7 +142,7 @@ tracked `ops/production/com.rhaomi.backup.plist`는 매일 host local 03:30에 f
 | local backup RPO | 검증된 local backup-set manifest·artifact | logical deletion·corruption·rollback에 사용할 같은 Mac의 복구점 |
 | offsite backup | 없음 | `NOT_CONFIGURED / DEFERRED`; 초기 production blocker 아님 |
 
-초기 목표는 local RPO 최대 24시간, RTO 8시간이다. 첫 restore drill 결과로 조정한다.
+초기 목표는 local RPO 최대 24시간, RTO 8시간이다. release-bound deploy gate는 24시간 경계의 과거 evidence replay를 허용하지 않기 위해 두 authoritative timestamp가 엄격히 24시간 미만일 때만 통과한다. 첫 restore drill 결과로 조정한다.
 
 초기 local-only backup은 Mac mini host·internal storage·화재·도난 같은 전체 손실에서 production data와 함께 사라질 수 있다. logical recovery에는 유효하지만 host/disk disaster recovery를 보장하지 않는 accepted risk다. local success를 offsite `PASS`로 표현하지 않는다.
 
@@ -175,7 +182,7 @@ static publication은 production image source를 read-only로 둔 채 task `/sta
 |---|---|
 | `scheduled` | release eligibility 없는 정기 complete set |
 | `on-demand` | 자동 retention에서 보호하는 수동 complete set |
-| `predeploy --target-release-sha` | 새 on-demand set + exact target eligibility 발급 |
+| `predeploy --target-release-sha` | 매 approved deploy 시 새 on-demand set + exact target eligibility 발급; 실패 시 deploy invocation 0 |
 | `structural-check --backup-set-id` | shape·archive header·inventory 구조 재검증 |
 | `full-read-check --backup-set-id` | dump/media 전체 SHA-256 재검증 |
 | `retention-dry-run` | KST bucket과 보호/delete 후보 출력 |

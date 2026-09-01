@@ -37,6 +37,10 @@ test("production image가 exact decoder-only source와 runtime을 고정한다",
   assert.match(dockerfile, /BUILD_TESTING=OFF/);
   assert.match(dockerfile, /COPY --from=application-builder \/workspace\/backend\.jar/);
   assert.match(dockerfile, /COPY --from=publisher-builder \/workspace\/source/);
+  assert.match(
+    dockerfile,
+    /COPY --chmod=0555 scripts\/rhaomi-backup-verifier\.sh \/usr\/local\/bin\/rhaomi-backup-verifier/,
+  );
   assert.doesNotMatch(dockerfile, /COPY\s+\.\s/);
   assert.doesNotMatch(dockerfile, /Dockerfile\.dev|Dockerfile\.publisher-validation/);
 });
@@ -54,6 +58,7 @@ test("production image acceptance가 image surface, actual media와 supply chain
   assert.match(entrypoint, /backend\/Dockerfile\.production/);
   assert.match(entrypoint, /java -version/);
   assert.match(entrypoint, /node --version/);
+  assert.match(entrypoint, /test -x \/usr\/local\/bin\/rhaomi-backup-verifier/u);
   assert.match(entrypoint, /amd64 \| arm64/);
   assert.match(entrypoint, /apk info -e libde265/);
   assert.match(entrypoint, /libcrypto3=3\.5\.8-r0/);

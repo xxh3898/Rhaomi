@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {
   chmod,
   mkdtemp,
@@ -15,6 +16,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  assertEligibilityFreshness,
   REPOSITORY_SENTINEL,
   REPOSITORY_SENTINEL_CONTENT,
   parseBackupEligibility,
@@ -25,6 +27,29 @@ import {
 const SOURCE_SHA = "a".repeat(40);
 const TARGET_SHA = "b".repeat(40);
 const SOURCE_DIGEST = `sha256:${"c".repeat(64)}`;
+
+test("release eligibility와 manifest freshness가 strict 24시간 local RPO를 강제한다", () => {
+  const now = Date.parse("2026-09-01T12:00:00Z");
+  assert.doesNotThrow(() =>
+    assertEligibilityFreshness(
+      "2026-08-31T12:00:00.000001Z",
+      "2026-09-01T11:59:59.999999Z",
+      now,
+    ),
+  );
+  for (const [createdAt, verifiedAt] of [
+    ["2026-08-31T12:00:00Z", "2026-09-01T11:00:00Z"],
+    ["2026-09-01T11:00:00Z", "2026-08-31T12:00:00Z"],
+    ["2026-09-01T12:00:00.000001Z", "2026-09-01T11:00:00Z"],
+    ["2026-09-01T11:00:00Z", "2026-09-01T12:00:00.000001Z"],
+    ["2026-09-01T11:00:00Z", "2026-02-31T00:00:00Z"],
+  ]) {
+    assert.throws(
+      () => assertEligibilityFreshness(createdAt, verifiedAt, now),
+      /BACKUP_ELIGIBILITY_INVALID|BACKUP_CONTRACT_INVALID/u,
+    );
+  }
+});
 
 async function makeFixtureRemovable(directory) {
   await chmod(directory, 0o700);
@@ -74,6 +99,49 @@ async function completeSet(context, setId, startedAt, purpose = "scheduled") {
   return run(
     ["finalize", setId, purpose, startedAt, SOURCE_SHA, SOURCE_DIGEST, "9"],
     context.environment,
+  );
+}
+
+async function rewriteEligibilityCreatedAt(context, createdAt) {
+  const evidencePath = join(context.state, "backup-eligibility.json");
+  const evidence = JSON.parse(await readFile(evidencePath, "utf8"));
+  evidence.createdAt = createdAt;
+  const evidenceBytes = `${JSON.stringify(evidence, null, 2)}\n`;
+  await chmod(evidencePath, 0o600);
+  await writeFile(evidencePath, evidenceBytes, { mode: 0o600 });
+  const evidenceSha256 = createHash("sha256").update(evidenceBytes).digest("hex");
+  await writeFile(
+    join(context.state, "backup-eligible.env"),
+    `schemaVersion=1\nstatus=eligible\nreleaseSha=${TARGET_SHA}\nevidenceSha256=${evidenceSha256}\n`,
+    { mode: 0o600 },
+  );
+}
+
+async function rewriteManifestVerifiedAt(context, setId, verifiedAt) {
+  const setPath = join(context.repository, "sets", setId);
+  const manifestPath = join(setPath, "backup-manifest.json");
+  await chmod(setPath, 0o700);
+  await chmod(manifestPath, 0o600);
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.startedAt = "2000-01-01T00:00:00Z";
+  manifest.completedAt = "2000-01-01T00:00:01Z";
+  manifest.verifiedAt = verifiedAt;
+  const manifestBytes = `${JSON.stringify(manifest, null, 2)}\n`;
+  await writeFile(manifestPath, manifestBytes, { mode: 0o600 });
+  await chmod(manifestPath, 0o400);
+  await chmod(setPath, 0o500);
+
+  const evidencePath = join(context.state, "backup-eligibility.json");
+  const evidence = JSON.parse(await readFile(evidencePath, "utf8"));
+  evidence.backupManifestSha256 = createHash("sha256").update(manifestBytes).digest("hex");
+  evidence.createdAt = new Date().toISOString();
+  const evidenceBytes = `${JSON.stringify(evidence, null, 2)}\n`;
+  await writeFile(evidencePath, evidenceBytes, { mode: 0o600 });
+  const evidenceSha256 = createHash("sha256").update(evidenceBytes).digest("hex");
+  await writeFile(
+    join(context.state, "backup-eligible.env"),
+    `schemaVersion=1\nstatus=eligible\nreleaseSha=${TARGET_SHA}\nevidenceSha256=${evidenceSha256}\n`,
+    { mode: 0o600 },
   );
 }
 
@@ -163,6 +231,36 @@ test("dump/media corruption과 stale target 또는 evidence hash mismatch를 fai
   await assert.rejects(
     run(["verify", setId, "full-read"], context.environment),
     /BACKUP_CONTRACT_INVALID/u,
+  );
+});
+
+test("같은 target SHA의 오래된 eligibility를 새 predeploy evidence로 오인하지 않는다", async (t) => {
+  const context = await fixture(t);
+  const setId = "20260901T120000Z-777777777777";
+  await writeFile(join(context.media, "master.png"), "media-A", { mode: 0o600 });
+  await completeSet(context, setId, new Date(Date.now() - 1_000).toISOString(), "on-demand");
+  await run(["issue-eligibility", setId, TARGET_SHA], context.environment);
+
+  await rewriteEligibilityCreatedAt(context, "2000-01-01T00:00:00Z");
+
+  await assert.rejects(
+    run(["verify-eligibility", TARGET_SHA], context.environment),
+    /BACKUP_ELIGIBILITY_INVALID/u,
+  );
+});
+
+test("fresh eligibility가 오래된 referenced manifest를 release backup으로 승격하지 않는다", async (t) => {
+  const context = await fixture(t);
+  const setId = "20260901T120100Z-888888888888";
+  await writeFile(join(context.media, "master.png"), "media-A", { mode: 0o600 });
+  await completeSet(context, setId, new Date(Date.now() - 1_000).toISOString(), "on-demand");
+  await run(["issue-eligibility", setId, TARGET_SHA], context.environment);
+
+  await rewriteManifestVerifiedAt(context, setId, "2000-01-01T00:00:02Z");
+
+  await assert.rejects(
+    run(["verify-eligibility", TARGET_SHA], context.environment),
+    /BACKUP_ELIGIBILITY_INVALID/u,
   );
 });
 

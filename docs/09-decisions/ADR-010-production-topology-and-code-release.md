@@ -120,18 +120,19 @@ feature → dev
 
 ### 배포 순서
 
-D-IMP-3 fixed code-image apply source는 다음 경계를 구현한다.
+D-IMP-3 fixed code-image apply와 D-IMP-4 release-bound backup source는 다음 경계를 구현한다.
 
-1. exact SHA·fixed GHCR digest·SBOM·canonical host root 검증
-2. `/private/var/lib/rhaomi/state/locks`의 atomic global deploy lock 획득
-3. fixed Compose·environment·Docker credential 권한, release-bound marker→evidence hash→complete backup-set full-read eligibility 검증
+1. protected Environment 승인 뒤 fixed SSH argv로 exact target SHA의 fresh `predeploy` backup·eligibility 발급; 실패 시 deploy invocation 0
+2. deploy strict input과 canonical host root 검증, `/private/var/lib/rhaomi/state/locks`의 atomic global deploy lock 획득
+3. image pull 전 fixed Compose·environment·Docker credential 권한과 release-bound compatibility target/hash·evidence SHA·repository sentinel/canonical root envelope 검증
 4. digest pull, RepoDigest·OCI revision·image ID 검증
-5. public web·PostgreSQL을 유지하고 backend/publisher graceful stop·physical exit 확인
-6. same-image non-web `migration`→Flyway-disabled `schema-validate`; 각 단계 전후 writer quiescence·public web 재확인
-7. backend recreate·health 후 publisher recreate, 두 runtime image ID 일치 확인
-8. bounded·redacted evidence와 explicit maintenance release
+5. read-only target-image `backup-verifier`의 complete backup-set full-read와 eligibility `createdAt`·manifest `verifiedAt` strict `<24h` 검증
+6. public web·PostgreSQL을 유지하고 backend/publisher graceful stop·physical exit 확인
+7. same-image non-web `migration`→Flyway-disabled `schema-validate`; 각 단계 전후 writer quiescence·public web 재확인
+8. backend recreate·health 후 publisher recreate, 두 runtime image ID 일치 확인
+9. bounded·redacted evidence와 explicit maintenance release
 
-input·path·backup·digest/revision 실패는 writer 정지 전에 거부한다. writer maintenance가 시작된 뒤 migration/schema/backend health/publisher start/runtime image identity 중 하나라도 실패하면 backend와 publisher를 다시 정지하고 quiescence를 확인한 뒤에만 own global lock을 해제한다. quiescence를 확인할 수 없으면 own lock을 보존해 다음 deploy를 막으며 old writer를 자동 resume하지 않는다. backend health 실패 전 publisher 시작도 금지한다. D-IMP-4 backup이 actual provision되지 않으면 release-bound eligibility를 생성할 authority가 없으므로 production deploy는 fail-closed한다.
+input·path·backup envelope·digest/revision·target verifier 실패는 writer 정지 전에 거부한다. verifier의 root/repository/deploy-state는 read-only이고 media·network·credential이 없다. writer maintenance가 시작된 뒤 migration/schema/backend health/publisher start/runtime image identity 중 하나라도 실패하면 backend와 publisher를 다시 정지하고 quiescence를 확인한 뒤에만 own global lock을 해제한다. quiescence를 확인할 수 없으면 own lock을 보존해 다음 deploy를 막으며 old writer를 자동 resume하지 않는다. backend health 실패 전 publisher 시작도 금지한다. D-IMP-4 backup이 actual provision되지 않으면 release-bound eligibility를 생성할 authority가 없으므로 production deploy는 fail-closed한다.
 
 아래는 D-IMP-4~6 provisioning·content release까지 포함한 전체 production 목표 순서다.
 

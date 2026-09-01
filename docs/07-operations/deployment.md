@@ -21,7 +21,7 @@ review_trigger: "호스트·파이프라인 변경 시"
 
 ## 구현 상태
 
-[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)의 topology와 release 절차에 따라 canonical image·Compose·project Nginx, `.github/workflows/production-release.yml`, fixed deploy entrypoint와 non-web one-shot Flyway/schema task를 구현했다. D-IMP-4는 같은 operation lock을 쓰는 fixed backup entrypoint, strict complete set과 exact-release eligibility bridge를 추가했고 deploy가 writer mutation 전에 evidence와 backup artifact를 full-read하도록 연결했다. 이 source와 task-scoped local/Hosted evidence는 private GHCR package/visibility, GitHub `production` Environment·reviewer·secret, Tailscale identity, actual host entrypoint/path·volume·backup repository·schedule·Secret·FQDN을 provision한 것이 아니며 workflow dispatch·deploy·production migration·backup을 수행하지 않았다.
+[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)의 topology와 release 절차에 따라 canonical image·Compose·project Nginx, `.github/workflows/production-release.yml`, fixed deploy entrypoint와 non-web one-shot Flyway/schema task를 구현했다. D-IMP-4는 같은 operation lock을 쓰는 fixed backup entrypoint, strict complete set과 exact-release eligibility bridge를 추가했다. approved job은 deploy 호출 전에 fresh predeploy backup을 강제하고, deploy는 pull 전 host envelope와 pull 후 read-only target-image full-read를 writer mutation 전에 분리한다. 이 source와 task-scoped local/Hosted evidence는 private GHCR package/visibility, GitHub `production` Environment·reviewer·secret, Tailscale identity, actual host entrypoint/path·volume·backup repository·schedule·Secret·FQDN을 provision한 것이 아니며 workflow dispatch·deploy·production migration·backup을 수행하지 않았다.
 
 [Production readiness matrix](production-readiness.md)는 이 승인 계약, local/CI evidence, production provisioning, 외부 콘텐츠 승인과 physical-device acceptance를 분리한다. Phase 1D contract 완료만으로 아래 production 항목을 통과 처리하지 않는다.
 
@@ -58,8 +58,8 @@ Spring Boot 콘텐츠 transaction
 
 - canonical base는 `/private/var/lib/rhaomi` bind source와 project-scoped PostgreSQL named volume을 유지한다.
 - validation overlay만 task temp root와 labeled one-shot service를 사용한다.
-- native architecture에서 web-only loopback, network adjacency, mount RO/RW, static/admin/deny route, internal Build API auth, migration·schema one-shot·malformed mode, writer 정지 중 public serving과 일반 Compose `down`→`up` sentinel persistence를 검증한다.
-- fake Docker task harness가 wrong registry·malformed/duplicate input의 mutation 전 거부, lock contention, digest/revision 검증, migration/schema·backend health·publisher start·runtime backend/publisher image mismatch 실패 뒤 writer auto-resume 0과 quiescence, secret redaction을 검증한다.
+- native architecture에서 web-only loopback, network adjacency, mount RO/RW, static/admin/deny route, internal Build API auth, migration·schema one-shot·malformed mode, read-only backup verifier의 repository/deploy-state write 실패·media/network/credential 부재, writer 정지 중 public serving과 일반 Compose `down`→`up` sentinel persistence를 검증한다.
+- fake Docker task harness가 wrong registry·malformed/duplicate input의 mutation 전 거부, lock contention, digest/revision, missing/malformed/stale eligibility와 target verifier failure에서 writer stop 0·repository mutation 0, migration/schema·backend health·publisher start·runtime backend/publisher image mismatch 실패 뒤 writer auto-resume 0과 quiescence, secret redaction을 검증한다.
 - backup control harness는 deploy/backup lock contention, writer physical exit 전 dump 금지, complete 승격 전 writer 재기동 금지, capture/restart failure와 lock hold를 검증한다.
 - actual task validator는 상태 A를 backup한 뒤 source DB/media를 B로 바꾸고 fresh named volume·media root에 A를 `pg_restore`/복사해 schema·audit/relation·media decode·static publication·restart/down-up persistence를 확인한다.
 - task container/network는 정리하지만 task PostgreSQL volume과 image는 삭제하지 않는다.
@@ -81,7 +81,7 @@ Spring Boot 콘텐츠 transaction
 - [ ] GitHub `production` Environment, required reviewer·self-review policy·main deployment policy·secret/value
 - [ ] Tailscale deploy identity·target host/user·SSH known-hosts와 public internet SSH 미노출
 - [ ] fixed entrypoint·Compose·`production.env`·Docker credential config의 Mac installation·owner·mode
-- [ ] exact release SHA에 바인딩된 D-IMP-4 backup eligibility evidence
+- [ ] approved job이 만든 24시간 미만의 exact release SHA-bound D-IMP-4 backup eligibility·manifest evidence
 - [ ] 관리자 password+WebAuthn/passkey 2차 인증, authenticator private key server 비수집, RP-side credential ID·public key·필요 metadata, registration revoke/remove, recovery-code secret의 password manager+별도 offline copy·rotation
 - [ ] protected source와 분리된 Mac mini local backup repository/path·ownership·permission·capacity
 - [ ] `pg_dump -Fc`와 canonical media를 묶은 동일 backup-set manifest·retention·check
@@ -101,17 +101,18 @@ Spring Boot 콘텐츠 transaction
 
 ## D-IMP-3 코드 image apply 단계
 
-1. exact release SHA·fixed GHCR digest·SBOM reference를 strict 검증하고 canonical host root의 directory/symlink/owner 계약을 확인
-2. `/private/var/lib/rhaomi/state/locks/rhaomi-deploy.lock`을 atomic `mkdir`로 획득하고 자신의 owner token으로만 해제
-3. fixed Compose·`production.env`·Docker credential config의 regular-file·owner·mode, exact release SHA에 바인딩된 4-line eligibility·JSON hash와 provisioned repository의 complete manifest/dump/media full-read를 확인
-4. exact manifest digest를 pull하고 RepoDigest·OCI revision·image ID를 writer 정지 전에 확인
-5. `rhaomi-web`과 PostgreSQL을 유지하고 backend·publisher를 graceful stop한 뒤 두 container의 `exited`를 확인; public static home 200 재확인
-6. 같은 exact image의 `migration` one-shot을 실행하고 writer quiescence를 재확인
-7. Flyway-disabled `schema-validate` one-shot을 실행하고 writer quiescence·public web을 재확인
-8. backend만 exact digest로 recreate하고 internal health `UP` 후 publisher를 recreate
-9. backend·publisher의 runtime image ID가 pulled image ID와 같은지 확인한 뒤에만 own lock을 해제하고 bounded·redacted success evidence와 maintenance release를 기록
+1. GitHub `production` Environment 승인 뒤 fixed SSH argv로 exact release SHA-bound `predeploy` backup을 실행하고 complete set·eligibility 발급 성공을 확인한다. 실패하면 deploy entrypoint를 호출하지 않는다.
+2. deploy entrypoint가 exact release SHA·fixed GHCR digest·SBOM reference를 strict 검증하고 `/private/var/lib/rhaomi/state/locks/rhaomi-deploy.lock`을 atomic `mkdir`로 획득한다.
+3. fixed Compose·`production.env`·Docker credential config의 regular-file·owner·mode, 4-line compatibility target/hash, eligibility evidence SHA, provisioned repository sentinel/canonical root를 host-side envelope로 검증한다. 이 단계는 image pull 전이다.
+4. exact manifest digest를 pull하고 RepoDigest·OCI revision·image ID를 writer 정지 전에 확인한다.
+5. 같은 exact target image의 fixed `backup-verifier`가 read-only repository/deploy-state mount에서 evidence exact shape, complete manifest/dump/media full-read와 `createdAt`·manifest `verifiedAt`의 strict `<24h` freshness를 확인한다.
+6. `rhaomi-web`과 PostgreSQL을 유지하고 backend·publisher를 graceful stop한 뒤 두 container의 `exited`를 확인하며 public static home 200을 재확인한다.
+7. 같은 exact image의 `migration` one-shot을 실행하고 writer quiescence를 재확인한다.
+8. Flyway-disabled `schema-validate` one-shot을 실행하고 writer quiescence·public web을 재확인한다.
+9. backend만 exact digest로 recreate하고 internal health `UP` 후 publisher를 recreate한다.
+10. backend·publisher의 runtime image ID가 pulled image ID와 같은지 확인한 뒤에만 own lock을 해제하고 bounded·redacted success evidence와 maintenance release를 기록한다.
 
-input·path·backup·digest 실패는 writer 정지 전에 fail-closed를 우선한다. backup compatibility marker만 신뢰하지 않고 target image 확인 뒤 fixed evidence와 complete set을 다시 읽는다. writer maintenance가 시작된 뒤 migration·schema validation·backend health·publisher start·runtime image identity가 실패하면 backend/publisher를 다시 stop하고 physical quiescence를 확인한 뒤에만 own lock을 해제한다. 정지를 확인할 수 없으면 own lock을 남겨 다음 deploy를 차단하며 old writer를 자동 resume하지 않는다. backend health 실패 전에 publisher를 시작하지 않는다. 이 slice는 production `current` content release를 변경하지 않으며 actual public HTTPS·content switch·first-production acceptance는 D-IMP-6에서 수행한다.
+input·path·backup envelope·digest·target verifier 실패는 writer 정지 전에 fail-closed한다. compatibility marker만 신뢰하지 않으며 host envelope는 pull 전에, target-image full-read는 pull 뒤에 수행한다. verifier root/repository/deploy-state는 read-only이고 media·network·credential이 없으므로 target image code가 recovery authority를 mutate할 수 없다. writer maintenance가 시작된 뒤 migration·schema validation·backend health·publisher start·runtime image identity가 실패하면 backend/publisher를 다시 stop하고 physical quiescence를 확인한 뒤에만 own lock을 해제한다. 정지를 확인할 수 없으면 own lock을 남겨 다음 deploy를 차단하며 old writer를 자동 resume하지 않는다. backend health 실패 전에 publisher를 시작하지 않는다. 이 slice는 production `current` content release를 변경하지 않으며 actual public HTTPS·content switch·first-production acceptance는 D-IMP-6에서 수행한다.
 
 ## Flyway
 

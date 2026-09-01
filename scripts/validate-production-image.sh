@@ -107,6 +107,8 @@ docker run --rm --network none \
     done
     test -f /opt/rhaomi/backend.jar
     test -f /opt/rhaomi/source/scripts/publish-static-release.mts
+    test -f /opt/rhaomi/source/scripts/rhaomi-backup-tool.mjs
+    test -x /usr/local/bin/rhaomi-backup-verifier
     test -f /opt/rhaomi/source/package.json
     test -f /opt/rhaomi/source/package-lock.json
     test -x /opt/rhaomi/source/node_modules/next/dist/bin/next

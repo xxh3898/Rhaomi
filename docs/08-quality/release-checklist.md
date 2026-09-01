@@ -176,7 +176,9 @@ review_trigger: "출시 기준 변경 시"
 - [x] deploy와 같은 global operation lock, backend/publisher physical quiescence, public static serving 유지
 - [x] `pg_dump -Fc`+private canonical media의 같은 set ID, strict manifest V1과 `.incomplete`→read-only complete atomic promotion
 - [x] fixed repository config·owner/mode/sentinel, symlink·path traversal·special file와 secret artifact/log fail-closed
-- [x] exact target eligibility JSON·4-line compatibility hash chain과 deploy의 writer mutation 전 full-read 재검증
+- [x] approved job의 fixed predeploy-before-deploy fail-fast, exact target eligibility JSON·4-line compatibility hash chain
+- [x] pull 전 host envelope와 pull 후 read-only target verifier full-read 분리, repository/deploy-state write·media/network/credential 0
+- [x] eligibility `createdAt`·manifest `verifiedAt` strict `<24h`, exact 24h/future/malformed/same-SHA stale replay fail-closed
 - [x] scheduled/on-demand/predeploy·structural/full-read·retention dry-run/apply fixed mode와 03:30 KST schedule source
 - [x] fixed backup wrapper의 `docker`·standalone `docker-compose` fail-closed binary 확인
 - [x] daily 7 / weekly 4 / monthly 6, latest 3·on-demand 보호와 incomplete/latest-corrupt/<3 verified apply refusal

@@ -25,8 +25,9 @@ deploy_rhaomi() {
 
   validate_fixed_configuration
   configure_release_environment
+  validate_backup_eligibility_envelope
   pull_and_verify_release_image
-  validate_backup_eligibility
+  validate_backup_eligibility_full_read
   verify_public_web
 
   writer_maintenance_active=true
@@ -202,7 +203,7 @@ validate_fixed_configuration() {
   esac
 }
 
-validate_backup_eligibility() {
+validate_backup_eligibility_envelope() {
   [ -f "$backup_gate" ] && [ ! -L "$backup_gate" ] ||
     deploy_fail DEPLOY_BACKUP_REQUIRED
   [ "$(portable_file_mode "$backup_gate")" = 600 ] ||
@@ -234,11 +235,12 @@ validate_backup_eligibility() {
   validate_deploy_backup_repository
   RHAOMI_BACKUP_REPOSITORY_ROOT=$deploy_backup_repository_root
   export RHAOMI_BACKUP_REPOSITORY_ROOT
+}
+
+validate_backup_eligibility_full_read() {
   compose_production --profile production-backup run --rm --no-deps \
     --user "$(id -u):$(id -g)" \
-    backup-tool \
-    node /opt/rhaomi/source/scripts/rhaomi-backup-tool.mjs \
-    verify-eligibility "$release_sha" >/dev/null ||
+    backup-verifier verify-eligibility "$release_sha" >/dev/null ||
     deploy_fail DEPLOY_BACKUP_REQUIRED
 }
 

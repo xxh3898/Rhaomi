@@ -53,6 +53,10 @@ main() {
     "exactDigestValidation=verified" \
     "hostPermissionGate=verified" \
     "backupEligibilityGate=verified" \
+    "backupEnvelopeBeforePull=verified" \
+    "readOnlyTargetVerifierBeforeWriterMutation=verified" \
+    "staleEligibilityReplay=blocked" \
+    "backupRepositoryMutation=0" \
     "writerQuiescenceBeforeMigration=verified" \
     "writerStopFailureBeforeMigration=verified" \
     "migrationTask=verified" \
@@ -153,6 +157,7 @@ run_case() {
     RHAOMI_DEPLOY_TEST_RELEASE_SHA="$release_sha" \
     RHAOMI_DEPLOY_TEST_IMAGE_REFERENCE="$image_reference" \
     RHAOMI_DEPLOY_TEST_IMAGE_ID="$image_id" \
+    RHAOMI_DEPLOY_TEST_DEPLOY_STATE_DIR="$case_root/state/deploy" \
     RHAOMI_DEPLOY_TEST_FAIL_STAGE="$failure_stage" \
     /bin/sh -eu -c '
       . "$1"
@@ -253,17 +258,104 @@ validate_host_and_backup_gates() {
   ! grep -Fq ' stop --timeout 30 backend publisher' "$case_log"
   [ ! -d "$case_root/state/locks/rhaomi-deploy.lock" ]
 
-  prepare_case invalid-complete-backup
-  if run_case backup-eligibility \
+  prepare_case missing-backup-evidence
+  rm "$case_root/state/deploy/backup-eligibility.json"
+  repository_before=$(directory_digest "$case_repository")
+  deploy_state_before=$(directory_digest "$case_root/state/deploy")
+  if run_case '' \
     --release-sha "$release_sha" \
     --image "$image_reference" \
     --sbom "$sbom_reference" >"$case_output" 2>&1; then
-    echo "complete backup evidence mismatch가 성공했습니다." >&2
+    echo "missing backup evidence가 성공했습니다." >&2
     exit 1
   fi
   grep -Fq DEPLOY_BACKUP_REQUIRED "$case_output"
   ! grep -Fq ' stop --timeout 30 backend publisher' "$case_log"
+  [ "$(directory_digest "$case_repository")" = "$repository_before" ]
+  [ "$(directory_digest "$case_root/state/deploy")" = "$deploy_state_before" ]
   [ ! -d "$case_root/state/locks/rhaomi-deploy.lock" ]
+
+  validate_target_verifier_failure target-verifier-failure
+  validate_target_verifier_failure malformed-backup-evidence
+
+  prepare_case stale-same-target-eligibility
+  repository_before=$(directory_digest "$case_repository")
+  deploy_state_before=$(directory_digest "$case_root/state/deploy")
+  update_evidence_created_at '2000-01-01T00:00:00Z'
+  deploy_state_stale=$(directory_digest "$case_root/state/deploy")
+  if run_case '' \
+    --release-sha "$release_sha" \
+    --image "$image_reference" \
+    --sbom "$sbom_reference" >"$case_output" 2>&1; then
+    echo "same target SHA stale eligibility가 성공했습니다." >&2
+    exit 1
+  fi
+  grep -Fq DEPLOY_BACKUP_REQUIRED "$case_output"
+  grep -Fq "pull ${image_reference}" "$case_log"
+  grep -Fq ' backup-verifier verify-eligibility ' "$case_log"
+  ! grep -Fq ' stop --timeout 30 backend publisher' "$case_log"
+  [ "$(directory_digest "$case_repository")" = "$repository_before" ]
+  [ "$(directory_digest "$case_root/state/deploy")" = "$deploy_state_stale" ]
+  [ "$deploy_state_before" != "$deploy_state_stale" ]
+  [ ! -d "$case_root/state/locks/rhaomi-deploy.lock" ]
+}
+
+validate_target_verifier_failure() {
+  case_label=$1
+  prepare_case "$case_label"
+  verifier_failure_stage=backup-verifier
+  if [ "$case_label" = malformed-backup-evidence ]; then
+    printf '%s\n' '{"schemaVersion":1' \
+      >"$case_root/state/deploy/backup-eligibility.json"
+    refresh_compatibility_hash
+    verifier_failure_stage=
+  fi
+  repository_before=$(directory_digest "$case_repository")
+  deploy_state_before=$(directory_digest "$case_root/state/deploy")
+  if run_case "$verifier_failure_stage" \
+    --release-sha "$release_sha" \
+    --image "$image_reference" \
+    --sbom "$sbom_reference" >"$case_output" 2>&1; then
+    echo "target-image backup verifier failure가 성공했습니다." >&2
+    exit 1
+  fi
+  grep -Fq DEPLOY_BACKUP_REQUIRED "$case_output"
+  grep -Fq "pull ${image_reference}" "$case_log"
+  grep -Fq ' backup-verifier verify-eligibility ' "$case_log"
+  ! grep -Fq ' stop --timeout 30 backend publisher' "$case_log"
+  [ "$(directory_digest "$case_repository")" = "$repository_before" ]
+  [ "$(directory_digest "$case_root/state/deploy")" = "$deploy_state_before" ]
+  [ ! -d "$case_root/state/locks/rhaomi-deploy.lock" ]
+}
+
+update_evidence_created_at() {
+  replacement=$1
+  evidence_file="$case_root/state/deploy/backup-eligibility.json"
+  sed "s/\"createdAt\": \"[^\"]*\"/\"createdAt\": \"${replacement}\"/" \
+    "$evidence_file" >"$case_root/state/deploy/.backup-eligibility.tmp"
+  mv "$case_root/state/deploy/.backup-eligibility.tmp" "$evidence_file"
+  chmod 600 "$evidence_file"
+  refresh_compatibility_hash
+}
+
+refresh_compatibility_hash() {
+  evidence_file="$case_root/state/deploy/backup-eligibility.json"
+  evidence_hash=$(openssl dgst -sha256 "$evidence_file" | awk '{print $NF}')
+  printf '%s\n' \
+    'schemaVersion=1' \
+    'status=eligible' \
+    "releaseSha=${release_sha}" \
+    "evidenceSha256=${evidence_hash}" \
+    >"$case_root/state/deploy/backup-eligible.env"
+  chmod 600 "$case_root/state/deploy/backup-eligible.env"
+}
+
+directory_digest() {
+  digest_root=$1
+  find "$digest_root" -type f -print | LC_ALL=C sort | while IFS= read -r digest_file; do
+    printf '%s ' "${digest_file#"$digest_root"/}"
+    openssl dgst -sha256 "$digest_file" | awk '{print $NF}'
+  done | openssl dgst -sha256 | awk '{print $NF}'
 }
 
 validate_success_path() {
@@ -282,11 +374,15 @@ validate_success_path() {
 
 assert_command_order() {
   command_log=$1
+  pull_line=$(grep -n "^pull ${image_reference}$" "$command_log" | cut -d: -f1)
+  verifier_line=$(grep -n ' backup-verifier verify-eligibility ' "$command_log" | cut -d: -f1)
   stop_line=$(grep -n ' stop --timeout 30 backend publisher$' "$command_log" | cut -d: -f1)
   migrate_line=$(grep -n ' run --rm --no-deps migration$' "$command_log" | cut -d: -f1)
   schema_line=$(grep -n ' run --rm --no-deps schema-validate$' "$command_log" | cut -d: -f1)
   backend_line=$(grep -n ' up --detach --no-deps --force-recreate backend$' "$command_log" | cut -d: -f1)
   publisher_line=$(grep -n ' up --detach --no-deps --force-recreate publisher$' "$command_log" | cut -d: -f1)
+  [ "$pull_line" -lt "$verifier_line" ]
+  [ "$verifier_line" -lt "$stop_line" ]
   [ "$stop_line" -lt "$migrate_line" ]
   [ "$migrate_line" -lt "$schema_line" ]
   [ "$schema_line" -lt "$backend_line" ]
@@ -302,6 +398,7 @@ validate_lock_contention() {
     RHAOMI_DEPLOY_TEST_RELEASE_SHA="$release_sha" \
     RHAOMI_DEPLOY_TEST_IMAGE_REFERENCE="$image_reference" \
     RHAOMI_DEPLOY_TEST_IMAGE_ID="$image_id" \
+    RHAOMI_DEPLOY_TEST_DEPLOY_STATE_DIR="$case_root/state/deploy" \
     RHAOMI_DEPLOY_TEST_PULL_RELEASE_FILE="$pull_release" \
     /bin/sh -eu -c '
       . "$1"
@@ -436,6 +533,7 @@ validate_revision_mismatch() {
     RHAOMI_DEPLOY_TEST_REVISION_OVERRIDE="$wrong_revision" \
     RHAOMI_DEPLOY_TEST_IMAGE_REFERENCE="$image_reference" \
     RHAOMI_DEPLOY_TEST_IMAGE_ID="$image_id" \
+    RHAOMI_DEPLOY_TEST_DEPLOY_STATE_DIR="$case_root/state/deploy" \
     /bin/sh -eu -c '
       . "$1"
       shift

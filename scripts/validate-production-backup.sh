@@ -104,9 +104,9 @@ main() {
   [ ! -d "$backup_repository/sets/.incomplete-$backup_set_id" ] ||
     backup_validation_fail BACKUP_INCOMPLETE_PROMOTED
   compose_for "$source_root" "$source_project" --profile production-backup run --rm --no-deps \
-    --user "$(id -u):$(id -g)" backup-tool \
-    node /opt/rhaomi/source/scripts/rhaomi-backup-tool.mjs \
-    verify-eligibility "$git_head" >"$raw_dir/eligibility-verification.json"
+    --user "$(id -u):$(id -g)" \
+    backup-verifier verify-eligibility "$git_head" \
+    >"$raw_dir/eligibility-verification.json"
   transition_validation_media_state "$source_root" "$source_project" assert-runtime
 
   quiesce_source_writers_for_host_mutation

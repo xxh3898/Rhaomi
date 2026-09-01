@@ -82,7 +82,7 @@ Nginx 설정이 바뀌지 않았다면 reload 없이 전환하는 구조를 우�
 - 현재 DB data와 이전 code의 호환성 확인
 - 단순 `git reset`만으로 운영 데이터를 되돌리지 않는다.
 - `latest` tag나 production host source rebuild를 rollback 근거로 사용하지 않는다.
-- 호환성·backup eligibility를 새 exact release SHA에 대해 다시 확인한 뒤에만 직전 정상 digest를 fixed entrypoint의 새 수동 deploy 승인 입력으로 사용한다.
+- 새 수동 deploy 승인마다 직전 정상 exact release SHA를 target으로 fresh predeploy backup을 다시 만들고, host envelope·read-only target verifier·strict `<24h` eligibility/manifest freshness가 통과한 뒤에만 직전 정상 digest를 fixed entrypoint 입력으로 사용한다. 이전 같은-SHA eligibility를 재사용하지 않는다.
 - migration·schema validation 실패로 writer가 정지된 상태에서 old image를 자동 기동하지 않는다. current schema와 직전 code의 호환성이 입증된 별도 수동 recovery/deploy 승인이 필요하다.
 
 ## Flyway schema rollback

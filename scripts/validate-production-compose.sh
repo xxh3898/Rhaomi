@@ -219,6 +219,7 @@ docker run --rm --network none \
   >"$evidence_dir/production-compose-contract.json"
 
 compose_started=true
+verify_backup_verifier_read_only_boundary
 compose_validation up --detach postgres >/dev/null
 wait_healthy postgres 90
 compose_validation run --rm --no-deps migration \
@@ -317,6 +318,10 @@ printf '%s\n' \
   "runtimeMountModes=verified" \
   "runtimeNetworkAdjacency=verified" \
   "credentialIsolation=verified" \
+  "backupVerifierRepositoryReadOnly=true" \
+  "backupVerifierDeployStateReadOnly=true" \
+  "backupVerifierMediaMount=false" \
+  "backupVerifierNetwork=false" \
   "normalFlywayDisabled=true" \
   "normalBootstrapDisabled=true" \
   "oneShotMigration=true" \
@@ -493,6 +498,43 @@ verify_writers_stopped() {
       exit 1
     fi
   done
+}
+
+verify_backup_verifier_read_only_boundary() {
+  repository_before=$(directory_content_digest "$validation_root/backup-repository")
+  deploy_state_before=$(directory_content_digest "$validation_root/state/deploy")
+  compose_validation run --rm --no-deps \
+    --entrypoint /bin/sh \
+    backup-verifier -ec '
+      test ! -e /var/lib/rhaomi/media
+      test ! -e /var/run/docker.sock
+      test ! -e /sys/class/net/eth0
+      if env | grep -Eq "RHAOMI_BACKUP_MEDIA_ROOT|RHAOMI_BUILD_SERVICE_TOKEN|BUILD_API_CREDENTIAL|SPRING_DATASOURCE_PASSWORD"; then
+        exit 1
+      fi
+      if touch /var/lib/rhaomi/backup-repository/verifier-write-must-fail 2>/dev/null; then
+        exit 1
+      fi
+      if touch /var/lib/rhaomi/deploy-state/verifier-write-must-fail 2>/dev/null; then
+        exit 1
+      fi
+      if touch /opt/rhaomi/verifier-root-write-must-fail 2>/dev/null; then
+        exit 1
+      fi
+    ' >"$validation_root/raw/backup-verifier-boundary.txt" 2>&1
+  if [ "$(directory_content_digest "$validation_root/backup-repository")" != "$repository_before" ] ||
+    [ "$(directory_content_digest "$validation_root/state/deploy")" != "$deploy_state_before" ]; then
+    echo "read-only backup verifier가 recovery authority를 변경했습니다." >&2
+    exit 1
+  fi
+}
+
+directory_content_digest() {
+  digest_root=$1
+  find "$digest_root" -type f -print | LC_ALL=C sort | while IFS= read -r digest_file; do
+    printf '%s ' "${digest_file#"$digest_root"/}"
+    openssl dgst -sha256 "$digest_file" | awk '{print $NF}'
+  done | openssl dgst -sha256 | awk '{print $NF}'
 }
 
 database_query() {

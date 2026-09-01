@@ -322,10 +322,19 @@ jobs:
           install -m 600 /dev/null "${RUNNER_TEMP}/rhaomi-known-hosts"
           printf '%s\n' "$SSH_KNOWN_HOSTS" >"${RUNNER_TEMP}/rhaomi-known-hosts"
 
-      - name: fixed Mac deploy entrypoint 실행
+      - name: fixed Mac predeploy backup·deploy entrypoint 실행
         shell: bash
         run: |
           set -euo pipefail
+          ssh \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=${RUNNER_TEMP}/rhaomi-known-hosts" \
+            -- "${TARGET_USER}@${TARGET_HOST}" \
+            /private/var/lib/rhaomi/app/bin/backup-rhaomi.sh \
+            --mode predeploy \
+            --target-release-sha "$RELEASE_SHA"
           ssh \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \

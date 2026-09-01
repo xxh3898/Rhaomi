@@ -31,6 +31,7 @@ const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const HASH_PATTERN = /^[0-9a-f]{64}$/u;
 const RELATIVE_PATH_PATTERN = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))(?!.*\\)(?!.*[\u0000-\u001f\u007f]).+$/u;
 const INSTANT_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T([01]\d|2[0-3]):([0-5]\d):([0-5]\d)(?:\.(\d{1,6}))?Z$/u;
+const LOCAL_RPO_WINDOW_MICROSECONDS = 24n * 60n * 60n * 1_000_000n;
 const MANIFEST_KEYS = [
   "schemaVersion",
   "backupSetId",
@@ -96,6 +97,32 @@ function strictInstant(value) {
     fail();
   }
   return value;
+}
+
+function instantEpochMicroseconds(value) {
+  const checked = strictInstant(value);
+  const match = INSTANT_PATTERN.exec(checked);
+  if (match === null) fail();
+  const wholeSecond = `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}Z`;
+  const epochMilliseconds = Date.parse(wholeSecond);
+  if (!Number.isFinite(epochMilliseconds)) fail();
+  const fractionalMicroseconds = BigInt((match[7] ?? "").padEnd(6, "0") || "0");
+  return BigInt(epochMilliseconds) * 1_000n + fractionalMicroseconds;
+}
+
+export function assertEligibilityFreshness(
+  eligibilityCreatedAt,
+  manifestVerifiedAt,
+  nowEpochMilliseconds = Date.now(),
+) {
+  if (!Number.isSafeInteger(nowEpochMilliseconds)) fail("BACKUP_ELIGIBILITY_INVALID");
+  const nowMicroseconds = BigInt(nowEpochMilliseconds) * 1_000n;
+  for (const instant of [eligibilityCreatedAt, manifestVerifiedAt]) {
+    const age = nowMicroseconds - instantEpochMicroseconds(instant);
+    if (age < 0n || age >= LOCAL_RPO_WINDOW_MICROSECONDS) {
+      fail("BACKUP_ELIGIBILITY_INVALID");
+    }
+  }
 }
 
 function safeInteger(value) {
@@ -637,6 +664,7 @@ async function verifyEligibility(targetReleaseSha, environment) {
   ) {
     fail("BACKUP_ELIGIBILITY_INVALID");
   }
+  assertEligibilityFreshness(evidence.createdAt, verification.manifest.verifiedAt);
   return {
     status: "eligible",
     targetReleaseSha,

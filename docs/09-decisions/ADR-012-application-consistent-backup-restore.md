@@ -12,7 +12,7 @@ review_trigger: "운영 데이터·백업 매체·보존·복구 목표 변경 �
 - 결정일: 2026-08-29
 - 상태: Accepted
 - 개정일: 2026-08-31 — 초기 production을 Mac mini local-only backup으로 변경하고 외장 SSD·iCloud 3-2-1을 future hardening으로 이관
-- 구현일: 2026-09-01 — fixed backup entrypoint, manifest V1, release eligibility bridge와 task-scoped isolated restore gate 구현
+- 구현일: 2026-09-01 — fixed backup entrypoint, manifest V1, fresh release eligibility bridge, read-only deploy verifier와 task-scoped isolated restore gate 구현
 - 관련 결정: [ADR-004](ADR-004-static-media-copy.md), [ADR-010](ADR-010-production-topology-and-code-release.md)
 
 ## 맥락
@@ -70,7 +70,11 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 
 - `predeploy` mode만 검증된 complete set에서 fixed deploy state의 `backup-eligibility.json`과 4-line `backup-eligible.env`를 원자적으로 발급한다.
 - JSON은 target release SHA, backup-set ID, manifest SHA-256와 source release/image/Flyway identity를 보존하고 compatibility file은 그 JSON의 exact SHA-256에 결합한다.
-- deploy entrypoint는 target image를 확인한 뒤 writer mutation 전에 compatibility file, evidence hash·exact shape와 complete set의 full-read manifest/artifact를 다시 검증한다. scheduled backup은 임의 future release eligibility를 발급하지 않는다.
+- GitHub `production` Environment 승인 뒤 fixed SSH argv는 deploy entrypoint보다 먼저 `backup-rhaomi.sh --mode predeploy --target-release-sha <exact SHA>`를 실행한다. backup 또는 eligibility 발급이 실패하면 deploy entrypoint 호출은 0이다. 같은 SHA 재시도도 이 순서를 반복해 새 predeploy set 없이 과거 eligibility를 재사용하지 않는다.
+- deploy entrypoint는 image pull 전에 host fixed config, compatibility target/hash, evidence regular-file SHA와 repository sentinel/canonical root를 envelope로 검증한다. exact target image pull·OCI revision 확인 뒤에는 같은 image의 `backup-verifier`로 evidence exact shape와 referenced complete set의 manifest/dump/media를 full-read한다.
+- full-read verifier는 eligibility `createdAt`과 referenced manifest `verifiedAt`이 각각 현재 UTC 기준 미래가 아니고 엄격히 24시간 미만인지 검증한다. 정확히 24시간, future 또는 malformed timestamp는 fail-closed한다.
+- `backup-verifier`는 read-only root, `cap_drop: ALL`, no-new-privileges, network none이며 repository와 deploy-state를 read-only로만 mount한다. media, Docker socket, port, DB/build credential은 제공하지 않는다. target image code가 recovery authority를 변경할 수 없다는 보장은 command 관례가 아니라 이 mount boundary가 담당한다.
+- scheduled backup은 임의 future release eligibility를 발급하지 않는다.
 
 ### 일정·보존·검증
 
@@ -86,7 +90,7 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 
 ### restore
 
-- 초기 목표는 local RPO `<= 24h`, RTO `<= 8h`다. 첫 restore drill의 실제 소요 시간과 데이터량으로 목표를 조정한다.
+- 초기 목표는 local RPO `<= 24h`, RTO `<= 8h`다. release eligibility machine gate는 boundary replay를 피하기 위해 두 authoritative timestamp가 엄격히 24시간 미만일 때만 통과한다. 첫 restore drill의 실제 소요 시간과 데이터량으로 목표를 조정한다.
 - isolated Compose project, 새 project-scoped PostgreSQL named volume과 새 media root에 restore한다.
 - `pg_restore`, manifest, checksum·file count, Flyway schema, 핵심 row/API, 대표 canonical media와 static build를 검증한다.
 - PostgreSQL container restart와 일반 Compose `down`·`up` 뒤 복구 data persistence를 확인한다.

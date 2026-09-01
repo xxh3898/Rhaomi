@@ -101,13 +101,14 @@ test("fixed backup entrypoint가 repository CLI 없이 shared lock과 writer-qui
 });
 
 test("backup tool production profile과 validation-only permission service가 fail-closed 경계를 유지한다", async () => {
-  const [compose, overlay, dockerfile, permissionHelper] = await Promise.all([
+  const [compose, overlay, dockerfile, permissionHelper, verifierEntrypoint] = await Promise.all([
     source("compose.production.yaml"),
     source("compose.production.validation.yaml"),
     source("backend/Dockerfile.production"),
     source("scripts/rhaomi-backup-media-permissions.sh"),
+    source("scripts/rhaomi-backup-verifier.sh"),
   ]);
-  const block = compose.match(/\n  backup-tool:\n([\s\S]*?)\n  postgres:/u)?.[1];
+  const block = compose.match(/\n  backup-tool:\n([\s\S]*?)\n  backup-verifier:/u)?.[1];
   assert.ok(block);
   assert.match(block, /profiles: \["production-backup"\]/u);
   assert.match(block, /image: \$\{RHAOMI_PRODUCTION_IMAGE:/u);
@@ -118,8 +119,31 @@ test("backup tool production profile과 validation-only permission service가 fa
   assert.match(block, /target: \/var\/lib\/rhaomi\/media[\s\S]*read_only: true/u);
   assert.match(block, /target: \/var\/lib\/rhaomi\/deploy-state/u);
   assert.doesNotMatch(block, /POSTGRES_PASSWORD|BUILD_SERVICE_TOKEN|docker\.sock|ports:/u);
+  const verifierBlock = compose.match(/\n  backup-verifier:\n([\s\S]*?)\n  postgres:/u)?.[1];
+  assert.ok(verifierBlock);
+  assert.match(verifierBlock, /profiles: \["production-backup"\]/u);
+  assert.match(verifierBlock, /image: \$\{RHAOMI_PRODUCTION_IMAGE:/u);
+  assert.match(verifierBlock, /read_only: true/u);
+  assert.match(verifierBlock, /cap_drop: \["ALL"\]/u);
+  assert.match(verifierBlock, /no-new-privileges:true/u);
+  assert.match(verifierBlock, /network_mode: none/u);
+  assert.match(verifierBlock, /entrypoint: \["\/usr\/local\/bin\/rhaomi-backup-verifier"\]/u);
+  assert.match(
+    verifierBlock,
+    /target: \/var\/lib\/rhaomi\/backup-repository[\s\S]*read_only: true/u,
+  );
+  assert.match(
+    verifierBlock,
+    /target: \/var\/lib\/rhaomi\/deploy-state[\s\S]*read_only: true/u,
+  );
+  assert.doesNotMatch(
+    verifierBlock,
+    /RHAOMI_BACKUP_MEDIA_ROOT|POSTGRES_PASSWORD|BUILD_SERVICE_TOKEN|docker\.sock|ports:|tmpfs:/u,
+  );
   assert.match(overlay, /RHAOMI_BACKUP_RESTORE_MEDIA_ROOT/u);
+  assert.match(overlay, /backup-verifier:[\s\S]*read_only: true/u);
   assert.match(dockerfile, /COPY scripts\/rhaomi-backup-tool\.mjs/u);
+  assert.match(dockerfile, /COPY --chmod=0555 scripts\/rhaomi-backup-verifier\.sh/u);
   assert.match(
     dockerfile,
     /COPY --chmod=0555 scripts\/rhaomi-backup-media-permissions\.sh/u,
@@ -141,17 +165,28 @@ test("backup tool production profile과 validation-only permission service가 fa
   assert.match(permissionHelper, /apply_tree_state "\$host_uid" "\$host_gid" 0700 0600/u);
   assert.match(permissionHelper, /! -type d ! -type f/u);
   assert.doesNotMatch(permissionHelper, /eval|\/private\/var\/lib\/rhaomi/u);
+  assert.match(verifierEntrypoint, /^#!\/bin\/sh/u);
+  assert.match(verifierEntrypoint, /\[ "\$1" = verify-eligibility \]/u);
+  assert.match(verifierEntrypoint, /\^\[0-9a-f\]\{40\}\$/u);
+  assert.match(verifierEntrypoint, /exec \/usr\/local\/bin\/node/u);
+  assert.doesNotMatch(verifierEntrypoint, /eval|RHAOMI_BACKUP_MEDIA_ROOT/u);
 });
 
 test("deploy backup gate가 target·evidence hash·complete manifest를 writer mutation 전에 재검증한다", async () => {
   const core = await source("ops/production/deploy-rhaomi-core.sh");
-  const pullIndex = core.indexOf("pull_and_verify_release_image");
-  const eligibilityIndex = core.indexOf("validate_backup_eligibility", pullIndex);
-  const writerIndex = core.indexOf("writer_maintenance_active=true", eligibilityIndex);
-  assert(pullIndex >= 0 && eligibilityIndex > pullIndex && writerIndex > eligibilityIndex);
+  const envelopeIndex = core.indexOf("validate_backup_eligibility_envelope");
+  const pullIndex = core.indexOf("pull_and_verify_release_image", envelopeIndex);
+  const fullReadIndex = core.indexOf("validate_backup_eligibility_full_read", pullIndex);
+  const writerIndex = core.indexOf("writer_maintenance_active=true", fullReadIndex);
+  assert(
+    envelopeIndex >= 0 &&
+      pullIndex > envelopeIndex &&
+      fullReadIndex > pullIndex &&
+      writerIndex > fullReadIndex,
+  );
   assert.match(core, /backup-eligibility\.json/u);
   assert.match(core, /openssl dgst -sha256/u);
-  assert.match(core, /verify-eligibility "\$release_sha"/u);
+  assert.match(core, /backup-verifier verify-eligibility "\$release_sha"/u);
   assert.match(core, /RHAOMI_BACKUP_REPOSITORY_ROOT/u);
   assert.match(core, /\.rhaomi-backup-repository/u);
 });
@@ -185,6 +220,7 @@ test("task validator가 A backup/B mutation/fresh restore A와 persistence를 ex
   assert.match(validator, /sourceVolumeRetained=true/u);
   assert.match(validator, /restoreVolumeRetained=true/u);
   assert.match(validator, /sameHostFailureDomain/u);
+  assert.match(validator, /backup-verifier verify-eligibility "\$git_head"/u);
   assert.match(orchestrator, /\.rhaomi-publication-work/u);
   assert.match(nextBuild, /relative\(input\.sourceRoot, input\.workspaceRoot\)/u);
   assert.match(validator, /state\/publisher\/build-workspace/u);

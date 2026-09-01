@@ -95,6 +95,22 @@ services:
         bind:
           create_host_path: false
 
+  backup-verifier:
+    labels: *validation-labels
+    volumes:
+      - type: bind
+        source: ${RHAOMI_BACKUP_REPOSITORY_ROOT:?RHAOMI_BACKUP_REPOSITORY_ROOT is required}
+        target: /var/lib/rhaomi/backup-repository
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${RHAOMI_PRODUCTION_VALIDATION_ROOT:?RHAOMI_PRODUCTION_VALIDATION_ROOT is required}/state/deploy
+        target: /var/lib/rhaomi/deploy-state
+        read_only: true
+        bind:
+          create_host_path: false
+
   backup-permission:
     profiles: ["production-backup"]
     image: ${RHAOMI_PRODUCTION_IMAGE:?RHAOMI_PRODUCTION_IMAGE is required}
