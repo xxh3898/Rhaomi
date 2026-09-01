@@ -208,6 +208,10 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(entrypoint, /--security-opt no-new-privileges=true/u);
   assert.match(entrypoint, /--cap-drop ALL/u);
   assert.match(entrypoint, /--cap-add CHOWN/u);
+  assert.match(
+    entrypoint,
+    /chown 0:0[^\n]*\/validation\/publisher \\\n\s+\/validation\/publisher\/build-workspace/u,
+  );
   assert.match(entrypoint, /validationBindOwnershipMode/u);
   assert.match(entrypoint, /\/private\/var\/tmp/u);
   assert.match(entrypoint, /Mounts|PortBindings|NetworkSettings/u);

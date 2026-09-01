@@ -435,7 +435,8 @@ run_bind_ownership_helper() {
     sh -ec '
       case "$1" in
         prepare)
-          chown 0:0 /validation/public /validation/media /validation/publisher /validation/locks
+          chown 0:0 /validation/public /validation/media /validation/publisher \
+            /validation/publisher/build-workspace /validation/locks
           chmod 0755 /validation/public
           chmod 0750 /validation/media /validation/publisher \
             /validation/publisher/build-workspace /validation/locks
