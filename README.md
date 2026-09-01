@@ -166,12 +166,12 @@ evidence 경로에는 secret이 아닌 exact image ID·Git HEAD, CMake contract,
 ```bash
 RHAOMI_PRODUCTION_IMAGE='rhaomi-production-validation:<exact-head>' \
 RHAOMI_WEB_LOOPBACK_PORT=18053 \
-RHAOMI_CLEANUP_TASK=53-production-release-gate \
+RHAOMI_CLEANUP_TASK=55-application-consistent-restore-gate \
 RHAOMI_PRODUCTION_COMPOSE_EVIDENCE_DIR=/path/to/task-evidence \
 sh scripts/validate-production-compose.sh
 ```
 
-script는 image OCI revision과 current Git HEAD 일치, profile opt-in one-shot Flyway V1~V9 migration·Flyway-disabled schema validation, malformed task mode 거부, normal backend/publisher의 Flyway·bootstrap 비활성, writer 정지 중 public static 200, web-only loopback port, internal network adjacency, bind RO/RW, public deny route, `Secure` session cookie와 일반 Compose `down`→`up` sentinel persistence를 확인한다. task container/network와 marker temp root는 정리하지만 PostgreSQL task volume과 image는 삭제하지 않고 exact retained volume을 보고한다. base의 `/private/var/lib/rhaomi`를 만들거나 변경하지 않으며 production Secret·FQDN·Cloudflare·GHCR·deploy도 다루지 않는다.
+script는 image OCI revision과 current Git HEAD 일치, profile opt-in one-shot Flyway V1~V9 migration·Flyway-disabled schema validation, malformed task mode 거부, normal backend/publisher의 Flyway·bootstrap 비활성, writer 정지 중 public static 200, web-only loopback port, internal network adjacency, bind RO/RW, publisher isolated build-workspace RW와 나머지 image source RO, public deny route, `Secure` session cookie와 일반 Compose `down`→`up` sentinel persistence를 확인한다. task container/network와 marker temp root는 정리하지만 PostgreSQL task volume과 image는 삭제하지 않고 exact retained volume을 보고한다. base의 `/private/var/lib/rhaomi`를 만들거나 변경하지 않으며 production Secret·FQDN·Cloudflare·GHCR·deploy도 다루지 않는다.
 
 ### Production release/deploy contract acceptance
 
@@ -183,6 +183,18 @@ sh scripts/validate-production-deploy.sh
 ```
 
 `.github/workflows/production-release.yml`은 `workflow_dispatch` only, exact current `main` SHA, required Docker build arg, job별 최소 권한, existing exact-SHA tag 덮어쓰기 거부, `linux/amd64`+`linux/arm64` digest와 platform별 attached SBOM·provenance·scan 검증, `environment: production` 승인 후 pinned Tailscale와 fixed remote argv만 소스 계약으로 고정한다. `SBOM_REFERENCE`는 두 platform attestation을 소유하는 published OCI index digest다. PR/Hosted Validate는 이 workflow를 dispatch하거나 package를 push하지 않는다.
+
+### Application-consistent backup·isolated restore acceptance
+
+`ops/production/backup-rhaomi.sh`는 fixed production root와 `production.env`의 provisioned repository만 사용한다. deploy와 같은 operation lock 아래 backend/publisher physical exit를 확인한 뒤 `pg_dump -Fc`와 private media를 하나의 strict manifest V1 set으로 만들고, full-read 후 `.incomplete`를 read-only complete set으로 원자 승격한다. `predeploy`만 exact release eligibility JSON과 4-line hash bridge를 발급하며 deploy는 writer mutation 전에 complete set까지 다시 검증한다.
+
+```bash
+RHAOMI_PRODUCTION_IMAGE='rhaomi-production-validation:<exact-head>' \
+RHAOMI_PRODUCTION_BACKUP_EVIDENCE_DIR=/path/to/task-evidence \
+sh scripts/validate-production-backup.sh
+```
+
+task validator는 source A backup 뒤 DB/media를 B로 바꾸고 fresh PostgreSQL named volume·media root에 A를 복구해 Flyway/schema·audit/relation·media decode·static publication·restart/down-up persistence를 확인한다. actual `/private/var/lib/rhaomi`, production data/repository/schedule, workflow dispatch·GHCR·Tailscale과 Docker volume/image delete·prune는 건드리지 않는다.
 
 ## 현재 핵심 결론
 

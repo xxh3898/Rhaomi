@@ -35,7 +35,9 @@ test("production Compose가 external same-image와 최소 service topology를 �
   const backend = serviceBlock(compose, "backend", "publisher");
   const publisher = serviceBlock(compose, "publisher", "migration");
   const migration = serviceBlock(compose, "migration", "schema-validate");
-  const schemaValidate = serviceBlock(compose, "schema-validate", "postgres");
+  const schemaValidate = serviceBlock(compose, "schema-validate", "backup-tool");
+  const backupTool = serviceBlock(compose, "backup-tool", "backup-verifier");
+  const backupVerifier = serviceBlock(compose, "backup-verifier", "postgres");
   const postgres = serviceBlock(compose, "postgres");
 
   assert.match(
@@ -52,6 +54,8 @@ test("production Compose가 external same-image와 최소 service topology를 �
           "publisher:",
           "migration:",
           "schema-validate:",
+          "backup-tool:",
+          "backup-verifier:",
           "postgres:",
         ].includes(entry),
       ),
@@ -61,6 +65,8 @@ test("production Compose가 external same-image와 최소 service topology를 �
       "publisher:",
       "migration:",
       "schema-validate:",
+      "backup-tool:",
+      "backup-verifier:",
       "postgres:",
     ],
   );
@@ -115,6 +121,23 @@ test("production Compose가 external same-image와 최소 service topology를 �
   assert.match(schemaValidate, /--rhaomi\.production-task=schema-validate/u);
   assert.match(schemaValidate, /SPRING_FLYWAY_ENABLED: "false"/u);
   assert.match(schemaValidate, /SPRING_JPA_HIBERNATE_DDL_AUTO: validate/u);
+  assert.match(backupTool, /profiles: \["production-backup"\]/u);
+  assert.match(backupVerifier, /profiles: \["production-backup"\]/u);
+  assert.match(backupVerifier, /entrypoint: \["\/usr\/local\/bin\/rhaomi-backup-verifier"\]/u);
+  assert.match(backupVerifier, /network_mode: none/u);
+  assert.match(backupVerifier, /cap_drop: \["ALL"\]/u);
+  assert.match(
+    backupVerifier,
+    /target: \/var\/lib\/rhaomi\/backup-repository[\s\S]*read_only: true/u,
+  );
+  assert.match(
+    backupVerifier,
+    /target: \/var\/lib\/rhaomi\/deploy-state[\s\S]*read_only: true/u,
+  );
+  assert.doesNotMatch(
+    backupVerifier,
+    /RHAOMI_BACKUP_MEDIA_ROOT|POSTGRES_PASSWORD|BUILD_SERVICE_TOKEN|docker\.sock|ports:/u,
+  );
   assert.match(backend, /RHAOMI_BUILD_SERVICE_TOKEN:/u);
   assert.doesNotMatch(web, /BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN|POSTGRES_PASSWORD/u);
   assert.doesNotMatch(postgres, /BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN/u);
@@ -173,6 +196,11 @@ test("validation overlay가 task temp source와 one-shot service label만 덮어
   assert.match(overlay, /source: \$\{RHAOMI_PRODUCTION_VALIDATION_ROOT:\?[^}]+\}\/state\/locks/u);
   assert.match(overlay, /migration:[\s\S]*labels: \*validation-labels/u);
   assert.match(overlay, /schema-validate:[\s\S]*labels: \*validation-labels/u);
+  assert.match(overlay, /backup-verifier:[\s\S]*labels: \*validation-labels/u);
+  assert.match(
+    overlay,
+    /backup-verifier:[\s\S]*target: \/var\/lib\/rhaomi\/backup-repository[\s\S]*read_only: true[\s\S]*target: \/var\/lib\/rhaomi\/deploy-state[\s\S]*read_only: true/u,
+  );
   assert.doesNotMatch(overlay, /schema-bootstrap|SPRING_FLYWAY_ENABLED/u);
   assert.match(overlay, /io\.homeserver\.cleanup\.task:/u);
   assert.doesNotMatch(overlay, /\/private\/var\/lib\/rhaomi|down -v|volume prune/u);
@@ -208,7 +236,18 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(entrypoint, /--security-opt no-new-privileges=true/u);
   assert.match(entrypoint, /--cap-drop ALL/u);
   assert.match(entrypoint, /--cap-add CHOWN/u);
+  assert.match(
+    entrypoint,
+    /chown 0:0[^\n]*\/validation\/publisher \\\n\s+\/validation\/publisher\/build-workspace/u,
+  );
   assert.match(entrypoint, /validationBindOwnershipMode/u);
+  assert.match(entrypoint, /verify_backup_verifier_read_only_boundary/u);
+  assert.match(entrypoint, /backup-verifier -ec/u);
+  assert.match(entrypoint, /verifier-write-must-fail/u);
+  assert.match(entrypoint, /backupVerifierRepositoryReadOnly=true/u);
+  assert.match(entrypoint, /backupVerifierDeployStateReadOnly=true/u);
+  assert.match(entrypoint, /backupVerifierMediaMount=false/u);
+  assert.match(entrypoint, /backupVerifierNetwork=false/u);
   assert.match(entrypoint, /\/private\/var\/tmp/u);
   assert.match(entrypoint, /Mounts|PortBindings|NetworkSettings/u);
   assert.match(entrypoint, /api\/build|internal|actuator|release-manifest/u);

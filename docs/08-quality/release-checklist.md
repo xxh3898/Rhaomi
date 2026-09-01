@@ -149,7 +149,7 @@ review_trigger: "출시 기준 변경 시"
 
 - [x] external exact image만 사용하는 four-service production Compose source, `build:`·`latest` 0
 - [x] web-only loopback port와 web→backend, backend↔PostgreSQL, publisher→backend/DB internal network 경계
-- [x] canonical Mac public/media/state bind mapping과 web/media RO·backend/publisher 최소 RW rendered contract
+- [x] canonical Mac public/media/state/build-workspace bind mapping과 web/media RO·backend/publisher 최소 RW, publisher image source의 workspace 외 read-only rendered contract
 - [x] project-scoped PostgreSQL named volume, task 일반 Compose `down`→`up` sentinel·identity persistence
 - [x] project Nginx static/admin proxy, relative `/admin` redirect, fixed backend forwarded `https:443`, build/internal/actuator/manifest deny, nested hidden file 404와 query-bearing Referrer access-log 제외
 - [x] task temp overlay·one-shot V1~V9 migration/schema validation, normal backend/publisher Flyway·bootstrap 비활성
@@ -171,6 +171,23 @@ review_trigger: "출시 기준 변경 시"
 
 위 항목은 workflow·entrypoint·one-shot task implementation evidence다. actual private GHCR package, GitHub `production` Environment/reviewer/secret, Tailscale identity, Mac entrypoint/config/path/volume, backup set을 provision하지 않았고 production workflow dispatch·package push·deploy·migration을 수행하지 않았으므로 아래 운영 항목은 계속 미완료다.
 
+### D-IMP-4 source·task validation
+
+- [x] deploy와 같은 global operation lock, backend/publisher physical quiescence, public static serving 유지
+- [x] `pg_dump -Fc`+private canonical media의 같은 set ID, strict manifest V1과 `.incomplete`→read-only complete atomic promotion
+- [x] fixed repository config·owner/mode/sentinel, symlink·path traversal·special file와 secret artifact/log fail-closed
+- [x] approved job의 fixed predeploy-before-deploy fail-fast, exact target eligibility JSON·4-line compatibility hash chain
+- [x] pull 전 host envelope와 pull 후 read-only target verifier full-read 분리, repository/deploy-state write·media/network/credential 0
+- [x] eligibility `createdAt`·manifest `verifiedAt` strict `<24h`, exact 24h/future/malformed/same-SHA stale replay fail-closed
+- [x] scheduled/on-demand/predeploy·structural/full-read·retention dry-run/apply fixed mode와 03:30 KST schedule source
+- [x] fixed backup wrapper의 `docker`·standalone `docker-compose` fail-closed binary 확인
+- [x] daily 7 / weekly 4 / monthly 6, latest 3·on-demand 보호와 incomplete/latest-corrupt/<3 verified apply refusal
+- [x] source A→backup→source B mutation→fresh PostgreSQL named volume/media root restore A, schema/audit/relation/media decode/static publication 검증
+- [x] Linux validation media runtime `0750`/`0640` ↔ writer-exited host `0700`/`0600` 전환, capture failure recovery·runtime restoration failure lock hold와 isolated restore final owner-only 검증
+- [x] PostgreSQL restart·일반 Compose `down`→`up` persistence, task container/network cleanup과 volume/image deletion 0
+
+위 완료 표시는 source와 task-scoped local/Hosted evidence다. actual Mac repository path·capacity·scheduler, production DB/media backup, production restore/RPO·RTO는 계속 아래 운영 항목에서 미완료다.
+
 ## 보안·운영
 
 - [ ] HTTPS
@@ -185,7 +202,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] GitHub production environment 수동 승인과 고정 Tailscale deploy entrypoint
 - [ ] write maintenance·one-shot Flyway·schema validate·expand/contract
 - [ ] 실제 Mac `/private/var/lib/rhaomi/{app,public,data/media,state,logs}` 생성·ownership·permission
-- [ ] Mac public/media/state source의 Docker Desktop bind smoke와 web RO·backend/publisher 최소 write mode
+- [ ] Mac public/media/state/build-workspace source의 Docker Desktop bind smoke와 web RO·backend/publisher 최소 write mode, publisher image source의 workspace 외 write 거부
 - [ ] `/srv/rhaomi/public`이 web/publisher Linux container target일 뿐 Mac host source가 아님
 - [ ] PostgreSQL host PGDATA bind 부재, production project-scoped named volume exact identity·mount
 - [ ] PostgreSQL container restart와 일반 Compose `down`·`up` 뒤 DB persistence

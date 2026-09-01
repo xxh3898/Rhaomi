@@ -157,6 +157,11 @@ services:
         bind:
           create_host_path: false
       - type: bind
+        source: /private/var/lib/rhaomi/state/publisher/build-workspace
+        target: /opt/rhaomi/source/.rhaomi-publication-work
+        bind:
+          create_host_path: false
+      - type: bind
         source: /private/var/lib/rhaomi/state/locks
         target: /var/lib/rhaomi/locks
         bind:
@@ -232,6 +237,74 @@ services:
       - /tmp:rw,noexec,nosuid,size=256m
     networks:
       - data-internal
+    restart: "no"
+    logging: *production-logging
+
+  backup-tool:
+    profiles: ["production-backup"]
+    image: ${RHAOMI_PRODUCTION_IMAGE:?RHAOMI_PRODUCTION_IMAGE is required}
+    init: true
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    working_dir: /opt/rhaomi
+    command: ["node", "/opt/rhaomi/source/scripts/rhaomi-backup-tool.mjs"]
+    environment:
+      RHAOMI_BACKUP_REPOSITORY_ROOT: /var/lib/rhaomi/backup-repository
+      RHAOMI_BACKUP_MEDIA_ROOT: /var/lib/rhaomi/media
+      RHAOMI_BACKUP_DEPLOY_STATE_ROOT: /var/lib/rhaomi/deploy-state
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - type: bind
+        source: ${RHAOMI_BACKUP_REPOSITORY_ROOT:?RHAOMI_BACKUP_REPOSITORY_ROOT is required}
+        target: /var/lib/rhaomi/backup-repository
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /private/var/lib/rhaomi/data/media
+        target: /var/lib/rhaomi/media
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /private/var/lib/rhaomi/state/deploy
+        target: /var/lib/rhaomi/deploy-state
+        bind:
+          create_host_path: false
+    network_mode: none
+    restart: "no"
+    logging: *production-logging
+
+  backup-verifier:
+    profiles: ["production-backup"]
+    image: ${RHAOMI_PRODUCTION_IMAGE:?RHAOMI_PRODUCTION_IMAGE is required}
+    init: true
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    working_dir: /opt/rhaomi
+    entrypoint: ["/usr/local/bin/rhaomi-backup-verifier"]
+    command: ["verify-eligibility"]
+    environment:
+      RHAOMI_BACKUP_REPOSITORY_ROOT: /var/lib/rhaomi/backup-repository
+      RHAOMI_BACKUP_DEPLOY_STATE_ROOT: /var/lib/rhaomi/deploy-state
+    volumes:
+      - type: bind
+        source: ${RHAOMI_BACKUP_REPOSITORY_ROOT:?RHAOMI_BACKUP_REPOSITORY_ROOT is required}
+        target: /var/lib/rhaomi/backup-repository
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /private/var/lib/rhaomi/state/deploy
+        target: /var/lib/rhaomi/deploy-state
+        read_only: true
+        bind:
+          create_host_path: false
+    network_mode: none
     restart: "no"
     logging: *production-logging
 

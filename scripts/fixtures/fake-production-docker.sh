@@ -7,6 +7,7 @@ state_dir=${RHAOMI_DEPLOY_TEST_STATE_DIR:?RHAOMI_DEPLOY_TEST_STATE_DIR is requir
 release_sha=${RHAOMI_DEPLOY_TEST_RELEASE_SHA:?RHAOMI_DEPLOY_TEST_RELEASE_SHA is required}
 image_reference=${RHAOMI_DEPLOY_TEST_IMAGE_REFERENCE:?RHAOMI_DEPLOY_TEST_IMAGE_REFERENCE is required}
 image_id=${RHAOMI_DEPLOY_TEST_IMAGE_ID:?RHAOMI_DEPLOY_TEST_IMAGE_ID is required}
+deploy_state_dir=${RHAOMI_DEPLOY_TEST_DEPLOY_STATE_DIR:?RHAOMI_DEPLOY_TEST_DEPLOY_STATE_DIR is required}
 failure_stage=${RHAOMI_DEPLOY_TEST_FAIL_STAGE:-}
 
 inspect_image() {
@@ -88,16 +89,26 @@ compose_command() {
       task=
       for argument in "$@"; do
         case "$argument" in
-          migration | schema-validate) task=$argument ;;
+          migration | schema-validate | backup-verifier) task=$argument ;;
         esac
       done
       [ -n "$task" ] || exit 64
-      if [ "$(cat "$state_dir/backend")" != exited ] ||
-        [ "$(cat "$state_dir/publisher")" != exited ]; then
-        printf '%s\n' "$task" >"$state_dir/quiescence-violation"
-        exit 1
+      if [ "$task" = backup-verifier ]; then
+        [ "$failure_stage" != backup-verifier ] || exit 1
+        evidence_file="$deploy_state_dir/backup-eligibility.json"
+        [ -f "$evidence_file" ] || exit 1
+        grep -Fq "\"targetReleaseSha\": \"${release_sha}\"" "$evidence_file" || exit 1
+        if grep -Fq '"createdAt": "2000-01-01T00:00:00Z"' "$evidence_file"; then
+          exit 1
+        fi
+      else
+        if [ "$(cat "$state_dir/backend")" != exited ] ||
+          [ "$(cat "$state_dir/publisher")" != exited ]; then
+          printf '%s\n' "$task" >"$state_dir/quiescence-violation"
+          exit 1
+        fi
+        [ "$failure_stage" != "$task" ] || exit 1
       fi
-      [ "$failure_stage" != "$task" ] || exit 1
       ;;
     up)
       service=

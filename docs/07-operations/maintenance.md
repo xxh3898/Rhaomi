@@ -3,7 +3,7 @@ title: "정기 유지보수"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "운영 주기 변경 시"
 ---
 
@@ -11,7 +11,7 @@ review_trigger: "운영 주기 변경 시"
 
 ## 구현 상태
 
-아래 주기는 [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)와 [ADR-013](../09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md)의 production 목표다. local/CI release adapter에는 post-switch smoke를 통과한 성공 release 기본 5개 retention과 current·previous 보호, stale·실패 candidate cleanup이 구현됐지만 production path에서 자동 실행되지 않는다. machine result가 `retentionStatus=DEFERRED`이면 이미 성공한 current를 낮추지 않고 release root integrity·permission을 재검증한 뒤 별도 maintenance로 retention을 재시도한다. 초기 Mac mini local-only backup repository, HomeOps monitor와 maintenance automation은 아직 구현·실행되지 않았다.
+아래 주기는 [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)와 [ADR-013](../09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md)의 production 목표다. local/CI release retention에 더해 D-IMP-4 fixed backup/retention source와 task-scoped isolated restore는 구현됐다. tracked plist와 explicit retention apply는 actual Mac에 install/run하지 않았고 local repository·HomeOps monitor·maintenance provisioning도 미완료다. `retentionStatus=DEFERRED`인 public release나 backup incomplete/checksum failure를 cleanup 성공으로 오기록하지 않는다.
 
 ## 매일 자동
 
@@ -33,7 +33,7 @@ review_trigger: "운영 주기 변경 시"
 - 이미지 깨짐 검사
 - 외부 링크 스모크
 - 보관 대상 임시 파일 확인
-- public/media/state bind mount access mode와 PostgreSQL named volume의 container restart persistence 표본 확인
+- public/media/state/build-workspace bind mount access mode, publisher image source의 workspace 외 write 거부와 PostgreSQL named volume의 container restart persistence 표본 확인
 - 관리자 로그인 이상 확인
 - incident hold와 bounded log rotation 상태 확인
 
@@ -45,7 +45,7 @@ review_trigger: "운영 주기 변경 시"
 - NAP 일치 확인
 - 관리자 사용자·세션 검토
 - 성공 release 최근 5개, 실패 artifact 7일과 build cache 정리 후보 검토
-- local backup retention dry-run 뒤 daily 7 / weekly 4 / monthly 6 적용·prune·post-check
+- local backup retention dry-run 뒤 모든 complete set full-read, incomplete/latest-invalid/<3 verified 부재 확인 후 daily 7 / weekly 4 / monthly 6 explicit apply·post-check
 - local backup repository의 보존 대상 full data read
 - service당 약 100 MiB·일반 14일 로그 보존과 incident hold 확인
 

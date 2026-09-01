@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -20,6 +22,26 @@ function jobBlock(workflow, name, nextName) {
   const finish = workflow.indexOf(end, start + 1);
   assert.notEqual(finish, -1, `${nextName} job 경계가 필요합니다.`);
   return workflow.slice(start, finish);
+}
+
+function stepRunBlock(workflow, name) {
+  const marker = `      - name: ${name}\n`;
+  const start = workflow.indexOf(marker);
+  assert.notEqual(start, -1, `${name} step이 필요합니다.`);
+  const next = workflow.indexOf("\n      - name: ", start + marker.length);
+  const step = workflow.slice(start, next === -1 ? workflow.length : next);
+  const runMarker = "\n        run: |\n";
+  const runStart = step.indexOf(runMarker);
+  assert.notEqual(runStart, -1, `${name} run block이 필요합니다.`);
+  return step
+    .slice(runStart + runMarker.length)
+    .split("\n")
+    .map((line) => {
+      if (line === "") return line;
+      assert.match(line, /^ {10}/u);
+      return line.slice(10);
+    })
+    .join("\n");
 }
 
 test("production release workflow가 exact main manual gate와 최소 job 권한을 고정한다", async () => {
@@ -102,9 +124,52 @@ test("production release workflow가 immutable multi-arch image와 fixed remote 
   assert.match(workflow, /version:\s*1\.94\.2/u);
   assert.match(workflow, /sha256sum:\s*c6f99a5d774c7783b56902188d69e9756fc3dddfb08ac6be4cb2585f3fecdc32/u);
   assert.match(workflow, /\/private\/var\/lib\/rhaomi\/app\/bin\/deploy-rhaomi\.sh/u);
+  assert.match(workflow, /\/private\/var\/lib\/rhaomi\/app\/bin\/backup-rhaomi\.sh/u);
+  assert.match(workflow, /--mode predeploy[\s\S]*--target-release-sha "\$RELEASE_SHA"/u);
+  assert(
+    workflow.indexOf("/private/var/lib/rhaomi/app/bin/backup-rhaomi.sh") <
+      workflow.indexOf("/private/var/lib/rhaomi/app/bin/deploy-rhaomi.sh"),
+  );
   assert.match(workflow, /--release-sha[\s\S]*--image[\s\S]*--sbom/u);
   assert.doesNotMatch(workflow, /ssh[^\n]*(?:bash -c|sh -c)|ssh[^\n]*\$\{\{ inputs\.[^}]+\}\}/u);
   assert.doesNotMatch(workflow, /<<[-]?\s*['"]?[A-Z_]+/u);
+});
+
+test("approved remote predeploy 실패 시 actual workflow run block이 deploy를 호출하지 않는다", async (t) => {
+  const workflow = await source(".github/workflows/production-release.yml");
+  const runBlock = stepRunBlock(
+    workflow,
+    "fixed Mac predeploy backup·deploy entrypoint 실행",
+  );
+  const root = await mkdtemp(join(tmpdir(), "rhaomi-release-workflow-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const fakeSsh = join(root, "ssh");
+  const log = join(root, "ssh.log");
+  await writeFile(
+    fakeSsh,
+    `#!/bin/sh\nset -eu\nprintf '%s\\n' "$*" >>"$FAKE_SSH_LOG"\ncase "$*" in\n  *backup-rhaomi.sh*) exit 71 ;;\nesac\nexit 0\n`,
+  );
+  await chmod(fakeSsh, 0o700);
+
+  const result = spawnSync("/bin/bash", ["-c", runBlock], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${root}:${process.env.PATH ?? "/usr/bin:/bin"}`,
+      FAKE_SSH_LOG: log,
+      RUNNER_TEMP: root,
+      TARGET_USER: "rhaomi",
+      TARGET_HOST: "production.invalid",
+      RELEASE_SHA: "a".repeat(40),
+      IMAGE_REFERENCE: `ghcr.io/xxh3898/rhaomi@sha256:${"b".repeat(64)}`,
+      SBOM_REFERENCE: `sha256:${"c".repeat(64)}`,
+    },
+  });
+  assert.notEqual(result.status, 0);
+  const invocations = (await readFile(log, "utf8")).trim().split("\n");
+  assert.equal(invocations.length, 1);
+  assert.match(invocations[0], /backup-rhaomi\.sh --mode predeploy --target-release-sha/u);
+  assert.doesNotMatch(invocations[0], /deploy-rhaomi\.sh/u);
 });
 
 test("production Compose가 same-image non-web migration과 schema validation profile을 제공한다", async () => {
@@ -116,7 +181,7 @@ test("production Compose가 same-image non-web migration과 schema validation pr
   assert.equal((compose.match(/profiles: \["production-task"\]/gu) ?? []).length, 2);
   assert.equal(
     (compose.match(/image: \$\{RHAOMI_PRODUCTION_IMAGE:\?[^}]+\}/gu) ?? []).length,
-    4,
+    6,
   );
   assert.match(compose, /--rhaomi\.production-task=migrate/u);
   assert.match(compose, /--rhaomi\.production-task=schema-validate/u);
@@ -136,6 +201,9 @@ test("fixed Mac deploy entrypoint가 lock, backup, digest, writer quiescence와 
   assert.match(core, /--release-sha/u);
   assert.match(core, /ghcr\[\.\]io\/xxh3898\/rhaomi@sha256:/u);
   assert.match(core, /backup-eligible\.env/u);
+  assert.match(core, /validate_backup_eligibility_envelope/u);
+  assert.match(core, /validate_backup_eligibility_full_read/u);
+  assert.match(core, /backup-verifier verify-eligibility/u);
   assert.match(core, /require_owned_private_directory/u);
   assert.match(core, /\^7\[0145\]\[0145\]\$/u);
   assert.match(core, /rhaomi-deploy\.lock/u);
@@ -163,6 +231,10 @@ test("task deploy validator가 fail-before-mutation, contention, failure hold와
   assert.match(validator, /wrong-registry/u);
   assert.match(validator, /insecure-host-directory/u);
   assert.match(validator, /ineligible-backup/u);
+  assert.match(validator, /missing-backup-evidence/u);
+  assert.match(validator, /malformed-backup-evidence/u);
+  assert.match(validator, /stale-same-target-eligibility/u);
+  assert.match(validator, /backupRepositoryMutation=0/u);
   assert.match(validator, /migration/u);
   assert.match(validator, /schema-validate/u);
   assert.match(validator, /writer-stop-failure/u);
@@ -188,7 +260,10 @@ test("Hosted Validate Backend job이 D-IMP-3 validator를 exact-head image로 �
 
   assert.deepEqual(jobs, ["frontend:", "backend:", "compose-smoke:"]);
   assert.match(workflow, /scripts\/validate-production-deploy\.sh/u);
-  assert.match(workflow, /RHAOMI_CLEANUP_TASK:\s*53-production-release-gate/u);
+  assert.match(
+    workflow,
+    /RHAOMI_CLEANUP_TASK:\s*55-application-consistent-restore-gate/u,
+  );
   assert.match(workflow, /RHAOMI_PRODUCTION_IMAGE: rhaomi-production-ci:\$\{\{ github\.event\.pull_request\.head\.sha \}\}/u);
   assert.doesNotMatch(workflow, /packages:\s*write/u);
 });

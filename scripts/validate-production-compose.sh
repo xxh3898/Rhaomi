@@ -67,6 +67,7 @@ compose_validation() {
     --file "$repo_dir/compose.production.yaml" \
     --file "$repo_dir/compose.production.validation.yaml" \
     --profile production-task \
+    --profile production-backup \
     "$@"
 }
 
@@ -103,9 +104,21 @@ mkdir -p \
   "$validation_root/public/releases/validation/site/_next/static" \
   "$validation_root/public/releases/validation/site/generated/media" \
   "$validation_root/data/media" \
+  "$validation_root/backup-repository/sets" \
+  "$validation_root/restore-media" \
+  "$validation_root/state/deploy" \
   "$validation_root/state/publisher" \
+  "$validation_root/state/publisher/build-workspace" \
   "$validation_root/state/locks" \
   "$validation_root/raw"
+chmod 700 \
+  "$validation_root/backup-repository" \
+  "$validation_root/backup-repository/sets" \
+  "$validation_root/restore-media" \
+  "$validation_root/state/deploy"
+printf '%s\n' rhaomi-backup-repository-v1 \
+  >"$validation_root/backup-repository/.rhaomi-backup-repository"
+chmod 600 "$validation_root/backup-repository/.rhaomi-backup-repository"
 cp "$repo_dir/infra/nginx/production.conf" \
   "$validation_root/app/nginx/production.conf"
 printf '%s\n' \
@@ -149,6 +162,8 @@ prepare_linux_bind_ownership
 
 export RHAOMI_PRODUCTION_COMPOSE_PROJECT="$project_name"
 export RHAOMI_PRODUCTION_VALIDATION_ROOT="$validation_root"
+export RHAOMI_BACKUP_REPOSITORY_ROOT="$validation_root/backup-repository"
+export RHAOMI_BACKUP_RESTORE_MEDIA_ROOT="$validation_root/restore-media"
 export RHAOMI_PRODUCTION_IMAGE="$production_image"
 export RHAOMI_WEB_LOOPBACK_PORT="$loopback_port"
 export RHAOMI_POSTGRES_DB=rhaomi_validation
@@ -172,8 +187,9 @@ docker image ls --no-trunc --format '{{.ID}}' | sort -u \
 docker compose \
   --project-directory "$repo_dir" \
   --project-name "$project_name" \
-  --file "$repo_dir/compose.production.yaml" \
-  --profile production-task \
+    --file "$repo_dir/compose.production.yaml" \
+    --profile production-task \
+    --profile production-backup \
   config --format json >"$validation_root/raw/base-config.json"
 compose_validation config --format json \
   >"$validation_root/raw/validation-config.json"
@@ -203,6 +219,7 @@ docker run --rm --network none \
   >"$evidence_dir/production-compose-contract.json"
 
 compose_started=true
+verify_backup_verifier_read_only_boundary
 compose_validation up --detach postgres >/dev/null
 wait_healthy postgres 90
 compose_validation run --rm --no-deps migration \
@@ -301,6 +318,10 @@ printf '%s\n' \
   "runtimeMountModes=verified" \
   "runtimeNetworkAdjacency=verified" \
   "credentialIsolation=verified" \
+  "backupVerifierRepositoryReadOnly=true" \
+  "backupVerifierDeployStateReadOnly=true" \
+  "backupVerifierMediaMount=false" \
+  "backupVerifierNetwork=false" \
   "normalFlywayDisabled=true" \
   "normalBootstrapDisabled=true" \
   "oneShotMigration=true" \
@@ -419,9 +440,11 @@ run_bind_ownership_helper() {
     sh -ec '
       case "$1" in
         prepare)
-          chown 0:0 /validation/public /validation/media /validation/publisher /validation/locks
+          chown 0:0 /validation/public /validation/media /validation/publisher \
+            /validation/publisher/build-workspace /validation/locks
           chmod 0755 /validation/public
-          chmod 0750 /validation/media /validation/publisher /validation/locks
+          chmod 0750 /validation/media /validation/publisher \
+            /validation/publisher/build-workspace /validation/locks
           ;;
         restore)
           chown -R "$2:$3" /validation/public /validation/media /validation/publisher /validation/locks
@@ -477,6 +500,43 @@ verify_writers_stopped() {
   done
 }
 
+verify_backup_verifier_read_only_boundary() {
+  repository_before=$(directory_content_digest "$validation_root/backup-repository")
+  deploy_state_before=$(directory_content_digest "$validation_root/state/deploy")
+  compose_validation run --rm --no-deps \
+    --entrypoint /bin/sh \
+    backup-verifier -ec '
+      test ! -e /var/lib/rhaomi/media
+      test ! -e /var/run/docker.sock
+      test ! -e /sys/class/net/eth0
+      if env | grep -Eq "RHAOMI_BACKUP_MEDIA_ROOT|RHAOMI_BUILD_SERVICE_TOKEN|BUILD_API_CREDENTIAL|SPRING_DATASOURCE_PASSWORD"; then
+        exit 1
+      fi
+      if touch /var/lib/rhaomi/backup-repository/verifier-write-must-fail 2>/dev/null; then
+        exit 1
+      fi
+      if touch /var/lib/rhaomi/deploy-state/verifier-write-must-fail 2>/dev/null; then
+        exit 1
+      fi
+      if touch /opt/rhaomi/verifier-root-write-must-fail 2>/dev/null; then
+        exit 1
+      fi
+    ' >"$validation_root/raw/backup-verifier-boundary.txt" 2>&1
+  if [ "$(directory_content_digest "$validation_root/backup-repository")" != "$repository_before" ] ||
+    [ "$(directory_content_digest "$validation_root/state/deploy")" != "$deploy_state_before" ]; then
+    echo "read-only backup verifier가 recovery authority를 변경했습니다." >&2
+    exit 1
+  fi
+}
+
+directory_content_digest() {
+  digest_root=$1
+  find "$digest_root" -type f -print | LC_ALL=C sort | while IFS= read -r digest_file; do
+    printf '%s ' "${digest_file#"$digest_root"/}"
+    openssl dgst -sha256 "$digest_file" | awk '{print $NF}'
+  done | openssl dgst -sha256 | awk '{print $NF}'
+}
+
 database_query() {
   sql=$1
   compose_runtime exec --no-TTY postgres \
@@ -515,7 +575,7 @@ verify_runtime_surface() {
     "/etc/nginx/conf.d/default.conf:false /srv/rhaomi/public:false"
   assert_mounts "$backend_id" "/var/lib/rhaomi/media:true"
   assert_mounts "$publisher_id" \
-    "/srv/rhaomi/public:true /var/lib/rhaomi/locks:true /var/lib/rhaomi/media:false /var/lib/rhaomi/publisher:true"
+    "/opt/rhaomi/source/.rhaomi-publication-work:true /srv/rhaomi/public:true /var/lib/rhaomi/locks:true /var/lib/rhaomi/media:false /var/lib/rhaomi/publisher:true"
   assert_mounts "$postgres_id" "/var/lib/postgresql:true"
 
   if [ "$(docker inspect "$backend_id" --format '{{.Image}}')" != "$image_id" ] ||
@@ -582,7 +642,11 @@ verify_mount_permissions() {
   docker exec "$publisher_id" sh -ec '
     touch /srv/rhaomi/public/publisher-write-ok
     touch /var/lib/rhaomi/publisher/publisher-state-write-ok
+    touch /opt/rhaomi/source/.rhaomi-publication-work/build-workspace-write-ok
     touch /var/lib/rhaomi/locks/publisher-lock-write-ok
+    if touch /opt/rhaomi/source/source-write-must-fail 2>/dev/null; then
+      exit 1
+    fi
     if touch /var/lib/rhaomi/media/publisher-write-must-fail 2>/dev/null; then
       exit 1
     fi
