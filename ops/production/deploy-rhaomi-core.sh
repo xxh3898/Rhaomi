@@ -24,9 +24,9 @@ deploy_rhaomi() {
   trap 'exit 143' TERM
 
   validate_fixed_configuration
-  validate_backup_eligibility
   configure_release_environment
   pull_and_verify_release_image
+  validate_backup_eligibility
   verify_public_web
 
   writer_maintenance_active=true
@@ -121,6 +121,7 @@ initialize_fixed_authorities() {
   docker_config_root="$app_root/docker"
   docker_config_file="$docker_config_root/config.json"
   backup_gate="$deploy_root/state/deploy/backup-eligible.env"
+  backup_evidence_file="$deploy_root/state/deploy/backup-eligibility.json"
   lock_parent="$deploy_root/state/locks"
   deploy_lock="$lock_parent/rhaomi-deploy.lock"
   deploy_lock_owner="$deploy_lock/owner"
@@ -220,6 +221,68 @@ validate_backup_eligibility() {
   backup_evidence=$(printf '%s\n' "$backup_contract" | sed -n '4s/^evidenceSha256=//p')
   printf '%s' "$backup_evidence" | grep -Eq '^[0-9a-f]{64}$' ||
     deploy_fail DEPLOY_BACKUP_REQUIRED
+  [ -f "$backup_evidence_file" ] && [ ! -L "$backup_evidence_file" ] ||
+    deploy_fail DEPLOY_BACKUP_REQUIRED
+  [ "$(portable_file_mode "$backup_evidence_file")" = 600 ] ||
+    deploy_fail DEPLOY_BACKUP_REQUIRED
+  [ "$(portable_owner_id "$backup_evidence_file")" = "$(id -u)" ] ||
+    deploy_fail DEPLOY_BACKUP_REQUIRED
+  actual_evidence_hash=$(openssl dgst -sha256 "$backup_evidence_file" | awk '{print $NF}')
+  [ "$actual_evidence_hash" = "$backup_evidence" ] ||
+    deploy_fail DEPLOY_BACKUP_REQUIRED
+  load_deploy_backup_repository_authority
+  validate_deploy_backup_repository
+  RHAOMI_BACKUP_REPOSITORY_ROOT=$deploy_backup_repository_root
+  export RHAOMI_BACKUP_REPOSITORY_ROOT
+  compose_production --profile production-backup run --rm --no-deps \
+    --user "$(id -u):$(id -g)" \
+    backup-tool \
+    node /opt/rhaomi/source/scripts/rhaomi-backup-tool.mjs \
+    verify-eligibility "$release_sha" >/dev/null ||
+    deploy_fail DEPLOY_BACKUP_REQUIRED
+}
+
+load_deploy_backup_repository_authority() {
+  repository_line_count=$(awk '
+    BEGIN { count = 0 }
+    /^RHAOMI_BACKUP_REPOSITORY_ROOT=/ { count += 1 }
+    END { print count }
+  ' "$environment_file")
+  [ "$repository_line_count" = 1 ] || deploy_fail DEPLOY_BACKUP_REQUIRED
+  deploy_backup_repository_root=$(sed -n 's/^RHAOMI_BACKUP_REPOSITORY_ROOT=//p' "$environment_file")
+  [ -n "$deploy_backup_repository_root" ] || deploy_fail DEPLOY_BACKUP_REQUIRED
+  case "$deploy_backup_repository_root" in
+    /*) ;;
+    *) deploy_fail DEPLOY_BACKUP_REQUIRED ;;
+  esac
+  case "$deploy_backup_repository_root" in
+    *'/../'* | *'/./'* | */.. | */. | *'\'* | *[[:cntrl:]])
+      deploy_fail DEPLOY_BACKUP_REQUIRED
+      ;;
+  esac
+}
+
+validate_deploy_backup_repository() {
+  require_owned_private_directory "$deploy_backup_repository_root"
+  [ "$(portable_file_mode "$deploy_backup_repository_root")" = 700 ] ||
+    deploy_fail DEPLOY_BACKUP_REQUIRED
+  repository_physical=$(cd "$deploy_backup_repository_root" && pwd -P)
+  deploy_physical=$(cd "$deploy_root" && pwd -P)
+  [ "$repository_physical" = "$deploy_backup_repository_root" ] ||
+    deploy_fail DEPLOY_BACKUP_REQUIRED
+  case "$repository_physical" in
+    "$deploy_physical" | "$deploy_physical"/*) deploy_fail DEPLOY_BACKUP_REQUIRED ;;
+  esac
+  repository_sentinel="$deploy_backup_repository_root/.rhaomi-backup-repository"
+  [ -f "$repository_sentinel" ] && [ ! -L "$repository_sentinel" ] ||
+    deploy_fail DEPLOY_BACKUP_REQUIRED
+  [ "$(portable_file_mode "$repository_sentinel")" = 600 ] ||
+    deploy_fail DEPLOY_BACKUP_REQUIRED
+  [ "$(sed -n '1p' "$repository_sentinel")" = rhaomi-backup-repository-v1 ] ||
+    deploy_fail DEPLOY_BACKUP_REQUIRED
+  require_owned_private_directory "$deploy_backup_repository_root/sets"
+  [ "$(portable_file_mode "$deploy_backup_repository_root/sets")" = 700 ] ||
+    deploy_fail DEPLOY_BACKUP_REQUIRED
 }
 
 configure_release_environment() {
@@ -245,7 +308,8 @@ configure_release_environment() {
     RHAOMI_CODE_IMAGE_TAG \
     RHAOMI_CODE_IMAGE_DIGEST \
     RHAOMI_FLYWAY_VERSION \
-    RHAOMI_SBOM_REFERENCE; do
+    RHAOMI_SBOM_REFERENCE \
+    RHAOMI_BACKUP_REPOSITORY_ROOT; do
     unset "$variable_name"
   done
 

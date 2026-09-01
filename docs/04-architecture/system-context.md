@@ -79,7 +79,7 @@ login/csrf 외 관리 endpoint는 인증이 필요하고 state-changing request�
 - production project-scoped Docker named volume의 PostgreSQL PGDATA
 - `/private/var/lib/rhaomi` 아래 private canonical media·public release·publisher state/lock
 - internal build API·immediate/due publishing event·single publisher release foundation
-- 향후 Mac mini local-only application-consistent backup과 HomeOps; external encrypted restic은 future hardening
+- fixed source와 task-scoped restore evidence가 있는 Mac mini local-only application-consistent backup; actual repository·schedule·production backup과 HomeOps는 provisioning 대상이고 external encrypted restic은 future hardening
 - Docker internal network
 
 PostgreSQL과 내부 작업 서비스는 공용 인터넷에 직접 노출하지 않는다.

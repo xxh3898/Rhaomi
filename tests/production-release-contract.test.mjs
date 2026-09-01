@@ -116,7 +116,7 @@ test("production Compose가 same-image non-web migration과 schema validation pr
   assert.equal((compose.match(/profiles: \["production-task"\]/gu) ?? []).length, 2);
   assert.equal(
     (compose.match(/image: \$\{RHAOMI_PRODUCTION_IMAGE:\?[^}]+\}/gu) ?? []).length,
-    4,
+    5,
   );
   assert.match(compose, /--rhaomi\.production-task=migrate/u);
   assert.match(compose, /--rhaomi\.production-task=schema-validate/u);
@@ -188,7 +188,10 @@ test("Hosted Validate Backend job이 D-IMP-3 validator를 exact-head image로 �
 
   assert.deepEqual(jobs, ["frontend:", "backend:", "compose-smoke:"]);
   assert.match(workflow, /scripts\/validate-production-deploy\.sh/u);
-  assert.match(workflow, /RHAOMI_CLEANUP_TASK:\s*53-production-release-gate/u);
+  assert.match(
+    workflow,
+    /RHAOMI_CLEANUP_TASK:\s*55-application-consistent-restore-gate/u,
+  );
   assert.match(workflow, /RHAOMI_PRODUCTION_IMAGE: rhaomi-production-ci:\$\{\{ github\.event\.pull_request\.head\.sha \}\}/u);
   assert.doesNotMatch(workflow, /packages:\s*write/u);
 });

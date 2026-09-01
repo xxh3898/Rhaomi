@@ -3,7 +3,7 @@ title: "ADR-012: Application-consistent backup과 restore"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "운영 데이터·백업 매체·보존·복구 목표 변경 시"
 ---
 
@@ -12,6 +12,7 @@ review_trigger: "운영 데이터·백업 매체·보존·복구 목표 변경 �
 - 결정일: 2026-08-29
 - 상태: Accepted
 - 개정일: 2026-08-31 — 초기 production을 Mac mini local-only backup으로 변경하고 외장 SSD·iCloud 3-2-1을 future hardening으로 이관
+- 구현일: 2026-09-01 — fixed backup entrypoint, manifest V1, release eligibility bridge와 task-scoped isolated restore gate 구현
 - 관련 결정: [ADR-004](ADR-004-static-media-copy.md), [ADR-010](ADR-010-production-topology-and-code-release.md)
 
 ## 맥락
@@ -32,6 +33,8 @@ destination = protected source와 분리된 Mac mini local backup repository/pat
 ```
 
 - exact local repository path, owner·permission, 여유 용량과 production source와의 분리 여부는 provisioning gate에서 확정한다. 저장소에 경로를 추측하거나 운영 directory를 생성하지 않는다.
+- production source는 fixed `/private/var/lib/rhaomi/app/production.env`의 정확히 한 개 `RHAOMI_BACKUP_REPOSITORY_ROOT`만 읽는다. caller가 repository path를 argument로 바꾸지 못하며 actual 값은 계속 provisioning input이다.
+- repository root와 `sets`는 owner-only `0700`, `.rhaomi-backup-repository` sentinel은 `0600` regular file이어야 한다. symlink·non-canonical physical path와 `/private/var/lib/rhaomi` source 내부 destination은 거부한다.
 - local repository는 versioned backup set을 보존해야 하며 active PostgreSQL named volume, canonical media source, public release와 같은 directory를 destination으로 사용하지 않는다.
 - DB dump와 media snapshot은 하나의 backup-set ID로 묶는다.
 - manifest에는 dump·media checksum, byte size, file count, Git SHA, image digest, Flyway version, 생성·검증 시각을 기록한다.
@@ -47,8 +50,8 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 관리자 write maintenance
 → pg_dump -Fc
 → canonical media snapshot·manifest 확정
-→ local repository의 새 versioned backup set 완성
-→ artifact·checksum·file count 재검증
+→ `.incomplete-<backup-set-id>` artifact·checksum·file count full-read 재검증
+→ same-filesystem rename으로 read-only complete set 승격
 → write maintenance 해제
 → local backup evidence 기록
 ```
@@ -56,7 +59,15 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 - public static site는 write maintenance 중에도 계속 제공한다.
 - incomplete temporary set은 정상 backup으로 승격하지 않는다.
 - 완료된 backup set은 생성 중인 set과 구분하고 retention 전 check를 통과해야 한다.
+- manifest V1은 exact key allowlist로 `backupPurpose`, UTC set ID·시각, source SHA·image digest·Flyway `9`, dump hash/size와 canonical byte-order media inventory·aggregate hash, `sameHostFailureDomain=true`를 기록한다. Secret·endpoint·host config byte는 포함하지 않는다.
+- deploy와 backup은 같은 host `rhaomi-deploy.lock`을 사용한다. 두 writer의 physical `exited`를 확인한 뒤에만 snapshot을 시작하고 complete 승격과 writer health/running 복구가 모두 확인되기 전에는 backup success로 기록하지 않는다. writer 복구 실패 시 own lock을 보존한다.
 - backup-set ID, source revision과 release identity를 secret 없이 HomeOps status/event에 제공할 수 있어야 한다.
+
+### release eligibility bridge
+
+- `predeploy` mode만 검증된 complete set에서 fixed deploy state의 `backup-eligibility.json`과 4-line `backup-eligible.env`를 원자적으로 발급한다.
+- JSON은 target release SHA, backup-set ID, manifest SHA-256와 source release/image/Flyway identity를 보존하고 compatibility file은 그 JSON의 exact SHA-256에 결합한다.
+- deploy entrypoint는 target image를 확인한 뒤 writer mutation 전에 compatibility file, evidence hash·exact shape와 complete set의 full-read manifest/artifact를 다시 검증한다. scheduled backup은 임의 future release eligibility를 발급하지 않는다.
 
 ### 일정·보존·검증
 
@@ -67,7 +78,8 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 - monthly: 보존 대상 전체 data read와 retention dry-run
 - quarterly: isolated full restore와 static build smoke
 - prune: 월간 maintenance window에서 dry-run·검토 뒤에만 수행하고 완료 후 다시 check
-- 기존 정상 backup set이 3개 미만이거나 새 set 검증이 실패하면 prune하지 않는다.
+- retention plan/apply는 모든 complete set을 full-read하고 daily 7·weekly 4·monthly 6, 최신 정상 3개와 모든 on-demand set을 보호한다. incomplete 또는 checksum-invalid set이 있거나 정상 set이 3개 미만이면 apply를 거부한다.
+- `ops/production/com.rhaomi.backup.plist`는 host local time 03:30의 fixed `scheduled` invocation source다. production provisioning에서 macOS timezone이 `Asia/Seoul`인지 확인하며 이번 구현에서는 plist를 install/start하지 않는다.
 
 ### restore
 
@@ -75,6 +87,7 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 - isolated Compose project, 새 project-scoped PostgreSQL named volume과 새 media root에 restore한다.
 - `pg_restore`, manifest, checksum·file count, Flyway schema, 핵심 row/API, 대표 canonical media와 static build를 검증한다.
 - PostgreSQL container restart와 일반 Compose `down`·`up` 뒤 복구 data persistence를 확인한다.
+- task validator는 backup 시점 A 뒤 source DB/media를 B로 변경하고 fresh named volume·media root에 A가 복구되는지, audit/relation row·representative media decode·동일 static publisher와 restart/down-up persistence까지 검증한다.
 - 운영 DB·media를 직접 overwrite하지 않는다. 운영 전환은 exact target, backup과 rollback을 확인한 별도 명시 승인 후 수행한다.
 - production `docker compose down -v`, `docker volume prune`과 named volume direct delete는 backup 보유 여부와 무관하게 금지한다.
 
@@ -142,11 +155,11 @@ DB 일관성과 portable restore를 보장하지 못하므로 유일한 backup�
 ## 실행 계획
 
 - [ ] protected source와 분리된 Mac mini local repository exact path·용량·ownership·permission 확정
-- [ ] write maintenance·dump·media snapshot·manifest와 atomic complete-set 자동화 구현
-- [ ] retention dry-run·prune·post-check runbook 구현
+- [x] source-level write maintenance·dump·media snapshot·strict manifest와 atomic complete-set 자동화 구현
+- [x] source-level retention dry-run·explicit apply·post-check와 fail-safe guard 구현
 - [ ] HomeOps local backup status event 연동
 - [ ] quarterly isolated full restore 첫 증거 확보
-- [ ] 새 PostgreSQL named volume의 `pg_restore`와 일반 Compose `down` 뒤 persistence 검증
+- [x] task-scoped 새 PostgreSQL named volume의 `pg_restore`·media/static 검증과 일반 Compose `down` 뒤 persistence 자동 검증
 - [ ] future hardening 승인 시 외장 SSD/iCloud repository·key·remote-sync/fresh-retrieval 계약 구현
 
 ## 재검토 조건

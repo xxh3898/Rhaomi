@@ -3,7 +3,7 @@ title: "백업·복구"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-31"
+last_updated: "2026-09-01"
 review_trigger: "저장소·보존 정책 변경 시"
 ---
 
@@ -20,7 +20,7 @@ backup-set manifest = DB dump + media + checksum·size·file count + Git SHA/ima
 destination = protected source와 분리된 Mac mini local backup repository/path
 ```
 
-이는 승인 계약이며 실제 local repository/path, automation, backup set과 restore evidence는 아직 생성되지 않았다. [Production readiness matrix](production-readiness.md)의 초기 backup 행은 `IMPLEMENTATION_REQUIRED`다.
+fixed backup entrypoint·manifest/eligibility tool·retention source와 task-scoped PostgreSQL/media/static restore validator는 구현됐다. 다만 actual local repository/path, schedule installation, production backup set과 production restore evidence는 생성하지 않았다. [Production readiness matrix](production-readiness.md)의 초기 backup 행은 따라서 `PROVISIONING_REQUIRED`다.
 
 ## 보호 대상
 
@@ -46,6 +46,9 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 ## 초기 local-only repository 계약
 
 - exact repository path, owner·permission, capacity와 source 분리는 production provisioning에서 확정한다. 이 문서나 source code에 실제 path를 추측하지 않는다.
+- fixed `/private/var/lib/rhaomi/app/production.env`의 `RHAOMI_BACKUP_REPOSITORY_ROOT` 한 줄만 production authority이며 caller-supplied repository CLI는 없다.
+- fixed wrapper의 제한된 `PATH`에서 `docker`와 standalone `docker-compose`가 모두 해석되어야 한다. owner-only Docker config를 사용해 사용자별 CLI plugin 탐색에 의존하지 않으며 actual binary 설치·version·실행 권한은 production provisioning gate에서 검증한다.
+- root·`sets`는 owner-only `0700`, exact sentinel `.rhaomi-backup-repository`는 `0600` regular file이다. physical path drift·symlink·source tree 내부 destination은 거부한다.
 - active PostgreSQL named volume, canonical media source와 public release directory를 backup destination으로 재사용하지 않는다.
 - versioned backup-set directory 또는 동등한 immutable-complete-set 경계를 사용하고 incomplete set을 정상 backup으로 승격하지 않는다.
 - filesystem mirror나 mirror delete를 backup authority로 사용하지 않는다.
@@ -58,8 +61,8 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 관리자 write maintenance
 → pg_dump -Fc
 → canonical media snapshot·manifest 확정
-→ local repository의 새 backup set 완성
-→ dump/media checksum·size·file count 재검증
+→ `.incomplete-<id>` dump/media/manifest full-read
+→ same-filesystem atomic rename과 read-only complete set 승격
 → write maintenance 해제
 → local backup evidence 기록
 ```
@@ -69,6 +72,34 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 - manifest에 Git SHA, image digest, Flyway version, backup-set ID, 시작·완료·검증 시각을 기록한다.
 - command exit code만으로 성공 처리하지 않고 완료 artifact와 manifest를 다시 읽는다.
 - secret, repository password, session/token과 private endpoint를 manifest에 기록하지 않는다.
+- deploy와 backup은 `/private/var/lib/rhaomi/state/locks/rhaomi-deploy.lock`을 공유한다. backend/publisher physical exit 전 snapshot을 시작하지 않고, complete 승격 뒤 같은 source image로 backend health·publisher running이 복구되어야 lock과 success evidence를 내준다.
+
+### manifest V1
+
+- exact UTC backup-set ID: `YYYYMMDDTHHMMSSZ-<12 lowercase hex>`
+- exact source identity: 40자 release SHA, `sha256:<64 hex>` image digest, Flyway `9`
+- `postgres.dump`: repository-relative fixed path, SHA-256와 byte size
+- `media`: UTF-8 byte-order canonical relative path별 SHA-256/size, file count·total bytes·aggregate tree SHA-256
+- 시작·완료·검증 UTC Instant와 `sameHostFailureDomain=true`
+- unknown field, non-canonical path, symlink/special file, malformed Instant와 Secret-bearing config byte는 거부
+
+## release-bound deploy eligibility
+
+`predeploy` mode는 새 application-consistent on-demand set을 complete/full-read한 뒤에만 fixed deploy state에 다음 두 파일을 만든다.
+
+```text
+backup-eligibility.json
+  targetReleaseSha + backupSetId + backupManifestSha256
+  + sourceReleaseSha/sourceImageDigest/sourceFlywayVersion + createdAt + eligible
+
+backup-eligible.env
+  schemaVersion=1
+  status=eligible
+  releaseSha=<exact target SHA>
+  evidenceSha256=<backup-eligibility.json SHA-256>
+```
+
+deploy는 target image pull·revision 확인 뒤 writer를 멈추기 전에 두 파일과 complete set을 full-read한다. stale target, incomplete/missing set, evidence·manifest·artifact hash drift는 fail-before-mutation이다. scheduled mode는 release eligibility를 자동 발급하지 않는다.
 
 ## 주기·보존
 
@@ -81,8 +112,10 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 | isolated full restore | 분기 | 새 PostgreSQL named volume·media root에서 전체 복구 |
 | retention prune | 월간 maintenance window | dry-run·검토 뒤 실행, 완료 뒤 post-check |
 
-- 새 backup set이 검증되지 않았거나 기존 정상 set이 3개 미만이면 prune하지 않는다.
+- plan/apply 모두 모든 complete set을 full-read한다. incomplete·latest checksum invalid 또는 정상 set 3개 미만이면 prune하지 않고, 최신 3개와 모든 on-demand set은 자동 보호한다.
 - initial production gate에는 최초 isolated representative restore evidence가 필요하다.
+
+tracked `ops/production/com.rhaomi.backup.plist`는 매일 host local 03:30에 fixed wrapper의 `scheduled` mode만 호출한다. actual Mac install/start는 하지 않았으며 provisioning에서 system timezone `Asia/Seoul`, path·owner·mode·log rotation을 확인한다.
 
 ## local success와 accepted risk
 
@@ -111,6 +144,33 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 12. 운영 전환이 필요하면 별도 명시 승인 요청
 
 운영 DB·media를 직접 overwrite하지 않는다. production `docker compose down -v`, `docker volume prune`과 named volume direct delete는 backup 상태와 무관하게 금지한다.
+
+## 구현된 task-scoped 검증
+
+`scripts/validate-production-backup.sh`는 production image와 validation overlay만 사용해 다음을 순서대로 증명한다.
+
+1. fresh source PostgreSQL에 Shop·Breed·Service·Gallery·Notice·audit/relation row와 합성 private PNG 상태 A 구성
+2. shared lock과 writer quiescence 아래 custom dump+media complete set 및 exact-release eligibility 발급
+3. source DB/media를 상태 B로 변경
+4. 별도 Compose project의 fresh named volume·빈 media root에 restore
+5. 복구 결과가 B가 아닌 A인지, Flyway V1~V9/JPA schema, representative checksum/decode와 static publication 확인
+6. PostgreSQL restart와 일반 Compose `down`→`up` 뒤 같은 named-volume identity·row 지속 확인
+
+static publication은 production image source를 read-only로 둔 채 task `/state/publisher/build-workspace`만 `/opt/rhaomi/source/.rhaomi-publication-work`에 RW mount해 실제 Next/Turbopack release를 생성한다. validator는 task container/network만 정리하고 source/restore named volume을 삭제하지 않는다. production path/data, workflow dispatch, GHCR/Tailscale와 Docker volume/image delete·prune는 0이다.
+
+## fixed operation mode
+
+| mode | 의미 |
+|---|---|
+| `scheduled` | release eligibility 없는 정기 complete set |
+| `on-demand` | 자동 retention에서 보호하는 수동 complete set |
+| `predeploy --target-release-sha` | 새 on-demand set + exact target eligibility 발급 |
+| `structural-check --backup-set-id` | shape·archive header·inventory 구조 재검증 |
+| `full-read-check --backup-set-id` | dump/media 전체 SHA-256 재검증 |
+| `retention-dry-run` | KST bucket과 보호/delete 후보 출력 |
+| `retention-apply` | full-read와 fail-safe가 통과한 후보만 삭제 후 재검증 |
+
+isolated restore는 task validator source이며 production overwrite command가 아니다.
 
 ## quarterly restore drill
 

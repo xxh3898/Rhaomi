@@ -46,6 +46,7 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 - build/publisher credential에 internal read-only snapshot·media 권한만 부여하고 admin session과 분리
 - production deploy Secret은 protected GitHub environment 승인 전 job에 주입하지 않음
 - production host의 credential/config authority는 `/private/var/lib/rhaomi/app/production.env`·`app/docker/config.json`으로 고정하고 각각 owner-only `0600`, Docker config directory `0700`을 요구
+- `RHAOMI_BACKUP_REPOSITORY_ROOT`는 Secret 값은 아니지만 private data location으로 취급하고 fixed `production.env`에서만 읽는다. manifest·log·public artifact에는 actual host path를 기록하지 않음
 - fixed entrypoint는 caller-supplied env-file·Docker config path와 inherited Compose/Docker override를 authority로 사용하지 않음
 - 임의 SSH command body 대신 exact SHA·digest·SBOM scalar만 받는 고정 deploy entrypoint 사용, credential/token argv 전달 금지
 - deploy evidence는 release SHA·digest·bounded status만 담고 environment·Docker credential·Tailscale identity·SSH known-hosts 원문을 담지 않음
@@ -115,10 +116,12 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 - 관리자 write maintenance 안에서 `pg_dump -Fc`와 media manifest를 같은 backup-set ID로 묶음
 - raw PostgreSQL named volume을 backup input이나 restore authority로 사용하지 않고 새 isolated named volume의 `pg_restore`로 복구 검증
 - checksum·size·file count와 Git SHA·image digest·Flyway를 versioned backup-set manifest에 기록
+- manifest와 eligibility는 exact key allowlist·canonical relative path·strict UTC Instant를 사용하고 repository/set/dump/media symlink·special file을 거부함
+- deploy와 backup의 shared operation lock, writer physical quiescence, `.incomplete` full-read와 atomic read-only complete 승격을 요구함
 - daily 7, weekly 4, monthly 6을 보존하고 prune는 월간 maintenance 승인 범위에서만 실행
 - production overwrite 없이 isolated restore를 분기마다 수행
 - backup 삭제·prune는 승인과 보존 정책, 기존 정상 snapshot 보호를 적용
 - Mac mini host/storage 전체 손실에서 production data와 local backup이 함께 손실될 수 있는 accepted risk를 기록
 - 외장 SSD·iCloud encrypted restic과 recovery key는 future hardening이다. 도입 시 exact external path·key 분리, password manager+offline recovery copy와 remote-sync/fresh-retrieval evidence를 별도 검증
 
-현재 local Compose media volume은 persistence contract 검증용이며 운영 backup 구현 완료를 뜻하지 않는다. production `/private/var/lib/rhaomi` ownership·bind source, PostgreSQL named volume과 local backup repository·automation·isolated restore는 초기 production 출시 차단이다. 외장 SSD·iCloud·offsite restore는 초기 blocker가 아닌 `NOT_CONFIGURED / DEFERRED` future hardening이며 미구성 상태를 `PASS`로 표시하지 않는다.
+fixed backup/restore source와 task-scoped A→B→A isolated validation은 구현됐지만 production backup 완료를 뜻하지 않는다. production `/private/var/lib/rhaomi` ownership·bind source, PostgreSQL named volume, local repository/path·scheduler와 actual backup/restore/RPO·RTO evidence는 초기 production 출시 차단이다. 외장 SSD·iCloud·offsite restore는 초기 blocker가 아닌 `NOT_CONFIGURED / DEFERRED` future hardening이며 미구성 상태를 `PASS`로 표시하지 않는다.

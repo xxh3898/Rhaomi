@@ -88,16 +88,20 @@ compose_command() {
       task=
       for argument in "$@"; do
         case "$argument" in
-          migration | schema-validate) task=$argument ;;
+          migration | schema-validate | backup-tool) task=$argument ;;
         esac
       done
       [ -n "$task" ] || exit 64
-      if [ "$(cat "$state_dir/backend")" != exited ] ||
-        [ "$(cat "$state_dir/publisher")" != exited ]; then
-        printf '%s\n' "$task" >"$state_dir/quiescence-violation"
-        exit 1
+      if [ "$task" = backup-tool ]; then
+        [ "$failure_stage" != backup-eligibility ] || exit 1
+      else
+        if [ "$(cat "$state_dir/backend")" != exited ] ||
+          [ "$(cat "$state_dir/publisher")" != exited ]; then
+          printf '%s\n' "$task" >"$state_dir/quiescence-violation"
+          exit 1
+        fi
+        [ "$failure_stage" != "$task" ] || exit 1
       fi
-      [ "$failure_stage" != "$task" ] || exit 1
       ;;
     up)
       service=

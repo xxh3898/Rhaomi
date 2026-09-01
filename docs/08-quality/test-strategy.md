@@ -314,7 +314,7 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - Cloudflare Tunnel → host edge Nginx → loopback project Nginx와 `/api/admin/**` public route
 - `/api/build/**`, `/internal/**`, `/actuator/**` public deny와 backend/PostgreSQL direct exposure 금지
 - macOS host canonical `/private/var/lib/rhaomi/{app,public,data/media,state,logs}` 경로 일치와 `/data/postgres` bind source 부재
-- Mac public/media/state source와 Linux web/publisher/backend target의 mount mapping·RO/RW 경계 일치
+- Mac public/media/state/build-workspace source와 Linux web/publisher/backend target의 mount mapping·RO/RW 경계 일치, publisher image source는 isolated workspace 외 write 거부
 - `/srv/rhaomi`가 container target으로만 쓰이고 Mac host authority·`synthetic.conf`·custom File Sharing prerequisite가 아님
 - PostgreSQL production project-scoped named volume, 일반 Compose `down` 보존과 `down -v`·prune·direct delete 금지 일치
 - main merge와 manual production apply 분리, exact SHA·digest와 one-shot Flyway
@@ -363,6 +363,22 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - Mac mini native Linux arm64 D-IMP-1 image·D-IMP-2 Compose·D-IMP-3 task validator와 Hosted Linux amd64 동일 source/entrypoint 실행
 
 이 검증은 synthetic/task-scoped source acceptance다. actual GHCR push, GitHub Environment·reviewer·secret 설정, Tailscale production 연결, Mac `/private/var/lib/rhaomi` installation, production volume/data/backup gate·migration·deploy를 수행하지 않는다.
+
+## 현재 D-IMP-4 application-consistent backup·isolated restore 자동 검증
+
+- fixed wrapper와 exact mode/argument, fixed `production.env` repository authority, private owner/mode/sentinel과 symlink/path traversal/special-file 거부
+- deploy와 같은 `rhaomi-deploy.lock`, public web 유지, backend/publisher physical `exited` 뒤에만 dump/media capture
+- `pg_dump -Fc` archive header/list, canonical private media byte-order inventory, strict manifest V1 full-read와 same-filesystem `.incomplete`→read-only complete rename
+- complete promotion 뒤 같은 source image backend health·publisher running 복구; capture failure는 complete 0, writer 복구 실패는 success 0과 own lock 보존
+- exact target release eligibility JSON·compatibility hash chain과 deploy의 stale target/missing set/evidence·manifest·artifact drift fail-before-writer-mutation
+- source A backup 뒤 DB/media B mutation, fresh Compose project·PostgreSQL named volume·빈 media root의 `pg_restore`/media restore가 A인지 확인
+- Flyway V1~V9/JPA schema, Shop·Breed·Service·Gallery·Notice·audit/relation row, representative PNG checksum/decode와 동일 static publisher 성공
+- PostgreSQL restart와 일반 Compose `down`→`up` 뒤 restored row/schema·same volume identity persistence
+- retention KST daily 7/weekly 4/monthly 6, 최신 3·on-demand 보호, incomplete·same-size latest corruption·정상 set 3개 미만의 apply refusal와 post-check
+- synthetic credential marker의 output/evidence 0, production path/workflow/GHCR/Tailscale mutation 0, Docker volume/image delete·prune 0
+- tracked macOS plist의 host-local 03:30 fixed scheduled mode; actual installation은 하지 않고 production provisioning에서 `Asia/Seoul` timezone을 확인
+
+Mac native Linux arm64와 Hosted Backend Linux amd64는 같은 production image/entrypoint를 실행한다. source/restore task named volume은 직접 삭제하지 않고 task container/network만 정리한다. 이 결과는 actual local repository·schedule·production DB/media backup 또는 production restore evidence가 아니다.
 
 ## 현재 Phase 1C-8f4 transformer 자동 검증
 
@@ -445,7 +461,7 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - immediate/due publishing event·overdue recovery·service auth·debounce·lock
 - failed build does not switch
 - atomic switch와 rollback
-- 실제 Mac canonical directory 생성·ownership·permission과 public/media/state bind mount smoke
+- 실제 Mac canonical directory 생성·ownership·permission과 public/media/state/build-workspace bind mount smoke, publisher image source의 workspace 외 write 거부
 - PostgreSQL named volume의 container restart·일반 Compose `down`·`up` persistence, destructive volume command 부재
 - `publishGeneration` stale build ordering과 manifest의 `contentRevision`·`publishGeneration`·`generatedAt`
 - backend/PostgreSQL 중단 중 공개 site 유지

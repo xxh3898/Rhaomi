@@ -24,8 +24,8 @@ review_trigger: "항목 확정 시"
 | 카카오톡/채널 URL | 미정 | 은총쌤 | 실제 링크 확인 또는 미사용 확정 |
 | NAP 최종 확인 | 확인 필요 | 은총쌤 | 지도·전화·간판 정보와 일치 확인 |
 | 영업시간·정기휴무·주차 | 확인 필요 | 은총쌤 | 공개할 현재값과 지도 서비스 정보의 일치 확인 |
-| Mac production filesystem provisioning | 출시 차단 | 조치호 | `/private/var/lib/rhaomi` canonical directory ownership·permission, public/media/state bind와 PostgreSQL named-volume persistence 검증 |
-| 초기 local-only backup provisioning | 출시 차단 | 조치호 | protected source와 분리된 Mac mini local repository/path, 동일 DB/media backup-set, retention/check와 isolated `pg_restore`·media restore 증거 |
+| Mac production filesystem provisioning | 출시 차단 | 조치호 | `/private/var/lib/rhaomi` canonical directory ownership·permission, public/media/state/build-workspace bind, publisher image source의 workspace 외 read-only와 PostgreSQL named-volume persistence 검증 |
+| 초기 local-only backup provisioning | 출시 차단 | 조치호 | source/task gate는 구현됨; protected source와 분리된 actual Mac repository/path·capacity·03:30 schedule, production DB/media complete set과 first-production isolated restore/RPO·RTO 증거 필요 |
 | 관리자 WebAuthn/passkey 2차 인증 | 미구현 | 조치호·은총쌤 | authenticator private key server 비수집, RP-side credential record, registration revoke/remove, recovery-code secret의 별도 보관·rotation과 password-only production 차단 검증 |
 | 실제 iPhone HEIC 업로드 | 미검증 | 조치호·은총쌤 | 후속 `/admin` UI에서 iPhone Safari 원본 선택·업로드·방향·색상 확인 |
 | 실제 iPhone Safari·VoiceOver | 미검증 | 조치호·은총쌤 | actual public HTTPS와 `/admin`의 320px·focus·form·VoiceOver 표본 acceptance |
@@ -62,7 +62,7 @@ review_trigger: "항목 확정 시"
 - 외장 SSD·iCloud 3-2-1과 offsite RPO는 future hardening이다. 구현 전에는 offsite 상태를 `NOT_CONFIGURED / DEFERRED`로 두고 local backup 성공을 offsite `PASS`로 표시하지 않는다.
 - Mac host filesystem authority는 `/private/var/lib/rhaomi`이고 PostgreSQL primary PGDATA는 production project-scoped Docker named volume이다. exact ownership·permission·rendered volume identity, bind/persistence smoke와 logical backup→isolated `pg_restore` 증거는 provisioning 전까지 출시 차단이다.
 - `/srv/rhaomi`는 Linux web/publisher container target에만 허용한다. Mac host `synthetic.conf`·Docker Desktop custom File Sharing, PostgreSQL host PGDATA bind와 raw-volume restic backup은 production 계약이 아니다.
-- [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-015](../09-decisions/ADR-015-lossless-int64-json-wire-contract.md)는 production 운영·lossless wire 계약을 확정했다. D-IMP-1 canonical decoder-only image와 D-IMP-2 external-image Compose·project Nginx·task temp bind/named-volume acceptance를 구현했다. [Production readiness matrix](../07-operations/production-readiness.md)가 이를 actual provisioning·외부 승인·물리 acceptance와 분리한다. 실제 Mac path/volume·publisher Secret, GHCR·GitHub Environment·deploy/Flyway, local backup, HomeOps와 passkey는 아직 구현·provision되지 않았고 local/Hosted 증거를 production `PASS`로 표시하지 않는다.
+- [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-015](../09-decisions/ADR-015-lossless-int64-json-wire-contract.md)는 production 운영·lossless wire 계약을 확정했다. D-IMP-1~4의 image, Compose/Nginx, release/deploy와 application-consistent backup/isolated restore source·task acceptance를 구현했다. [Production readiness matrix](../07-operations/production-readiness.md)가 이를 actual provisioning·외부 승인·물리 acceptance와 분리한다. 실제 Mac path/volume·publisher Secret, GHCR·GitHub Environment·deploy/Flyway, backup repository/schedule·production backup/restore, HomeOps와 passkey는 아직 provision되지 않았고 local/Hosted 증거를 production `PASS`로 표시하지 않는다.
 - Phase 1C-8f8 sample은 tmpfs/temp root에서만 생성되고 migration·production profile·default fixture로 seed되지 않는다. local PASS를 실제 NAP·예약 정책·고객/반려견 사진 승인이나 production 공개 PASS로 해석하지 않는다.
 - 이번 Issue에서는 실제 이미지·갤러리 seed, 운영 `shop_settings` provisioning과 production migration을 실행하지 않는다. 실제 값·게시 권한 확인과 별도 운영 승인을 거친 후속 작업으로 남긴다.
 

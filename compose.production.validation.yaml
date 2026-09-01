@@ -52,6 +52,11 @@ services:
         bind:
           create_host_path: false
       - type: bind
+        source: ${RHAOMI_PRODUCTION_VALIDATION_ROOT:?RHAOMI_PRODUCTION_VALIDATION_ROOT is required}/state/publisher/build-workspace
+        target: /opt/rhaomi/source/.rhaomi-publication-work
+        bind:
+          create_host_path: false
+      - type: bind
         source: ${RHAOMI_PRODUCTION_VALIDATION_ROOT:?RHAOMI_PRODUCTION_VALIDATION_ROOT is required}/state/locks
         target: /var/lib/rhaomi/locks
         bind:
@@ -62,6 +67,33 @@ services:
 
   schema-validate:
     labels: *validation-labels
+
+  backup-tool:
+    labels: *validation-labels
+    environment:
+      RHAOMI_BACKUP_RESTORE_MEDIA_ROOT: /var/lib/rhaomi/restore-media
+    volumes:
+      - type: bind
+        source: ${RHAOMI_BACKUP_REPOSITORY_ROOT:?RHAOMI_BACKUP_REPOSITORY_ROOT is required}
+        target: /var/lib/rhaomi/backup-repository
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${RHAOMI_PRODUCTION_VALIDATION_ROOT:?RHAOMI_PRODUCTION_VALIDATION_ROOT is required}/data/media
+        target: /var/lib/rhaomi/media
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${RHAOMI_PRODUCTION_VALIDATION_ROOT:?RHAOMI_PRODUCTION_VALIDATION_ROOT is required}/state/deploy
+        target: /var/lib/rhaomi/deploy-state
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${RHAOMI_BACKUP_RESTORE_MEDIA_ROOT:?RHAOMI_BACKUP_RESTORE_MEDIA_ROOT is required}
+        target: /var/lib/rhaomi/restore-media
+        bind:
+          create_host_path: false
 
   postgres:
     labels: *validation-labels

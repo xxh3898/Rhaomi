@@ -138,11 +138,13 @@ COPY --from=publisher-development-dependencies /workspace/source/node_modules/cs
 COPY --from=publisher-development-dependencies /workspace/source/node_modules/undici-types ./node_modules/undici-types
 COPY next.config.ts tsconfig.json ./
 COPY scripts/publish-static-release.mts ./scripts/publish-static-release.mts
+COPY scripts/rhaomi-backup-tool.mjs ./scripts/rhaomi-backup-tool.mjs
 COPY src ./src
 RUN rm -rf src/test \
     && find src -type f \( -name '*.test.ts' -o -name '*.test.tsx' \) -delete \
     && find src -type d -empty -delete \
     && test -f scripts/publish-static-release.mts \
+    && test -f scripts/rhaomi-backup-tool.mjs \
     && test -x node_modules/next/dist/bin/next
 
 FROM eclipse-temurin:25.0.4_7-jre-alpine-3.23@sha256:f8b38ad02cacf5a1618a329dd22915fb1e2f2914fe6242e6daaf5cc7d22d6677

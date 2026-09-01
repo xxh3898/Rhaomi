@@ -107,13 +107,18 @@ acceptance PostgreSQL은 `/var/lib/postgresql` tmpfs를 사용하고 host port·
 | Fixed production environment | Y | `/private/var/lib/rhaomi/app/production.env`, owner-only `0600`, caller-supplied path 금지 |
 | Fixed Docker credential config | Y | `/private/var/lib/rhaomi/app/docker/config.json`, directory `0700`·file `0600` |
 | Fixed deploy entrypoint | N | `/private/var/lib/rhaomi/app/bin/deploy-rhaomi.sh` |
+| Fixed backup entrypoint | N | `/private/var/lib/rhaomi/app/bin/backup-rhaomi.sh`; repository path CLI override 금지 |
+| Backup Docker CLI | Y | fixed wrapper `PATH`의 `docker` + standalone `docker-compose`; owner-only Docker config 사용, actual binary/version/권한 provisioning 필요 |
+| Tracked backup schedule source | N | `ops/production/com.rhaomi.backup.plist`; host-local 03:30, actual install 전 `Asia/Seoul` timezone 확인 |
 | Mac release root | N | `/private/var/lib/rhaomi/public/releases` |
 | Mac current/previous | N | `/private/var/lib/rhaomi/public/current`, `/private/var/lib/rhaomi/public/previous` |
 | PostgreSQL primary PGDATA | Y 취급 | production Compose project-scoped Docker named volume, host bind source 없음 |
 | Mac canonical media | Y 취급 | `/private/var/lib/rhaomi/data/media` |
 | Mac publisher state | Y 취급 | `/private/var/lib/rhaomi/state/publisher` |
-| Mac global lock | N | `/private/var/lib/rhaomi/state/locks` |
-| Deploy backup eligibility | Y 취급 | `/private/var/lib/rhaomi/state/deploy/backup-eligible.env`, exact release SHA에 바인딩된 `0600` gate |
+| Mac publisher build workspace | Y 취급 | `/private/var/lib/rhaomi/state/publisher/build-workspace`; image source는 RO, 이 target만 RW |
+| Mac lock root | N | `/private/var/lib/rhaomi/state/locks`; deploy/backup은 같은 `rhaomi-deploy.lock`, publisher executor는 별도 `publisher.lock` 사용 |
+| Deploy backup eligibility | Y 취급 | `/private/var/lib/rhaomi/state/deploy/backup-eligibility.json`과 exact hash에 결합된 4-line `backup-eligible.env`, 모두 `0600` |
+| Local backup repository | Y 취급 | exact path는 provisioning input; fixed `production.env`의 단일 `RHAOMI_BACKUP_REPOSITORY_ROOT`, owner-only root/sets와 exact sentinel 필요 |
 | Mac logs | Y 취급 | `/private/var/lib/rhaomi/logs` |
 
 production release manifest에는 exact `main` SHA, image tag·digest, Flyway version, release ID, SBOM reference와 public build의 `contentRevision`, `publishGeneration`, `generatedAt`을 기록한다. actual ownership, UID/GID, rendered named-volume name과 Secret source는 provisioning에서 확정하며 Git에 실제 값을 기록하지 않는다.
@@ -125,7 +130,10 @@ production release manifest에는 exact `main` SHA, image tag·digest, Flyway ve
 | `/private/var/lib/rhaomi/public` | web·publisher `/srv/rhaomi/public` | web RO, publisher RW |
 | `/private/var/lib/rhaomi/data/media` | backend·publisher·backup `/var/lib/rhaomi/media` | backend RW, publisher·backup RO |
 | `/private/var/lib/rhaomi/state/publisher` | publisher `/var/lib/rhaomi/publisher` | RW |
+| `/private/var/lib/rhaomi/state/publisher/build-workspace` | publisher `/opt/rhaomi/source/.rhaomi-publication-work` | RW |
 | `/private/var/lib/rhaomi/state/locks` | publisher `/var/lib/rhaomi/locks` | RW |
+| provisioned `RHAOMI_BACKUP_REPOSITORY_ROOT` | `backup-tool` `/var/lib/rhaomi/backup-repository` | RW |
+| `/private/var/lib/rhaomi/state/deploy` | `backup-tool` `/var/lib/rhaomi/deploy-state` | RW |
 | production project-scoped named volume | PostgreSQL image PGDATA target | PostgreSQL RW |
 
 `/srv/rhaomi`는 이 표의 Linux container target에만 허용하고 Mac host path로 해석하지 않는다. PostgreSQL named volume은 일반 `docker compose down`에서 보존하며 production `down -v`, `docker volume prune`과 direct delete를 금지한다.
@@ -199,7 +207,7 @@ publisher는 normal backend profile이나 환경변수만으로 시작하지 않
 | publisher source | `/opt/rhaomi/source`, runtime install 없이 preinstalled lockfile dependency 사용 |
 | acceptance | `sh scripts/validate-production-image.sh` |
 
-image에는 production credential, domain, Mac host path를 bake하지 않는다. `RHAOMI_PUBLISHER_NODE_EXECUTABLE`, release script와 source root의 container 내부 non-secret default만 제공한다. D-IMP-2 Compose는 backend/publisher argv·profile·credential key·public/media/state target을 고정하고, D-IMP-3 workflow와 fixed entrypoint는 exact digest·SHA·SBOM을 주입하는 소스 경계를 구현한다. actual image package·Secret·FQDN·ownership은 외부/host provisioning에서 확정한다.
+image에는 production credential, domain, Mac host path를 bake하지 않는다. `RHAOMI_PUBLISHER_NODE_EXECUTABLE`, release script와 source root의 container 내부 non-secret default만 제공한다. D-IMP-2 Compose는 backend/publisher argv·profile·credential key·public/media/state target과 source-root 아래 isolated build-workspace bind를 고정하고, 나머지 image source/config/dependency는 read-only로 유지한다. D-IMP-3 workflow와 fixed entrypoint는 exact digest·SHA·SBOM을 주입하는 소스 경계를 구현한다. actual image package·Secret·FQDN·ownership은 외부/host provisioning에서 확정한다.
 
 ## Production Compose inventory — implemented, not deployed
 
@@ -210,7 +218,7 @@ image에는 production credential, domain, Mac host path를 bake하지 않는다
 | project Nginx | `infra/nginx/production.conf` |
 | runtime validator | `scripts/validate-production-compose.sh` |
 | default service inventory | `rhaomi-web`, `backend`, `publisher`, `postgres` |
-| opt-in one-shot inventory | `production-task` profile의 `migration`, `schema-validate`; port·host mount 없이 `data-internal`만 사용 |
+| opt-in one-shot inventory | `production-task` profile의 `migration`, `schema-validate`; `production-backup` profile의 network-disabled `backup-tool` |
 | network | web 전용 non-internal `loopback-edge`; `web-backend`, `build-internal`, `data-internal`은 internal |
 | published port | `127.0.0.1:${RHAOMI_WEB_LOOPBACK_PORT}:8080`만 허용 |
 | external origin | redirect는 relative `Location`; backend forwarded origin은 config가 고정한 `https:443` |
@@ -230,7 +238,7 @@ validator는 exact-HEAD production image를 재사용하고 Darwin에서는 `/pr
 - migration은 Flyway V1~V9을 적용하고 JPA validate를 수행하며, schema task는 Flyway를 끌 채 JPA validate만 수행한다. 두 task는 exact CLI opt-in, non-web, admin bootstrap·publisher worker 0이고 성공 후 종료한다.
 - writer maintenance 시작 뒤 migration/schema/backend health/publisher start/runtime image identity 실패는 false success를 금지하고 backend/publisher를 다시 정지한다. quiescence 확인 뒤에만 own lock을 해제하며 확인 실패 시 lock을 보존한다. old writer를 자동 resume하지 않는다.
 - production session cookie는 TLS에서 `Secure=true`가 아니면 기동을 실패시킨다.
-- 실제 Mac mini에서 canonical directory 생성·ownership·permission, public/media/state bind mount와 PostgreSQL named volume identity를 검증한다.
+- 실제 Mac mini에서 canonical directory 생성·ownership·permission, public/media/state/build-workspace bind mount, publisher image source의 workspace 외 read-only와 PostgreSQL named volume identity를 검증한다.
 - PostgreSQL restart와 일반 Compose `down`·`up` 뒤 data persistence를 검증하고 `down -v`·volume prune/delete가 고정 entrypoint·runbook에 없음을 확인한다.
 - application-consistent backup을 새 isolated PostgreSQL named volume에 `pg_restore`해 복구 authority를 확인한다.
 

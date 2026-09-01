@@ -109,7 +109,10 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | arbitrary remote shell·config injection | GitHub input·runner env가 production host command·Compose authority로 확대 | fixed SSH executable·세 scalar argv, strict registry/SHA/digest allowlist, fixed root·Compose·env·Docker config, inherited Compose/Docker override 폐기 |
 | concurrent deploy·writer 활성 중 migration | DB write와 schema 변경 경쟁, 서로 다른 image 재기동 | Mac `mkdir` global lock, public web·DB만 유지, backend/publisher 정지·physical exited 확인 후 one-shot migration/schema validation |
 | migration/schema 또는 post-start 검증 실패 후 writer 잔존 | 호환성·image identity 미확인 writer가 write | critical path non-zero, backend/publisher stop·physical quiescence 확인 뒤에만 own lock 해제, 미확인 시 lock 보존, backend health 전 publisher 시작·false-success evidence 금지 |
-| backup prerequisite 우회 | 복구 authority 없는 migration | fixed `0600` eligibility file의 exact 4-line allowlist·release SHA·evidence hash·owner 검증, D-IMP-4 미구성 시 actual deploy fail-closed |
+| backup prerequisite 우회 | 복구 authority 없는 migration | fixed `0600` 4-line marker→eligibility JSON SHA→target SHA·complete-set manifest/artifact full-read chain, fixed repository config·owner/mode/sentinel, writer mutation 전 재검증 |
+| backup path/manifest indirection | repository 밖 private file read·overwrite 또는 invalid set 승격 | caller path override 금지, canonical physical root·relative path allowlist, symlink/special file 거부, `.incomplete` full-read 뒤 same-filesystem atomic complete rename |
+| deploy/backup writer maintenance race | snapshot·migration 중 다른 writer 재기동 | 동일 `rhaomi-deploy.lock`, backend/publisher physical exit 확인, writer 복구 실패 시 own lock 보존 |
+| corrupt/latest backup retention | 정상 복구점 삭제와 invalid latest 신뢰 | apply 전 모든 complete set full-read, incomplete/checksum failure/<3 verified 차단, 최신 3개·on-demand 보호와 post-check |
 | local-only backup 동시 손실 | host/storage 전체 장애에서 production data와 backup 동시 손실 | 초기 accepted risk 명시, local manifest/check·isolated restore; external/offsite는 future hardening |
 | future backup key 탈취·분실 | 민감 원본 노출 또는 복구 불가 | external hardening 도입 시 별도 encrypted repository, 제한된 password source, password manager+offline recovery key |
 | PostgreSQL volume 오삭제 | 전체 운영 DB 손실 | project-scoped named volume, 일반 `down` 보존, production `down -v`·prune·direct delete 금지, logical backup·isolated `pg_restore` |

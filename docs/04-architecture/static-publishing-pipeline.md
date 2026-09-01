@@ -11,7 +11,7 @@ review_trigger: "콘텐츠 배포 방식 변경 시"
 
 ## 구현 상태
 
-Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Phase 1C-8f1~8f8은 Flyway V8/V9 producer·claim/generation state, internal Build API, strict transformer, dedicated control loop, generated V2 Static Export와 immutable release/atomic switch를 task-scoped end-to-end로 구현했다. D-IMP-2는 same-image non-web publisher service, canonical public/media/state/lock target과 project Nginx source를 구현했고, D-IMP-3은 exact-main digest release workflow·fixed deploy lock과 writer quiescence 후 one-shot migration/schema validation·publisher 재기동 source를 연결했다. actual Mac path ownership·Secret·private GHCR·Environment·Tailscale·approved digest·public HTTPS provisioning은 후속 운영 gate다.
+Static Export 기반과 기존 release 유지, transactional outbox와 단일 publisher 방향은 [ADR-003](../09-decisions/ADR-003-static-publish-on-content-change.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)에서 승인됐다. Phase 1C-8f1~8f8은 Flyway V8/V9 producer·claim/generation state, internal Build API, strict transformer, dedicated control loop, generated V2 Static Export와 immutable release/atomic switch를 task-scoped end-to-end로 구현했다. D-IMP-2는 same-image non-web publisher service, canonical public/media/state/lock과 isolated build-workspace target 및 project Nginx source를 구현했고, D-IMP-3은 exact-main digest release workflow·fixed deploy lock과 writer quiescence 후 one-shot migration/schema validation·publisher 재기동 source를 연결했다. actual Mac path ownership·Secret·private GHCR·Environment·Tailscale·approved digest·public HTTPS provisioning은 후속 운영 gate다.
 
 [Production readiness matrix](../07-operations/production-readiness.md)는 이 `LOCAL_CI_VERIFIED` evidence와 production publisher service·credential·Mac bind·approved image/digest·actual HTTPS·HomeOps integration의 `PROVISIONING_REQUIRED` 상태를 분리한다.
 
@@ -22,7 +22,7 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 ## planned filesystem 경계
 
 - Mac host release authority는 `/private/var/lib/rhaomi/public`이고 publisher container에는 `/srv/rhaomi/public`으로 read-write mount한다.
-- Mac host publisher state와 lock은 각각 `/private/var/lib/rhaomi/state/publisher`, `/private/var/lib/rhaomi/state/locks`이고 container에는 `/var/lib/rhaomi/publisher`, `/var/lib/rhaomi/locks`로 mount한다.
+- Mac host publisher state와 lock은 각각 `/private/var/lib/rhaomi/state/publisher`, `/private/var/lib/rhaomi/state/locks`이고 container에는 `/var/lib/rhaomi/publisher`, `/var/lib/rhaomi/locks`로 mount한다. `/private/var/lib/rhaomi/state/publisher/build-workspace`는 Next/Turbopack 전용으로 `/opt/rhaomi/source/.rhaomi-publication-work`에 RW mount하며 나머지 image source는 RO다.
 - `/srv/rhaomi`는 Linux container target일 뿐 Mac host bind source가 아니다.
 - web container는 같은 Mac public source를 `/srv/rhaomi/public`에 read-only mount한다. publisher만 새 release 설치와 `current`·`previous` atomic switch를 수행한다.
 - actual Mac ownership·permission과 public/state bind·symlink atomicity는 production implementation gate에서 검증한다.
@@ -91,7 +91,7 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 
 ## 현재 Static Export·release filesystem 경계
 
-- Next build workspace는 source root의 작업 전용 sibling 아래 만들고 tracked `src/public`을 복사한 뒤 transformer staging의 `src/generated`·`public/generated`만 덮어쓴다. dependency install이나 runtime backend/browser fetch는 하지 않는다.
+- Next build workspace는 source root 아래 격리된 `.rhaomi-publication-work`에 만들되 production에서는 그 exact target만 Mac publisher state의 전용 child로 RW mount한다. tracked `src/public`을 복사한 뒤 transformer staging의 `src/generated`·`public/generated`만 덮어쓰며, image의 원본 source/config/dependency를 수정하지 않는다. dependency install이나 runtime backend/browser fetch는 하지 않는다.
 - 공개 홈은 Shop·Service·Gallery·Notice snapshot을 정적 HTML에 포함한다. 각 Notice는 title, optional summary, full source `publishedAt`을 `dateTime`에 보존한 `<time>`, `/notices/<slug>/` detail link를 JavaScript 없이 출력하고 상세 route도 같은 path로 export한다. `markdown-it 15.0.1`은 raw HTML을 비활성화하며 link protocol allowlist와 remote Markdown image의 alt-only 처리를 사용한다.
 - responsive image는 media manifest의 `publicPath`만 사용해 AVIF·WebP·JPEG `<picture>`를 만들고 source UUID·filename·storage path를 URL authority로 쓰지 않는다.
 - validator는 required route, HTML parse, internal link, canonical, sitemap·robots, admin noindex, 각 홈 Notice anchor의 exact title·optional summary·full `time[datetime]`·detail link, generated media byte size·SHA filename, unexpected symlink/special file와 credential/internal/private marker 부재를 검사한다. candidate를 loopback read-only server로 열어 홈·대표 공지·media·404를 다시 확인한 뒤에만 install/switch 단계로 이동한다.

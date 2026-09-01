@@ -10,6 +10,7 @@ main() {
   evidence_dir=${RHAOMI_PRODUCTION_DEPLOY_EVIDENCE_DIR:-}
   validation_parent=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
   validation_root=$(mktemp -d "${validation_parent%/}/rhaomi-production-deploy.XXXXXX")
+  validation_root=$(cd "$validation_root" && pwd -P)
   validation_marker="$validation_root/.rhaomi-production-deploy-validation"
   printf '%s\n' "$git_head" >"$validation_marker"
   trap cleanup EXIT HUP INT TERM
@@ -79,6 +80,7 @@ main() {
 prepare_case() {
   case_name=$1
   case_root="$validation_root/$case_name/root"
+  case_repository="$validation_root/$case_name/repository"
   case_state="$validation_root/$case_name/state"
   case_bin="$validation_root/$case_name/bin"
   case_log="$validation_root/$case_name/docker.log"
@@ -88,8 +90,10 @@ prepare_case() {
     "$case_root/app/docker" \
     "$case_root/state/deploy" \
     "$case_root/state/locks" \
+    "$case_repository/sets" \
     "$case_state" \
     "$case_bin"
+  chmod 700 "$case_repository" "$case_repository/sets"
   cp "$repo_dir/compose.production.yaml" "$case_root/app/compose.production.yaml"
   chmod 644 "$case_root/app/compose.production.yaml"
   printf '%s\n' \
@@ -101,16 +105,35 @@ prepare_case() {
     "RHAOMI_BUILD_SERVICE_TOKEN=${synthetic_build_marker}" \
     'RHAOMI_PUBLISHER_OWNER=production-deploy-validation' \
     'RHAOMI_PUBLIC_SITE_URL=https://validation.invalid' \
+    "RHAOMI_BACKUP_REPOSITORY_ROOT=${case_repository}" \
     >"$case_root/app/production.env"
   chmod 600 "$case_root/app/production.env"
   printf '%s\n' '{}' >"$case_root/app/docker/config.json"
   chmod 700 "$case_root/app/docker"
   chmod 600 "$case_root/app/docker/config.json"
+  printf '%s\n' rhaomi-backup-repository-v1 \
+    >"$case_repository/.rhaomi-backup-repository"
+  chmod 600 "$case_repository/.rhaomi-backup-repository"
+  printf '%s\n' \
+    '{' \
+    '  "schemaVersion": 1,' \
+    "  \"targetReleaseSha\": \"${release_sha}\"," \
+    '  "backupSetId": "20260901T000000Z-111111111111",' \
+    "  \"backupManifestSha256\": \"$(printf 'f%.0s' $(seq 1 64))\"," \
+    "  \"sourceReleaseSha\": \"${release_sha}\"," \
+    "  \"sourceImageDigest\": \"${image_digest}\"," \
+    '  "sourceFlywayVersion": "9",' \
+    '  "createdAt": "2026-09-01T00:00:00Z",' \
+    '  "status": "eligible"' \
+    '}' >"$case_root/state/deploy/backup-eligibility.json"
+  chmod 600 "$case_root/state/deploy/backup-eligibility.json"
+  evidence_hash=$(openssl dgst -sha256 \
+    "$case_root/state/deploy/backup-eligibility.json" | awk '{print $NF}')
   printf '%s\n' \
     'schemaVersion=1' \
     'status=eligible' \
     "releaseSha=${release_sha}" \
-    "evidenceSha256=$(printf 'b%.0s' $(seq 1 64))" \
+    "evidenceSha256=${evidence_hash}" \
     >"$case_root/state/deploy/backup-eligible.env"
   chmod 600 "$case_root/state/deploy/backup-eligible.env"
   printf '%s\n' running >"$case_state/backend"
@@ -227,7 +250,19 @@ validate_host_and_backup_gates() {
     exit 1
   fi
   grep -Fq DEPLOY_BACKUP_REQUIRED "$case_output"
-  [ ! -s "$case_log" ]
+  ! grep -Fq ' stop --timeout 30 backend publisher' "$case_log"
+  [ ! -d "$case_root/state/locks/rhaomi-deploy.lock" ]
+
+  prepare_case invalid-complete-backup
+  if run_case backup-eligibility \
+    --release-sha "$release_sha" \
+    --image "$image_reference" \
+    --sbom "$sbom_reference" >"$case_output" 2>&1; then
+    echo "complete backup evidence mismatch가 성공했습니다." >&2
+    exit 1
+  fi
+  grep -Fq DEPLOY_BACKUP_REQUIRED "$case_output"
+  ! grep -Fq ' stop --timeout 30 backend publisher' "$case_log"
   [ ! -d "$case_root/state/locks/rhaomi-deploy.lock" ]
 }
 

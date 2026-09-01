@@ -256,14 +256,14 @@ Phase 1C-8f8은 local/CI synthetic acceptance gate다. 실제 Mac `/private/var/
 - ADR-014 pinned source HEIC decoder-only production runtime
 - [Production readiness matrix](../07-operations/production-readiness.md)의 계약·local/CI·구현·provisioning·외부 승인·물리 acceptance 분리
 
-Phase 1D는 `Production operating architecture CONTRACT COMPLETE`다. D-IMP-1 canonical decoder-only image와 D-IMP-2 external-image production Compose/project Nginx에 이어 D-IMP-3 release workflow, fixed Mac deploy entrypoint, one-shot migration/schema validation의 source와 task-scoped Mac/Linux 수용 검증을 구현했다. 이는 `Production provisioning/deploy COMPLETE`가 아니다. 실제 Mac directory ownership·permission, production bind·volume·Secret·FQDN, isolated `pg_restore`, private GHCR package, protected GitHub Environment, Tailscale identity, local backup repository, HomeOps 설정과 approved image digest 배치는 후속 production gate에서 provisioning·검증한다.
+Phase 1D는 `Production operating architecture CONTRACT COMPLETE`다. D-IMP-1 canonical decoder-only image, D-IMP-2 external-image production Compose/project Nginx, D-IMP-3 release/deploy gate에 이어 D-IMP-4 shared-lock application-consistent backup·manifest/eligibility·isolated restore source와 task-scoped Mac/Linux 수용 검증을 구현했다. 이는 `Production provisioning/deploy COMPLETE`가 아니다. 실제 Mac directory ownership·permission, production bind·volume·Secret·FQDN, backup repository·schedule·production restore/RPO·RTO, private GHCR package, protected GitHub Environment, Tailscale identity, HomeOps 설정과 approved image digest 배치는 후속 production gate에서 provisioning·검증한다.
 
 후속 production implementation은 dependency 순서대로 진행한다.
 
 1. D-IMP-1 decoder-only production image·SBOM/supply-chain evidence — implementation/local·Hosted acceptance 완료, production provisioning 미완료
 2. D-IMP-2 production Compose/project Nginx·Mac bind/PostgreSQL named-volume provisioning validator — source와 task-scoped local/Hosted acceptance 완료, actual provisioning 미완료
 3. D-IMP-3 private GHCR·GitHub production Environment·fixed Tailscale entrypoint·one-shot Flyway/schema validate/maintenance — required exact-head build arg, published platform attestation/scan verifier, post-start failure writer quiescence를 포함한 workflow/entrypoint/task source와 local·Hosted acceptance 완료, actual external/Mac provisioning·dispatch·deploy 미완료
-4. D-IMP-4 local-only application-consistent backup·isolated `pg_restore`/media restore evidence
+4. D-IMP-4 local-only application-consistent backup·isolated `pg_restore`/media restore evidence — source와 task-scoped local/Hosted acceptance 완료, actual repository/schedule·production backup/restore provisioning 미완료
 5. D-IMP-5 HomeOps monitoring/event/status·bounded stateless restart
 6. D-IMP-6 actual domain/content/public HTTPS·iPhone Safari/VoiceOver·rollback/recovery first-production acceptance
 
