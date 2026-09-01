@@ -3,7 +3,7 @@ title: "출시 체크리스트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-01"
+last_updated: "2026-09-02"
 review_trigger: "출시 기준 변경 시"
 ---
 
@@ -182,7 +182,21 @@ review_trigger: "출시 기준 변경 시"
 - [x] fake reporter/Docker task에서 actual HomeOps endpoint/HMAC Secret, production path, volume/image delete 0
 - [x] exact-head Hosted 3-job 구조 안의 HomeOps evidence와 Mac native arm64 task validator
 
-위 완료 표시는 Rhaomi D-IMP-5a source evidence다. HomeOps incident→target mapping·durable 30분 cooldown(D-IMP-5b), monitored-service/control/notification 설정과 Mac fixed inventory installation은 아래 production 항목처럼 미완료다.
+위 완료 표시는 Rhaomi D-IMP-5a source evidence다. Actual HomeOps monitored-service/control/notification 설정과 Mac fixed inventory installation은 아래 production 항목처럼 미완료다.
+
+### D-IMP-5b source·activation preflight validation
+
+- [x] HomeOps PR #120 merge `dev@e4d5c598...`, exact tree와 post-merge Validate run `33527901223` source evidence
+- [x] production compatibility authority `main@f3845396...`와 unreleased `dev` source evidence 분리
+- [x] public HTTPS/keyword 3회 consecutive failure → disabled `rhaomi-web` mapping only, backend unmapped/default-none
+- [x] durable 30분 cooldown과 `FAILED`·`OUTCOME_UNKNOWN` no-auto-retry
+- [x] `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning` ordering과 fail-closed stop/rollback contract
+- [x] exact-shape tracked preflight와 task evidence의 mapping enable 0·actual restart/drill 0·secret/private path 0
+- [ ] HomeOps production release·V14 migration과 live compatibility 재검증
+- [ ] Rhaomi fixed inventory·disabled web mapping·Agent current/rollback identity와 fresh capability provisioning
+- [ ] 별도 승인된 mapping enable, controlled single restart/drill과 observation window
+
+위 완료 표시는 source와 preflight contract다. HomeOps/Rhaomi release, V14 production migration, mapping create/enable, Agent rollout, notification activation과 restart/drill을 수행하지 않았으며 overall production readiness는 `HOLD`다.
 
 ### D-IMP-4 source·task validation
 
@@ -228,9 +242,9 @@ review_trigger: "출시 기준 변경 시"
 - [ ] quarterly isolated full restore, local RPO 24h·RTO 8h evidence
 - [ ] initial local-only backup의 single-host disaster accepted risk가 release evidence·HomeOps에 명시됨
 - [ ] `current`·`previous` atomic switch·rollback과 성공 release 5개 보존
-- [ ] HomeOps 단일 관제·incident·Activity·Discord authority
-- [ ] public/internal/container/host/DB/publisher/backup monitor와 임계값
-- [ ] stateless single restart의 lock·30분 cooldown·audit와 금지 범위
+- [ ] HomeOps 단일 관제·incident·Activity·Discord authority production provisioning
+- [ ] public/internal/container/host/DB/publisher/backup monitor와 public HTTPS/keyword 3회 threshold
+- [ ] `rhaomi-web` only mapping, backend mapping 없음, stateless single restart의 lock·30분 cooldown·audit와 금지 범위
 - [ ] same-host blind spot 수용 기록
 - [ ] service당 약 100 MiB bounded log와 일반 14일·incident hold
 

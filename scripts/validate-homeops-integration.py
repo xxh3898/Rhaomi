@@ -37,6 +37,74 @@ IMAGE_DIGEST = f"sha256:{'b' * 64}"
 IMAGE_ID = f"sha256:{'c' * 64}"
 SECRET_MARKER = "synthetic-homeops-secret-must-not-escape"
 
+EXPECTED_ACTIVATION_PREFLIGHT = {
+    "schemaVersion": 1,
+    "overallProductionReadiness": "HOLD",
+    "productionCompatibilityAuthority": {
+        "homeOpsBranch": "main",
+        "homeOpsCommit": "f3845396bd4d6bf677d1d8bf6bbcb82113851c14",
+        "compatibilityFile": "ops/production/homeops-compatibility.json",
+    },
+    "sourceImplementationEvidence": {
+        "status": "LOCAL_CI_VERIFIED",
+        "homeOpsBranch": "dev",
+        "homeOpsCommit": "e4d5c59841e30fdc20bf1ce55fa419ac3f766a13",
+        "homeOpsTree": "f8f77091383931f36dc96aa35242193bb5ab1f01",
+        "pullRequest": 120,
+        "postMergeValidateRun": 33527901223,
+    },
+    "automaticRecoveryPolicy": {
+        "mappings": [
+            {
+                "monitorSignal": "PUBLIC_HTTPS_KEYWORD",
+                "failureThreshold": 3,
+                "target": "rhaomi-web",
+                "action": "RESTART",
+                "initialState": "DISABLED",
+            }
+        ],
+        "unmappedTargets": ["backend"],
+        "cooldownSeconds": 1800,
+        "noAutoRetryOutcomes": ["FAILED", "OUTCOME_UNKNOWN"],
+    },
+    "releaseOrder": [
+        "HOMEOPS_RELEASE",
+        "LIVE_COMPATIBILITY_REVALIDATION",
+        "RHAOMI_RELEASE_PROVISIONING",
+    ],
+    "activationSequence": [
+        "VERIFY_HOMEOPS_V14_PROVISIONING",
+        "CREATE_DISABLED_WEB_MAPPING",
+        "VERIFY_RHAOMI_FIXED_INVENTORY",
+        "ROLLOUT_HOMEOPS_AGENT",
+        "VERIFY_FRESH_RECOVERY_CAPABILITY",
+        "VERIFY_READ_ONLY_END_TO_END_COMPATIBILITY",
+        "EXPLICIT_MAPPING_ENABLE_APPROVAL",
+        "CONTROLLED_SINGLE_RECOVERY_DRILL_APPROVAL",
+        "VERIFY_POST_HEALTH_AUDIT_ACTIVITY",
+        "OBSERVATION_WINDOW",
+    ],
+    "productionState": {
+        "homeOpsRelease": "NOT_RUN",
+        "rhaomiRelease": "NOT_RUN",
+        "v14ProductionMigration": "NOT_RUN",
+        "webMapping": "NOT_CREATED",
+        "backendMapping": "ABSENT",
+        "agentRollout": "NOT_RUN",
+        "mappingEnable": "NOT_RUN",
+        "restartDrill": "NOT_RUN",
+        "notificationActivation": "NOT_RUN",
+    },
+    "privateEvidenceRequired": [
+        "HOMEOPS_DATABASE_IDENTITY",
+        "MONITORED_SERVICE_IDENTITY",
+        "RHAOMI_FIXED_INVENTORY_IDENTITY",
+        "HOMEOPS_AGENT_CURRENT_AND_ROLLBACK_IDENTITY",
+        "RHAOMI_RUNTIME_IDENTITY",
+        "BACKUP_RESTORE_ELIGIBILITY",
+    ],
+}
+
 
 def require(condition: bool, message: str) -> None:
     if not condition:
@@ -163,6 +231,56 @@ def validate_compatibility() -> dict[str, object]:
     require(compatibility["managedLabel"] == "homeops.managed", "managed label drift")
     require(compatibility["writableBindOrVolumeControl"] == "DENIED", "mount policy drift")
     return compatibility
+
+
+def validate_activation_preflight(compatibility: dict[str, object]) -> dict[str, object]:
+    preflight_path = REPO_ROOT / "ops" / "production" / "homeops-activation-preflight.json"
+    try:
+        encoded = preflight_path.read_bytes()
+        preflight = json.loads(encoded)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise AssertionError("activation preflight is unreadable") from error
+    require(type(preflight) is dict, "activation preflight must be an object")
+    require(preflight == EXPECTED_ACTIVATION_PREFLIGHT, "activation preflight contract drift")
+    require(type(preflight["schemaVersion"]) is int, "preflight schemaVersion type drift")
+    require(
+        type(preflight["sourceImplementationEvidence"]["pullRequest"]) is int,
+        "preflight pull request type drift",
+    )
+    require(
+        type(preflight["sourceImplementationEvidence"]["postMergeValidateRun"]) is int,
+        "preflight run id type drift",
+    )
+    policy = preflight["automaticRecoveryPolicy"]
+    mapping = policy["mappings"][0]
+    require(type(mapping["failureThreshold"]) is int, "web failure threshold type drift")
+    require(type(policy["cooldownSeconds"]) is int, "cooldown type drift")
+    require(
+        preflight["productionCompatibilityAuthority"]["homeOpsCommit"]
+        == compatibility["homeOpsCommit"],
+        "production compatibility authority drift",
+    )
+    require(
+        preflight["sourceImplementationEvidence"]["homeOpsCommit"]
+        != compatibility["homeOpsCommit"],
+        "unreleased source evidence replaced production authority",
+    )
+    require(SECRET_MARKER.encode() not in encoded, "secret marker leaked into preflight")
+    require(b"/private/" not in encoded and b"/Users/" not in encoded, "private path leaked")
+    return {
+        "overallProductionReadiness": preflight["overallProductionReadiness"],
+        "productionAuthorityPinnedToCurrentMain": True,
+        "sourceEvidenceSeparated": True,
+        "webFailureThreshold": mapping["failureThreshold"],
+        "webTarget": mapping["target"],
+        "backendMapping": preflight["productionState"]["backendMapping"],
+        "cooldownSeconds": policy["cooldownSeconds"],
+        "noAutoRetryOutcomes": policy["noAutoRetryOutcomes"],
+        "mappingEnableCount": 0,
+        "actualRestartOrDrillCount": 0,
+        "secretMarkerCount": 0,
+        "privatePathCount": 0,
+    }
 
 
 def validate_events(compatibility: dict[str, object], temporary: Path) -> dict[str, object]:
@@ -502,14 +620,16 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="rhaomi-homeops-validation-") as raw_temporary:
         temporary = Path(raw_temporary)
         compatibility = validate_compatibility()
+        activation_preflight_evidence = validate_activation_preflight(compatibility)
         event_evidence = validate_events(compatibility, temporary)
         status_evidence = validate_status(temporary)
         recovery_evidence = validate_recovery(temporary)
     evidence = {
-        "contract": "rhaomi-homeops-d-imp-5a-v1",
+        "contract": "rhaomi-homeops-d-imp-5b-preflight-v1",
         "gitHead": arguments.git_head,
         "homeOpsCommit": compatibility["homeOpsCommit"],
         "reporterSha256": compatibility["reporterSha256"],
+        "activationPreflight": activation_preflight_evidence,
         "events": event_evidence,
         "status": status_evidence,
         "recovery": recovery_evidence,

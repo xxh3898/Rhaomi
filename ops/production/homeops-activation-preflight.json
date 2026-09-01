@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "overallProductionReadiness": "HOLD",
+  "productionCompatibilityAuthority": {
+    "homeOpsBranch": "main",
+    "homeOpsCommit": "f3845396bd4d6bf677d1d8bf6bbcb82113851c14",
+    "compatibilityFile": "ops/production/homeops-compatibility.json"
+  },
+  "sourceImplementationEvidence": {
+    "status": "LOCAL_CI_VERIFIED",
+    "homeOpsBranch": "dev",
+    "homeOpsCommit": "e4d5c59841e30fdc20bf1ce55fa419ac3f766a13",
+    "homeOpsTree": "f8f77091383931f36dc96aa35242193bb5ab1f01",
+    "pullRequest": 120,
+    "postMergeValidateRun": 33527901223
+  },
+  "automaticRecoveryPolicy": {
+    "mappings": [
+      {
+        "monitorSignal": "PUBLIC_HTTPS_KEYWORD",
+        "failureThreshold": 3,
+        "target": "rhaomi-web",
+        "action": "RESTART",
+        "initialState": "DISABLED"
+      }
+    ],
+    "unmappedTargets": [
+      "backend"
+    ],
+    "cooldownSeconds": 1800,
+    "noAutoRetryOutcomes": [
+      "FAILED",
+      "OUTCOME_UNKNOWN"
+    ]
+  },
+  "releaseOrder": [
+    "HOMEOPS_RELEASE",
+    "LIVE_COMPATIBILITY_REVALIDATION",
+    "RHAOMI_RELEASE_PROVISIONING"
+  ],
+  "activationSequence": [
+    "VERIFY_HOMEOPS_V14_PROVISIONING",
+    "CREATE_DISABLED_WEB_MAPPING",
+    "VERIFY_RHAOMI_FIXED_INVENTORY",
+    "ROLLOUT_HOMEOPS_AGENT",
+    "VERIFY_FRESH_RECOVERY_CAPABILITY",
+    "VERIFY_READ_ONLY_END_TO_END_COMPATIBILITY",
+    "EXPLICIT_MAPPING_ENABLE_APPROVAL",
+    "CONTROLLED_SINGLE_RECOVERY_DRILL_APPROVAL",
+    "VERIFY_POST_HEALTH_AUDIT_ACTIVITY",
+    "OBSERVATION_WINDOW"
+  ],
+  "productionState": {
+    "homeOpsRelease": "NOT_RUN",
+    "rhaomiRelease": "NOT_RUN",
+    "v14ProductionMigration": "NOT_RUN",
+    "webMapping": "NOT_CREATED",
+    "backendMapping": "ABSENT",
+    "agentRollout": "NOT_RUN",
+    "mappingEnable": "NOT_RUN",
+    "restartDrill": "NOT_RUN",
+    "notificationActivation": "NOT_RUN"
+  },
+  "privateEvidenceRequired": [
+    "HOMEOPS_DATABASE_IDENTITY",
+    "MONITORED_SERVICE_IDENTITY",
+    "RHAOMI_FIXED_INVENTORY_IDENTITY",
+    "HOMEOPS_AGENT_CURRENT_AND_ROLLBACK_IDENTITY",
+    "RHAOMI_RUNTIME_IDENTITY",
+    "BACKUP_RESTORE_ELIGIBILITY"
+  ]
+}

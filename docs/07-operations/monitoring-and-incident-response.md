@@ -3,7 +3,7 @@ title: "모니터링·장애 대응"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-01"
+last_updated: "2026-09-02"
 review_trigger: "모니터링 도구·장애 등급 변경 시"
 ---
 
@@ -18,8 +18,9 @@ review_trigger: "모니터링 도구·장애 등급 변경 시"
 - Prometheus·Grafana·Loki는 초기 범위에 포함하지 않는다.
 - HomeOps UI와 운영 endpoint는 Tailscale 전용이다.
 - D-IMP-5a는 fixed bounded status, HomeOps current deployment/backup adapter, `rhaomi-web` source label과 web/backend fixed one-restart target을 task-scoped local/CI에서 구현했다.
-- HomeOps incident→exact target decision, 30분 cooldown, backend RW-media compatibility 결정과 actual monitor·alert·control·notification 등록은 D-IMP-5b/production provisioning에 남아 있다.
-- [Production readiness matrix](production-readiness.md)의 HomeOps 행은 따라서 `IMPLEMENTATION_REQUIRED`이며 D-IMP-5a source evidence만으로 실제 monitor나 automatic recovery가 존재한다고 보지 않는다.
+- HomeOps Issue #119/PR #120은 incident decision, V14 mapping/audit와 durable 30분 cooldown source를 `dev@e4d5c59841e30fdc20bf1ce55fa419ac3f766a13`에 병합했고 post-merge Validate run `33527901223`이 성공했다.
+- 이 evidence는 `Source IMPLEMENTED / LOCAL_CI_VERIFIED`이며 HomeOps production release, V14 migration, monitor/mapping/Agent provisioning과 recovery acceptance는 `NOT RUN`이다.
+- [Production readiness matrix](production-readiness.md)의 HomeOps 행은 source 구현이 확인됐으므로 `PROVISIONING_REQUIRED`다. 이는 actual monitor나 automatic recovery의 production `PASS`가 아니며 overall readiness는 `HOLD`다.
 
 ## 구현된 D-IMP-5a 경계
 
@@ -102,7 +103,7 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. 실제 log
 
 ## 자동 복구 경계
 
-architecture상 허용 action은 `rhaomi-web`, `backend` 각각의 단일 restart뿐이다. D-IMP-5a local target은 둘 다 allowlist하지만 current HomeOps generic label 대상은 `rhaomi-web` 하나다.
+architecture상 local fixed action은 `rhaomi-web`, `backend` 각각의 단일 restart뿐이다. 승인된 automatic recovery mapping은 public HTTPS/keyword 3회 consecutive failure incident → `rhaomi-web` 하나다. `backend`는 unmapped/default-none이고 automatic recovery가 비활성이다. D-IMP-5a local target allowlist에 backend가 남아 있다는 사실은 mapping 또는 activation authority가 아니다.
 
 필수 조건:
 
@@ -111,7 +112,20 @@ architecture상 허용 action은 `rhaomi-web`, `backend` 각각의 단일 restar
 - 같은 service restart 후 30분 cooldown
 - trigger, 전후 health와 결과 audit
 
-위 consecutive-failure·incident mapping·30분 cooldown은 아직 HomeOps에 연결하지 않았다. fixed target의 존재를 automatic recovery 활성화로 해석하지 않는다.
+HomeOps D-IMP-5b source는 incident winner, exact mapping row lock과 durable 30분 cooldown을 구현했다. `FAILED`와 `OUTCOME_UNKNOWN`은 자동 재실행 금지다. Production mapping row와 Agent capability는 아직 없고 fixed target의 존재를 automatic recovery 활성화로 해석하지 않는다.
+
+## production activation preflight
+
+[Activation preflight](../../ops/production/homeops-activation-preflight.json)는 production authority인 current HomeOps `main@f3845396bd4d6bf677d1d8bf6bbcb82113851c14`와 다음 source evidence인 HomeOps `dev@e4d5c598...`를 분리한다. [Compatibility snapshot](../../ops/production/homeops-compatibility.json)은 unreleased dev SHA로 바꾸지 않는다.
+
+Cross-repository 순서는 `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning`이다. 이후 V14 확인 → disabled web mapping → fixed inventory → Agent rollout/fresh capability → read-only end-to-end 확인 → 별도 mapping enable 승인 → 별도 controlled restart/drill 승인 → post-health/audit/Activity → observation window 순으로 진행한다. 각 단계 실패 시 다음 mutation을 시작하지 않는다.
+
+- monitored-service exact row identity와 runtime/Agent rollback identity는 private production evidence로만 확인한다.
+- backend mapping은 생성하지 않는다.
+- deploy/backup shared lock, current image/config, 정상 backup/restore eligibility 중 하나라도 불확실하면 enable하지 않는다.
+- notification/Discord activation은 recovery acceptance와 별도 승인이다.
+- Issue #59에서는 release, V14 migration, mapping create/enable, Agent rollout, restart/drill을 수행하지 않는다.
+- 후속 실패 rollback은 web mapping disable/default-none, no-auto-retry, V14 audit 보존과 previous exact Agent artifact 복귀다. Application rollback과 DB migration 상태를 분리하고 불확실 shared lock은 임의 삭제하지 않는다.
 
 자동 복구에서 금지:
 

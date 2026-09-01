@@ -3,7 +3,7 @@ title: "로드맵"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-01"
+last_updated: "2026-09-02"
 review_trigger: "릴리스 범위 변경 시"
 ---
 
@@ -256,7 +256,7 @@ Phase 1C-8f8은 local/CI synthetic acceptance gate다. 실제 Mac `/private/var/
 - ADR-014 pinned source HEIC decoder-only production runtime
 - [Production readiness matrix](../07-operations/production-readiness.md)의 계약·local/CI·구현·provisioning·외부 승인·물리 acceptance 분리
 
-Phase 1D는 `Production operating architecture CONTRACT COMPLETE`다. D-IMP-1 canonical decoder-only image, D-IMP-2 external-image production Compose/project Nginx, D-IMP-3 release/deploy gate, D-IMP-4 shared-lock application-consistent backup·manifest/eligibility·isolated restore에 이어 D-IMP-5a Rhaomi bounded status/event producer와 fixed recovery target source를 구현했다. 이는 `Production provisioning/deploy COMPLETE`가 아니다. 실제 Mac directory ownership·permission, production bind·volume·Secret·FQDN, backup repository·schedule·production restore/RPO·RTO, private GHCR package, protected GitHub Environment, Tailscale identity, HomeOps D-IMP-5b 설정과 approved image digest 배치는 후속 production gate에서 provisioning·검증한다.
+Phase 1D는 `Production operating architecture CONTRACT COMPLETE`다. D-IMP-1 canonical decoder-only image, D-IMP-2 external-image production Compose/project Nginx, D-IMP-3 release/deploy gate, D-IMP-4 shared-lock application-consistent backup·manifest/eligibility·isolated restore, D-IMP-5a Rhaomi bounded adapter/target와 D-IMP-5b HomeOps incident decision·V14 mapping/audit·durable cooldown source를 구현했다. 이는 `Production provisioning/deploy COMPLETE`가 아니다. 실제 Mac directory ownership·permission, production bind·volume·Secret·FQDN, backup repository·schedule·production restore/RPO·RTO, private GHCR package, protected GitHub Environment, Tailscale identity, HomeOps release·V14·web-only mapping·Agent capability와 approved image digest 배치는 후속 production gate에서 provisioning·검증한다.
 
 후속 production implementation은 dependency 순서대로 진행한다.
 
@@ -265,7 +265,7 @@ Phase 1D는 `Production operating architecture CONTRACT COMPLETE`다. D-IMP-1 ca
 3. D-IMP-3 private GHCR·GitHub production Environment·fixed Tailscale entrypoint·one-shot Flyway/schema validate/maintenance — required exact-head build arg, published platform attestation/scan verifier, post-start failure writer quiescence를 포함한 workflow/entrypoint/task source와 local·Hosted acceptance 완료, actual external/Mac provisioning·dispatch·deploy 미완료
 4. D-IMP-4 local-only application-consistent backup·isolated `pg_restore`/media restore evidence — source와 task-scoped local/Hosted acceptance 완료, actual repository/schedule·production backup/restore provisioning 미완료
 5. D-IMP-5a Rhaomi status/event adapter·HomeOps compatibility·fixed bounded restart target — source와 task-scoped local/Hosted acceptance 완료, actual installation/activation 미완료
-6. D-IMP-5b HomeOps incident→exact target mapping·30분 cooldown·actual monitor/control/notification activation
+6. D-IMP-5b HomeOps incident decision·V14 mapping/audit·30분 cooldown — source/local·Hosted evidence 완료; public HTTPS/keyword 3회→`rhaomi-web` only, backend unmapped preflight 승인; `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning`과 actual activation 미완료
 7. D-IMP-6 actual domain/content/public HTTPS·iPhone Safari/VoiceOver·rollback/recovery first-production acceptance
 
 외장 SSD·iCloud 3-2-1은 초기 production blocker가 아니라 별도 승인 후의 future hardening이다. Phase 2 진입도 production deploy 또는 위 readiness blocker 완료를 뜻하지 않는다.

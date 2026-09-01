@@ -3,7 +3,7 @@ title: "테스트 전략"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-01"
+last_updated: "2026-09-02"
 review_trigger: "기술·기능 범위 변경 시"
 ---
 
@@ -385,7 +385,7 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 
 Mac native Linux arm64와 Hosted Backend Linux amd64는 같은 production image/entrypoint를 실행한다. source/restore task named volume은 직접 삭제하지 않고 task container/network만 정리한다. 이 결과는 actual local repository·schedule·production DB/media backup 또는 production restore evidence가 아니다.
 
-## 현재 D-IMP-5a HomeOps integration 자동 검증
+## 현재 D-IMP-5a·5b HomeOps integration/preflight 자동 검증
 
 - HomeOps `main@f3845396bd4d6bf677d1d8bf6bbcb82113851c14`, reporter owner/mode/SHA와 deployment/backup DTO exact field·status compatibility
 - deployment와 backup의 deterministic same-lifecycle `eventKey`·microsecond `startedAt`, RUNNING→SUCCESS/FAILED exact shape와 malformed SHA/status/timestamp 거부
@@ -395,9 +395,14 @@ Mac native Linux arm64와 Hosted Backend Linux amd64는 같은 production image/
 - `rhaomi-web` source label exactly one, backend·publisher·PostgreSQL·one-shot/backup service generic control opt-in 0
 - fixed recovery의 `restart rhaomi-web|backend` only, publisher/PostgreSQL/unknown mutation 0, shared lock contention mutation 0, current image/config 보존과 exactly-one restart·post-health
 - restart command 완료 불확실 시 success 0·own shared lock release 0, post-health failure false success 0, Compose down/up·image pull·filesystem/volume mutation 0
+- tracked activation preflight exact shape, overall `HOLD`, production `main` compatibility pin과 HomeOps `dev` source evidence 분리
+- public HTTPS/keyword failure threshold 3·`rhaomi-web` only mapping, backend unmapped/default-none, 30분 cooldown과 `FAILED`·`OUTCOME_UNKNOWN` no-auto-retry
+- `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning` ordering, V14→disabled mapping→inventory→Agent capability→read-only check→별도 enable/drill approval sequence
+- production state의 release·migration·mapping create/enable·Agent rollout·notification·restart/drill `NOT_RUN`, task evidence의 mapping enable/restart-drill mutation 0
+- activation preflight와 evidence의 secret marker·private path 0, actual HomeOps network/Secret/repository 접근 0
 - existing deploy/backup failure/quiescence/permission lifecycle과 production Compose regression, Flyway V1~V9·public route·3-job Hosted structure 불변
 
-이 검증은 Rhaomi source/task evidence다. HomeOps incident→exact target mapping, 30분 durable cooldown, backend RW-media compatibility 결정과 actual monitored-service/control/notification·Mac installation은 D-IMP-5b/production provisioning이며 실행하지 않는다.
+이 검증은 Rhaomi source/task evidence다. HomeOps D-IMP-5b source implementation은 확인했지만 production release·V14 migration·actual monitored-service/control/notification·Mac installation·mapping enable·Agent rollout·restart/drill은 실행하지 않는다. Fixed recovery backend action test는 local allowlist regression일 뿐 backend automatic mapping evidence가 아니다.
 
 ## 현재 Phase 1C-8f4 transformer 자동 검증
 

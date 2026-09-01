@@ -262,7 +262,7 @@ test("Hosted Validate Backend job이 D-IMP-3 validator를 exact-head image로 �
   assert.match(workflow, /scripts\/validate-production-deploy\.sh/u);
   assert.match(
     workflow,
-    /RHAOMI_CLEANUP_TASK:\s*57-homeops-integration-boundary/u,
+    /RHAOMI_CLEANUP_TASK:\s*59-homeops-activation-preflight/u,
   );
   assert.match(workflow, /RHAOMI_PRODUCTION_IMAGE: rhaomi-production-ci:\$\{\{ github\.event\.pull_request\.head\.sha \}\}/u);
   assert.doesNotMatch(workflow, /packages:\s*write/u);

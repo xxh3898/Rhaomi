@@ -3,7 +3,7 @@ title: "컨테이너 구조"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-01"
+last_updated: "2026-09-02"
 review_trigger: "서비스 배치·network·image 변경 시"
 ---
 
@@ -187,7 +187,7 @@ ops internal
 
 base Compose의 source/target·mode와 task overlay의 rendered mount·named-volume persistence는 local/CI에서 검증한다. actual host ownership·permission, production rendered volume identity와 bind smoke는 provisioning에서 검증한다. container 삭제와 일반 Compose `down`은 PostgreSQL data를 삭제하지 않아야 하며 production `down -v`, volume prune/delete를 금지한다. DB backup/restore는 raw volume copy가 아니라 `pg_dump -Fc`·`pg_restore`를 authority로 사용한다.
 
-HomeOps current generic container control opt-in label `homeops.managed=true`는 read-only public bind와 tmpfs만 가진 `rhaomi-web`에만 둔다. backend는 private media RW bind가 있어 HomeOps writable-mount deny와 호환되지 않으므로 label을 두지 않는다. publisher, PostgreSQL, migration/schema, backup tool/verifier도 control opt-in하지 않는다. host-side fixed recovery target의 backend allowlist는 향후 explicit HomeOps mapping을 위한 local action boundary일 뿐 generic Agent eligibility를 뜻하지 않는다.
+HomeOps current generic container control opt-in label `homeops.managed=true`는 read-only public bind와 tmpfs만 가진 `rhaomi-web`에만 둔다. backend는 private media RW bind가 있어 HomeOps writable-mount deny와 호환되지 않으므로 label을 두지 않는다. publisher, PostgreSQL, migration/schema, backup tool/verifier도 control opt-in하지 않는다. Host-side fixed recovery target의 backend allowlist는 local action regression boundary일 뿐 generic Agent eligibility나 automatic recovery mapping을 뜻하지 않는다. 승인된 production mapping은 public HTTPS/keyword 3회 실패→`rhaomi-web` 하나이고 backend는 unmapped/default-none이다.
 
 ## 공개 route — project Nginx implemented, ingress provisioning planned
 

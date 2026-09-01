@@ -45,6 +45,99 @@ test("HomeOps compatibility snapshot이 current main DTO와 reporter authority�
   assert.equal(contract.monitoringRequest.notificationEnabled, false);
 });
 
+test("D-IMP-5b source evidence와 web-only production activation preflight를 고정한다", async () => {
+  const [preflight, compatibility, adr, readiness, monitoring, deployment, backup, checklist, strategy] =
+    await Promise.all([
+      source("ops/production/homeops-activation-preflight.json").then(JSON.parse),
+      source("ops/production/homeops-compatibility.json").then(JSON.parse),
+      source("docs/09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md"),
+      source("docs/07-operations/production-readiness.md"),
+      source("docs/07-operations/monitoring-and-incident-response.md"),
+      source("docs/07-operations/deployment.md"),
+      source("docs/07-operations/backup-and-restore.md"),
+      source("docs/08-quality/release-checklist.md"),
+      source("docs/08-quality/test-strategy.md"),
+    ]);
+
+  assert.deepEqual(Object.keys(preflight), [
+    "schemaVersion",
+    "overallProductionReadiness",
+    "productionCompatibilityAuthority",
+    "sourceImplementationEvidence",
+    "automaticRecoveryPolicy",
+    "releaseOrder",
+    "activationSequence",
+    "productionState",
+    "privateEvidenceRequired",
+  ]);
+  assert.equal(preflight.schemaVersion, 1);
+  assert.equal(preflight.overallProductionReadiness, "HOLD");
+  assert.deepEqual(preflight.productionCompatibilityAuthority, {
+    homeOpsBranch: "main",
+    homeOpsCommit: "f3845396bd4d6bf677d1d8bf6bbcb82113851c14",
+    compatibilityFile: "ops/production/homeops-compatibility.json",
+  });
+  assert.equal(
+    preflight.productionCompatibilityAuthority.homeOpsCommit,
+    compatibility.homeOpsCommit,
+  );
+  assert.deepEqual(preflight.sourceImplementationEvidence, {
+    status: "LOCAL_CI_VERIFIED",
+    homeOpsBranch: "dev",
+    homeOpsCommit: "e4d5c59841e30fdc20bf1ce55fa419ac3f766a13",
+    homeOpsTree: "f8f77091383931f36dc96aa35242193bb5ab1f01",
+    pullRequest: 120,
+    postMergeValidateRun: 33527901223,
+  });
+  assert.notEqual(
+    preflight.sourceImplementationEvidence.homeOpsCommit,
+    compatibility.homeOpsCommit,
+  );
+  assert.deepEqual(preflight.automaticRecoveryPolicy, {
+    mappings: [
+      {
+        monitorSignal: "PUBLIC_HTTPS_KEYWORD",
+        failureThreshold: 3,
+        target: "rhaomi-web",
+        action: "RESTART",
+        initialState: "DISABLED",
+      },
+    ],
+    unmappedTargets: ["backend"],
+    cooldownSeconds: 1800,
+    noAutoRetryOutcomes: ["FAILED", "OUTCOME_UNKNOWN"],
+  });
+  assert.deepEqual(preflight.releaseOrder, [
+    "HOMEOPS_RELEASE",
+    "LIVE_COMPATIBILITY_REVALIDATION",
+    "RHAOMI_RELEASE_PROVISIONING",
+  ]);
+  assert.deepEqual(preflight.productionState, {
+    homeOpsRelease: "NOT_RUN",
+    rhaomiRelease: "NOT_RUN",
+    v14ProductionMigration: "NOT_RUN",
+    webMapping: "NOT_CREATED",
+    backendMapping: "ABSENT",
+    agentRollout: "NOT_RUN",
+    mappingEnable: "NOT_RUN",
+    restartDrill: "NOT_RUN",
+    notificationActivation: "NOT_RUN",
+  });
+
+  for (const document of [adr, monitoring]) {
+    assert.match(document, /HomeOps release[^\n]*live compatibility[^\n]*Rhaomi release\/provisioning/u);
+    assert.match(document, /public HTTPS\/keyword[^\n]*3회[^\n]*rhaomi-web/u);
+    assert.match(document, /backend[^\n]*(?:unmapped|mapping 없음|매핑 없음|미매핑)/u);
+    assert.match(document, /FAILED[^\n]*OUTCOME_UNKNOWN[^\n]*(?:자동 재실행 금지|no-auto-retry)/u);
+  }
+  for (const document of [readiness, deployment, checklist, strategy]) {
+    assert.match(document, /HomeOps release[^\n]*live compatibility[^\n]*Rhaomi release\/provisioning/u);
+  }
+  assert.match(readiness, /HomeOps monitoring \/ recovery[^\n]*`PROVISIONING_REQUIRED`/u);
+  assert.match(deployment, /mapping enable[^\n]*restart\/drill[^\n]*(?:별도 승인|수행 금지)/iu);
+  assert.match(backup, /recovery preflight[^\n]*shared deploy\/backup lock/u);
+});
+
 test("production entrypoint가 root·reporter·URL·command override를 받지 않는다", async () => {
   const [core, reporter, status, recovery] = await Promise.all([
     source("ops/production/rhaomi_homeops.py"),
@@ -76,8 +169,9 @@ test("production Compose와 Hosted Validate가 web-only control·exact-head evid
     /homeops\.managed/u,
   );
   assert.match(workflow, /validate-homeops-integration\.sh/u);
-  assert.match(workflow, /homeops-integration-evidence-\$\{\{ github\.event\.pull_request\.head\.sha \}\}/u);
-  assert.match(workflow, /57-homeops-integration-boundary/u);
+  assert.match(workflow, /59-homeops-activation-preflight/u);
+  assert.match(workflow, /HomeOps D-IMP-5b source·activation preflight 계약 검증/u);
+  assert.match(workflow, /homeops-activation-preflight-evidence-\$\{\{ github\.event\.pull_request\.head\.sha \}\}/u);
 });
 
 test("task validator가 status/event/recovery privacy와 fail-closed 계약을 실행한다", async (t) => {
@@ -97,6 +191,12 @@ test("task validator가 status/event/recovery privacy와 fail-closed 계약을 �
   assert.equal(summary.events.lifecycleEventKeyStable, true);
   assert.equal(summary.events.actualHomeOpsNetworkCalls, 0);
   assert.equal(summary.events.actualHomeOpsSecretReads, 0);
+  assert.equal(summary.activationPreflight.overallProductionReadiness, "HOLD");
+  assert.equal(summary.activationPreflight.webFailureThreshold, 3);
+  assert.equal(summary.activationPreflight.webTarget, "rhaomi-web");
+  assert.equal(summary.activationPreflight.backendMapping, "ABSENT");
+  assert.equal(summary.activationPreflight.mappingEnableCount, 0);
+  assert.equal(summary.activationPreflight.actualRestartOrDrillCount, 0);
   assert.equal(summary.status.secretMarkerCount, 0);
   assert.equal(summary.status.privatePathCount, 0);
   assert.equal(summary.status.dockerEnvironmentInspectCount, 0);

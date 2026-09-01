@@ -3,7 +3,7 @@ title: "위협 모델"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-01"
+last_updated: "2026-09-02"
 review_trigger: "외부 노출·관리 기능·인증 변경 시"
 ---
 
@@ -116,7 +116,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | local-only backup 동시 손실 | host/storage 전체 장애에서 production data와 backup 동시 손실 | 초기 accepted risk 명시, local manifest/check·isolated restore; external/offsite는 future hardening |
 | future backup key 탈취·분실 | 민감 원본 노출 또는 복구 불가 | external hardening 도입 시 별도 encrypted repository, 제한된 password source, password manager+offline recovery key |
 | PostgreSQL volume 오삭제 | 전체 운영 DB 손실 | project-scoped named volume, 일반 `down` 보존, production `down -v`·prune·direct delete 금지, logical backup·isolated `pg_restore` |
-| 자동 복구 오작동 | 장애 확대·data mutation | D-IMP-5a fixed web/backend one-restart target, shared deploy/backup lock·identity·pre/post health·불확실 종료 lock 보존; web-only generic opt-in. incident mapping·30분 cooldown·actual activation은 D-IMP-5b 전 금지 |
+| 자동 복구 오작동 | 장애 확대·data mutation | D-IMP-5a fixed web/backend one-restart target과 D-IMP-5b incident/mapping/audit·30분 cooldown source; public HTTPS/keyword 3회→`rhaomi-web` only, backend unmapped, shared lock·identity·pre/post health·no-auto-retry. Actual enable/drill은 별도 승인 전 금지 |
 | native codec 공급망 | image 처리 RCE·license 위반 | pinned source commit, decoder-only, x265 absence, SBOM·scan·actual fixture |
 
 ## 출시 차단
@@ -138,7 +138,8 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - protected exact-SHA/digest release·fixed entrypoint·one-shot Flyway/schema validation·restore drill의 actual production acceptance 부재
 - Mac `/private/var/lib/rhaomi` ownership·bind smoke, PostgreSQL named-volume restart/일반 `down` persistence와 isolated `pg_restore` 증거 부재
 - HomeOps 자동 복구가 DB·volume·migration·backup을 변경할 수 있음
-- HomeOps incident→target mapping·durable 30분 cooldown과 actual monitor/control provisioning 없이 automatic recovery를 활성화함
+- HomeOps release→live compatibility 재검증→Rhaomi release/provisioning, V14·disabled web mapping·fixed inventory·fresh Agent capability와 actual monitor/control evidence 없이 automatic recovery를 활성화함
+- backend mapping을 만들거나 `FAILED`·`OUTCOME_UNKNOWN`을 자동 재실행함
 
 현재 local backend·gateway와 `/admin/` 인증 셸·미디어·매장정보·견종·서비스·갤러리·공지 관리 UI는 운영 배포 대상이 아니므로 WebAuthn/passkey·TLS·운영 account provisioning을 구현하지 않는다. noindex와 client session 확인도 보안 통제로 간주하지 않으며, 실제 iPhone Safari HEIC upload·shop/견종/서비스/갤러리/공지 form·VoiceOver 증거가 없는 상태를 운영 준비 완료로 표현하지 않는다.
 
