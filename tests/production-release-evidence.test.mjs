@@ -145,6 +145,27 @@ function verify({ evidenceDir, validationSummary, output }) {
   );
 }
 
+function vulnerabilityMatch(severity, id) {
+  return {
+    artifact: {
+      id: "libheif@1.23.1",
+      name: "libheif",
+      purl: "pkg:generic/libheif@1.23.1",
+    },
+    vulnerability: {
+      id,
+      ...(severity === undefined ? {} : { severity }),
+    },
+  };
+}
+
+async function replacePlatformMatches(evidenceDir, platformKey, matches) {
+  const path = join(evidenceDir, `${platformKey}-grype.json`);
+  const scan = JSON.parse(await readFile(path, "utf8"));
+  scan.matches = matches;
+  await writeJson(path, scan);
+}
+
 test("published OCI index의 두 platform과 attached evidence를 actual digest에 결합한다", async () => {
   const fixture = await createEvidenceFixture();
   const result = verify(fixture);
@@ -161,6 +182,47 @@ test("published OCI index의 두 platform과 attached evidence를 actual digest�
     platforms.map(({ platform, digest }) => ({ platform, digest })),
   );
   assert.equal(evidence.prePublishValidation.scope, "auxiliary-validation-image-only");
+});
+
+test("published platform의 High 또는 Critical finding을 fail-closed한다", async (t) => {
+  const cases = [
+    ["linux/amd64 High 1", "linux-amd64", "High", "CVE-2099-0001"],
+    ["linux/arm64 Critical 1", "linux-arm64", "Critical", "CVE-2099-0002"],
+  ];
+
+  for (const [name, platformKey, severity, id] of cases) {
+    await t.test(name, async () => {
+      const fixture = await createEvidenceFixture();
+      await replacePlatformMatches(
+        fixture.evidenceDir,
+        platformKey,
+        [vulnerabilityMatch(severity, id)],
+      );
+
+      const result = verify(fixture);
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /PUBLISHED_IMAGE_EVIDENCE_INVALID/u);
+      await assert.rejects(readFile(fixture.output, "utf8"), { code: "ENOENT" });
+    });
+  }
+});
+
+test("published platform의 Medium, Low와 Unknown finding을 evidence에 보존한다", async () => {
+  const fixture = await createEvidenceFixture();
+  await replacePlatformMatches(fixture.evidenceDir, "linux-amd64", [
+    vulnerabilityMatch("Medium", "CVE-2099-0003"),
+  ]);
+  await replacePlatformMatches(fixture.evidenceDir, "linux-arm64", [
+    vulnerabilityMatch("Low", "CVE-2099-0004"),
+    vulnerabilityMatch(undefined, "CVE-2099-0005"),
+  ]);
+
+  const result = verify(fixture);
+  assert.equal(result.status, 0, result.stderr);
+
+  const evidence = JSON.parse(await readFile(fixture.output, "utf8"));
+  assert.deepEqual(evidence.platforms[0].severityCounts, { Medium: 1 });
+  assert.deepEqual(evidence.platforms[1].severityCounts, { Low: 1, Unknown: 1 });
 });
 
 test("platform attestation, OCI identity, SBOM 또는 provenance가 다르면 fail-closed한다", async (t) => {

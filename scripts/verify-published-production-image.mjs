@@ -153,6 +153,9 @@ async function verifyPlatform(evidenceDir, descriptor, releaseSha) {
   assert.equal(record(scan.source).type, "sbom");
   assert(Array.isArray(scan.matches));
   assert.equal(scanContainsX265(scan), false);
+  const platformSeverityCounts = severityCounts(scan.matches);
+  assert.equal(platformSeverityCounts.High ?? 0, 0);
+  assert.equal(platformSeverityCounts.Critical ?? 0, 0);
 
   return {
     platform: descriptor.platform,
@@ -165,7 +168,7 @@ async function verifyPlatform(evidenceDir, descriptor, releaseSha) {
     provenanceSha256: sha256(provenanceFile.bytes),
     scanSha256: sha256(scanFile.bytes),
     vulnerabilityMatchCount: scan.matches.length,
-    severityCounts: severityCounts(scan.matches),
+    severityCounts: platformSeverityCounts,
     x265ComponentCount: 0,
   };
 }
