@@ -3,7 +3,7 @@ title: "Production readiness matrix"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호·은총쌤"
-last_updated: "2026-09-01"
+last_updated: "2026-09-02"
 review_trigger: "production 구현·provisioning·외부 승인·물리 기기 증거 변경 시"
 ---
 
@@ -49,7 +49,7 @@ matrix의 `현재 상태`는 해당 행에서 가장 가까운 다음 gate 하�
 | code release / image / SBOM | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md) | canonical image, workflow_dispatch-only exact-main required build arg, multi-arch published platform manifest·SBOM/provenance/scan verification source, protected Environment job, pinned Tailscale/fixed predeploy→deploy SSH argv, Mac deploy lock·digest/revision·post-start failure quiescence task evidence | `PROVISIONING_REQUIRED` | 예 | private GHCR package/visibility, actual Environment reviewer/main policy/secret, Tailscale identity·host install, fresh approved backup gate, exact digest Mac apply |
 | initial local-only backup / restore | [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md), [백업·복구](backup-and-restore.md) | fixed shared-lock backup source, strict manifest·atomic complete set, `<24h` release eligibility·manifest freshness, mount-level read-only deploy verifier, retention guard와 A→B→isolated A restore·static/restart/down-up task evidence | `PROVISIONING_REQUIRED` | 예 | protected source와 분리된 actual Mac repository/path·owner·capacity, 03:30 scheduler installation, production DB/media predeploy backup과 first-production restore/RPO·RTO evidence |
 | external SSD / iCloud offsite hardening | [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md) 2026-08-31 amendment | 미구성; offsite RPO 증거 없음 | `CONTRACT_APPROVED` | 아니요 | 초기 production 뒤 별도 승인으로 3-2-1, recovery key, remote-sync evidence·fresh retrieval 도입; 미구성 상태를 `PASS`로 표시 금지 |
-| HomeOps monitoring / recovery | [ADR-013](../09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md), [모니터링](monitoring-and-incident-response.md) | D-IMP-5a fixed bounded status, pinned HomeOps deployment/backup adapter, web-only label compatibility와 shared-lock web/backend one-restart target의 local/CI source evidence | `IMPLEMENTATION_REQUIRED` | 예 | D-IMP-5b HomeOps incident→exact target mapping·durable 30분 cooldown, backend RW-media compatibility 결정과 actual monitor/control/notification·Mac inventory provisioning |
+| HomeOps monitoring / recovery | [ADR-013](../09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md), [모니터링](monitoring-and-incident-response.md) | D-IMP-5a fixed bounded adapter/target와 HomeOps D-IMP-5b `dev@e4d5c598...` incident decision·V14 mapping/audit·30분 cooldown source, current expected HTTP status checker와 web-only activation preflight | `PROVISIONING_REQUIRED` | 예 | HomeOps release·live compatibility 재검증, V14·public HTTPS expected status 3회→`rhaomi-web` disabled mapping·fixed inventory·Agent capability provisioning; backend mapping 없음, enable/restart/drill은 별도 승인 |
 | HEIC decoder-only runtime | [ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md) | libheif `v1.23.1` exact commit/SHA, libde265-only CMake, x265 package/link/plugin 0, actual HEIC/HEIF·sequence/AVIF, SBOM/license/scan의 amd64/arm64 gate | `PROVISIONING_REQUIRED` | 예 | approved image digest를 production backend/publisher에 배치하고 실제 Mac mount·service startup·iPhone HEIC acceptance 확인 |
 | initial public domain | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md), [환경설정](../04-architecture/environment-and-configuration.md) | 사용자 소유 기존 도메인을 임시 public domain으로 쓰는 전략 승인 | `PROVISIONING_REQUIRED` | 예 | exact temporary FQDN 외부 입력, Cloudflare/Nginx host·`PUBLIC_SITE_URL`·canonical/OG/sitemap/robots·smoke 동기화 |
 | final cousin-owned domain | [미확정 항목](../01-product/open-items.md) | 전용 도메인 구매 전 | `EXTERNAL_DECISION_REQUIRED` | 아니요 | 구매 뒤 동일 topology에서 canonical/public domain만 migration하고 DB/schema는 변경하지 않음 |
@@ -65,6 +65,8 @@ matrix의 `현재 상태`는 해당 행에서 가장 가까운 다음 gate 하�
 - automated DOM·ARIA·HEIC test는 iPhone Safari·VoiceOver 물리 acceptance를 대체하지 않는다.
 - production blocker가 `예`인 행은 해당 evidence가 확보되기 전 production deploy 승인을 받을 수 없다.
 
+HomeOps monitoring/recovery의 `PROVISIONING_REQUIRED`는 현재 구현된 HTTP status equality check와 `failureThreshold=3`으로 `rhaomi-web` mapping을 provision할 수 있다는 근거에만 적용한다. Keyword/body/content probe capability는 별도 `IMPLEMENTATION_REQUIRED` future enhancement이며 current status-based automatic recovery provisioning을 완료된 것으로 바꾸거나 차단하지 않는다.
+
 ## dependency-aware implementation slices
 
 | 순서 | slice | 범위 | 선행 이유 |
@@ -74,12 +76,12 @@ matrix의 `현재 상태`는 해당 행에서 가장 가까운 다음 gate 하�
 | 3 | D-IMP-3 | private GHCR + GitHub production Environment + fixed Tailscale deploy entrypoint + one-shot Flyway/schema validate/maintenance | exact image·host contract 뒤에 code delivery와 migration gate를 연결한다. |
 | 4 | D-IMP-4 | application-consistent local-only backup + isolated `pg_restore`/media restore evidence | first production 전에 deploy·data recovery authority를 실제 증거로 만든다. |
 | 5a | D-IMP-5a | Rhaomi bounded status/event producer + HomeOps compatibility + fixed recovery target | Rhaomi source가 privacy-safe signal과 단일 restart action 경계를 제공한다. |
-| 5b | D-IMP-5b | HomeOps incident decision + exact target mapping + 30분 cooldown + production activation | monitoring/recovery authority가 consecutive failure와 lock signal을 평가해 한 번만 target을 호출하도록 연결한다. |
+| 5b | D-IMP-5b | HomeOps incident decision + web-only mapping + 30분 cooldown source와 production preflight | source 구현은 완료됐다. public HTTPS expected HTTP status 3회 실패를 `rhaomi-web`에만 연결하고 backend를 unmapped로 유지한 채 production provisioning·activation을 별도 gate로 수행한다. Keyword/content probe는 별도 future implementation이다. |
 | 6 | D-IMP-6 | first-production acceptance + actual domain/content/public HTTPS/iPhone Safari·VoiceOver/rollback·recovery | 모든 기술 gate 뒤 실제 외부값·물리 기기·운영 복구를 최종 확인한다. |
 
 외장 SSD/iCloud 3-2-1은 D-IMP-4의 초기 production 범위가 아니라 후속 hardening이다. 새 architecture 결정이 필요해지면 구현 Issue에서 임의 선택하지 않고 별도 결정 gate로 되돌린다.
 
-D-IMP-1 canonical image, D-IMP-2 production Compose/project Nginx, D-IMP-3 exact-main release workflow·fixed deploy entrypoint·one-shot Flyway/schema task, D-IMP-4 shared-lock backup/manifest/eligibility/isolated restore와 D-IMP-5a Rhaomi status/event/recovery target source 및 task-scoped validator는 구현·검증됐다. D-IMP-5b와 actual `/private/var/lib/rhaomi`, HomeOps reporter/monitor/control/notification, production named volume·backup repository·schedule, private GHCR package/visibility, GitHub `production` Environment·reviewer·secret, Tailscale identity, Mac entrypoint/config, Secret·FQDN·host edge·Cloudflare는 미완료다. production workflow dispatch·package push·deploy·migration·backup·restore·restart는 수행하지 않았다.
+D-IMP-1 canonical image, D-IMP-2 production Compose/project Nginx, D-IMP-3 exact-main release workflow·fixed deploy entrypoint·one-shot Flyway/schema task, D-IMP-4 shared-lock backup/manifest/eligibility/isolated restore, D-IMP-5a Rhaomi adapter/target와 D-IMP-5b HomeOps incident decision·V14 mapping/audit·durable cooldown source는 구현·검증됐다. D-IMP-5b production 순서는 `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning`이며 현재 세 단계 모두 `NOT RUN`이다. Actual `/private/var/lib/rhaomi`, HomeOps reporter/monitor/control/notification, V14·disabled web mapping·Agent capability, production named volume·backup repository·schedule, private GHCR package/visibility, GitHub `production` Environment·reviewer·secret, Tailscale identity, Mac entrypoint/config, Secret·FQDN·host edge·Cloudflare는 미완료다.
 
 ## accepted residual risks
 
@@ -89,4 +91,4 @@ D-IMP-1 canonical image, D-IMP-2 production Compose/project Nginx, D-IMP-3 exact
 
 ## 비수행 경계
 
-D-IMP-5a까지 release/deploy·backup/restore·Rhaomi HomeOps integration source와 synthetic/task-scoped validation만 구현했다. 실제 GitHub Environment·GHCR package·Tailscale identity, Mac canonical path·entrypoint·production volume·backup repository·schedule·Secret·FQDN·HomeOps·Cloudflare를 생성·변경하지 않았고 workflow dispatch, package push, merge, release, deploy, production migration·backup·restore·restart·mutation도 수행하지 않았다.
+D-IMP-5b source/preflight까지 release/deploy·backup/restore·Rhaomi HomeOps integration source와 synthetic/task-scoped validation만 구현했다. 실제 GitHub Environment·GHCR package·Tailscale identity, Mac canonical path·entrypoint·production volume·backup repository·schedule·Secret·FQDN·HomeOps·Cloudflare를 생성·변경하지 않았고 workflow dispatch, package push, merge, release, deploy, production migration·backup·restore, mapping create/enable, Agent rollout, restart/drill·mutation도 수행하지 않았다. Overall production readiness는 계속 `HOLD`다.

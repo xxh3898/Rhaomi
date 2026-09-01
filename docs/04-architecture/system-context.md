@@ -3,7 +3,7 @@ title: "시스템 컨텍스트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-31"
+last_updated: "2026-09-02"
 review_trigger: "외부 시스템·핵심 경계 변경 시"
 ---
 
@@ -94,4 +94,4 @@ Mac host source와 Linux container target을 분리한다. `/private/var/lib/rha
 4. build 실패는 기존 공개 사이트를 변경하지 않는다.
 5. 원본 이미지는 공개 web root에 두지 않는다.
 6. 외부 link가 없는 채널은 UI에 나타나지 않는다.
-7. HomeOps는 fixed privacy-safe status와 deployment/backup event만 읽고 관리자 콘텐츠 권한을 갖지 않는다. current generic control opt-in은 read-only web 하나이며 automatic decision은 D-IMP-5b 전 비활성이다.
+7. HomeOps는 fixed privacy-safe status와 deployment/backup event만 읽고 관리자 콘텐츠 권한을 갖지 않는다. D-IMP-5b automatic decision source는 구현됐지만 production은 비활성이다. 후속 mapping은 public HTTPS expected HTTP status 3회 실패의 `rhaomi-web` 하나뿐이고 backend는 unmapped/default-none이다. Keyword/body/content probe는 별도 future monitoring 구현 대상이다.

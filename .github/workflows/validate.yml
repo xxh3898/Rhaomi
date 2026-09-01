@@ -109,21 +109,21 @@ jobs:
           rhaomi-backend-ci:${{ github.event.pull_request.head.sha }}
           ./gradlew test --no-daemon
 
-      - name: HomeOps D-IMP-5a status·event·bounded-control 계약 검증
+      - name: HomeOps D-IMP-5b source·activation preflight 계약 검증
         env:
           RHAOMI_HOMEOPS_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-homeops-evidence
         run: sh scripts/validate-homeops-integration.sh
 
       - name: Production decoder-only image·SBOM 검증
         env:
-          RHAOMI_CLEANUP_TASK: 57-homeops-integration-boundary
+          RHAOMI_CLEANUP_TASK: 59-homeops-activation-preflight
           RHAOMI_PRODUCTION_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-production-image-evidence
           RHAOMI_PRODUCTION_IMAGE_TAG: rhaomi-production-ci:${{ github.event.pull_request.head.sha }}
         run: sh scripts/validate-production-image.sh
 
       - name: Production Compose·project Nginx 검증
         env:
-          RHAOMI_CLEANUP_TASK: 57-homeops-integration-boundary
+          RHAOMI_CLEANUP_TASK: 59-homeops-activation-preflight
           RHAOMI_PRODUCTION_COMPOSE_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-production-compose-evidence
           RHAOMI_PRODUCTION_IMAGE: rhaomi-production-ci:${{ github.event.pull_request.head.sha }}
           RHAOMI_WEB_LOOPBACK_PORT: "18051"
@@ -141,7 +141,7 @@ jobs:
 
       - name: Production application-consistent backup·isolated restore 검증
         env:
-          RHAOMI_CLEANUP_TASK: 57-homeops-integration-boundary
+          RHAOMI_CLEANUP_TASK: 59-homeops-activation-preflight
           RHAOMI_PRODUCTION_BACKUP_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-production-backup-evidence
           RHAOMI_PRODUCTION_IMAGE: rhaomi-production-ci:${{ github.event.pull_request.head.sha }}
           RHAOMI_WEB_LOOPBACK_PORT: "18055"
@@ -156,11 +156,11 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: HomeOps D-IMP-5a evidence 보존
+      - name: HomeOps D-IMP-5b activation preflight evidence 보존
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: homeops-integration-evidence-${{ github.event.pull_request.head.sha }}
+          name: homeops-activation-preflight-evidence-${{ github.event.pull_request.head.sha }}
           path: ${{ runner.temp }}/rhaomi-homeops-evidence
           if-no-files-found: error
           retention-days: 14

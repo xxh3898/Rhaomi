@@ -3,7 +3,7 @@ title: "저장소 구조"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-01"
+last_updated: "2026-09-02"
 review_trigger: "module·배포 구조 변경 시"
 ---
 
@@ -65,6 +65,7 @@ Rhaomi/
 │   ├── backup-rhaomi.sh           # fixed Mac backup wrapper
 │   ├── backup-rhaomi-core.sh      # shared lock·dump/media·complete/eligibility core
 │   ├── homeops-compatibility.json # pinned HomeOps reporter·DTO·control contract
+│   ├── homeops-activation-preflight.json # source/prod authority·web-only recovery gate
 │   ├── rhaomi_homeops.py          # status/event/recovery shared fail-closed core
 │   ├── report-rhaomi-event.py     # deployment/backup exact payload adapter
 │   ├── status-rhaomi.py           # bounded privacy-safe production status
@@ -126,7 +127,7 @@ Rhaomi/
 - `scripts/prepare-publication-staging.mts`는 generation과 private output path만 argv로 받고 URL/credential은 environment에서 읽으며 safe JSON/exit family만 출력한다.
 - `scripts/publish-static-release.mts`는 generation만 argv로 받고 full release result를 safe one-line JSON과 fixed exit family로 출력한다.
 - `.github/workflows/production-release.yml`은 exact current `main` SHA의 수동 release만 받고 validation→immutable multi-arch GHCR publish→protected Environment·Tailscale→fixed Mac argv를 분리한다. PR Validate는 이 workflow를 dispatch하거나 package를 push하지 않는다.
-- `ops/production` source는 production host의 fixed `/private/var/lib/rhaomi/app/bin` inventory로 provision할 대상이지 현재 Git worktree에서 production root를 변경하는 installer가 아니다. HomeOps adapter도 HMAC/endpoint를 복제하지 않고 pinned current reporter를 account-home inventory에서 검증해 호출한다. task validator는 marker temp root와 fake reporter/Docker만 사용한다.
+- `ops/production` source는 production host의 fixed `/private/var/lib/rhaomi/app/bin` inventory로 provision할 대상이지 현재 Git worktree에서 production root를 변경하는 installer가 아니다. HomeOps adapter도 HMAC/endpoint를 복제하지 않고 pinned current reporter를 account-home inventory에서 검증해 호출한다. Activation preflight는 production compatibility pin과 next source evidence를 분리한 tracked review contract이며 mapping installer가 아니다. Task validator는 marker temp root와 fake reporter/Docker만 사용한다.
 
 ## 전체 제품 목표 구조 — planned
 

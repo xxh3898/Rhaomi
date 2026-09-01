@@ -303,6 +303,6 @@ test("Hosted Validate는 3-job을 유지하며 Backend exact-head image로 D-IMP
   assert.match(workflow, /scripts\/validate-production-backup-control\.sh/u);
   assert.match(workflow, /scripts\/validate-production-backup\.sh/u);
   assert.match(workflow, /production-backup-evidence/u);
-  assert.match(workflow, /57-homeops-integration-boundary/u);
+  assert.match(workflow, /59-homeops-activation-preflight/u);
   assert.doesNotMatch(workflow, /packages:\s*write/u);
 });
