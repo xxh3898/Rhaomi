@@ -44,6 +44,38 @@ function stepRunBlock(workflow, name) {
     .join("\n");
 }
 
+test("Hosted Validate가 dev와 main PR의 exact head만 검증한다", async () => {
+  const workflow = await source(".github/workflows/validate.yml");
+
+  assert.match(
+    workflow,
+    /^name: Validate\n\non:\n  pull_request:\n    branches:\n      - dev\n      - main\n\npermissions:\n  contents: read\n/mu,
+  );
+  assert.doesNotMatch(
+    workflow,
+    /^  (?:pull_request_target|workflow_dispatch|push|schedule|workflow_run):/mu,
+  );
+  assert.doesNotMatch(
+    workflow,
+    /(?:actions|checks|contents|id-token|packages|pull-requests):\s*write/u,
+  );
+  assert.doesNotMatch(workflow, /secrets\./u);
+
+  const jobNames = ["frontend", "backend", "compose-smoke"];
+  const jobs = [...workflow.matchAll(/^  ([a-z0-9-]+):\s*$/gmu)].map(
+    (match) => match[1],
+  );
+  assert.deepEqual(jobs, jobNames);
+
+  for (const [index, name] of jobNames.entries()) {
+    const job = jobBlock(workflow, name, jobNames[index + 1]);
+    const exactHeadCheckouts = job.match(
+      /ref: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/gu,
+    );
+    assert.equal(exactHeadCheckouts?.length, 1, `${name} exact-head checkout`);
+  }
+});
+
 test("production release workflow가 exact main manual gate와 최소 job 권한을 고정한다", async () => {
   const workflow = await source(".github/workflows/production-release.yml");
   const validate = jobBlock(workflow, "validate_release", "publish_image");
