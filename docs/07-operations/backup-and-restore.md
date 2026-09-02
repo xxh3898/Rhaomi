@@ -94,7 +94,7 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 ### manifest V1
 
 - exact UTC backup-set ID: `YYYYMMDDTHHMMSSZ-<12 lowercase hex>`
-- exact source identity: 40자 release SHA, `sha256:<64 hex>` image digest, Flyway `9`
+- exact source identity: 40자 release SHA, `sha256:<64 hex>` image digest, Flyway `10`
 - `postgres.dump`: repository-relative fixed path, SHA-256와 byte size
 - `media`: UTF-8 byte-order canonical relative path별 SHA-256/size, file count·total bytes·aggregate tree SHA-256
 - 시작·완료·검증 UTC Instant와 `sameHostFailureDomain=true`
@@ -124,6 +124,26 @@ deploy entrypoint의 검증은 두 단계다.
 2. exact image pull·OCI revision 확인 뒤 target-image full-read: read-only `backup-verifier`가 evidence exact shape, referenced manifest/dump/media hash와 freshness 검증
 
 `backup-verifier`는 read-only root, `cap_drop: ALL`, no-new-privileges, network none이고 repository/deploy-state도 read-only다. media, Docker socket, port와 DB/build credential은 없다. eligibility `createdAt`과 referenced manifest `verifiedAt`은 각각 현재 UTC 기준 미래가 아니고 엄격히 24시간 미만이어야 한다. 정확히 24시간, future, malformed timestamp, stale target, incomplete/missing set과 evidence·manifest·artifact hash drift는 writer stop 전에 실패한다. scheduled mode는 release eligibility를 자동 발급하지 않는다.
+
+## 최초 production activation backup
+
+[ADR-016](../09-decisions/ADR-016-verified-empty-first-production-activation.md)의 verified-empty host는 normal release eligibility를 우회하지 않는다. 대신 explicit `RECOVERY_ACCEPTANCE_REQUIRED`에서 다음 one-time 순서를 사용한다.
+
+```text
+public ingress 없는 exact release bootstrap
+→ backup-rhaomi.sh --mode first-activation --target-release-sha <exact SHA>
+→ application-consistent DB+media complete set과 full-read
+→ read-only verifier + isolated PostgreSQL/media restore
+→ Flyway V10/JPA + 핵심 row/API/static/media smoke
+→ isolated writer 종료 확인
+→ STEADY_STATE
+```
+
+- first-activation backup은 running web만 요구하지 않으며 writer quiescence, permission lifecycle, dump/media capture, writer recovery와 lock lifetime은 normal backup과 같다.
+- source runtime의 OCI release SHA/image digest가 lifecycle evidence와 정확히 같아야 한다.
+- fixed deploy-state의 recovery candidate는 owner-only regular file과 evidence hash로 결합하고 한 번만 생성한다.
+- failed/partial bootstrap 또는 recovery는 empty로 되돌리거나 자동 retry하지 않고 public/admin/content activation을 계속 막는다.
+- `STEADY_STATE` 이후에는 아래 normal `predeploy` path만 허용한다.
 
 ## 주기·보존
 
@@ -190,6 +210,7 @@ static publication은 production image source를 read-only로 둔 채 task `/sta
 | `scheduled` | release eligibility 없는 정기 complete set |
 | `on-demand` | 자동 retention에서 보호하는 수동 complete set |
 | `predeploy --target-release-sha` | 매 approved deploy 시 새 on-demand set + exact target eligibility 발급; 실패 시 deploy invocation 0 |
+| `first-activation --target-release-sha` | `RECOVERY_ACCEPTANCE_REQUIRED`에서만 첫 complete/full-read set과 isolated recovery candidate 발급; release eligibility 발급 0 |
 | `structural-check --backup-set-id` | shape·archive header·inventory 구조 재검증 |
 | `full-read-check --backup-set-id` | dump/media 전체 SHA-256 재검증 |
 | `retention-dry-run` | KST bucket과 보호/delete 후보 출력 |

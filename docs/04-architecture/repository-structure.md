@@ -62,6 +62,9 @@ Rhaomi/
 ├── ops/production/
 │   ├── deploy-rhaomi.sh           # fixed Mac canonical-root wrapper
 │   ├── deploy-rhaomi-core.sh      # strict input·lock·maintenance·digest apply core
+│   ├── first-activate-rhaomi.sh    # fixed verified-empty bootstrap/recovery wrapper
+│   ├── first-activate-rhaomi-core.sh # one-time lifecycle·private bootstrap·acceptance core
+│   ├── production-lifecycle-core.sh # hash-bound lifecycle/evidence state primitive
 │   ├── backup-rhaomi.sh           # fixed Mac backup wrapper
 │   ├── backup-rhaomi-core.sh      # shared lock·dump/media·complete/eligibility core
 │   ├── homeops-compatibility.json # pinned HomeOps reporter·DTO·control contract
@@ -83,6 +86,8 @@ Rhaomi/
 │   ├── validate-production-compose.sh
 │   ├── validate-production-compose-contract.mjs
 │   ├── validate-production-deploy.sh
+│   ├── validate-production-first-activation.sh
+│   ├── rhaomi-first-activation-smoke.sh
 │   ├── rhaomi-backup-tool.mjs     # strict manifest·eligibility·restore/retention tool
 │   ├── rhaomi-backup-verifier.sh  # fixed read-only deploy eligibility entrypoint
 │   ├── validate-production-backup-control.sh
@@ -101,6 +106,8 @@ Rhaomi/
 ├── compose.dev.yaml
 ├── compose.production.yaml        # canonical production service/network/mount inventory
 ├── compose.production.validation.yaml # task temp validation overlay
+├── compose.production.first-activation.yaml # no-port isolated recovery inventory
+├── compose.production.first-activation.validation.yaml # task-only cleanup label overlay
 ├── next.config.ts
 ├── package.json
 ├── package-lock.json
@@ -126,8 +133,8 @@ Rhaomi/
 - `scripts/transform-build-snapshot.mts`는 test·수동 fixture 검증용 filesystem adapter다. media UUID나 local path를 성공·오류 출력에 기록하지 않는다.
 - `scripts/prepare-publication-staging.mts`는 generation과 private output path만 argv로 받고 URL/credential은 environment에서 읽으며 safe JSON/exit family만 출력한다.
 - `scripts/publish-static-release.mts`는 generation만 argv로 받고 full release result를 safe one-line JSON과 fixed exit family로 출력한다.
-- `.github/workflows/production-release.yml`은 exact current `main` SHA의 수동 release만 받고 validation→immutable multi-arch GHCR publish→protected Environment·Tailscale→fixed Mac argv를 분리한다. PR Validate는 이 workflow를 dispatch하거나 package를 push하지 않는다.
-- `ops/production` source는 production host의 fixed `/private/var/lib/rhaomi/app/bin` inventory로 provision할 대상이지 현재 Git worktree에서 production root를 변경하는 installer가 아니다. HomeOps adapter도 HMAC/endpoint를 복제하지 않고 pinned current reporter를 account-home inventory에서 검증해 호출한다. Activation preflight는 production compatibility pin과 next source evidence를 분리한 tracked review contract이며 mapping installer가 아니다. Task validator는 marker temp root와 fake reporter/Docker만 사용한다.
+- `.github/workflows/production-release.yml`은 exact current `main` SHA의 수동 release만 받고 validation→immutable multi-arch GHCR publish→protected Environment·Tailscale→fixed Mac argv를 분리한다. caller가 `steady-state|first-activation` mode를 명시하고 runtime state에서 자동 추론하지 않는다. PR Validate는 이 workflow를 dispatch하거나 package를 push하지 않는다.
+- `ops/production` source는 production host의 fixed `/private/var/lib/rhaomi/app/bin` inventory로 provision할 대상이지 현재 Git worktree에서 production root를 변경하는 installer가 아니다. First-activation source도 task temp fixture에서만 verified-empty→private bootstrap→first backup/recovery acceptance를 검증하고 actual production path를 만들지 않는다. HomeOps adapter도 HMAC/endpoint를 복제하지 않고 pinned current reporter를 account-home inventory에서 검증해 호출한다. Activation preflight는 production compatibility pin과 next source evidence를 분리한 tracked review contract이며 mapping installer가 아니다. Task validator는 marker temp root와 fake reporter/Docker만 사용한다.
 
 ## 전체 제품 목표 구조 — planned
 

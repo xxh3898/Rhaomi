@@ -90,6 +90,7 @@ test("fixed backup entrypoint가 repository CLI 없이 shared lock과 writer-qui
     "scheduled",
     "on-demand",
     "predeploy",
+    "first-activation",
     "structural-check",
     "full-read-check",
     "retention-dry-run",
@@ -166,7 +167,9 @@ test("backup tool production profile과 validation-only permission service가 fa
   assert.match(permissionHelper, /! -type d ! -type f/u);
   assert.doesNotMatch(permissionHelper, /eval|\/private\/var\/lib\/rhaomi/u);
   assert.match(verifierEntrypoint, /^#!\/bin\/sh/u);
-  assert.match(verifierEntrypoint, /\[ "\$1" = verify-eligibility \]/u);
+  assert.match(verifierEntrypoint, /verify-eligibility\)/u);
+  assert.match(verifierEntrypoint, /verify-backup-set\)/u);
+  assert.match(verifierEntrypoint, /set -- verify "\$2" full-read/u);
   assert.match(verifierEntrypoint, /\^\[0-9a-f\]\{40\}\$/u);
   assert.match(verifierEntrypoint, /exec \/usr\/local\/bin\/node/u);
   assert.doesNotMatch(verifierEntrypoint, /eval|RHAOMI_BACKUP_MEDIA_ROOT/u);

@@ -171,7 +171,7 @@ test("approved remote predeploy 실패 시 actual workflow run block이 deploy�
   const workflow = await source(".github/workflows/production-release.yml");
   const runBlock = stepRunBlock(
     workflow,
-    "fixed Mac predeploy backup·deploy entrypoint 실행",
+    "fixed Mac steady-state predeploy backup·deploy entrypoint 실행",
   );
   const root = await mkdtemp(join(tmpdir(), "rhaomi-release-workflow-"));
   t.after(() => rm(root, { recursive: true, force: true }));

@@ -324,7 +324,7 @@ scanner finding을 blanket ignore하지 않는다. 새 severity cutoff를 이 �
 
 Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음 계약을 검증한다.
 
-- ADR-010~014 frontmatter `approved`, 본문 `Accepted`와 decision log 승인 상태 일치
+- ADR-010~016 frontmatter `approved`, 본문 `Accepted`와 decision log 승인 상태 일치
 - Markdown 상대 link와 문서 작성 규칙
 - readiness status vocabulary 정의·matrix 사용값 일치와 local/CI synthetic evidence의 production `PASS` 승격 0
 - roadmap의 `CONTRACT COMPLETE / PROVISIONING NOT COMPLETE`, open-items·matrix·release checklist blocker 일치
@@ -401,6 +401,21 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - tracked macOS plist의 host-local 03:30 fixed scheduled mode; actual installation은 하지 않고 production provisioning에서 `Asia/Seoul` timezone을 확인
 
 Mac native Linux arm64와 Hosted Backend Linux amd64는 같은 production image/entrypoint를 실행한다. source/restore task named volume은 직접 삭제하지 않고 task container/network만 정리한다. 이 결과는 actual local repository·schedule·production DB/media backup 또는 production restore evidence가 아니다.
+
+## 현재 verified-empty first-activation 자동 검증
+
+- owner-only canonical inventory와 lifecycle/evidence file의 exact schema, SHA/digest/hash binding, symlink·insecure mode·unknown/contradictory state 거부
+- truly-empty fixture PASS와 current·previous·deploy/pending/success marker·eligibility·complete backup set·backend/publisher/web/PostgreSQL container·project volume·media/public predecessor 각각의 mutation 전 FAIL
+- verified-empty evidence 없이 bootstrap, wrong release SHA/digest, duplicate/unknown option의 mutation 0
+- `FIRST_ACTIVATION_BOOTSTRAPPING`을 durable하게 기록한 뒤 exact image pull→PostgreSQL→Flyway V1~V10→Flyway-disabled schema→backend health→publisher running/same-image 순서
+- migration·schema·backend health·publisher running 실패에서 steady-state/public web 0, writer quiescence와 partial 상태 보존, second verified-empty/bootstrap retry 거부
+- `RECOVERY_ACCEPTANCE_REQUIRED` source SHA/digest와 일치하는 fixed `first-activation` backup, shared lock·writer exit·DB/media capture·writer recovery·atomic complete set·full-read 유지
+- read-only/no-network backup verifier, tmpfs PostgreSQL `pg_restore`, isolated media checksum, Flyway V10/JPA, empty source core rows와 synthetic row/media/API/static publisher smoke
+- full-read·restore·schema/API/static·recovery quiescence 실패 시 `STEADY_STATE` 0, 성공 시 exact backup-set/hash evidence와 state exactly once
+- `STEADY_STATE` 이후 first-activation path 영구 거부와 scheduled/on-demand/predeploy·normal deploy의 steady-state requirement 회귀
+- recovery Compose source의 host port·production bind·credential leak·Docker socket 0과 validation overlay의 cleanup label, actual production path/workflow mutation 0
+
+이 검증은 source와 task temp fixture만 사용한다. 실제 Mac verified-empty 판정, production image pull·container/volume 생성, backup/restore, Flyway migration, workflow dispatch와 public/admin/content 활성화를 수행하지 않는다.
 
 ## 현재 D-IMP-5a·5b HomeOps integration/preflight 자동 검증
 

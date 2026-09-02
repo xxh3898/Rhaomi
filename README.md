@@ -3,7 +3,7 @@ title: "Rhaomi 프로젝트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-01"
+last_updated: "2026-09-02"
 review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 ---
 
@@ -23,7 +23,7 @@ review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 
 ## 현재 구현 범위
 
-Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1~8f7에서 transactional outbox, generation state, internal Build API, strict transformer, non-web control loop, generated V2 Next Static Export와 immutable release·atomic switch를 구현했다. Phase 1C-8f8은 synthetic production-like dataset을 실제 local bootstrap·same-origin Admin HTTP로 저장하고, 30초 scheduled publish·expiry·overdue·stale/coalesce에서 Build API→transformer→Next→release를 끝까지 실행한 뒤 backend·PostgreSQL을 중단한 read-only Nginx에서 홈·공지·media·SEO·접근성·runtime 독립을 검증한다. Phase 1D는 [Production readiness matrix](docs/07-operations/production-readiness.md)에서 승인 계약, local/CI 증거, 구현·provisioning, 외부 콘텐츠 승인과 physical-device acceptance를 분리해 contract를 freeze한다. D-IMP-1 canonical image, D-IMP-2 production Compose·project Nginx에 이어 D-IMP-3에서 exact-main 수동 release workflow, immutable multi-arch GHCR contract, protected `production` Environment 경계, fixed Mac deploy entrypoint와 one-shot Flyway/schema validation source를 구현했다. 이는 actual `/private/var/lib/rhaomi`, 운영 PostgreSQL volume·Secret·FQDN·Cloudflare/GHCR/Environment/Tailscale provisioning, workflow dispatch·deploy 또는 실제 콘텐츠 공개를 뜻하지 않는다.
+Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1~8f7에서 transactional outbox, generation state, internal Build API, strict transformer, non-web control loop, generated V2 Next Static Export와 immutable release·atomic switch를 구현했다. Phase 1C-8f8은 synthetic production-like dataset을 실제 local bootstrap·same-origin Admin HTTP로 저장하고, 30초 scheduled publish·expiry·overdue·stale/coalesce에서 Build API→transformer→Next→release를 끝까지 실행한 뒤 backend·PostgreSQL을 중단한 read-only Nginx에서 홈·공지·media·SEO·접근성·runtime 독립을 검증한다. Phase 1D는 [Production readiness matrix](docs/07-operations/production-readiness.md)에서 승인 계약, local/CI 증거, 구현·provisioning, 외부 콘텐츠 승인과 physical-device acceptance를 분리해 contract를 freeze한다. D-IMP-1 canonical image, D-IMP-2 production Compose·project Nginx, D-IMP-3 exact-main 수동 release, D-IMP-4 backup/restore에 이어 [ADR-016](docs/09-decisions/ADR-016-verified-empty-first-production-activation.md)의 one-time verified-empty→private bootstrap→first backup/isolated restore→steady-state source gate를 구현했다. 이는 actual `/private/var/lib/rhaomi`, 운영 PostgreSQL volume·Secret·FQDN·Cloudflare/GHCR/Environment/Tailscale provisioning, workflow dispatch·deploy·backup·restore 또는 실제 콘텐츠 공개를 뜻하지 않는다.
 
 ```text
 .
@@ -42,13 +42,15 @@ Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Bo
 │   └── features/            # admin auth/transport, dashboard, media·shop·breed·service·gallery UI
 ├── backend/                 # Spring Boot API·publisher와 canonical decoder-only production Dockerfile
 ├── infra/nginx/             # local gateway와 production static/admin fail-closed config
-├── ops/production/           # fixed Mac deploy wrapper·core
+├── ops/production/           # fixed Mac deploy·backup·first-activation wrapper/core
 ├── scripts/                 # 정적 산출물·gateway·HEIC·Compose smoke 검증
 ├── tests/                   # frontend·runtime contract test
 ├── docs/                    # 제품·아키텍처·운영 기준 문서
 ├── compose.dev.yaml         # 개발 전용 gateway/frontend/backend/PostgreSQL
 ├── compose.production.yaml  # canonical Mac bind·named-volume production inventory
 ├── compose.production.validation.yaml # task temp source·one-shot task 검증 overlay
+├── compose.production.first-activation.yaml # no-port isolated recovery inventory
+├── compose.production.first-activation.validation.yaml # task-only label overlay
 ├── next.config.ts
 ├── package.json
 ├── package-lock.json
@@ -196,11 +198,23 @@ sh scripts/validate-production-backup.sh
 
 task validator는 source A backup 뒤 DB/media를 B로 바꾸고 fresh PostgreSQL named volume·media root에 A를 복구해 Flyway/schema·audit/relation·media decode·static publication·restart/down-up persistence를 확인한다. actual `/private/var/lib/rhaomi`, production data/repository/schedule, workflow dispatch·GHCR·Tailscale과 Docker volume/image delete·prune는 건드리지 않는다.
 
+### Verified-empty first-production activation acceptance
+
+predecessor가 없는 최초 production은 normal `predeploy` backup을 건너뛰지 않는다. 별도 explicit mode가 current·previous·deploy marker·eligibility·complete set·production container/volume·canonical media/public authority의 모두-부재를 먼저 evidence로 고정하고, public web 없는 exact-image bootstrap 뒤 첫 application-consistent backup과 no-port isolated restore를 통과해야 `STEADY_STATE`를 기록한다.
+
+```bash
+RHAOMI_FIRST_ACTIVATION_EVIDENCE_DIR=/path/to/task-evidence \
+sh scripts/validate-production-first-activation.sh
+```
+
+이 validator는 task temp fixture와 fake Docker만 사용한다. actual production root·container·volume·DB/media/repository를 검사하거나 변경하지 않고, partial failure를 empty로 되돌리거나 자동 retry하지 않으며 steady-state normal deploy의 predeploy eligibility를 완화하지 않는다.
+
 ## 현재 핵심 결론
 
 - 고객 페이지는 정적 HTML로 배포하며 SSR을 사용하지 않는다.
 - 공개 사이트는 런타임에 Spring Boot나 PostgreSQL에 의존하지 않는다.
 - 관리자 인증은 HttpOnly session cookie와 CSRF 보호를 사용하는 Spring Security password+WebAuthn 기반이다. password 성공은 first factor일 뿐이며 passkey second factor 전에는 콘텐츠·미디어 business API를 사용할 수 없다.
+- WebAuthn source 구현과 별개로 login rate limit은 아직 구현되지 않은 production blocker다. bounded rate-limit 계약을 구현·검증하기 전에는 public 관리자 인증을 활성화하지 않는다.
 - `/admin/`은 noindex인 Static Export client shell이며 backend session이 최종 보안 경계다. login POST와 identity 검증이 끝나면 form credential과 pre-login CSRF를 먼저 제거하고, fresh CSRF 뒤 WebAuthn 상태를 확인한다. active passkey가 없으면 초기 등록과 recovery code rotation, 있으면 passkey assertion을 마친 뒤 session ID 재교체와 다시 받은 fresh CSRF까지 성공해야 mutation-ready dashboard가 열린다. recovery code 사용 session은 새 code set을 rotation하기 전까지 제한된다.
 - local browser 요청은 Nginx gateway의 same-origin `/api/**`를 사용한다. frontend는 host port를 열지 않고 gateway는 PostgreSQL network에 참여하지 않는다.
 - 견종·서비스 기준정보는 관리자 session·CSRF가 적용된 API로 생성·조회·수정·보관할 수 있다.

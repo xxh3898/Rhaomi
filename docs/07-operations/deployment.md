@@ -21,7 +21,7 @@ review_trigger: "호스트·파이프라인 변경 시"
 
 ## 구현 상태
 
-[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)의 topology와 release 절차에 따라 canonical image·Compose·project Nginx, `.github/workflows/production-release.yml`, fixed deploy entrypoint와 non-web one-shot Flyway/schema task를 구현했다. D-IMP-4는 같은 operation lock을 쓰는 fixed backup entrypoint, strict complete set과 exact-release eligibility bridge를 추가했다. D-IMP-5a는 deploy/backup lifecycle의 HomeOps current exact payload adapter와 bounded status/recovery target을 추가했고, HomeOps D-IMP-5b는 incident decision·V14 mapping/audit·durable 30분 cooldown을 구현했다. HomeOps application과 V14는 별도 HomeOps release에서 production에 배포됐지만, 이 Rhaomi source와 task-scoped local/Hosted evidence는 private GHCR package/visibility, GitHub `production` Environment·reviewer·secret, Tailscale identity, actual Rhaomi host entrypoint/path·volume·backup repository·HomeOps monitor/control·schedule·Secret·FQDN을 provision한 것이 아니다. Rhaomi workflow dispatch·release·deploy·production migration·backup·mapping·Agent rollout·restart는 수행하지 않았다.
+[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)의 topology와 release 절차에 따라 canonical image·Compose·project Nginx, `.github/workflows/production-release.yml`, fixed deploy entrypoint와 non-web one-shot Flyway/schema task를 구현했다. D-IMP-4는 같은 operation lock을 쓰는 fixed backup entrypoint, strict complete set과 exact-release eligibility bridge를 추가했다. [ADR-016](../09-decisions/ADR-016-verified-empty-first-production-activation.md)은 verified-empty evidence, public ingress 없는 one-time bootstrap, 첫 backup·isolated restore acceptance와 `STEADY_STATE` 전환 source를 추가했다. D-IMP-5a는 deploy/backup lifecycle의 HomeOps current exact payload adapter와 bounded status/recovery target을 추가했고, HomeOps D-IMP-5b는 incident decision·V14 mapping/audit·durable 30분 cooldown을 구현했다. HomeOps application과 V14는 별도 HomeOps release에서 production에 배포됐지만, 이 Rhaomi source와 task-scoped local/Hosted evidence는 private GHCR package/visibility, GitHub `production` Environment·reviewer·secret, Tailscale identity, actual Rhaomi host entrypoint/path·volume·backup repository·HomeOps monitor/control·schedule·Secret·FQDN을 provision한 것이 아니다. Rhaomi workflow dispatch·release·deploy·production migration·backup·restore·mapping·Agent rollout·restart는 수행하지 않았다.
 
 [Production readiness matrix](production-readiness.md)는 이 승인 계약, local/CI evidence, production provisioning, 외부 콘텐츠 승인과 physical-device acceptance를 분리한다. Phase 1D contract 완료만으로 아래 production 항목을 통과 처리하지 않는다.
 
@@ -54,7 +54,7 @@ Spring Boot 콘텐츠 transaction
 
 두 경로는 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)의 build·검증·원자적 전환 구현을 공유한다. transactional outbox, generation state, dedicated polling/debounce/lock control loop, Build API→transformer staging, Next Static Export, private release manifest·`BigInt` stale guard·`previous/current` atomic switch·post-switch smoke·rollback·retention과 실제 Java executor binding을 구현했다. production Compose는 같은 image의 exact non-web publisher argv와 public/state/lock/media 및 isolated build-workspace mount target을 고정하고 나머지 image source는 read-only로 유지한다. actual Secret·Mac canonical path·approved digest provisioning과 public HTTPS acceptance는 아직 수행하지 않았다.
 
-## D-IMP-2·D-IMP-3·D-IMP-4·D-IMP-5 source validation
+## D-IMP-2·D-IMP-3·D-IMP-4·D-IMP-5·first-activation source validation
 
 - canonical base는 `/private/var/lib/rhaomi` bind source와 project-scoped PostgreSQL named volume을 유지한다.
 - validation overlay만 task temp root와 labeled one-shot service를 사용한다.
@@ -62,6 +62,7 @@ Spring Boot 콘텐츠 transaction
 - fake Docker task harness가 wrong registry·malformed/duplicate input의 mutation 전 거부, lock contention, digest/revision, missing/malformed/stale eligibility와 target verifier failure에서 writer stop 0·repository mutation 0, migration/schema·backend health·publisher start·runtime backend/publisher image mismatch 실패 뒤 writer auto-resume 0과 quiescence, secret redaction을 검증한다.
 - backup control harness는 deploy/backup lock contention, writer physical exit 전 dump 금지, complete 승격 전 writer 재기동 금지, capture/restart failure와 lock hold를 검증한다.
 - actual task validator는 상태 A를 backup한 뒤 source DB/media를 B로 바꾸고 fresh named volume·media root에 A를 `pg_restore`/복사해 schema·audit/relation·media decode·static publication·restart/down-up persistence를 확인한다.
+- first-activation harness는 truly-empty predecessor만 허용하고 current/previous/deploy marker·eligibility·complete set·production container/volume·media/public authority와 unknown/contradictory state를 mutation 전에 거부한다. exact release의 비공개 bootstrap 실패는 `UNINITIALIZED`로 되돌리지 않고, 첫 complete backup의 read-only full-read·no-port isolated PostgreSQL/media/Flyway V10/API/static acceptance 뒤에만 `STEADY_STATE`를 기록한다.
 - HomeOps task harness는 deploy RUNNING→SUCCESS/FAILED의 같은 lifecycle identity, spool acknowledgement와 local telemetry failure 분리, secret/private path 0을 확인한다. operation lock·writer fail-close는 event reporter 장애 때문에 바뀌지 않는다.
 - production Compose의 HomeOps generic control label은 `rhaomi-web` 하나이고 backend/publisher/PostgreSQL/task service opt-in은 0이다. Fixed recovery target source는 web/backend allowlist를 제공하지만 automatic recovery mapping은 public HTTPS expected HTTP status 3회 실패 → `rhaomi-web` 하나만 승인됐고 backend는 unmapped/default-none이다. Keyword/body/content matcher는 current trigger에서 제외한다.
 - task container/network는 정리하지만 task PostgreSQL volume과 image는 삭제하지 않는다.
@@ -97,6 +98,7 @@ Durable cooldown은 30분이고 `FAILED`·`OUTCOME_UNKNOWN` no-auto-retry를 유
 - [ ] fixed entrypoint·Compose·`production.env`·Docker credential config의 Mac installation·owner·mode
 - [ ] approved job이 만든 24시간 미만의 exact release SHA-bound D-IMP-4 backup eligibility·manifest evidence
 - [ ] 관리자 password+WebAuthn/passkey 2차 인증, authenticator private key server 비수집, RP-side credential ID·public key·필요 metadata, registration revoke/remove, recovery-code secret의 password manager+별도 offline copy·rotation
+- [ ] 로그인 rate limit 구현·failure/lockout 계약 검증; 현재 source에 없으므로 public 관리자 인증의 production blocker
 - [ ] protected source와 분리된 Mac mini local backup repository/path·ownership·permission·capacity
 - [ ] `pg_dump -Fc`와 canonical media를 묶은 동일 backup-set manifest·retention·check
 - [ ] isolated full restore drill
@@ -114,6 +116,20 @@ Durable cooldown은 30분이고 `FAILED`·`OUTCOME_UNKNOWN` no-auto-retry를 유
 - [ ] 롤백 검증
 
 외장 SSD·iCloud 3-2-1, restic recovery key와 remotely verified offsite RPO는 초기 production 사전 조건이 아니라 future hardening이다. 미구성 상태는 `NOT_CONFIGURED / DEFERRED`이며 local backup 성공으로 offsite `PASS`를 만들지 않는다. 초기 local-only backup은 Mac mini 전체 손실에서 함께 사라질 수 있다는 accepted risk를 release evidence에 남긴다.
+
+## 최초 production activation 단계
+
+이 경로는 predecessor가 전혀 없는 host에서 dispatch input `first-activation`을 명시했을 때만 사용한다. runtime 상태로 자동 선택하지 않는다.
+
+1. fixed host inventory·owner/mode와 empty backup repository sentinel을 확인하고 deploy/backup과 같은 global operation lock을 획득한다.
+2. current·previous·deploy marker·eligibility·complete set·production container/volume·canonical media/public predecessor가 모두 부재인지 검증한다.
+3. target SHA와 absence matrix를 담은 owner-only verified-empty evidence와 `FIRST_ACTIVATION_BOOTSTRAPPING` state를 mutation 전에 원자 기록한다.
+4. exact digest/revision을 확인하고 `rhaomi-web` 없이 PostgreSQL→one-shot Flyway V1~V10→schema validation→backend health→publisher running/same-image를 확인한다.
+5. `RECOVERY_ACCEPTANCE_REQUIRED`를 기록하고 fixed backup entrypoint의 `first-activation` mode로 writer quiescence·DB/media capture·writer recovery·complete full-read를 수행한다.
+6. 별도 no-port recovery Compose에서 read-only verifier, tmpfs PostgreSQL `pg_restore`, isolated media restore, Flyway V10/JPA, empty source core rows와 synthetic row/media/API/static publication을 검증한다.
+7. recovery project의 physical 종료 뒤 exact backup-set/hash evidence와 `STEADY_STATE`를 원자 기록한다.
+
+어느 단계든 실패·중단·상태 불확실이면 public/admin/content activation과 steady-state marker를 금지한다. partial state를 empty로 되돌리거나 자동 retry하지 않으며, `STEADY_STATE` 이후 이 경로는 영구 거부한다. 실제 public FQDN, WebAuthn RP/account/passkey/recovery code, 콘텐츠, Cloudflare와 HomeOps mapping은 이 단계의 성공만으로 활성화하지 않는다.
 
 ## D-IMP-3 코드 image apply 단계
 

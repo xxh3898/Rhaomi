@@ -3,7 +3,7 @@ title: "ADR-012: Application-consistent backup과 restore"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-01"
+last_updated: "2026-09-02"
 review_trigger: "운영 데이터·백업 매체·보존·복구 목표 변경 시"
 ---
 
@@ -13,6 +13,7 @@ review_trigger: "운영 데이터·백업 매체·보존·복구 목표 변경 �
 - 상태: Accepted
 - 개정일: 2026-08-31 — 초기 production을 Mac mini local-only backup으로 변경하고 외장 SSD·iCloud 3-2-1을 future hardening으로 이관
 - 구현일: 2026-09-01 — fixed backup entrypoint, manifest V1, fresh release eligibility bridge, read-only deploy verifier와 task-scoped isolated restore gate 구현
+- 확장일: 2026-09-02 — [ADR-016](ADR-016-verified-empty-first-production-activation.md)의 one-time first-activation backup·recovery acceptance 추가
 - 관련 결정: [ADR-004](ADR-004-static-media-copy.md), [ADR-010](ADR-010-production-topology-and-code-release.md)
 
 ## 맥락
@@ -61,7 +62,7 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 - public static site는 write maintenance 중에도 계속 제공한다.
 - incomplete temporary set은 정상 backup으로 승격하지 않는다.
 - 완료된 backup set은 생성 중인 set과 구분하고 retention 전 check를 통과해야 한다.
-- manifest V1은 exact key allowlist로 `backupPurpose`, UTC set ID·시각, source SHA·image digest·Flyway `9`, dump hash/size와 canonical byte-order media inventory·aggregate hash, `sameHostFailureDomain=true`를 기록한다. Secret·endpoint·host config byte는 포함하지 않는다.
+- manifest V1은 exact key allowlist로 `backupPurpose`, UTC set ID·시각, source SHA·image digest·Flyway `10`, dump hash/size와 canonical byte-order media inventory·aggregate hash, `sameHostFailureDomain=true`를 기록한다. Secret·endpoint·host config byte는 포함하지 않는다.
 - deploy와 backup은 같은 host `rhaomi-deploy.lock`을 사용한다. 두 writer의 physical `exited`를 확인한 뒤에만 snapshot과 capture permission state를 시작한다. runtime permission state와 writer health/running 복구가 확인된 뒤에만 complete 승격·backup success·lock release를 허용하며 permission 전환 또는 writer 복구 실패 시 own lock을 보존한다.
 - Linux task validation은 validation overlay의 fixed service로만 media를 runtime(container owner, directory `0750`, file `0640`)과 capture(host validation owner, directory `0700`, file `0600`) 사이에서 전환한다. production Mac owner-only authority, backup tool strict validation과 caller command/path 부재는 바꾸지 않는다.
 - backup-set ID, source revision과 release identity를 secret 없이 HomeOps status/event에 제공할 수 있어야 한다.
@@ -75,6 +76,14 @@ production project-scoped PostgreSQL named volume과 raw PGDATA file은 required
 - full-read verifier는 eligibility `createdAt`과 referenced manifest `verifiedAt`이 각각 현재 UTC 기준 미래가 아니고 엄격히 24시간 미만인지 검증한다. 정확히 24시간, future 또는 malformed timestamp는 fail-closed한다.
 - `backup-verifier`는 read-only root, `cap_drop: ALL`, no-new-privileges, network none이며 repository와 deploy-state를 read-only로만 mount한다. media, Docker socket, port, DB/build credential은 제공하지 않는다. target image code가 recovery authority를 변경할 수 없다는 보장은 command 관례가 아니라 이 mount boundary가 담당한다.
 - scheduled backup은 임의 future release eligibility를 발급하지 않는다.
+
+### 최초 production recovery bridge
+
+- normal `predeploy`가 요구할 predecessor가 없는 verified-empty host는 [ADR-016](ADR-016-verified-empty-first-production-activation.md)의 explicit one-time lifecycle만 사용한다.
+- `RECOVERY_ACCEPTANCE_REQUIRED`의 fixed `first-activation` mode는 public web prerequisite만 제외하고 같은 operation lock·writer quiescence·DB+media set·writer recovery·atomic complete/full-read 계약을 유지한다.
+- 이 mode는 normal release eligibility를 발급하지 않고 lifecycle의 exact release SHA/image digest와 결합된 recovery candidate를 한 번만 만든다.
+- read-only full-read, isolated PostgreSQL/media restore, Flyway V10/JPA·핵심 row/API/static/media smoke와 recovery writer shutdown이 모두 성공해야 `STEADY_STATE`로 전환한다.
+- `STEADY_STATE` 이후 first-activation mode는 영구 거부하고 모든 normal backup/deploy는 기존 steady-state 계약을 따른다.
 
 ### 일정·보존·검증
 
