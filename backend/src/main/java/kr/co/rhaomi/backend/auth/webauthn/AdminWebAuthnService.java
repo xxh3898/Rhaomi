@@ -148,8 +148,8 @@ class AdminWebAuthnService {
             HttpServletRequest request,
             HttpServletResponse response) {
         var principal = AdminAuthenticationStageService.principal(authentication);
-        requireFirstFactor(principal.authenticationStage());
         var ceremony = consumeAuthentication(request.getSession(false));
+        requireFirstFactor(principal.authenticationStage());
         var completedStatus = Objects.requireNonNull(transactions.execute(ignored -> {
             accountSecurity.requireActiveForUpdate(principal.id());
             requireCeremony(ceremony.adminId(), ceremony.issuedAt(), principal.id());

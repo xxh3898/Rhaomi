@@ -765,7 +765,7 @@ class AdminWebAuthnApiIntegrationTests {
 
     private static String sessionId(TestClient client) {
         return client.cookieManager().getCookieStore().getCookies().stream()
-                .filter(cookie -> "JSESSIONID".equals(cookie.getName()))
+                .filter(cookie -> "RHAOMI_SESSION".equals(cookie.getName()))
                 .map(HttpCookie::getValue)
                 .findFirst()
                 .orElseThrow();

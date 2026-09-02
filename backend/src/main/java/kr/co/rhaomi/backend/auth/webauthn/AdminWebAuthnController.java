@@ -38,7 +38,7 @@ public class AdminWebAuthnController {
     @PostMapping("/registration")
     public AdminWebAuthnStatusResponse register(
             Authentication authentication,
-            @RequestBody WebAuthnRegistrationRequest registration,
+            @RequestBody(required = false) WebAuthnRegistrationRequest registration,
             HttpServletRequest request,
             HttpServletResponse response) {
         return service.completeRegistration(
@@ -54,7 +54,7 @@ public class AdminWebAuthnController {
     @PostMapping("/authentication")
     public AdminWebAuthnStatusResponse authenticate(
             Authentication authentication,
-            @RequestBody WebAuthnAuthenticationRequest assertion,
+            @RequestBody(required = false) WebAuthnAuthenticationRequest assertion,
             HttpServletRequest request,
             HttpServletResponse response) {
         return service.completeAuthentication(authentication, assertion, request, response);
