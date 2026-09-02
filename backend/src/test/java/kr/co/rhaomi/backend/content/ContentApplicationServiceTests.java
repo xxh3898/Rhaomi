@@ -1,0 +1,107 @@
+package kr.co.rhaomi.backend.content;
+
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
+
+import java.util.UUID;
+import kr.co.rhaomi.backend.breed.BreedAdminService;
+import kr.co.rhaomi.backend.breed.BreedCreateRequest;
+import kr.co.rhaomi.backend.breed.BreedRepository;
+import kr.co.rhaomi.backend.notice.NoticeAdminService;
+import kr.co.rhaomi.backend.notice.NoticeCreateRequest;
+import kr.co.rhaomi.backend.notice.NoticeRepository;
+import kr.co.rhaomi.backend.media.MediaAssetRepository;
+import kr.co.rhaomi.backend.publication.PublicationRecorder;
+import kr.co.rhaomi.backend.service.GroomingServiceRepository;
+import kr.co.rhaomi.backend.service.ServiceAdminService;
+import kr.co.rhaomi.backend.service.ServiceUpdateRequest;
+import kr.co.rhaomi.backend.shop.ShopSettingsAdminService;
+import kr.co.rhaomi.backend.shop.ShopSettingsRepository;
+import kr.co.rhaomi.backend.shop.ShopSettingsRequest;
+import org.junit.jupiter.api.Test;
+
+class ContentApplicationServiceTests {
+
+    @Test
+    void should_rejectBeforeRepositoryAccess_when_createActorIsMissing() {
+        var repository = mock(BreedRepository.class);
+        var publicationRecorder = mock(PublicationRecorder.class);
+        var service = new BreedAdminService(repository, publicationRecorder);
+        var request = new BreedCreateRequest("푸들", "poodle", null, 100);
+
+        assertThrows(NullPointerException.class, () -> service.create(request, null));
+
+        verifyNoInteractions(repository);
+        verifyNoInteractions(publicationRecorder);
+    }
+
+    @Test
+    void should_rejectBeforeRepositoryAccess_when_updateActorIsMissing() {
+        var repository = mock(GroomingServiceRepository.class);
+        var publicationRecorder = mock(PublicationRecorder.class);
+        var service = new ServiceAdminService(repository, publicationRecorder);
+        var request = new ServiceUpdateRequest("draft", "전체미용", null, null, 100);
+
+        assertThrows(NullPointerException.class, () -> service.update(UUID.randomUUID(), request, null));
+
+        verifyNoInteractions(repository);
+        verifyNoInteractions(publicationRecorder);
+    }
+
+    @Test
+    void should_rejectBeforeRepositoryAccess_when_noticeCreateActorIsMissing() {
+        var repository = mock(NoticeRepository.class);
+        var publicationRecorder = mock(PublicationRecorder.class);
+        var service = new NoticeAdminService(repository, publicationRecorder);
+        var request = new NoticeCreateRequest(
+                "휴무 안내", "holiday-notice", null, null, false, null, null);
+
+        assertThrows(NullPointerException.class, () -> service.create(request, null));
+
+        verifyNoInteractions(repository);
+        verifyNoInteractions(publicationRecorder);
+    }
+
+    @Test
+    void should_rejectBeforeRepositoryAccess_when_shopSettingsActorIsMissing() {
+        var repository = mock(ShopSettingsRepository.class);
+        var mediaAssetRepository = mock(MediaAssetRepository.class);
+        var publicationRecorder = mock(PublicationRecorder.class);
+        var service = new ShopSettingsAdminService(
+                repository, mediaAssetRepository, publicationRecorder);
+        var request = new ShopSettingsRequest(
+                "라오미펫",
+                "서울",
+                "애견미용",
+                "02-1234-5678",
+                "서울시 어딘가",
+                "10:00",
+                "19:00",
+                null,
+                false,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+
+        assertThrows(NullPointerException.class, () -> service.put(request, null));
+
+        verifyNoInteractions(repository);
+        verifyNoInteractions(mediaAssetRepository);
+        verifyNoInteractions(publicationRecorder);
+    }
+}

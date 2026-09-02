@@ -1,0 +1,408 @@
+name: ${RHAOMI_COMPOSE_PROJECT_NAME:-dev-rhaomi}
+
+x-publication-acceptance-labels: &publication-acceptance-labels
+  io.homeserver.cleanup.environment: development
+  io.homeserver.cleanup.project: rhaomi
+  io.homeserver.cleanup.task: ${RHAOMI_CLEANUP_TASK:-issue-45-local-publication-acceptance}
+  io.homeserver.cleanup.lifecycle: task
+  io.homeserver.cleanup.retain: "false"
+  io.homeserver.cleanup.git-head: ${RHAOMI_CLEANUP_GIT_HEAD:-0000000000000000000000000000000000000000}
+
+services:
+  frontend:
+    image: node:24.20.0-alpine3.23@sha256:0388af2af070cd4736a1567cfed02469ba117848845b4165d87a333edb53d2ca
+    profiles: ["frontend"]
+    init: true
+    working_dir: /workspace
+    command: ["npm", "run", "dev", "--", "--hostname", "0.0.0.0"]
+    environment:
+      NEXT_TELEMETRY_DISABLED: "1"
+    volumes:
+      - ./src:/workspace/src:ro
+      - ./package.json:/workspace/package.json:ro
+      - ./package-lock.json:/workspace/package-lock.json:ro
+      - ./next.config.ts:/workspace/next.config.ts:ro
+      - ./tsconfig.json:/workspace/tsconfig.json:ro
+      - ./scripts/validate-frontend-credential-isolation.mjs:/workspace/scripts/validate-frontend-credential-isolation.mjs:ro
+      - frontend-node-modules:/workspace/node_modules
+      - frontend-npm-cache:/root/.npm
+    networks:
+      - frontend-local
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:3000/ >/dev/null",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+
+  gateway:
+    image: nginx:1.31.4-alpine3.24@sha256:db35bfc6b2951e7f8a72db5db120288c127ffaeeb4a6d4b95a26fead017d5913
+    profiles: ["frontend"]
+    init: true
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./infra/nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - frontend-local
+      - backend-gateway-internal
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:3000/ >/dev/null",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.dev
+    image: dev-rhaomi-backend:java25-libheif-1.23.0
+    init: true
+    working_dir: /workspace/backend
+    command: ["./gradlew", "bootRun", "--no-daemon"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?POSTGRES_USER is required}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      RHAOMI_SESSION_COOKIE_SECURE: ${RHAOMI_SESSION_COOKIE_SECURE:-false}
+      RHAOMI_TEST_DATABASE_ALLOWED: ${RHAOMI_TEST_DATABASE_ALLOWED:-false}
+      RHAOMI_BOOTSTRAP_ADMIN_ENABLED: ${RHAOMI_BOOTSTRAP_ADMIN_ENABLED:-false}
+      RHAOMI_BOOTSTRAP_ADMIN_EMAIL: ${RHAOMI_BOOTSTRAP_ADMIN_EMAIL:-}
+      RHAOMI_BOOTSTRAP_ADMIN_PASSWORD: ${RHAOMI_BOOTSTRAP_ADMIN_PASSWORD:-}
+      RHAOMI_BUILD_SERVICE_TOKEN: ${RHAOMI_BUILD_SERVICE_TOKEN:-}
+      RHAOMI_MEDIA_ROOT: ${RHAOMI_MEDIA_ROOT:-/var/lib/rhaomi/media}
+    volumes:
+      - ./backend:/workspace/backend
+      - backend-gradle-cache:/root/.gradle
+      - backend-media-masters:/var/lib/rhaomi/media
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - backend-internal
+      - backend-gateway-internal
+      - backend-local
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q '\"status\":\"UP\"'",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
+  postgres:
+    image: postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    networks:
+      - backend-internal
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  smoke:
+    image: node:24.20.0-alpine3.23@sha256:0388af2af070cd4736a1567cfed02469ba117848845b4165d87a333edb53d2ca
+    profiles: ["smoke"]
+    init: true
+    working_dir: /workspace
+    command: ["node", "scripts/validate-backend-auth.mjs", "http://gateway:3000"]
+    depends_on:
+      gateway:
+        condition: service_healthy
+    environment:
+      RHAOMI_BOOTSTRAP_ADMIN_EMAIL: ${RHAOMI_BOOTSTRAP_ADMIN_EMAIL:-}
+      RHAOMI_BOOTSTRAP_ADMIN_PASSWORD: ${RHAOMI_BOOTSTRAP_ADMIN_PASSWORD:-}
+    volumes:
+      - ./scripts:/workspace/scripts:ro
+      - ./backend/src/test/resources/media:/workspace/media-fixtures:ro
+    networks:
+      - frontend-local
+
+  contract-check:
+    image: node:24.20.0-alpine3.23@sha256:0388af2af070cd4736a1567cfed02469ba117848845b4165d87a333edb53d2ca
+    profiles: ["validation"]
+    init: true
+    working_dir: /workspace
+    command: ["npm", "test"]
+    environment:
+      NEXT_TELEMETRY_DISABLED: "1"
+      RHAOMI_HOMEOPS_VALIDATION_GIT_HEAD: ${RHAOMI_HOMEOPS_VALIDATION_GIT_HEAD:-0000000000000000000000000000000000000000}
+    network_mode: "none"
+    volumes:
+      - ./.github/workflows/validate.yml:/workspace/.github/workflows/validate.yml:ro
+      - ./.env.example:/workspace/.env.example:ro
+      - ./backend/src:/workspace/backend/src:ro
+      - ./backend/build.gradle:/workspace/backend/build.gradle:ro
+      - ./backend/Dockerfile.dev:/workspace/backend/Dockerfile.dev:ro
+      - ./backend/Dockerfile.production:/workspace/backend/Dockerfile.production:ro
+      - ./backend/Dockerfile.publication-acceptance:/workspace/backend/Dockerfile.publication-acceptance:ro
+      - ./backend/Dockerfile.publisher-validation:/workspace/backend/Dockerfile.publisher-validation:ro
+      - ./backend/production-image-components.json:/workspace/backend/production-image-components.json:ro
+      - ./backend/production-image-NOTICE.md:/workspace/backend/production-image-NOTICE.md:ro
+      - ./backend/gradle:/workspace/backend/gradle:ro
+      - ./infra/nginx/dev.conf:/workspace/infra/nginx/dev.conf:ro
+      - ./infra/nginx/publication-acceptance-admin.conf:/workspace/infra/nginx/publication-acceptance-admin.conf:ro
+      - ./infra/nginx/publication-acceptance.conf:/workspace/infra/nginx/publication-acceptance.conf:ro
+      - ./infra/nginx/production.conf:/workspace/infra/nginx/production.conf:ro
+      - ./ops/production/homeops-compatibility.json:/workspace/ops/production/homeops-compatibility.json:ro
+      - ./ops/production/recover-rhaomi-service.py:/workspace/ops/production/recover-rhaomi-service.py:ro
+      - ./ops/production/report-rhaomi-event.py:/workspace/ops/production/report-rhaomi-event.py:ro
+      - ./ops/production/rhaomi_homeops.py:/workspace/ops/production/rhaomi_homeops.py:ro
+      - ./ops/production/status-rhaomi.py:/workspace/ops/production/status-rhaomi.py:ro
+      - ./scripts:/workspace/scripts:ro
+      - ./src:/workspace/src:ro
+      - ./tests:/workspace/tests:ro
+      - ./compose.dev.yaml:/workspace/compose.dev.yaml:ro
+      - ./compose.production.yaml:/workspace/compose.production.yaml:ro
+      - ./compose.production.validation.yaml:/workspace/compose.production.validation.yaml:ro
+      - ./eslint.config.mjs:/workspace/eslint.config.mjs:ro
+      - ./next.config.ts:/workspace/next.config.ts:ro
+      - ./package.json:/workspace/package.json:ro
+      - ./package-lock.json:/workspace/package-lock.json:ro
+      - ./tsconfig.json:/workspace/tsconfig.json:ro
+      - ./vitest.config.mts:/workspace/vitest.config.mts:ro
+      - frontend-node-modules:/workspace/node_modules
+
+  publisher-validation:
+    profiles: ["publisher-validation"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.publisher-validation
+    image: ${RHAOMI_PUBLISHER_VALIDATION_IMAGE:-dev-rhaomi-publisher-validation:java25-node24-libheif-1.23.0}
+    init: true
+    working_dir: /workspace/backend
+    command:
+      [
+        "./gradlew",
+        "test",
+        "--tests",
+        "kr.co.rhaomi.publisher.FullPublicationPipelineIntegrationTests",
+        "--no-daemon",
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?POSTGRES_USER is required}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      RHAOMI_TEST_DATABASE_ALLOWED: "true"
+      RHAOMI_FULL_PUBLISHER_E2E: "true"
+      RHAOMI_PUBLISHER_E2E_SOURCE_ROOT: /workspace
+      RHAOMI_PUBLISHER_E2E_NODE: /usr/local/bin/node
+      RHAOMI_MEDIA_ROOT: /tmp/rhaomi-publisher-e2e-media
+    volumes:
+      - ./backend:/workspace/backend
+      - ./scripts:/workspace/scripts:ro
+      - ./src:/workspace/src:ro
+      - ./next.config.ts:/workspace/next.config.ts:ro
+      - ./package.json:/workspace/package.json:ro
+      - ./package-lock.json:/workspace/package-lock.json:ro
+      - ./tsconfig.json:/workspace/tsconfig.json:ro
+      - frontend-node-modules:/workspace/node_modules
+      - backend-gradle-cache:/root/.gradle
+    networks:
+      - backend-internal
+
+  publication-acceptance-postgres:
+    profiles: ["publication-acceptance"]
+    image: postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f
+    environment:
+      POSTGRES_DB: rhaomi_publication_acceptance
+      POSTGRES_USER: rhaomi_publication_acceptance
+      POSTGRES_PASSWORD: ${RHAOMI_PUBLICATION_ACCEPTANCE_DATABASE_PASSWORD:-publication-acceptance-unconfigured}
+    tmpfs:
+      - /var/lib/postgresql
+    labels: *publication-acceptance-labels
+    networks:
+      - publication-acceptance-backend
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"',
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  publication-acceptance-runner:
+    profiles: ["publication-acceptance"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.publication-acceptance
+      labels: *publication-acceptance-labels
+    image: ${RHAOMI_PUBLICATION_ACCEPTANCE_IMAGE:-dev-rhaomi-publication-acceptance:java25-node24-libheif-1.23.0}
+    init: true
+    working_dir: /workspace/backend
+    command:
+      [
+        "./gradlew",
+        "test",
+        "--tests",
+        "kr.co.rhaomi.publisher.LocalPublicationAcceptanceIntegrationTests",
+        "--no-daemon",
+      ]
+    depends_on:
+      publication-acceptance-postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://publication-acceptance-postgres:5432/rhaomi_publication_acceptance
+      SPRING_DATASOURCE_USERNAME: rhaomi_publication_acceptance
+      SPRING_DATASOURCE_PASSWORD: ${RHAOMI_PUBLICATION_ACCEPTANCE_DATABASE_PASSWORD:-publication-acceptance-unconfigured}
+      RHAOMI_TEST_DATABASE_ALLOWED: "true"
+      RHAOMI_LOCAL_PUBLICATION_ACCEPTANCE: "true"
+      RHAOMI_BOOTSTRAP_ADMIN_ENABLED: "true"
+      RHAOMI_BOOTSTRAP_ADMIN_EMAIL: publication.acceptance@example.invalid
+      RHAOMI_BOOTSTRAP_ADMIN_PASSWORD: ${RHAOMI_PUBLICATION_ACCEPTANCE_ADMIN_PASSWORD:-publication-acceptance-unconfigured}
+      RHAOMI_ADMIN_BASE_URL: http://publication-acceptance-admin-gateway:8080
+      RHAOMI_PUBLICATION_ACCEPTANCE_ROOT: /acceptance
+      RHAOMI_PUBLICATION_ACCEPTANCE_SOURCE_ROOT: /workspace
+      RHAOMI_PUBLICATION_ACCEPTANCE_NODE: /usr/local/bin/node
+      RHAOMI_ACCEPTANCE_GIT_HEAD: ${RHAOMI_ACCEPTANCE_GIT_HEAD:-0000000000000000000000000000000000000000}
+      RHAOMI_MEDIA_ROOT: /acceptance/media
+    volumes:
+      - type: bind
+        source: ${RHAOMI_PUBLICATION_ACCEPTANCE_ROOT:-/tmp/rhaomi-publication-acceptance-unconfigured}
+        target: /acceptance
+    labels: *publication-acceptance-labels
+    networks:
+      - publication-acceptance-backend
+
+  publication-acceptance-admin-gateway:
+    profiles: ["publication-acceptance"]
+    image: nginx:1.31.4-alpine3.24@sha256:db35bfc6b2951e7f8a72db5db120288c127ffaeeb4a6d4b95a26fead017d5913
+    init: true
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    volumes:
+      - ./infra/nginx/publication-acceptance-admin.conf:/etc/nginx/conf.d/default.conf:ro
+    labels: *publication-acceptance-labels
+    networks:
+      - publication-acceptance-backend
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:8080/__gateway_health >/dev/null",
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 2s
+
+  publication-acceptance-static:
+    profiles: ["publication-acceptance"]
+    image: nginx:1.31.4-alpine3.24@sha256:db35bfc6b2951e7f8a72db5db120288c127ffaeeb4a6d4b95a26fead017d5913
+    init: true
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    volumes:
+      - ./infra/nginx/publication-acceptance.conf:/etc/nginx/conf.d/default.conf:ro
+      - type: bind
+        source: ${RHAOMI_PUBLICATION_ACCEPTANCE_ROOT:-/tmp/rhaomi-publication-acceptance-unconfigured}/public
+        target: /srv/rhaomi/public
+        read_only: true
+    labels: *publication-acceptance-labels
+    networks:
+      - publication-acceptance-public
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:8080/ >/dev/null",
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  publication-acceptance-smoke:
+    profiles: ["publication-acceptance"]
+    image: ${RHAOMI_PUBLICATION_ACCEPTANCE_IMAGE:-dev-rhaomi-publication-acceptance:java25-node24-libheif-1.23.0}
+    init: true
+    working_dir: /workspace
+    command:
+      [
+        "node",
+        "scripts/validate-publication-serving.mjs",
+        "http://publication-acceptance-static:8080",
+        "/acceptance",
+      ]
+    volumes:
+      - type: bind
+        source: ${RHAOMI_PUBLICATION_ACCEPTANCE_ROOT:-/tmp/rhaomi-publication-acceptance-unconfigured}
+        target: /acceptance
+        read_only: true
+    labels: *publication-acceptance-labels
+    networks:
+      - publication-acceptance-public
+
+volumes:
+  frontend-node-modules:
+    name: ${RHAOMI_COMPOSE_VOLUME_PREFIX:-dev-rhaomi}-frontend-node-modules
+  frontend-npm-cache:
+    name: ${RHAOMI_COMPOSE_VOLUME_PREFIX:-dev-rhaomi}-frontend-npm-cache
+  backend-gradle-cache:
+    name: ${RHAOMI_COMPOSE_VOLUME_PREFIX:-dev-rhaomi}-backend-gradle-cache
+  backend-media-masters:
+    name: ${RHAOMI_COMPOSE_VOLUME_PREFIX:-dev-rhaomi}-backend-media-masters
+  postgres-data:
+    name: ${RHAOMI_COMPOSE_VOLUME_PREFIX:-dev-rhaomi}-postgres-18-backend-data
+
+networks:
+  frontend-local:
+    name: ${RHAOMI_COMPOSE_NETWORK_PREFIX:-dev-rhaomi}-frontend-local
+  backend-local:
+    name: ${RHAOMI_COMPOSE_NETWORK_PREFIX:-dev-rhaomi}-backend-local
+  backend-internal:
+    name: ${RHAOMI_COMPOSE_NETWORK_PREFIX:-dev-rhaomi}-backend-internal
+    internal: true
+  backend-gateway-internal:
+    name: ${RHAOMI_COMPOSE_NETWORK_PREFIX:-dev-rhaomi}-backend-gateway-internal
+    internal: true
+  publication-acceptance-backend:
+    name: ${RHAOMI_COMPOSE_PROJECT_NAME:-dev-rhaomi}-publication-acceptance-backend
+    internal: true
+    labels: *publication-acceptance-labels
+  publication-acceptance-public:
+    name: ${RHAOMI_COMPOSE_PROJECT_NAME:-dev-rhaomi}-publication-acceptance-public
+    internal: true
+    labels: *publication-acceptance-labels

@@ -3,11 +3,15 @@ title: "SEO 전략"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-31"
 review_trigger: "URL·콘텐츠·검색 정책 변경 시"
 ---
 
 # SEO 전략
+
+## 현재 구현 경계
+
+generated V2 snapshot의 매장정보·서비스·갤러리·공지 요약과 공개 공지 상세를 Next Static Export HTML에 포함한다. 홈·공지 canonical, LocalBusiness JSON-LD, sitemap과 robots는 `PUBLIC_SITE_URL`을 authority로 생성하고 strict release validator가 내부 link·canonical·sitemap 일치, `/admin/` 제외와 backend/internal URL 부재를 검사한다. 실제 production domain·콘텐츠 승인, 검색엔진 등록과 Search Console evidence는 아직 출시 gate다.
 
 ## 전제
 
@@ -54,8 +58,8 @@ Next.js 자체는 검색 순위를 보장하지 않는다. 이 프로젝트에�
 
 - 홈의 핵심 매장정보, 서비스, 공지 요약, 갤러리 설명을 빌드 시 HTML에 포함한다.
 - 공지 상세는 정적 URL로 생성한다.
-- 검색 가치가 있는 견종 페이지는 콘텐츠 기준을 충족한 뒤 생성한다.
-- 고객 브라우저에서 CMS fetch 후 텍스트를 주입하는 구조를 사용하지 않는다.
+- 검색 가치가 있는 견종 페이지는 콘텐츠 기준을 충족한 후속 범위에서만 생성한다. Issue #43은 견종 상세 route를 만들지 않는다.
+- 고객 브라우저에서 backend fetch 후 텍스트를 주입하는 구조를 사용하지 않는다.
 - JavaScript가 실패해도 전화, 지도, SNS 링크와 핵심 정보는 접근 가능해야 한다.
 
 ## 로컬 SEO

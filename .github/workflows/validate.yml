@@ -1,0 +1,224 @@
+name: Validate
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 저장소 checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Node.js 설정
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.20.0
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 린트
+        run: npm run lint
+
+      - name: 타입 검사
+        run: npm run typecheck
+
+      - name: Contract test
+        run: npm test
+
+      - name: Static Export build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npm run build
+
+      - name: 정적 산출물 검증
+        run: npm run validate:export
+
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f
+        env:
+          POSTGRES_DB: rhaomi_ci
+          POSTGRES_USER: rhaomi_ci
+          POSTGRES_PASSWORD: rhaomi-ci-database-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rhaomi_ci -d rhaomi_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://127.0.0.1:5432/rhaomi_ci
+      SPRING_DATASOURCE_USERNAME: rhaomi_ci
+      SPRING_DATASOURCE_PASSWORD: rhaomi-ci-database-password
+      RHAOMI_TEST_DATABASE_ALLOWED: "true"
+    steps:
+      - name: 저장소 checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Java 25 설정
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Gradle 설정
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: Java 25·libheif backend image build
+        run: >-
+          docker build
+          --file backend/Dockerfile.dev
+          --tag rhaomi-backend-ci:${{ github.event.pull_request.head.sha }}
+          .
+
+      - name: PostgreSQL·Flyway·인증·media 계약 검증
+        run: >-
+          docker run --rm
+          --network host
+          --workdir /workspace/backend
+          --volume "${{ github.workspace }}/backend:/workspace/backend"
+          --volume "$HOME/.gradle:/root/.gradle"
+          --env SPRING_DATASOURCE_URL
+          --env SPRING_DATASOURCE_USERNAME
+          --env SPRING_DATASOURCE_PASSWORD
+          --env RHAOMI_TEST_DATABASE_ALLOWED
+          --env RHAOMI_MEDIA_ROOT=/tmp/rhaomi-media-ci
+          rhaomi-backend-ci:${{ github.event.pull_request.head.sha }}
+          ./gradlew test --no-daemon
+
+      - name: HomeOps D-IMP-5b source·activation preflight 계약 검증
+        env:
+          RHAOMI_HOMEOPS_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-homeops-evidence
+        run: sh scripts/validate-homeops-integration.sh
+
+      - name: Production decoder-only image·SBOM 검증
+        env:
+          RHAOMI_CLEANUP_TASK: 59-homeops-activation-preflight
+          RHAOMI_PRODUCTION_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-production-image-evidence
+          RHAOMI_PRODUCTION_IMAGE_TAG: rhaomi-production-ci:${{ github.event.pull_request.head.sha }}
+        run: sh scripts/validate-production-image.sh
+
+      - name: Production Compose·project Nginx 검증
+        env:
+          RHAOMI_CLEANUP_TASK: 59-homeops-activation-preflight
+          RHAOMI_PRODUCTION_COMPOSE_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-production-compose-evidence
+          RHAOMI_PRODUCTION_IMAGE: rhaomi-production-ci:${{ github.event.pull_request.head.sha }}
+          RHAOMI_WEB_LOOPBACK_PORT: "18051"
+        run: sh scripts/validate-production-compose.sh
+
+      - name: Production release·fixed deploy 계약 검증
+        env:
+          RHAOMI_PRODUCTION_DEPLOY_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-production-deploy-evidence
+        run: sh scripts/validate-production-deploy.sh
+
+      - name: Production backup control 계약 검증
+        env:
+          RHAOMI_PRODUCTION_BACKUP_CONTROL_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-production-backup-control-evidence
+        run: sh scripts/validate-production-backup-control.sh
+
+      - name: Production application-consistent backup·isolated restore 검증
+        env:
+          RHAOMI_CLEANUP_TASK: 59-homeops-activation-preflight
+          RHAOMI_PRODUCTION_BACKUP_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-production-backup-evidence
+          RHAOMI_PRODUCTION_IMAGE: rhaomi-production-ci:${{ github.event.pull_request.head.sha }}
+          RHAOMI_WEB_LOOPBACK_PORT: "18055"
+        run: sh scripts/validate-production-backup.sh
+
+      - name: Production image 공급망 evidence 보존
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-image-evidence-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/rhaomi-production-image-evidence
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: HomeOps D-IMP-5b activation preflight evidence 보존
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: homeops-activation-preflight-evidence-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/rhaomi-homeops-evidence
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Production Compose evidence 보존
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-compose-evidence-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/rhaomi-production-compose-evidence
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Production deploy evidence 보존
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-deploy-evidence-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/rhaomi-production-deploy-evidence
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Production backup control evidence 보존
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-backup-control-evidence-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/rhaomi-production-backup-control-evidence
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Production backup·restore evidence 보존
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-backup-evidence-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/rhaomi-production-backup-evidence
+          if-no-files-found: error
+          retention-days: 14
+
+  compose-smoke:
+    name: Compose Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RHAOMI_HOMEOPS_VALIDATION_GIT_HEAD: ${{ github.event.pull_request.head.sha }}
+      RHAOMI_BOOTSTRAP_ADMIN_ENABLED: "true"
+      RHAOMI_BOOTSTRAP_ADMIN_EMAIL: admin.smoke@example.com
+      RHAOMI_BOOTSTRAP_ADMIN_PASSWORD: "local-smoke-password-123!"
+    steps:
+      - name: 저장소 checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: CI용 local 환경파일 준비
+        run: cp .env.example .env.dev.local
+
+      - name: Compose health·인증·재기동 검증
+        run: sh scripts/validate-backend-compose.sh .env.dev.local

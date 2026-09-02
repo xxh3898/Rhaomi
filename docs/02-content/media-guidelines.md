@@ -3,7 +3,7 @@ title: "미디어 가이드"
 status: "approved"
 owner: "은총쌤"
 reviewers: "조치호"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "이미지 정책 변경 시"
 ---
 
@@ -68,7 +68,7 @@ review_trigger: "이미지 정책 변경 시"
 
 ## 파일 정책
 
-- 원본은 Directus 업로드 저장소에 보관한다.
+- 원본은 후속 backend 소유 비공개 storage에 보관한다.
 - 공개 사이트에는 빌드 파이프라인이 생성한 AVIF/WebP/JPEG 파생본을 사용한다.
 - 공개용 파일에서 EXIF와 위치정보를 제거한다.
 - 원본 파일명은 사용자에게 노출하지 않는다.

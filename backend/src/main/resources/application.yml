@@ -1,0 +1,92 @@
+spring:
+  application:
+    name: rhaomi-backend
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 21MB
+
+server:
+  error:
+    include-binding-errors: never
+    include-exception: false
+    include-message: never
+    include-stacktrace: never
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        name: RHAOMI_SESSION
+        http-only: true
+        secure: ${RHAOMI_SESSION_COOKIE_SECURE:false}
+        same-site: lax
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+rhaomi:
+  build-service:
+    token: ${RHAOMI_BUILD_SERVICE_TOKEN:}
+  publisher:
+    owner: ${RHAOMI_PUBLISHER_OWNER:}
+    idle-poll-interval: ${RHAOMI_PUBLISHER_IDLE_POLL_INTERVAL:1s}
+    lease-duration: ${RHAOMI_PUBLISHER_LEASE_DURATION:2m}
+    lease-renewal-interval: ${RHAOMI_PUBLISHER_LEASE_RENEWAL_INTERVAL:30s}
+    shutdown-timeout: ${RHAOMI_PUBLISHER_SHUTDOWN_TIMEOUT:10s}
+    lock-file: ${RHAOMI_PUBLISHER_LOCK_FILE:/var/lib/rhaomi/locks/publisher.lock}
+    auto-start: ${RHAOMI_PUBLISHER_AUTO_START:true}
+    executor:
+      node-executable: ${RHAOMI_PUBLISHER_NODE_EXECUTABLE:}
+      release-script: ${RHAOMI_PUBLISHER_RELEASE_SCRIPT:}
+      termination-grace: ${RHAOMI_PUBLISHER_PROCESS_TERMINATION_GRACE:2s}
+      build-api-internal-url: ${BUILD_API_INTERNAL_URL:}
+      build-api-credential: ${BUILD_API_CREDENTIAL:}
+      source-root: ${RHAOMI_PUBLISHER_SOURCE_ROOT:}
+      work-root: ${RHAOMI_PUBLISHER_WORK_ROOT:}
+      release-root: ${RHAOMI_PUBLIC_RELEASE_ROOT:}
+      current-link: ${RHAOMI_PUBLIC_CURRENT_LINK:}
+      previous-link: ${RHAOMI_PUBLIC_PREVIOUS_LINK:}
+      public-site-url: ${PUBLIC_SITE_URL:}
+      code-sha: ${RHAOMI_CODE_SHA:}
+      code-image-tag: ${RHAOMI_CODE_IMAGE_TAG:}
+      code-image-digest: ${RHAOMI_CODE_IMAGE_DIGEST:}
+      flyway-version: ${RHAOMI_FLYWAY_VERSION:}
+      sbom-reference: ${RHAOMI_SBOM_REFERENCE:}
+      build-timeout-ms: ${RHAOMI_PUBLISHER_BUILD_TIMEOUT_MS:}
+      release-retention: ${RHAOMI_RELEASE_RETENTION:5}
+  bootstrap-admin:
+    enabled: ${RHAOMI_BOOTSTRAP_ADMIN_ENABLED:false}
+    email: ${RHAOMI_BOOTSTRAP_ADMIN_EMAIL:}
+    password: ${RHAOMI_BOOTSTRAP_ADMIN_PASSWORD:}
+  media:
+    root: ${RHAOMI_MEDIA_ROOT}
+    max-source-bytes: 20971520
+    max-stored-bytes: 31457280
+    max-width: 12000
+    max-height: 12000
+    max-pixels: 60000000
+    jpeg-quality: 92

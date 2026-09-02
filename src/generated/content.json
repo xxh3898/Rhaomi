@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 2,
+  "contentRevision": "0",
+  "publishGeneration": "1",
+  "generatedAt": "2026-01-01T00:00:00Z",
+  "shop": {
+    "shopName": "라오미펫",
+    "regionLabel": "테스트 지역",
+    "businessType": "반려견 미용",
+    "phone": "000-0000-0000",
+    "address": "정적 빌드 검증용 합성 주소",
+    "openingTime": "10:00",
+    "closingTime": "19:00",
+    "closedWeekday": null,
+    "parkingAvailable": false,
+    "parkingNote": null,
+    "heroTitle": "라오미펫",
+    "heroDescription": "정적 공개 사이트를 준비하고 있습니다.",
+    "groomerName": null,
+    "groomerIntro": null,
+    "reservationNotice": "운영 콘텐츠는 publication build에서 교체됩니다.",
+    "heroImageId": null,
+    "heroImageAltText": null,
+    "groomerImageId": null,
+    "groomerImageAltText": null,
+    "ogImageId": null,
+    "instagramUrl": null,
+    "naverBlogUrl": null,
+    "naverMapUrl": null,
+    "kakaoMapUrl": null,
+    "naverTalktalkUrl": null,
+    "kakaoChannelUrl": null
+  },
+  "services": [],
+  "breeds": [],
+  "galleryItems": [],
+  "notices": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "title": "정적 빌드 검증용 합성 공지",
+      "slug": "synthetic-build-notice",
+      "summary": "실제 운영 콘텐츠가 아닌 표준 build 검증 fixture입니다.",
+      "bodyMarkdown": "이 공지는 **정적 빌드 검증용 합성 데이터**입니다.",
+      "pinned": false,
+      "publishedAt": "2025-12-31T00:00:00Z",
+      "expiresAt": null
+    }
+  ]
+}

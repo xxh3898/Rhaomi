@@ -3,7 +3,7 @@ title: "기능 명세 템플릿"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "기능 명세 형식 변경 시"
 ---
 
@@ -37,7 +37,7 @@ review_trigger: "기능 명세 형식 변경 시"
 
 ## 데이터·계약
 
-- CMS:
+- 관리 backend:
 - URL:
 - 환경변수:
 - 권한:

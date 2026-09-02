@@ -39,7 +39,7 @@ body:
         - 로컬
         - 개발
         - 운영
-        - Directus 관리자
+        - 관리자 UI/API
         - 검색엔진/공유 미리보기
     validations:
       required: true

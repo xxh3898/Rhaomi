@@ -1,0 +1,25 @@
+# dependencies
+/node_modules/
+/.rhaomi-publication-work/
+
+# Next.js build output
+/.next/
+/out/
+/build/
+
+# test output
+/coverage/
+
+# local environment files
+.env*
+!.env.example
+
+# local runtime data when a bind mount is used intentionally
+/infra/local-data/
+
+# tooling
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+.DS_Store
+.vercel/

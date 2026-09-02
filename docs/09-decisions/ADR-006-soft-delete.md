@@ -3,7 +3,7 @@ title: "ADR-006: 운영 삭제는 보관 처리"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "삭제·보존 정책 변경 시"
 ---
 
@@ -67,4 +67,4 @@ review_trigger: "삭제·보존 정책 변경 시"
 
 - 보관 데이터가 저장공간 또는 관리 UI를 심각하게 방해
 - 법적 삭제 요청에 더 빠른 완전 삭제 절차 필요
-- Directus versioning과 별도 trash 기능으로 충분히 대체
+- backend audit/versioning과 별도 trash 기능으로 충분히 대체

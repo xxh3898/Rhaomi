@@ -3,7 +3,7 @@ title: "정보 구조"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-30"
 review_trigger: "페이지·섹션 순서 변경 시"
 ---
 
@@ -26,6 +26,48 @@ review_trigger: "페이지·섹션 순서 변경 시"
 | `/grooming/` | 홈 갤러리 이상의 탐색 수요가 확인될 때 |
 | `/grooming/[breed-slug]/` | 견종별 공개 사진과 고유 설명이 충분할 때 |
 | `/rss.xml` | 공지 운영이 안정화되고 네이버 최신글 수집 활용이 필요할 때 |
+
+## 관리자 URL
+
+| URL | 목적 | 생성 방식 |
+|---|---|---|
+| `/admin/` | session 기반 관리자 login·관리 홈·매장정보·갤러리·미디어·견종·서비스·공지 UI | Static Export client shell |
+
+`/admin/`은 공개 navigation과 sitemap에 링크하지 않고 `noindex, nofollow, noarchive`를 유지한다. 관리 홈과 매장정보·갤러리·미디어·견종·서비스·공지 manager는 query/hash나 추가 route 없이 같은 client state에서 전환한다. 여섯 관리 영역은 모두 사용 가능하다.
+
+### 현재 관리자 화면 구조
+
+```text
+관리 홈
+├── 매장정보
+│   ├── 기본 정보
+│   ├── 영업·주차
+│   ├── Hero + private media picker
+│   ├── 미용사 소개 + private media picker
+│   ├── 예약 안내
+│   ├── 외부 채널
+│   └── OG private media picker
+├── 갤러리
+│   ├── draft 생성과 full PUT 편집
+│   ├── 견종·서비스 관계와 상태 표시
+│   └── cover/before/after private media picker
+├── 미디어
+│   ├── 단일 upload
+│   ├── active/archived 목록·private preview
+│   └── archive/restore
+├── 견종
+│   ├── draft 생성과 immutable slug
+│   └── status/name/description/sortOrder 전체 수정
+├── 서비스
+│   ├── draft 생성과 immutable slug
+│   └── status/name/description/priceText/sortOrder 전체 수정
+└── 공지
+    ├── draft 생성과 immutable slug
+    ├── source-only Markdown·고정 여부
+    └── status/publishedAt/expiresAt 전체 수정
+```
+
+private media picker는 별도 URL이나 public asset route를 만들지 않고 authenticated Blob preview를 사용한다. 매장정보는 active asset만 새 관계로 선택하고 갤러리는 draft·archived 관계 편집을 위해 active·archived asset을 상태와 함께 표시한다.
 
 ## 홈 섹션 순서
 

@@ -3,13 +3,13 @@ title: "공식 참고자료"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "기술·정책 문서 변경 또는 업그레이드 시"
 ---
 
 # 공식 참고자료
 
-접근일: 2026-08-28
+접근일: 2026-08-29
 
 ## Next.js
 
@@ -24,7 +24,82 @@ review_trigger: "기술·정책 문서 변경 또는 업그레이드 시"
 - `sitemap.xml` metadata file  
   https://nextjs.org/docs/app/api-reference/file-conventions/metadata/sitemap
 
-## Directus
+## Spring Boot·Security·Gradle·PostgreSQL
+
+- Spring Boot project와 stable version
+  https://spring.io/projects/spring-boot/
+- Spring Boot reference
+  https://docs.spring.io/spring-boot/
+- Spring Boot system requirements
+  https://docs.spring.io/spring-boot/system-requirements.html
+- Spring Security CSRF
+  https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html
+- Spring Security session management
+  https://docs.spring.io/spring-security/reference/servlet/authentication/session-management.html
+- Gradle releases
+  https://gradle.org/releases/
+- Gradle Java compatibility
+  https://docs.gradle.org/current/userguide/compatibility.html
+- PostgreSQL documentation
+  https://www.postgresql.org/docs/
+- PostgreSQL 18 `pg_dump`
+  https://www.postgresql.org/docs/18/app-pgdump.html
+
+## Production ingress·release
+
+- Cloudflare Tunnel
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/
+- Cloudflare Tunnel firewall model
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/
+- GitHub Actions deployments and environments
+  https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments
+- GitHub deployment environment 관리
+  https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments
+- Tailscale SSH
+  https://tailscale.com/kb/1193/tailscale-ssh
+
+## macOS·Docker storage
+
+- Apple Platform Security — signed system volume
+  https://support.apple.com/guide/security/signed-system-volume-security-secd698747c9/web
+- Apple Platform Security — APFS system/Data volume 역할
+  https://support.apple.com/guide/security/role-of-apple-file-system-seca6147599e/web
+- Docker Desktop settings — Mac file sharing 기본 경로
+  https://docs.docker.com/desktop/settings-and-maintenance/settings/#file-sharing
+- Docker volumes와 lifecycle
+  https://docs.docker.com/engine/storage/volumes/
+- `docker compose down`과 `--volumes`
+  https://docs.docker.com/reference/cli/docker/compose/down/
+
+## Backup·restore
+
+- restic backup
+  https://restic.readthedocs.io/en/stable/040_backup.html
+- restic repository copy·check
+  https://restic.readthedocs.io/en/stable/045_working_with_repos.html
+- restic restore
+  https://restic.readthedocs.io/en/stable/050_restore.html
+- restic retention·forget·prune
+  https://restic.readthedocs.io/en/stable/060_forget.html
+- restic password 자동화 주의사항
+  https://restic.readthedocs.io/en/stable/faq.html#how-can-i-specify-encryption-passwords-automatically
+
+## HEIC production runtime
+
+- libheif source와 build options
+  https://github.com/strukturag/libheif
+- libheif `v1.23.1` release
+  https://github.com/strukturag/libheif/releases/tag/v1.23.1
+- libheif `v1.23.1` CMake options
+  https://github.com/strukturag/libheif/blob/v1.23.1/CMakeLists.txt
+- libheif license
+  https://github.com/strukturag/libheif/blob/v1.23.1/COPYING
+- libde265 source와 license
+  https://github.com/strukturag/libde265
+
+## Directus — superseded 결정 조사 기록
+
+아래 링크는 ADR-002·005와 ADR-009의 전환 근거를 보존하기 위한 역사적 참고자료다. 현재 runtime dependency가 아니다.
 
 - Overview and Data Studio  
   https://directus.com/docs/getting-started/overview

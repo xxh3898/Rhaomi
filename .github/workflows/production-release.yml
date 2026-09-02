@@ -1,0 +1,347 @@
+name: Production Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: "현재 main의 exact 40-character lowercase SHA"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-release-${{ inputs.release_sha }}
+  cancel-in-progress: false
+
+jobs:
+  validate_release:
+    name: Release validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:18.6-alpine3.23@sha256:697c180dbf244d3ce4a8f4cbc0156cde840af055c1bf8b76aebe422a4822086f
+        env:
+          POSTGRES_DB: rhaomi_release_validation
+          POSTGRES_USER: rhaomi_release_validation
+          POSTGRES_PASSWORD: rhaomi-release-validation-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rhaomi_release_validation -d rhaomi_release_validation"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://127.0.0.1:5432/rhaomi_release_validation
+      SPRING_DATASOURCE_USERNAME: rhaomi_release_validation
+      SPRING_DATASOURCE_PASSWORD: rhaomi-release-validation-password
+      RHAOMI_TEST_DATABASE_ALLOWED: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: exact current main gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" = "refs/heads/main" ]]
+          [[ "$GITHUB_SHA" = "$RELEASE_SHA" ]]
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+      - name: exact release checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_sha }}
+
+      - name: Node.js 설정
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.20.0
+          cache: npm
+
+      - name: Java 25 설정
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Gradle 설정
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: frontend 계약 검증
+        run: |
+          set -eu
+          npm ci
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+          npm run validate:export
+
+      - name: Java 25 backend test image build
+        run: >-
+          docker build
+          --file backend/Dockerfile.dev
+          --tag rhaomi-backend-release-validation:${RELEASE_SHA}
+          .
+
+      - name: PostgreSQL 18.6 backend 전체 검증
+        run: >-
+          docker run --rm
+          --network host
+          --workdir /workspace/backend
+          --volume "${{ github.workspace }}/backend:/workspace/backend"
+          --volume "$HOME/.gradle:/root/.gradle"
+          --env SPRING_DATASOURCE_URL
+          --env SPRING_DATASOURCE_USERNAME
+          --env SPRING_DATASOURCE_PASSWORD
+          --env RHAOMI_TEST_DATABASE_ALLOWED
+          --env RHAOMI_MEDIA_ROOT=/tmp/rhaomi-media-release-validation
+          rhaomi-backend-release-validation:${RELEASE_SHA}
+          ./gradlew test --no-daemon
+
+      - name: production image·SBOM·scan 검증
+        env:
+          RHAOMI_CLEANUP_TASK: 53-production-release-gate
+          RHAOMI_PRODUCTION_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-release-validation-evidence/image
+          RHAOMI_PRODUCTION_IMAGE_TAG: rhaomi-production-release-validation:${{ inputs.release_sha }}
+        run: sh scripts/validate-production-image.sh
+
+      - name: production Compose·one-shot task 검증
+        env:
+          RHAOMI_CLEANUP_TASK: 53-production-release-gate
+          RHAOMI_PRODUCTION_COMPOSE_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-release-validation-evidence/compose
+          RHAOMI_PRODUCTION_IMAGE: rhaomi-production-release-validation:${{ inputs.release_sha }}
+          RHAOMI_WEB_LOOPBACK_PORT: "18053"
+        run: sh scripts/validate-production-compose.sh
+
+      - name: fixed deploy entrypoint 계약 검증
+        env:
+          RHAOMI_PRODUCTION_DEPLOY_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-release-validation-evidence/deploy
+        run: sh scripts/validate-production-deploy.sh
+
+      - name: release validation evidence 보존
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-validation-evidence-${{ inputs.release_sha }}
+          path: ${{ runner.temp }}/rhaomi-release-validation-evidence
+          if-no-files-found: error
+          retention-days: 14
+
+  publish_image:
+    name: Publish immutable multi-arch image
+    needs: validate_release
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.release_evidence.outputs.digest }}
+      sbom_reference: ${{ steps.release_evidence.outputs.sbom_reference }}
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      IMAGE_REPOSITORY: ghcr.io/xxh3898/rhaomi
+    steps:
+      - name: exact current main gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" = "refs/heads/main" ]]
+          [[ "$GITHUB_SHA" = "$RELEASE_SHA" ]]
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+      - name: exact release checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_sha }}
+
+      - name: Node.js 설정
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.20.0
+
+      - name: validation evidence 복원
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-validation-evidence-${{ inputs.release_sha }}
+          path: ${{ runner.temp }}/release-validation-evidence
+
+      - name: QEMU 설정
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+
+      - name: Buildx 설정
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: private GHCR 로그인
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: exact SHA tag immutability gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if docker buildx imagetools inspect "${IMAGE_REPOSITORY}:${RELEASE_SHA}" >/dev/null 2>&1; then
+            echo "exact SHA image tag already exists; immutable publish refuses overwrite" >&2
+            exit 1
+          fi
+
+      - name: exact SHA multi-arch publish
+        id: publish
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: backend/Dockerfile.production
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            RHAOMI_GIT_HEAD=${{ inputs.release_sha }}
+          push: true
+          tags: ghcr.io/xxh3898/rhaomi:${{ inputs.release_sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/xxh3898/Rhaomi
+            org.opencontainers.image.revision=${{ inputs.release_sha }}
+          provenance: mode=max
+          sbom: true
+
+      - name: digest·SBOM release evidence 생성
+        id: release_evidence
+        shell: bash
+        env:
+          MANIFEST_DIGEST: ${{ steps.publish.outputs.digest }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$MANIFEST_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          image_reference="${IMAGE_REPOSITORY}@${MANIFEST_DIGEST}"
+          evidence_dir="${RUNNER_TEMP}/release-publish-evidence"
+          validation_summary="${RUNNER_TEMP}/release-validation-evidence/image/supply-chain-summary.json"
+          test -f "$validation_summary"
+          mkdir -p "$evidence_dir"
+
+          docker buildx imagetools inspect "$image_reference" \
+            --format '{{json .Manifest}}' >"$evidence_dir/manifest-index.json"
+          for platform_entry in linux/amd64:linux-amd64 linux/arm64:linux-arm64; do
+            platform=${platform_entry%%:*}
+            key=${platform_entry#*:}
+            docker buildx imagetools inspect "$image_reference" \
+              --format "{{json (index .Image \"${platform}\")}}" \
+              >"$evidence_dir/${key}-image.json"
+            docker buildx imagetools inspect "$image_reference" \
+              --format "{{json (index (index .SBOM \"${platform}\") \"SPDX\")}}" \
+              >"$evidence_dir/${key}-sbom.spdx.json"
+            docker buildx imagetools inspect "$image_reference" \
+              --format "{{json (index .SLSA \"${platform}\")}}" \
+              >"$evidence_dir/${key}-provenance.json"
+
+            docker run --rm \
+              --volume "$evidence_dir/${key}-sbom.spdx.json:/evidence/sbom.spdx.json:ro" \
+              --label io.homeserver.cleanup.environment=development \
+              --label io.homeserver.cleanup.project=rhaomi \
+              --label io.homeserver.cleanup.task=53-production-release-gate \
+              --label io.homeserver.cleanup.lifecycle=task \
+              --label io.homeserver.cleanup.retain=false \
+              --label "io.homeserver.cleanup.git-head=${RELEASE_SHA}" \
+              --env GRYPE_CHECK_FOR_APP_UPDATE=false \
+              anchore/grype:v0.104.1@sha256:e7d3cb36d2ebfb522141d83a5d0df9cda301f7e9f8747ee4af41f12c478fa77c \
+              sbom:/evidence/sbom.spdx.json --output json \
+              >"$evidence_dir/${key}-grype.json"
+          done
+
+          node scripts/verify-published-production-image.mjs \
+            "$evidence_dir" \
+            "$validation_summary" \
+            "$evidence_dir/release-evidence.json" \
+            "$IMAGE_REPOSITORY" \
+            "$RELEASE_SHA" \
+            "$MANIFEST_DIGEST" \
+            "$WORKFLOW_RUN_ID"
+          sbom_reference="$MANIFEST_DIGEST"
+          printf 'digest=%s\n' "$MANIFEST_DIGEST" >>"$GITHUB_OUTPUT"
+          printf 'sbom_reference=%s\n' "$sbom_reference" >>"$GITHUB_OUTPUT"
+
+      - name: immutable publish evidence 보존
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-publish-evidence-${{ inputs.release_sha }}
+          path: ${{ runner.temp }}/release-publish-evidence
+          if-no-files-found: error
+          retention-days: 30
+
+  deploy_production:
+    name: Approved production deploy
+    needs: publish_image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      IMAGE_REFERENCE: ghcr.io/xxh3898/rhaomi@${{ needs.publish_image.outputs.digest }}
+      SBOM_REFERENCE: ${{ needs.publish_image.outputs.sbom_reference }}
+      TARGET_HOST: ${{ vars.RHAOMI_PRODUCTION_TARGET_HOST }}
+      TARGET_USER: ${{ vars.RHAOMI_PRODUCTION_TARGET_USER }}
+    steps:
+      - name: exact current main·deploy scalar gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" = "refs/heads/main" ]]
+          [[ "$GITHUB_SHA" = "$RELEASE_SHA" ]]
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$IMAGE_REFERENCE" =~ ^ghcr\.io/xxh3898/rhaomi@sha256:[0-9a-f]{64}$ ]]
+          [[ "$SBOM_REFERENCE" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$TARGET_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$ ]]
+          [[ "$TARGET_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]
+
+      - name: approved Tailscale transport 설정
+        uses: tailscale/github-action@780049a30b6ff5c378a9e7b389d15ece7a204888 # v4.1.3
+        with:
+          oauth-client-id: ${{ secrets.RHAOMI_TAILSCALE_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.RHAOMI_TAILSCALE_OAUTH_SECRET }}
+          tags: ${{ vars.RHAOMI_TAILSCALE_TAGS }}
+          version: 1.94.2
+          sha256sum: c6f99a5d774c7783b56902188d69e9756fc3dddfb08ac6be4cb2585f3fecdc32
+
+      - name: pinned SSH host authority 준비
+        shell: bash
+        env:
+          SSH_KNOWN_HOSTS: ${{ secrets.RHAOMI_PRODUCTION_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KNOWN_HOSTS"
+          install -m 600 /dev/null "${RUNNER_TEMP}/rhaomi-known-hosts"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" >"${RUNNER_TEMP}/rhaomi-known-hosts"
+
+      - name: fixed Mac predeploy backup·deploy entrypoint 실행
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=${RUNNER_TEMP}/rhaomi-known-hosts" \
+            -- "${TARGET_USER}@${TARGET_HOST}" \
+            /private/var/lib/rhaomi/app/bin/backup-rhaomi.sh \
+            --mode predeploy \
+            --target-release-sha "$RELEASE_SHA"
+          ssh \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=${RUNNER_TEMP}/rhaomi-known-hosts" \
+            -- "${TARGET_USER}@${TARGET_HOST}" \
+            /private/var/lib/rhaomi/app/bin/deploy-rhaomi.sh \
+            --release-sha "$RELEASE_SHA" \
+            --image "$IMAGE_REFERENCE" \
+            --sbom "$SBOM_REFERENCE"

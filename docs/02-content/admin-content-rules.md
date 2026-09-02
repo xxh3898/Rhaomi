@@ -3,13 +3,15 @@ title: "관리자 콘텐츠 규칙"
 status: "approved"
 owner: "은총쌤"
 reviewers: "조치호"
-last_updated: "2026-08-28"
-review_trigger: "CMS 필드·운영 절차 변경 시"
+last_updated: "2026-08-30"
+review_trigger: "관리 API field·운영 절차 변경 시"
 ---
 
 # 관리자 콘텐츠 규칙
 
 ## 상태
+
+아래 상태는 견종·서비스·공지·갤러리 collection에 적용한다. 단일 현재값인 `shop_settings`에는 상태를 두지 않는다.
 
 | 상태 | 고객 노출 | 용도 |
 |---|---|---|
@@ -21,7 +23,10 @@ review_trigger: "CMS 필드·운영 절차 변경 시"
 
 - 저장만으로 공개되지 않게 기본 상태는 `draft`다.
 - `published` 전환 시 필수 필드를 검증한다.
-- 시술사진은 견종·대표 이미지·대체 텍스트가 없으면 게시할 수 없다.
+- 견종은 이름과 slug가 유효해야 게시할 수 있다.
+- 서비스는 이름·slug·설명·가격 문구가 모두 있어야 게시할 수 있다.
+- 게시 중인 서비스의 설명이나 가격 문구를 비우는 수정도 거부한다.
+- 시술사진은 게시된 견종·대표 서비스, active 대표 이미지, 사실 기반 대체 텍스트와 게시 시각이 없으면 게시할 수 없다. 선택한 before/after 이미지도 active여야 한다.
 - 공지는 제목·slug·본문·게시일이 없으면 게시할 수 없다.
 - 외부 링크는 실제로 열어 본 후 저장한다.
 
@@ -30,26 +35,85 @@ review_trigger: "CMS 필드·운영 절차 변경 시"
 - 운영자 화면의 삭제 의미는 `archived` 전환이다.
 - 영구 삭제는 정기 정리 시 시스템 관리자가 백업 확인 후 수행한다.
 - 참조 중인 견종과 서비스는 영구 삭제하지 않는다.
-- 업로드 원본은 연결된 공개 콘텐츠가 없고 백업이 존재할 때만 제거한다.
+- 현재 media API는 physical delete를 제공하지 않는다. 후속 정리 기능은 연결된 공개 콘텐츠가 없고 백업·retention 승인이 있을 때만 별도 구현한다.
+
+## 견종·서비스
+
+- 생성 요청은 상태를 받지 않고 항상 `draft`로 저장한다.
+- 수정과 상태 전환은 slug를 제외한 전체 mutable representation을 `PUT`으로 보낸다.
+- slug는 lowercase ASCII kebab-case로 생성하며 저장 후 일반 관리 API에서 바꾸지 않는다.
+- 목록은 상태와 무관하게 보관 항목까지 포함하고 `sort_order`, 이름, id 순으로 정렬한다.
+- `sort_order`를 생략한 생성은 `100`을 사용하며 음수는 허용하지 않는다.
+- 가격 미확정 서비스는 운영자가 `상담 후 안내`를 직접 입력한다.
+- `archived` 항목은 row를 유지하며 유효한 전체 값으로 `draft` 또는 `published`로 복구할 수 있다.
+- id, actor, audit timestamp와 내부 field는 요청에서 받지 않는다.
 
 ## 공지
 
+- 생성 요청은 status를 받지 않고 항상 `draft`로 저장한다.
+- slug는 lowercase ASCII kebab-case로 생성하며 저장 후 일반 관리 API에서 바꾸지 않는다.
+- 수정과 상태 전환은 slug를 제외한 전체 mutable representation을 `PUT`으로 보낸다.
+- 제목·slug는 앞뒤 공백을 제거하고 선택형 요약·본문은 공백뿐이면 null로 저장한다.
+- 게시하려면 제목·slug·본문·게시 시각이 모두 있어야 한다. 미래 게시 시각은 허용하지만 공개 build에는 시각이 도래한 뒤 포함한다.
+- 제목과 게시 본문은 space·tab·newline만으로 구성할 수 없으며 whitespace가 아닌 문자를 최소 하나 포함해야 한다.
+- 만료 시각이 있으면 `draft`, `published`, `archived` 모두 게시 시각이 있어야 하고 만료 시각은 게시 시각보다 늦어야 한다.
+- 게시·만료 시각은 API 입력을 microsecond 정밀도로 절삭한 뒤 기간을 검증하고 저장한다. 정규화 후 같은 시각은 거부하고 정확히 1µs 차이는 허용한다.
+- 만료 시각이 지나도 status를 자동 변경하지 않으며 관리자 목록에는 모든 상태와 미래·만료 공지를 유지한다.
+- 목록은 `pinned DESC`, `published_at DESC NULLS LAST`, `updated_at DESC`, `id ASC` 순으로 정렬한다.
+- id, actor, audit timestamp와 내부 field는 요청에서 받지 않으며 검증 실패 시 기존 row와 audit를 바꾸지 않는다.
 - 고정 공지는 최소한으로 사용한다.
 - 임시휴무 공지는 `expires_at`을 설정한다.
 - 날짜가 지난 공지가 자동으로 사실과 충돌하지 않는지 확인한다.
 - 단순 예약 현황은 외부 채널과 불일치할 가능성이 크면 게시하지 않는다.
 - 정책 변경 공지는 기존 본문을 덮어쓰기보다 변경 날짜를 분명히 쓴다.
 
+현재 `/admin/` 공지 client는 모든 상태와 미래·만료 항목을 backend 배열 순서 그대로 표시한다. 생성은 status를 보내지 않고, 수정은 immutable slug를 제외한 mutable field 전체를 한 번의 `PUT`으로 보낸다. Markdown은 source textarea로만 편집하며 HTML preview·WYSIWYG·client sanitizer를 두지 않는다. local datetime input으로 표시할 때 숨겨지는 backend microsecond는 사용자가 값을 바꾸지 않은 full PUT에서 원본 Instant로 보존한다. mutation 성공 response를 먼저 반영한 뒤 canonical GET을 수행하고, 후속 GET 실패는 저장 실패와 분리해 explicit refresh로 복구한다.
+
 ## 갤러리
 
+- 생성은 status를 받지 않고 항상 `draft`이며 수정·상태 전환은 모든 mutable field를 포함한 `PUT`으로 수행한다. slug와 hard delete API는 없다.
 - 필터 정확도를 위해 자유 입력 대신 견종 관계 필드를 사용한다.
 - `기타`와 `믹스견`을 구분해 운영 기준을 통일한다.
 - 대표 서비스는 한 개만 선택한다.
-- 공개 순서는 `sort`와 게시일을 함께 사용한다.
-- 동일 사진을 여러 항목에 중복 업로드하지 않는다.
+- 대표 이미지는 before 또는 after와 같은 기존 media를 재사용할 수 있지만 before와 after는 서로 달라야 한다. 같은 media를 여러 갤러리 항목이 참조하는 것도 허용한다.
+- `draft`·`archived`는 null이 아닌 breed·service·media 관계의 존재만 요구하고 대상 상태와 관계없이 편집·보관할 수 있다.
+- `published`는 breed·service가 `published`, cover와 선택한 before/after media가 `active`인 최종 상태만 허용한다.
+- dogName·summary·altText는 앞뒤 Unicode whitespace를 제거하고 비면 null로 저장한다. altText는 게시 상태에서 필수이고 filename·키워드 나열로 자동 생성하지 않는다.
+- performedAt·publishedAt은 microsecond로 절삭하며 미래 시각도 저장할 수 있다. 공개 build는 publishedAt이 도래한 항목만 포함한다.
+- 관리자 목록은 `featured DESC`, `sort_order ASC`, `published_at DESC NULLS LAST`, `id ASC` 순으로 정렬한다.
+- 관리자 UI는 backend 목록 순서를 다시 정렬하지 않고 그대로 표시하며 저장 성공 뒤 목록 GET으로 canonical 순서를 다시 받는다. 후속 GET 실패는 저장 실패와 구분하고 명시적 새로고침을 제공한다.
+- 관계 picker는 draft·archived 편집을 위해 active·archived media를 상태와 함께 표시한다. published 전환은 client가 게시된 견종·서비스와 active media를 선제 안내하되 backend 검증을 최종 authority로 유지한다.
+- performedAt·publishedAt 입력은 local datetime으로 편집하되 변경하지 않은 backend microsecond 값을 full PUT에서 보존하고 성공 response의 정규화 값을 다시 표시한다.
+- 관계 대상이 나중에 draft·archived가 되어도 gallery status·relation을 자동 변경하지 않는다. 후속 public snapshot이 gallery status, 관계 상태와 공개 파생 file 유효성을 다시 검사해 제외한다.
+- 동일 사진을 다시 업로드하기보다 기존 media relation을 재사용한다. backend는 SHA-256을 무결성 metadata로만 기록하며 자동 dedupe나 409를 수행하지 않는다.
+- id, actor, audit timestamp와 unknown/system field는 요청에서 받지 않으며 검증 실패 시 row와 audit 전체를 바꾸지 않는다.
+
+## 미디어
+
+- upload는 항상 `active`로 생성하고 화면상 삭제는 `archived` 전환으로 처리한다. archive·restore는 row와 master byte를 이동하거나 지우지 않는다.
+- JPEG·PNG·HEIC·HEIF만 허용한다. generic 또는 빈 MIME도 실제 byte가 유효하면 받을 수 있지만 구체적인 MIME·확장자 충돌은 거부한다.
+- JPEG·PNG private master는 검증한 원본 byte이므로 EXIF가 남을 수 있다. public derivative 생성 전 metadata 제거가 필수다.
+- HEIC·HEIF raw byte는 temp에서만 처리하고 orientation·sRGB·metadata 제거 후 JPEG master만 장기 보관한다.
+- client filename은 저장 경로로 사용하지 않고 API·DB에도 보존하지 않는다.
+- 20 MiB source, 30 MiB stored, 폭·높이 각 12,000px, 60MP 제한을 넘는 이미지는 등록하지 않는다.
+- APNG, GIF, WebP, AVIF, SVG, multi-image·sequence HEIF와 손상 이미지는 등록하지 않는다.
+- 현재 API에서 수정 가능한 media field는 `status` 하나이며 id·actor·audit·storage metadata는 server-owned다.
 
 ## 매장정보
 
+- 매장정보는 하나의 현재 row만 유지하며 `GET`과 전체 mutable representation `PUT`으로 관리한다.
+- 최초 PUT은 row를 만들고 이후 PUT은 같은 row를 갱신한다. id와 singleton guard는 운영자에게 노출하지 않는다.
+- 매장명·지역·업종·전화·주소는 필수이며 앞뒤 Unicode whitespace 제거 후 비어 있을 수 없다.
+- 영업시간은 `HH:mm`의 동일 일자 시작·종료이고 시작이 종료보다 빨라야 한다. 야간 영업, 요일별 복수 시간과 복수 정기휴무는 후속 계약이다.
+- 휴무 요일은 없거나 `MONDAY`부터 `SUNDAY` 중 하나다. 임시휴무는 기본 휴무 필드를 바꾸기보다 공지로 처리한다.
+- 전화번호는 숫자·`+ - ( )`·일반 space만 사용하고 숫자를 최소 7개 포함한 7~32자로 저장한다.
+- 외부 URL은 absolute HTTPS, host 존재, userinfo·control 문자 없음 조건을 확인한다. 특정 채널 값이 없으면 빈 문자열이나 가짜 링크 대신 null로 저장한다.
+- 선택형 주차·Hero·소개·예약 문구는 앞뒤 whitespace 제거 후 비면 null로 저장한다.
+- id, singleton guard, actor, audit timestamp와 unknown field는 요청에서 받지 않으며 검증 실패 시 기존 row와 audit를 바꾸지 않는다.
+- Hero·프로필·OG 이미지는 nullable `media_assets` scalar FK로 저장하며 같은 active asset을 여러 역할에 재사용할 수 있다. 임시 path·storage key·파일명은 받지 않는다.
+- Hero·프로필 image가 있으면 사실 기반 대체텍스트가 필수이고 image가 없으면 대체텍스트도 null이어야 한다. 대체텍스트는 Unicode 양끝 whitespace 제거, blank→null, 최대 300 code points를 적용하며 파일명이나 키워드로 자동 생성하지 않는다.
+- OG 이미지는 HTML 접근성 alt 대상이 아니므로 별도 alt field를 두지 않는다.
+- non-null image relation은 저장 전에 존재와 `active` 상태를 확인한다. 대상이 나중에 archived돼도 relation과 audit를 자동 변경하지 않으며, 다음 PUT에서는 null로 제거하거나 active media로 교체해야 한다.
+- 후속 public build는 선택된 Hero·프로필·OG relation, media status와 private master/파생 file 유효성을 다시 확인하고 실패를 조용히 숨기지 않는다.
+- 실제 매장값은 migration이나 source에 seed하지 않고 운영 승인 뒤 입력한다.
 - 영업시간·휴무·전화·주소 변경은 네이버지도·카카오맵·블로그와 함께 갱신한다.
-- URL 값이 없으면 빈 문자열로 두고 가짜 링크를 입력하지 않는다.
-- 임시휴무는 기본 휴무 필드를 바꾸기보다 공지로 처리한다.

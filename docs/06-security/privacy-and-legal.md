@@ -3,7 +3,7 @@ title: "개인정보·법적 검토"
 status: "draft"
 owner: "은총쌤"
 reviewers: "조치호"
-last_updated: "2026-08-28"
+last_updated: "2026-08-30"
 review_trigger: "데이터 수집·사진·외부 도구 변경 시"
 ---
 
@@ -30,8 +30,8 @@ review_trigger: "데이터 수집·사진·외부 도구 변경 시"
 
 - 웹 서버 access log의 IP, user-agent, 시각
 - 관리자 로그인 기록
-- Directus 활동·revision
-- 업로드 원본의 EXIF
+- Spring Boot 관리자 audit·변경 이력
+- JPEG·PNG private master에 남을 수 있는 source EXIF
 - 고객 또는 보호자가 포함된 사진
 - 외부 분석 도구를 추가할 경우 이벤트·기기 정보
 
@@ -42,7 +42,11 @@ review_trigger: "데이터 수집·사진·외부 도구 변경 시"
 - 시술사진 공개에 대한 매장 운영 기준을 확정한다.
 - 보호자 또는 사람이 식별되는 사진은 동의 없이 게시하지 않는다.
 - 차량번호, 명찰, 전화번호, 주소, 문서가 배경에 포함되지 않게 확인한다.
-- 원본 EXIF 위치정보는 공개 파생본에서 제거한다.
+- HEIC·HEIF upload는 backend에서 EXIF·GPS·XMP·기기 metadata를 제거한 JPEG master만 보관한다.
+- JPEG·PNG는 현재 private 원본 byte를 보존하므로 EXIF가 남을 수 있다. private master를 공개 URL로 사용하지 않고 build transformer가 공개 파생 byte에서 EXIF·GPS·XMP·orientation·comment를 제거하고 결과를 다시 검사한다.
+- original filename·storage key·filesystem path·master SHA-256은 관리자 API response와 공개 HTML에 노출하지 않는다.
+- Hero·프로필·OG 설정은 private media의 scalar UUID만 참조하며 relation 설정만으로 master를 공개하지 않는다. build API는 게시 권한·active 상태와 canonical file을, transformer는 snapshot relation·manifest와 metadata 제거 파생본을 각각 다시 검증한다.
+- Hero·프로필 대체텍스트는 사진 내용을 사실대로 설명하되 불필요한 개인 식별정보를 추가하지 않는다. OG에는 별도 alt field를 두지 않는다.
 - 게시 철회 요청이 들어오면 공개 상태를 즉시 `archived`로 전환하고 재배포한다.
 - 백업에서의 보존·삭제 절차는 별도로 검토한다.
 
@@ -82,3 +86,4 @@ review_trigger: "데이터 수집·사진·외부 도구 변경 시"
 - 개인정보 처리방침 필요 여부
 - 외부 분석 도입 여부
 - 저작권·폰트·아이콘·사진 라이선스
+- 실제 iPhone Safari upload와 실제 촬영 원본의 공개 파생본 metadata 제거 증거. 합성 transformer test만으로 physical-device 증거를 대체하지 않음

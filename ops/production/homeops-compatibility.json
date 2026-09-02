@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "homeOpsCommit": "0a8ce9090c76f5ad7afba19ca896e923b96b0cbf",
+  "reporterRelativePath": "Server/apps/homeops/runtime-config/current/scripts/report-homeops-event.py",
+  "reporterSha256": "7a7ea2f7597efdc0d174775f28626dac7d330bddd638446fd0fe0f4e0f3acf9c",
+  "deploymentRequestSha256": "737f49a2fd5398501f6bcb18ea7935f1e17438338e23388cf93c6b1d2a42fbc5",
+  "backupRequestSha256": "a77610337bf2763b50c00786e8a897018dac9c107e78af827f2caeffc45dade4",
+  "deploymentFields": [
+    "eventKey",
+    "project",
+    "environment",
+    "branch",
+    "commitSha",
+    "imageTag",
+    "previousCommitSha",
+    "status",
+    "startedAt",
+    "finishedAt",
+    "failureStage",
+    "failureSummary",
+    "actor",
+    "workflowRunId",
+    "workflowRunUrl",
+    "rollback"
+  ],
+  "deploymentStatuses": [
+    "REQUESTED",
+    "RUNNING",
+    "SUCCESS",
+    "FAILED",
+    "ROLLED_BACK",
+    "CANCELLED"
+  ],
+  "backupFields": [
+    "eventKey",
+    "project",
+    "databaseType",
+    "logicalLocation",
+    "status",
+    "startedAt",
+    "finishedAt",
+    "sizeBytes",
+    "expiresAt",
+    "failureSummary",
+    "restoreTestedAt",
+    "restoreTestStatus"
+  ],
+  "backupStatuses": [
+    "RUNNING",
+    "SUCCESS",
+    "FAILED",
+    "INCOMPLETE"
+  ],
+  "managedLabel": "homeops.managed",
+  "managedValue": "true",
+  "writableBindOrVolumeControl": "DENIED",
+  "monitoringRequest": {
+    "methods": [
+      "GET",
+      "HEAD"
+    ],
+    "expectedStatusMinimum": 100,
+    "expectedStatusMaximum": 599,
+    "timeoutMsMinimum": 100,
+    "timeoutMsMaximum": 60000,
+    "intervalSecondsMinimum": 5,
+    "intervalSecondsMaximum": 86400,
+    "failureThresholdMinimum": 1,
+    "failureThresholdMaximum": 100,
+    "recoveryThresholdMinimum": 1,
+    "recoveryThresholdMaximum": 100,
+    "productionThresholds": "PROVISIONING_REQUIRED",
+    "notificationEnabled": false
+  }
+}

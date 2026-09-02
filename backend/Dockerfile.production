@@ -1,0 +1,200 @@
+FROM node:24.20.0-alpine3.23@sha256:0388af2af070cd4736a1567cfed02469ba117848845b4165d87a333edb53d2ca AS node-runtime
+
+FROM eclipse-temurin:25.0.4_7-jdk-alpine-3.23@sha256:b7c88ce22d575642650ec83cbf4e470a0c183a46871467180238e4b27ad9e20a AS native-builder
+
+ARG LIBHEIF_TAG=v1.23.1
+ARG LIBHEIF_COMMIT=2c4bbb54c2738d4a5efbbe3e5fa1d5d76bb88eb0
+ARG LIBHEIF_ARCHIVE_SHA256=9fdb7410222a9fd12387f4332e3f93cf428c976ac16f1379fcd7f6415ebe03c0
+ARG LIBDE265_VERSION=1.0.16-r0
+ARG BUILD_BASE_VERSION=0.5-r3
+ARG CMAKE_VERSION=4.1.3-r0
+ARG CURL_VERSION=8.20.0-r0
+ARG GIT_VERSION=2.52.0-r0
+ARG PKGCONF_VERSION=2.5.1-r0
+
+RUN apk add --no-cache \
+      "build-base=${BUILD_BASE_VERSION}" \
+      "cmake=${CMAKE_VERSION}" \
+      "curl=${CURL_VERSION}" \
+      "git=${GIT_VERSION}" \
+      "libde265-dev=${LIBDE265_VERSION}" \
+      "pkgconf=${PKGCONF_VERSION}"
+
+RUN set -eux; \
+    test "$(git ls-remote https://github.com/strukturag/libheif.git "refs/tags/${LIBHEIF_TAG}" | awk '{print $1}')" = "$LIBHEIF_COMMIT"; \
+    curl --fail --location --silent --show-error \
+      "https://github.com/strukturag/libheif/archive/${LIBHEIF_COMMIT}.tar.gz" \
+      --output /tmp/libheif.tar.gz; \
+    echo "${LIBHEIF_ARCHIVE_SHA256}  /tmp/libheif.tar.gz" | sha256sum -c -; \
+    mkdir -p /usr/src/libheif /opt/libheif /opt/rhaomi/evidence; \
+    tar --extract --gzip --file /tmp/libheif.tar.gz \
+      --directory /usr/src/libheif --strip-components=1; \
+    cmake -S /usr/src/libheif -B /tmp/libheif-build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/opt/libheif \
+      -DBUILD_SHARED_LIBS=ON \
+      -DENABLE_PLUGIN_LOADING=OFF \
+      -DWITH_LIBDE265=ON \
+      -DWITH_LIBDE265_PLUGIN=OFF \
+      -DWITH_X265=OFF \
+      -DWITH_X265_PLUGIN=OFF \
+      -DWITH_KVAZAAR=OFF \
+      -DWITH_KVAZAAR_PLUGIN=OFF \
+      -DWITH_UVG266=OFF \
+      -DWITH_UVG266_PLUGIN=OFF \
+      -DWITH_VVDEC=OFF \
+      -DWITH_VVDEC_PLUGIN=OFF \
+      -DWITH_VVENC=OFF \
+      -DWITH_VVENC_PLUGIN=OFF \
+      -DWITH_X264=OFF \
+      -DWITH_X264_PLUGIN=OFF \
+      -DWITH_OpenH264_DECODER=OFF \
+      -DWITH_OpenH264_DECODER_PLUGIN=OFF \
+      -DWITH_OpenH264_ENCODER=OFF \
+      -DWITH_OpenH264_ENCODER_PLUGIN=OFF \
+      -DWITH_DAV1D=OFF \
+      -DWITH_DAV1D_PLUGIN=OFF \
+      -DWITH_AOM_DECODER=OFF \
+      -DWITH_AOM_DECODER_PLUGIN=OFF \
+      -DWITH_AOM_ENCODER=OFF \
+      -DWITH_AOM_ENCODER_PLUGIN=OFF \
+      -DWITH_SvtEnc=OFF \
+      -DWITH_SvtEnc_PLUGIN=OFF \
+      -DWITH_RAV1E=OFF \
+      -DWITH_RAV1E_PLUGIN=OFF \
+      -DWITH_JPEG_DECODER=OFF \
+      -DWITH_JPEG_DECODER_PLUGIN=OFF \
+      -DWITH_JPEG_ENCODER=OFF \
+      -DWITH_JPEG_ENCODER_PLUGIN=OFF \
+      -DWITH_OpenJPEG_ENCODER=OFF \
+      -DWITH_OpenJPEG_ENCODER_PLUGIN=OFF \
+      -DWITH_OpenJPEG_DECODER=OFF \
+      -DWITH_OpenJPEG_DECODER_PLUGIN=OFF \
+      -DWITH_FFMPEG_DECODER=OFF \
+      -DWITH_FFMPEG_DECODER_PLUGIN=OFF \
+      -DWITH_OPENJPH_ENCODER=OFF \
+      -DWITH_OPENJPH_ENCODER_PLUGIN=OFF \
+      -DWITH_OPENJPH_DECODER=OFF \
+      -DWITH_OPENJPH_DECODER_PLUGIN=OFF \
+      -DWITH_UNCOMPRESSED_CODEC=OFF \
+      -DWITH_WEBCODECS=OFF \
+      -DWITH_LIBSHARPYUV=OFF \
+      -DWITH_LIBSHARPYUV_INTERNAL=OFF \
+      -DWITH_HEADER_COMPRESSION=OFF \
+      -DWITH_EXAMPLES=OFF \
+      -DWITH_EXAMPLE_HEIF_THUMB=OFF \
+      -DWITH_EXAMPLE_HEIF_VIEW=OFF \
+      -DWITH_GDK_PIXBUF=OFF \
+      -DBUILD_DEVELOPMENT_TOOLS=OFF \
+      -DWITH_REDUCED_VISIBILITY=ON \
+      -DENABLE_MULTITHREADING_SUPPORT=ON \
+      -DENABLE_PARALLEL_TILE_DECODING=ON \
+      -DBUILD_DOCUMENTATION=OFF \
+      -DBUILD_TESTING=OFF \
+      -DENABLE_COVERAGE=OFF \
+      -DWITH_FUZZERS=OFF; \
+    cmake --build /tmp/libheif-build --parallel 2; \
+    cmake --install /tmp/libheif-build
+
+COPY scripts/validate-libheif-build-contract.sh /usr/local/bin/validate-libheif-build-contract
+
+RUN sh /usr/local/bin/validate-libheif-build-contract \
+      /usr/src/libheif /tmp/libheif-build /opt/libheif \
+      /opt/rhaomi/evidence/libheif-build-contract.txt \
+    && cp /usr/src/libheif/COPYING /opt/rhaomi/evidence/libheif-LICENSE.txt \
+    && mkdir -p /opt/libheif-runtime/usr/local/lib \
+    && cp -a /opt/libheif/lib/libheif.so* /opt/libheif-runtime/usr/local/lib/
+
+FROM eclipse-temurin:25.0.4_7-jdk-alpine-3.23@sha256:b7c88ce22d575642650ec83cbf4e470a0c183a46871467180238e4b27ad9e20a AS application-builder
+
+WORKDIR /workspace
+COPY backend/gradlew backend/build.gradle backend/settings.gradle ./backend/
+COPY backend/gradle ./backend/gradle
+COPY backend/src/main ./backend/src/main
+RUN cd backend \
+    && ./gradlew bootJar --no-daemon \
+    && jar_path=$(find build/libs -maxdepth 1 -type f -name '*.jar' -print) \
+    && test "$(printf '%s\n' "$jar_path" | sed '/^$/d' | wc -l | tr -d ' ')" -eq 1 \
+    && cp "$jar_path" /workspace/backend.jar
+
+FROM node:24.20.0-alpine3.23@sha256:0388af2af070cd4736a1567cfed02469ba117848845b4165d87a333edb53d2ca AS publisher-development-dependencies
+
+WORKDIR /workspace/source
+COPY package.json package-lock.json ./
+RUN npm ci \
+    && npm cache clean --force
+
+FROM node:24.20.0-alpine3.23@sha256:0388af2af070cd4736a1567cfed02469ba117848845b4165d87a333edb53d2ca AS publisher-builder
+
+WORKDIR /workspace/source
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev \
+    && npm cache clean --force
+COPY --from=publisher-development-dependencies /workspace/source/node_modules/typescript ./node_modules/typescript
+COPY --from=publisher-development-dependencies /workspace/source/node_modules/@types/node ./node_modules/@types/node
+COPY --from=publisher-development-dependencies /workspace/source/node_modules/@types/react ./node_modules/@types/react
+COPY --from=publisher-development-dependencies /workspace/source/node_modules/@types/react-dom ./node_modules/@types/react-dom
+COPY --from=publisher-development-dependencies /workspace/source/node_modules/csstype ./node_modules/csstype
+COPY --from=publisher-development-dependencies /workspace/source/node_modules/undici-types ./node_modules/undici-types
+COPY next.config.ts tsconfig.json ./
+COPY scripts/publish-static-release.mts ./scripts/publish-static-release.mts
+COPY scripts/rhaomi-backup-tool.mjs ./scripts/rhaomi-backup-tool.mjs
+COPY src ./src
+RUN rm -rf src/test \
+    && find src -type f \( -name '*.test.ts' -o -name '*.test.tsx' \) -delete \
+    && find src -type d -empty -delete \
+    && test -f scripts/publish-static-release.mts \
+    && test -f scripts/rhaomi-backup-tool.mjs \
+    && test -x node_modules/next/dist/bin/next
+
+FROM eclipse-temurin:25.0.4_7-jre-alpine-3.23@sha256:f8b38ad02cacf5a1618a329dd22915fb1e2f2914fe6242e6daaf5cc7d22d6677
+
+ARG LIBDE265_VERSION=1.0.16-r0
+ARG OPENSSL_VERSION=3.5.8-r0
+ARG RHAOMI_GIT_HEAD
+
+LABEL org.opencontainers.image.title="Rhaomi backend and publisher runtime" \
+      org.opencontainers.image.source="https://github.com/xxh3898/Rhaomi" \
+      org.opencontainers.image.revision="$RHAOMI_GIT_HEAD" \
+      io.homeserver.cleanup.environment="development" \
+      io.homeserver.cleanup.project="rhaomi" \
+      io.homeserver.cleanup.task="49-production-decoder-image" \
+      io.homeserver.cleanup.lifecycle="task" \
+      io.homeserver.cleanup.retain="false" \
+      io.homeserver.cleanup.git-head="$RHAOMI_GIT_HEAD"
+
+RUN test -n "$RHAOMI_GIT_HEAD" \
+    && printf '%s' "$RHAOMI_GIT_HEAD" | grep -Eq '^[0-9a-f]{40}$' \
+    && apk add --no-cache \
+      "libcrypto3=${OPENSSL_VERSION}" \
+      "libssl3=${OPENSSL_VERSION}" \
+      "openssl=${OPENSSL_VERSION}" \
+      "libde265=${LIBDE265_VERSION}"
+
+COPY --from=node-runtime /usr/local /usr/local
+RUN rm -rf \
+      /usr/local/lib/node_modules/npm \
+      /usr/local/lib/node_modules/corepack \
+      /usr/local/bin/npm \
+      /usr/local/bin/npx \
+      /usr/local/bin/corepack \
+      /usr/local/bin/yarn \
+      /usr/local/bin/yarnpkg \
+      /usr/local/bin/pnpm \
+      /usr/local/bin/pnpx
+COPY --from=native-builder /opt/libheif-runtime/usr/local/lib /usr/local/lib
+COPY --from=native-builder /opt/rhaomi/evidence /opt/rhaomi/evidence
+COPY --from=application-builder /workspace/backend.jar /opt/rhaomi/backend.jar
+COPY --from=publisher-builder /workspace/source /opt/rhaomi/source
+COPY --chmod=0555 scripts/rhaomi-backup-media-permissions.sh /usr/local/bin/rhaomi-backup-media-permissions
+COPY --chmod=0555 scripts/rhaomi-backup-verifier.sh /usr/local/bin/rhaomi-backup-verifier
+COPY backend/production-image-components.json /opt/rhaomi/evidence/production-image-components.json
+COPY backend/production-image-NOTICE.md /opt/rhaomi/evidence/production-image-NOTICE.md
+
+ENV JAVA_TOOL_OPTIONS=--enable-native-access=ALL-UNNAMED \
+    LD_LIBRARY_PATH=/usr/local/lib \
+    RHAOMI_PUBLISHER_NODE_EXECUTABLE=/usr/local/bin/node \
+    RHAOMI_PUBLISHER_RELEASE_SCRIPT=/opt/rhaomi/source/scripts/publish-static-release.mts \
+    RHAOMI_PUBLISHER_SOURCE_ROOT=/opt/rhaomi/source
+
+WORKDIR /opt/rhaomi

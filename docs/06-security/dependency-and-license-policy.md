@@ -3,70 +3,134 @@ title: "의존성·라이선스 정책"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-28"
+last_updated: "2026-08-31"
 review_trigger: "주요 의존성·라이선스 변경 시"
 ---
 
 # 의존성·라이선스 정책
 
-## Directus
+## 현재 핵심 의존성
 
-2026-08-28 공식 문서 기준:
+- Java 25 LTS
+- Spring Boot `4.1.1`
+- Gradle Wrapper `9.7.1`
+- PostgreSQL `18.6-alpine3.23`
+- NightMonkeys `imageio-heif 1.1.0` — MIT, Java 22+ FFM ImageIO adapter
+- Alpine `libheif 1.23.0-r0` — LGPL-3.0-or-later, amd64·arm64 native HEIC/HEIF decode/color transform
+- `sharp 0.35.4` — Apache-2.0, Node 24 build transformer의 JPEG·PNG 재검증과 AVIF·WebP·JPEG 파생본
+- `@img/sharp-libvips-* 1.3.3` — LGPL-3.0-or-later, lockfile로 고정한 Linux amd64·arm64 prebuilt libvips runtime
+- `markdown-it 15.0.1` — MIT, raw HTML을 비활성화한 Notice build-time Markdown renderer
+- `parse5 8.0.1` — MIT, release HTML/link/canonical/asset validator parser
+- Next.js와 frontend dependency는 `package-lock.json` 기준
+- Docker image는 검증한 exact tag를 사용하고 운영에서는 가능하면 digest까지 고정
 
-- Directus는 Monospace Sustainable Core License 체계를 안내한다.
-- 새 self-hosted 인스턴스는 Core tier로 실행할 수 있다.
-- 추가 기능·한도는 라이선스가 필요할 수 있다.
-- 공식 Open Innovation Grant 안내에는 연 매출 500만 달러 미만이며 직원 50명 미만인 entity의 무료 상업 사용 조건이 제시되어 있다.
-- 적용 단위와 조건은 Studio에 로그인하는 법인 등 공식 약관에 따라 판단된다.
+Spring Boot 버전은 구현 시점의 Spring 공식 stable과 system requirements를 확인해 선택했다. major/minor 변경은 별도 Issue에서 Java·Gradle·plugin 호환성과 보안 변경을 함께 검토한다.
 
-공식 근거:
+## 현재 개발 HEIC runtime 인벤토리
 
-https://directus.com/docs/licensing/overview
+backend Dockerfile은 exact Temurin 25 manifest와 Alpine 3.23의 `libheif=1.23.0-r0`, `libheif-dev=1.23.0-r0`를 고정한다. application runtime에서 codec이나 모델을 다운로드하지 않으며 client 문자열로 외부 process를 실행하지 않는다.
 
-라오미펫의 실제 법적 주체, 매출, 직원 수, Core tier 한도 충족 여부는 이 문서 작성 시 확인되지 않았다. 운영 배포 전에 공식 최신 조건을 다시 확인한다.
+Alpine package가 동적 link하는 현재 runtime package와 Alpine metadata의 license는 다음과 같다.
+
+| package | version | license | 현재 용도 |
+|---|---|---|---|
+| NightMonkeys `imageio-heif` | `1.1.0` | MIT | Java ImageIO adapter |
+| `libheif` | `1.23.0-r0` | LGPL-3.0-or-later | HEIF container·decode·color transform |
+| `libde265` | `1.0.16-r0` | LGPL-3.0-or-later | HEVC decode |
+| `x265-libs` | `4.1-r0` | GPL-2.0-or-later | Alpine `libheif`의 linked HEVC encoder dependency, application 미사용 |
+| `aom-libs` | `3.14.1-r0` | BSD-2-Clause AND custom | Alpine `libheif` transitive codec library |
+| `libsharpyuv` | `1.6.0-r0` | BSD-3-Clause | color conversion dependency |
+
+현재 workflow는 위 image를 test용으로 build할 뿐 registry에 publish하지 않는다. 개발 package의 x265 encoder는 application에서 사용하지 않는다.
+
+## 현재 build transformer runtime 인벤토리
+
+`package.json`과 `package-lock.json`은 `sharp 0.35.4`를 exact로 고정한다. lockfile은 Hosted Linux amd64와 Mac mini Docker Linux arm64에 필요한 glibc·musl `sharp` binary와 `sharp-libvips 1.3.3` optional package를 포함한다. Compose contract-check는 container architecture를 확인한 뒤 실제 transformer suite를 실행한다.
+
+| package | version | license | 현재 용도 |
+|---|---|---|---|
+| `sharp` | `0.35.4` | Apache-2.0 | decode, orientation, sRGB, resize, AVIF·WebP·JPEG encode |
+| `@img/sharp-libvips-*` | `1.3.3` | LGPL-3.0-or-later | Linux x64·arm64 image processing runtime |
+| `markdown-it` | `15.0.1` | MIT | raw HTML disabled Markdown→static HTML, link/image policy 적용 |
+| `parse5` | `8.0.1` | MIT | exported HTML 구조·link·canonical·asset 검증 |
+
+application runtime에서 codec·binary를 다운로드하지 않고 preinstalled exact lockfile artifact만 사용한다. validation-only Java 25+Node 24 image와 별개로 canonical production image는 lockfile의 production dependency에 Next Static Export가 요구하는 pinned TypeScript·type package만 더해 build stage에서 설치한다. final image에는 npm package manager와 npm cache를 남기지 않으며 runtime install을 허용하지 않는다.
+
+## Production HEIC runtime foundation — implemented, not provisioned
+
+[ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md)에 따라 production은 Alpine `libheif` package를 그대로 복사하지 않고 decoder-only source build를 사용한다.
+
+| 구성 | production 계약 |
+|---|---|
+| libheif | official `v1.23.1`, commit `2c4bbb54c2738d4a5efbbe3e5fa1d5d76bb88eb0` |
+| source archive | SHA-256 `9fdb7410222a9fd12387f4332e3f93cf428c976ac16f1379fcd7f6415ebe03c0` |
+| HEIC decoder | Alpine libde265 `1.0.16-r0` 활성 |
+| x265·HEIC encoder | 비활성, final image package·link·plugin 부재 |
+| 다른 encoder·CLI·example·dev tool | 비활성 또는 runtime에서 제거 |
+| plugin loading·experimental feature | 비활성 |
+| Java adapter | NightMonkeys `imageio-heif 1.1.0` 유지 |
+| runtime | exact Temurin `25.0.4_7` JRE + Node `24.20.0` digest |
+| 검증 | `scripts/validate-production-image.sh`, Linux amd64 CI와 Mac mini Linux arm64 actual HEIC fixture |
+
+production image build와 image-level acceptance는 구현됐고 `backend/production-image-components.json`이 최소 runtime의 source·exact identity·license·obligation 상태를 추적한다. validation은 exact image ID·Git HEAD에 연결된 CycloneDX SBOM, pinned Syft·Grype report, CMake build contract와 x265 package/link/plugin absence를 생성한다. generated evidence는 CI artifact로 보존하고 source tree에는 커밋하지 않는다. encoder 제거는 남은 native dependency의 LGPL source·license·재연결 등 배포 의무 검토를 생략하는 근거가 아니다.
+
+GHCR publish, registry scan policy, production Compose·Secret·deploy는 아직 구현하지 않았다. scanner는 finding을 숨기는 blanket suppression을 사용하지 않으며 새 severity policy를 이 단계에서 만들지 않는다. actual HIGH/CRITICAL finding은 fixed package로 해소하거나 pinned architecture와 충돌하면 별도 결정 gate로 되돌린다.
+
+## Directus 결정 기록
+
+Directus 12.3.1 Core의 custom permission entitlement가 라오미펫의 item filter, field allowlist, file folder filter 계약을 차단해 [ADR-009](../09-decisions/ADR-009-spring-boot-backend-admin.md)에서 자체 Spring Boot backend로 대체했다.
+
+- Directus runtime·SDK·Docker image·Data Studio·license key는 현재 dependency가 아니다.
+- 과거 선정 근거와 공식 링크는 superseded ADR에 역사로 보존한다.
+- Directus Core/OIG 자격 검토는 현 release gate가 아니다.
 
 ## 버전 정책
 
-- `latest` 금지
-- 검증 버전 또는 image digest 고정
-- lockfile 커밋
+- `latest` tag 금지
+- Gradle Wrapper와 lockfile 커밋
+- runtime image·tool version 명시
 - major upgrade는 별도 Issue와 ADR 검토
-- 자동 dependency PR은 생성할 수 있지만 자동 merge·운영 배포 금지
-- Directus major upgrade는 스키마, 정책, 라이선스, breaking changes를 함께 검토
+- 자동 dependency PR은 허용하지만 자동 merge·운영 배포 금지
+- Spring Security와 image decoder처럼 인터넷 입력에 닿는 dependency를 우선 갱신
 
 ## 라이선스 인벤토리
 
-출시 전에 생성:
+validation에서 machine-readable inventory를 생성하고, 출시 전 exact release image evidence로 다시 보존한다.
 
 - production dependencies
-- development dependencies
+- development/test dependencies
 - Docker images
-- fonts
-- icons
-- images
+- fonts, icons, images
 - third-party code snippets
 
 허용 여부가 불명확한 자산은 사용하지 않는다.
 
 ## 취약점
 
-- package audit 또는 동등한 scanner
+- npm/Gradle dependency audit 또는 동등한 scanner
 - container image scan
 - GitHub Dependabot 등 알림
-- 심각도만으로 자동 판단하지 않고 실제 노출 경로 분석
-- 인터넷 노출 관리자 취약점은 우선 처리
-- decoder·image processing 취약점은 업로드 공격면 때문에 우선 처리
+- 심각도뿐 아니라 실제 노출 경로 분석
+- 관리자 인증·Spring Security 취약점 우선 처리
+- decoder·image processing 취약점은 향후 upload 공격면 도입 전에 검토
+- pinned libheif·libde265 source는 production image build마다 upstream security advisory와 더 최신 stable release를 확인하고 version 변경은 별도 검증·문서 동기화
+
+## 공식 확인 기준
+
+- Spring Boot: `https://spring.io/projects/spring-boot/`
+- Spring Boot system requirements: `https://docs.spring.io/spring-boot/system-requirements.html`
+- Gradle releases: `https://gradle.org/releases/`
+- Java/Gradle compatibility: `https://docs.gradle.org/current/userguide/compatibility.html`
+- PostgreSQL: `https://www.postgresql.org/docs/`
+- libheif: `https://github.com/strukturag/libheif/`
+- libheif v1.23.1: `https://github.com/strukturag/libheif/releases/tag/v1.23.1`
+- libde265: `https://github.com/strukturag/libde265/`
+- sharp: `https://sharp.pixelplumbing.com/`
+- sharp license: `https://github.com/lovell/sharp/blob/v0.35.4/LICENSE`
 
 ## 폰트·아이콘·사진
 
 - 저장소에 폰트 파일을 임의 포함하지 않는다.
-- 선택한 폰트의 웹 배포 라이선스를 확인한다.
-- 아이콘 세트의 attribution 조건을 확인한다.
+- 웹 배포·attribution 조건을 확인한다.
 - 실제 시술사진의 게시 권한을 운영자가 확인한다.
-- 검색 결과나 다른 SNS의 이미지를 복사하지 않는다.
-
-## 라이선스 변경 대응
-
-- 공식 정책 변경을 확인하면 영향 분석 Issue를 만든다.
-- 대체 가능성: Directus 유지, 다른 CMS 전환, 제한 기능 축소
-- DB와 콘텐츠를 PostgreSQL·파일로 보유해 특정 CMS에 대한 데이터 종속을 줄인다.
+- 검색 결과나 다른 SNS 이미지를 복사하지 않는다.

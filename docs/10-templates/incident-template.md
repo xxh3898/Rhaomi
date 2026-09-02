@@ -3,7 +3,7 @@ title: "장애 보고 템플릿"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "장애 절차 변경 시"
 ---
 
@@ -32,7 +32,7 @@ review_trigger: "장애 절차 변경 시"
 
 - code release:
 - content release:
-- CMS/schema:
+- 관리 backend/schema:
 - infrastructure:
 
 ## 원인

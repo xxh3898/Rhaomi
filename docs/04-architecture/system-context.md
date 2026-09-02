@@ -3,7 +3,7 @@ title: "시스템 컨텍스트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-09-02"
 review_trigger: "외부 시스템·핵심 경계 변경 시"
 ---
 
@@ -11,13 +11,13 @@ review_trigger: "외부 시스템·핵심 경계 변경 시"
 
 ## 목표
 
-공개 사이트는 정적이고 빠르며 검색엔진이 읽기 쉬워야 한다. 운영자는 개발자 도움 없이 콘텐츠를 관리해야 한다. CMS 장애가 고객 사이트 장애로 이어지면 안 된다.
+공개 사이트는 정적이고 검색엔진이 읽기 쉬워야 한다. 관리 backend나 PostgreSQL 장애가 고객 사이트 장애로 이어지면 안 된다. 운영자가 콘텐츠를 직접 관리하는 기능은 인증 기반부터 도메인별로 순차 구현한다.
 
 ## 컨텍스트
 
 ```mermaid
 flowchart LR
-    Customer[고객] --> PublicSite[라오미펫 공개 사이트]
+    Customer[고객] --> PublicSite[라오미펫 정적 공개 사이트]
     Search[Google / Naver] --> PublicSite
     PublicSite --> Phone[전화]
     PublicSite --> Instagram[Instagram]
@@ -25,54 +25,73 @@ flowchart LR
     PublicSite --> Maps[네이버지도 / 카카오맵]
     PublicSite --> Talk[네이버톡톡 / 카카오 채널]
 
-    Owner[은총쌤] --> Admin[Directus Data Studio]
-    Admin --> Directus[Directus]
-    Directus --> PostgreSQL[(PostgreSQL)]
-    Directus --> Uploads[(원본 업로드 볼륨)]
-    Directus --> BuildHook[내부 Build Hook]
-    BuildHook --> Builder[정적 빌더]
-    Builder --> Directus
-    Builder --> Releases[(정적 릴리스)]
+    Owner[은총쌤] --> AdminUI[정적 /admin auth shell<br/>콘텐츠 UI]
+    AdminUI -. same-origin /api/admin/** .-> Backend[Spring Boot 관리 API]
+    Backend --> PostgreSQL[(PostgreSQL<br/>project-scoped named volume)]
+    Backend --> Uploads[(Mac host bind<br/>/private/var/lib/rhaomi/data/media)]
+    Backend -->|same transaction| Outbox[(Immediate / scheduled publishing event)]
+    Publisher[Single internal publisher] -->|pending/due poll·claim| Outbox
+    Publisher -->|read-only build API| Backend
+    Publisher -->|validated atomic switch| Releases[(configurable public releases<br/>production Mac bind는 후속)]
     Releases --> PublicSite
 
     Developer[조치호] --> GitHub[GitHub]
-    GitHub --> Builder
+    GitHub -. 후속 exact main image/digest .-> Publisher
+    HomeOps[HomeOps] -. 후속 health/event/metric .-> Backend
+    HomeOps -. 후속 상태 .-> Publisher
 ```
+
+실선은 현재 구현한 application/release foundation 또는 공개 외부 연결이고, 점선은 production image·path·관제처럼 별도 provisioning이 필요한 운영 경로다.
+
+## 현재 구현 경계
+
+- Next.js Static Export 공개 frontend
+- Spring Boot session auth와 견종·서비스·공지·갤러리·매장정보·private media 관리자 API
+- PostgreSQL과 Flyway V1~V9 publication producer·claim/generation state
+- local/test bootstrap과 `/admin/` 인증 셸·콘텐츠 CRUD UI
+- active generation에 묶인 stateless internal read-only build snapshot·public-scope media API
+- transport-independent snapshot transformer, authenticated Build API HTTP/media adapter, generated V2 Static Export·validator·immutable release/switch와 dedicated non-web publisher polling/debounce/coalesce/lock/executor
+- `/api/build/**`를 먼저 거부하는 local same-origin gateway, 최소 health와 Hosted CI
+
+공개 홈·공지 상세는 generated V2를 정적 HTML·SEO·responsive media로 렌더링한다. full Java executor는 Build API→transformer→Next→strict manifest/validator→BigInt stale guard→atomic switch→serving smoke를 연결한다. production Compose/Nginx·Mac bind·actual secret/image/domain provisioning은 아직 없다.
 
 ## 신뢰 경계
 
 ### 공개 경계
 
 - 고객 사이트
-- 검색엔진 크롤러
+- 검색엔진 crawler
 - 외부 문의·지도 링크
 
-공개 사이트는 정적 파일만 제공한다. 고객 브라우저에 CMS 토큰, DB 정보, 관리자 URL 내부 구조를 전달하지 않는다.
+공개 사이트는 정적 파일만 제공한다. 고객 브라우저에 DB 정보, 관리 API credential이나 내부 관리자 구조를 전달하지 않는다.
 
 ### 관리자 경계
 
-- Directus Data Studio
-- Directus API
-- 운영자 계정
+- 후속 same-origin `/admin`
+- Spring Boot `/api/admin/**`
+- 관리자 server session
 
-관리자 영역은 인증이 필요하며 공개 사이트와 별도 hostname을 사용한다.
+login/csrf 외 관리 endpoint는 인증이 필요하고 state-changing request는 CSRF token을 요구한다.
 
 ### 내부 운영 경계
 
 - PostgreSQL
-- 원본 업로드 볼륨
-- deploy hook
-- 빌더
-- 백업
-- Docker network
+- production project-scoped Docker named volume의 PostgreSQL PGDATA
+- `/private/var/lib/rhaomi` 아래 private canonical media·public release·publisher state/lock
+- internal build API·immediate/due publishing event·single publisher release foundation
+- fixed source와 task-scoped restore evidence가 있는 Mac mini local-only application-consistent backup; actual repository·schedule·production backup과 HomeOps는 provisioning 대상이고 external encrypted restic은 future hardening
+- Docker internal network
 
-이 서비스들은 공용 인터넷에 직접 노출하지 않는다.
+PostgreSQL과 내부 작업 서비스는 공용 인터넷에 직접 노출하지 않는다.
+
+Mac host source와 Linux container target을 분리한다. `/private/var/lib/rhaomi`가 host filesystem authority이고 `/srv/rhaomi`는 명시된 web·publisher container 내부 target에만 사용할 수 있다. PostgreSQL raw named volume은 public/media bind source나 required restic backup input이 아니다.
 
 ## 핵심 속성
 
-1. 고객 요청은 PostgreSQL 쿼리를 발생시키지 않는다.
-2. 고객 요청은 Directus 가용성에 의존하지 않는다.
-3. 콘텐츠는 게시 후 빌드가 성공해야 고객에게 반영된다.
-4. 빌드 실패는 기존 공개 사이트를 변경하지 않는다.
-5. 원본 이미지는 공개 웹 루트에 두지 않는다.
-6. 외부 링크가 없는 채널은 UI에 나타나지 않는다.
+1. 고객 요청은 PostgreSQL query나 backend API 호출을 발생시키지 않는다.
+2. 고객 요청은 관리 backend 가용성에 의존하지 않는다.
+3. 콘텐츠 mutation 또는 notice 게시·만료 시간 경계는 향후 durable event와 `publishGeneration`을 거쳐 static build가 성공해야 고객에게 반영된다.
+4. build 실패는 기존 공개 사이트를 변경하지 않는다.
+5. 원본 이미지는 공개 web root에 두지 않는다.
+6. 외부 link가 없는 채널은 UI에 나타나지 않는다.
+7. HomeOps는 fixed privacy-safe status와 deployment/backup event만 읽고 관리자 콘텐츠 권한을 갖지 않는다. D-IMP-5b automatic decision source는 구현됐지만 production은 비활성이다. 후속 mapping은 public HTTPS expected HTTP status 3회 실패의 `rhaomi-web` 하나뿐이고 backend는 unmapped/default-none이다. Keyword/body/content probe는 별도 future monitoring 구현 대상이다.

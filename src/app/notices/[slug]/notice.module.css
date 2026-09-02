@@ -1,0 +1,62 @@
+.main {
+  width: min(100% - 2rem, 48rem);
+  margin: 0 auto;
+  padding: clamp(3rem, 8vw, 7rem) 0;
+}
+
+.main article {
+  padding: clamp(1.5rem, 5vw, 3.5rem);
+  background: #fffdf9;
+  border: 1px solid #e6ddd3;
+  border-radius: 1.5rem;
+}
+
+.main h1 {
+  margin: 0.5rem 0 0.75rem;
+  font-size: clamp(2rem, 8vw, 3.5rem);
+  line-height: 1.15;
+}
+
+.eyebrow {
+  margin: 0;
+  color: #856447;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.summary {
+  padding: 1rem 1.25rem;
+  color: #4e433a;
+  background: #f6efe7;
+  border-radius: 0.75rem;
+}
+
+.markdown {
+  margin-top: 2rem;
+  color: #39322c;
+  font-size: 1.05rem;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.markdown pre {
+  padding: 1rem;
+  overflow-x: auto;
+  color: #fffdf9;
+  background: #2f2a26;
+  border-radius: 0.75rem;
+}
+
+.markdown a,
+.back {
+  color: #744923;
+  text-underline-offset: 0.2em;
+}
+
+.back {
+  display: inline-block;
+  margin-top: 2rem;
+  font-weight: 700;
+}

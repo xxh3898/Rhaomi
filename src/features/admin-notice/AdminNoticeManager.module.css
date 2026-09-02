@@ -1,0 +1,27 @@
+.checkboxField {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 2.75rem;
+  color: #49382e;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.checkboxField input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: #65432d;
+}
+
+.bodyField textarea {
+  min-height: 14rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  line-height: 1.55;
+}
+
+.checkboxField input:focus-visible {
+  outline: 3px solid #bf6b2e;
+  outline-offset: 2px;
+}

@@ -3,7 +3,7 @@ title: "제품 범위"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-28"
+last_updated: "2026-08-29"
 review_trigger: "기능 추가 제안 시"
 ---
 
@@ -34,7 +34,7 @@ review_trigger: "기능 추가 제안 시"
 
 ### 관리자
 
-- Directus 로그인
+- `/admin` 로그인
 - 갤러리 등록·조회·수정·보관
 - 공지 등록·조회·수정·보관
 - 견종 등록·수정·비활성화
@@ -48,7 +48,7 @@ review_trigger: "기능 추가 제안 시"
 ### 운영
 
 - PostgreSQL 영속화
-- Directus 업로드 파일 영속화
+- backend 소유 원본 이미지 storage 영속화
 - 정적 산출물 Nginx 제공
 - HTTPS
 - 자동 백업
