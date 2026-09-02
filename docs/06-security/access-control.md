@@ -117,7 +117,11 @@ build API와 stateless credential 경계, Node full release adapter와 credentia
 - static admin client는 CSRF endpoint에서 받은 token을 state-changing request header에 보낸다.
 - admin API 401은 client의 in-memory 인증 상태를 제거하고 403 mutation은 권한/CSRF 오류로 구분하며 자동 반복하지 않는다.
 - password, password hash, session id, CSRF token을 application log에 남기지 않는다.
-- login credential failure를 일반화하는 계약은 rate limiting을 대신하지 않는다. 현재 login rate-limit source/test는 없으며 bounded 정책을 구현·검증하기 전에는 public production 관리자 인증을 활성화하지 않는다.
+- login credential failure를 일반화하는 계약과 별도로 `POST /api/admin/auth/login`에 process-global token bucket(capacity 10, 2초당 1 token)과 identifier token bucket(capacity 5, 5분당 1 token)을 적용한다. CSRF와 bean validation을 통과한 요청만 limiter에 도달한다.
+- identifier는 `String.strip()`·`Locale.ROOT` lowercase 뒤 SHA-256 digest만 process memory에 보관한다. raw email, bucket 종류·잔량·key는 log와 response에 노출하지 않는다.
+- 인증 성공은 identifier state를 제거하고, 일반화된 credential 실패는 소비 token을 유지한다. 인증 repository/service 503은 identifier token만 복구하며 process-global token은 복구하지 않는다.
+- 제한 응답은 `429 LOGIN_RATE_LIMITED`, positive integer `Retry-After`, 고정 문구를 사용하고 session·security context를 변경하지 않는다. frontend도 이를 별도 상태로 표시하며 login mutation을 자동 재전송하지 않는다.
+- identifier state는 30분 idle cleanup과 2,048 hard bound를 사용하고 capacity·monotonic-time invariant가 불확실하면 generic 429로 fail closed한다. 현재 단일 backend process memory가 authority이며 process restart 시 quota reset과 multi-instance 비공유는 승인된 초기 제한이다.
 
 ## 관리자 bootstrap
 

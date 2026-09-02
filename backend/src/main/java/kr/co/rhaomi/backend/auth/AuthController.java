@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -29,15 +30,18 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final SessionAuthenticationStrategy sessionAuthenticationStrategy;
     private final SecurityContextRepository securityContextRepository;
+    private final AdminLoginRateLimiter loginRateLimiter;
     private final SecurityContextLogoutHandler logoutHandler = new SecurityContextLogoutHandler();
 
     public AuthController(
             AuthenticationManager authenticationManager,
             SessionAuthenticationStrategy sessionAuthenticationStrategy,
-            SecurityContextRepository securityContextRepository) {
+            SecurityContextRepository securityContextRepository,
+            AdminLoginRateLimiter loginRateLimiter) {
         this.authenticationManager = authenticationManager;
         this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
         this.securityContextRepository = securityContextRepository;
+        this.loginRateLimiter = loginRateLimiter;
     }
 
     @GetMapping("/csrf")
@@ -50,10 +54,13 @@ public class AuthController {
             @Valid @RequestBody LoginRequest loginRequest,
             HttpServletRequest request,
             HttpServletResponse response) {
+        var permit = loginRateLimiter.acquire(loginRequest.email());
         try {
             var authentication = authenticationManager.authenticate(
                     UsernamePasswordAuthenticationToken.unauthenticated(
                             loginRequest.email(), loginRequest.password()));
+
+            loginRateLimiter.authenticationSucceeded(permit);
 
             sessionAuthenticationStrategy.onAuthentication(authentication, request, response);
 
@@ -64,7 +71,11 @@ public class AuthController {
 
             return AdminResponse.from((AdminPrincipal) authentication.getPrincipal());
         } catch (BadCredentialsException | DisabledException | UsernameNotFoundException exception) {
+            loginRateLimiter.authenticationRejected(permit);
             throw new InvalidAdminCredentialsException();
+        } catch (AuthenticationServiceException exception) {
+            loginRateLimiter.authenticationServiceFailed(permit);
+            throw exception;
         }
     }
 
