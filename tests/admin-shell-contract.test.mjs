@@ -38,6 +38,9 @@ test("admin route를 Static Export client shell과 검색 제외 metadata로 고
   assert.match(shell, /authenticated/);
   assert.match(shell, /anonymous/);
   assert.match(shell, /submitting/);
+  assert.match(shell, /second-factor/);
+  assert.match(shell, /RECOVERY_ROTATION_REQUIRED/);
+  assert.match(shell, /prepareSessionCsrf/);
   assert.match(shell, /unavailable/);
   assert.doesNotMatch(shell, /dangerouslySetInnerHTML/);
 });

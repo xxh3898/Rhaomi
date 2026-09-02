@@ -3,7 +3,7 @@ title: "ADR-009: Spring Boot 관리자 백엔드와 서버 세션 인증"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-31"
+last_updated: "2026-09-02"
 review_trigger: "관리자 인증·콘텐츠 API·DB·배포 구조 변경 시"
 ---
 
@@ -54,9 +54,22 @@ review_trigger: "관리자 인증·콘텐츠 API·DB·배포 구조 변경 시"
 - password·CSRF·identity는 browser storage·URL·log에 저장하지 않고 logout 403 mutation을 자동 재시도하지 않는다.
 - local gateway만 구현했으며 CORS, cookie Domain rewrite, production TLS·domain 설정은 추가하지 않았다.
 
+### 관리자 WebAuthn/passkey 2차 인증 구현
+
+- 기존 password/session/CSRF를 1차 인증으로 유지하고 session principal을 `FIRST_FACTOR_VERIFIED`, `SECOND_FACTOR_VERIFIED`, `RECOVERY_ROTATION_REQUIRED`로 구분한다.
+- 일반 `/api/admin/**` 업무 endpoint는 `ADMIN_SECOND_FACTOR_VERIFIED` authority만 허용한다. zero-passkey account의 최초 registration 외 password-only 추가 등록은 거부한다.
+- Spring Boot BOM의 `spring-security-webauthn` 7.1.1과 그 내부 WebAuthn4J 0.31.9를 사용한다. 두 모듈은 Apache License 2.0이며 application code가 CBOR·COSE·signature crypto를 직접 구현하지 않는다.
+- server challenge는 32 byte 이상 random, account/session/purpose-bound, single-use와 bounded TTL이고 `userVerification=required`·server-owned RP ID/origin을 적용한다.
+- Flyway V10은 credential ID·COSE public key·필요 attestation/counter/transport/backup metadata와 audit을 저장한다. authenticator private key는 device authority이고 server input·DB·log·backup에 저장하지 않는다.
+- recovery code는 10개의 128-bit random code를 성공 response에서 한 번만 표시하고 DB에는 SHA-256 one-way representation만 저장한다. 한 code 사용으로 set 전체를 무효화하고 rotation 완료 전에는 WebAuthn ceremony와 업무 권한을 모두 주지 않는다.
+- registration·assertion·recovery DB transaction이 commit된 뒤에만 session stage를 승격해 persistence 실패가 인증 성공으로 남지 않게 한다.
+- WebAuthn/recovery stage 승격 때 session fixation 방어를 다시 적용한다. browser는 이전 CSRF를 폐기하고 fresh CSRF 전 dashboard mutation을 열지 않는다.
+- production profile은 2차 인증 required, exact RP ID·approved HTTPS origin·RP name과 1~10분 challenge TTL이 유효하지 않으면 기동을 실패한다. exact FQDN, 운영 account/passkey/recovery-code provisioning은 이 source 구현에 포함하지 않는다.
+
 ## 보안 계약
 
 - `/api/admin/**`는 명시한 login/csrf endpoint를 제외하고 인증이 기본이다.
+- password 1차 인증만 완료한 session과 recovery rotation 대기 session은 업무 API를 사용할 수 없고 SECOND authority만 콘텐츠·media API를 사용할 수 있다.
 - anonymous 허용은 `GET /api/admin/auth/csrf`, `POST /api/admin/auth/login`, `GET /actuator/health`로 한정하고 그 밖의 모든 request는 명시적 정책이 생기기 전 `denyAll`로 거부한다.
 - state-changing request는 CSRF token 없이는 거부한다.
 - 로그인 실패는 계정 존재·활성 여부를 구분해 노출하지 않는다.
@@ -77,7 +90,7 @@ review_trigger: "관리자 인증·콘텐츠 API·DB·배포 구조 변경 시"
 
 ### 비용과 위험
 
-- 관리자 콘텐츠 UI, 변경 이력과 게시 UX를 직접 구현해야 한다. 현재 `/admin/`은 인증 셸과 준비 중 영역만 제공한다.
+- 관리자 콘텐츠 UI, 변경 이력과 게시 UX 및 WebAuthn credential 운영을 직접 유지해야 한다. `/admin/`은 콘텐츠 관리와 passkey 초기 등록·assertion·recovery rotation UI를 제공하지만 실제 production enrollment는 아직 수행하지 않았다.
 - Spring Boot 보안 업데이트, Flyway migration과 세션 운영을 관리해야 한다.
 - 현재 in-memory session은 backend 재시작 시 로그인을 다시 요구한다.
 - 콘텐츠 backend와 정적 빌드 연동이 구현되기 전에는 운영자가 콘텐츠를 관리할 수 없다.

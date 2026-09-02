@@ -113,6 +113,9 @@ prepare_case() {
     'RHAOMI_POSTGRES_USER=rhaomi_validation' \
     "RHAOMI_POSTGRES_PASSWORD=${synthetic_db_marker}" \
     "RHAOMI_BUILD_SERVICE_TOKEN=${synthetic_build_marker}" \
+    'RHAOMI_WEBAUTHN_RP_ID=validation.invalid' \
+    'RHAOMI_WEBAUTHN_ORIGIN=https://validation.invalid' \
+    'RHAOMI_WEBAUTHN_RP_NAME=Rhaomi Validation Admin' \
     'RHAOMI_PUBLISHER_OWNER=production-deploy-validation' \
     'RHAOMI_PUBLIC_SITE_URL=https://validation.invalid' \
     "RHAOMI_BACKUP_REPOSITORY_ROOT=${case_repository}" \
@@ -132,7 +135,7 @@ prepare_case() {
     "  \"backupManifestSha256\": \"$(printf 'f%.0s' $(seq 1 64))\"," \
     "  \"sourceReleaseSha\": \"${release_sha}\"," \
     "  \"sourceImageDigest\": \"${image_digest}\"," \
-    '  "sourceFlywayVersion": "9",' \
+    '  "sourceFlywayVersion": "10",' \
     '  "createdAt": "2026-09-01T00:00:00Z",' \
     '  "status": "eligible"' \
     '}' >"$case_root/state/deploy/backup-eligibility.json"

@@ -2,6 +2,7 @@ package kr.co.rhaomi.backend.auth;
 
 import kr.co.rhaomi.backend.admin.AdminUser;
 import kr.co.rhaomi.backend.admin.AdminUserRepository;
+import kr.co.rhaomi.backend.config.AdminWebAuthnProperties;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -12,9 +13,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminUserDetailsService implements UserDetailsService {
 
     private final AdminUserRepository adminUserRepository;
+    private final AdminWebAuthnProperties webAuthnProperties;
 
-    public AdminUserDetailsService(AdminUserRepository adminUserRepository) {
+    public AdminUserDetailsService(
+            AdminUserRepository adminUserRepository, AdminWebAuthnProperties webAuthnProperties) {
         this.adminUserRepository = adminUserRepository;
+        this.webAuthnProperties = webAuthnProperties;
     }
 
     @Override
@@ -29,6 +33,9 @@ public class AdminUserDetailsService implements UserDetailsService {
                 admin.getEmail(),
                 admin.getPasswordHash(),
                 admin.getRole(),
-                admin.isActive());
+                admin.isActive(),
+                webAuthnProperties.required()
+                        ? AdminAuthenticationStage.FIRST_FACTOR_VERIFIED
+                        : AdminAuthenticationStage.SECOND_FACTOR_VERIFIED);
     }
 }

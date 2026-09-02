@@ -21,7 +21,7 @@ function environment() {
     RHAOMI_CODE_SHA: SHA,
     RHAOMI_CODE_IMAGE_TAG: `sha-${SHA}`,
     RHAOMI_CODE_IMAGE_DIGEST: DIGEST,
-    RHAOMI_FLYWAY_VERSION: "9",
+    RHAOMI_FLYWAY_VERSION: "10",
     RHAOMI_SBOM_REFERENCE: DIGEST,
   };
 }
@@ -36,7 +36,7 @@ function manifest(generatedAt = "2026-08-31T00:00:00.123456Z") {
     codeSha: SHA,
     codeImageTag: `sha-${SHA}`,
     codeImageDigest: DIGEST,
-    flywayVersion: "9",
+    flywayVersion: "10",
     sbomReference: DIGEST,
     siteSha256: "c".repeat(64),
   } as const;

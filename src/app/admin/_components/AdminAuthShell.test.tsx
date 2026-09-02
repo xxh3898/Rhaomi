@@ -20,6 +20,17 @@ function createClient(
     getSession: vi.fn().mockResolvedValue(null),
     login: vi.fn().mockResolvedValue(ADMIN),
     prepareSessionCsrf: vi.fn().mockResolvedValue(undefined),
+    getWebAuthnStatus: vi.fn().mockResolvedValue({
+      required: true,
+      authenticationStage: "SECOND_FACTOR_VERIFIED",
+      activeCredentialCount: 1,
+      initialEnrollmentRequired: false,
+      recoveryCodesAvailable: true,
+    }),
+    registerPasskey: vi.fn(),
+    authenticatePasskey: vi.fn(),
+    verifyRecoveryCode: vi.fn(),
+    rotateRecoveryCodes: vi.fn(),
     logout: vi.fn().mockResolvedValue("logged-out"),
     clearSession: vi.fn(),
     requestAuthenticatedJson: vi.fn().mockResolvedValue([]),
@@ -31,6 +42,329 @@ function createClient(
 }
 
 describe("AdminAuthShell", () => {
+  it("1차 인증 상태에서는 dashboard를 숨기고 초기 Passkey와 recovery code를 준비한다", async () => {
+    const user = userEvent.setup();
+    const recoveryCodes = Array.from(
+      { length: 10 },
+      (_, index) =>
+        `${String(index).padStart(8, "0")}-11111111-22222222-33333333`,
+    );
+    const registerPasskey = vi.fn().mockResolvedValue({
+      required: true,
+      authenticationStage: "SECOND_FACTOR_VERIFIED",
+      activeCredentialCount: 1,
+      initialEnrollmentRequired: false,
+      recoveryCodesAvailable: false,
+    });
+    const rotateRecoveryCodes = vi.fn().mockResolvedValue({ recoveryCodes });
+    const prepareSessionCsrf = vi.fn().mockResolvedValue(undefined);
+    const client = createClient({
+      getSession: vi.fn().mockResolvedValue(ADMIN),
+      getWebAuthnStatus: vi
+        .fn()
+        .mockResolvedValueOnce({
+          required: true,
+          authenticationStage: "FIRST_FACTOR_VERIFIED",
+          activeCredentialCount: 0,
+          initialEnrollmentRequired: true,
+          recoveryCodesAvailable: false,
+        })
+        .mockResolvedValueOnce({
+          required: true,
+          authenticationStage: "SECOND_FACTOR_VERIFIED",
+          activeCredentialCount: 1,
+          initialEnrollmentRequired: false,
+          recoveryCodesAvailable: true,
+        }),
+      registerPasskey,
+      rotateRecoveryCodes,
+      prepareSessionCsrf,
+    });
+
+    render(<AdminAuthShell client={client} />);
+
+    expect(
+      await screen.findByRole("heading", { name: "2차 인증" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Passkey 이름")).toHaveFocus();
+    expect(screen.queryByText("역할: ADMIN")).not.toBeInTheDocument();
+    await user.clear(screen.getByLabelText("Passkey 이름"));
+    await user.type(screen.getByLabelText("Passkey 이름"), "Mac mini Passkey");
+    await user.click(screen.getByRole("button", { name: "Passkey 등록" }));
+
+    expect(registerPasskey).toHaveBeenCalledWith("Mac mini Passkey");
+    expect(rotateRecoveryCodes).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText(recoveryCodes[0])).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "보관 완료 후 계속" })).toHaveFocus();
+    expect(screen.queryByText("역할: ADMIN")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "보관 완료 후 계속" }));
+    expect(await screen.findByText("역할: ADMIN")).toBeInTheDocument();
+    expect(screen.queryByText(recoveryCodes[0])).not.toBeInTheDocument();
+    expect(prepareSessionCsrf).toHaveBeenCalledTimes(2);
+  });
+
+  it("복구 코드 표시 뒤 session이 끝나면 CSRF만으로 dashboard를 열지 않는다", async () => {
+    const user = userEvent.setup();
+    const recoveryCodes = Array.from(
+      { length: 10 },
+      (_, index) =>
+        `${String(index).padStart(8, "0")}-11111111-22222222-33333333`,
+    );
+    const client = createClient({
+      getSession: vi.fn().mockResolvedValue(ADMIN),
+      getWebAuthnStatus: vi
+        .fn()
+        .mockResolvedValueOnce({
+          required: true,
+          authenticationStage: "FIRST_FACTOR_VERIFIED",
+          activeCredentialCount: 0,
+          initialEnrollmentRequired: true,
+          recoveryCodesAvailable: false,
+        })
+        .mockRejectedValueOnce(new AdminApiError("session-expired")),
+      registerPasskey: vi.fn().mockResolvedValue({
+        required: true,
+        authenticationStage: "SECOND_FACTOR_VERIFIED",
+        activeCredentialCount: 1,
+        initialEnrollmentRequired: false,
+        recoveryCodesAvailable: false,
+      }),
+      rotateRecoveryCodes: vi.fn().mockResolvedValue({ recoveryCodes }),
+    });
+
+    render(<AdminAuthShell client={client} />);
+    await user.click(
+      await screen.findByRole("button", { name: "Passkey 등록" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "보관 완료 후 계속" }),
+    );
+
+    expect(await screen.findByLabelText("이메일")).toHaveValue("");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "관리자 세션이 만료됐습니다.",
+    );
+    expect(screen.queryByText("역할: ADMIN")).not.toBeInTheDocument();
+  });
+
+  it("초기 Passkey 등록 성공 뒤 recovery rotation 실패를 등록 실패로 되돌리지 않는다", async () => {
+    const user = userEvent.setup();
+    const client = createClient({
+      getSession: vi.fn().mockResolvedValue(ADMIN),
+      getWebAuthnStatus: vi.fn().mockResolvedValue({
+        required: true,
+        authenticationStage: "FIRST_FACTOR_VERIFIED",
+        activeCredentialCount: 0,
+        initialEnrollmentRequired: true,
+        recoveryCodesAvailable: false,
+      }),
+      registerPasskey: vi.fn().mockResolvedValue({
+        required: true,
+        authenticationStage: "SECOND_FACTOR_VERIFIED",
+        activeCredentialCount: 1,
+        initialEnrollmentRequired: false,
+        recoveryCodesAvailable: false,
+      }),
+      rotateRecoveryCodes: vi
+        .fn()
+        .mockRejectedValue(new AdminAuthError("unavailable")),
+    });
+
+    render(<AdminAuthShell client={client} />);
+    await user.click(
+      await screen.findByRole("button", { name: "Passkey 등록" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "복구 코드 교체 필요" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Passkey 서비스를 일시적으로 사용할 수 없습니다.",
+    );
+    expect(screen.queryByRole("button", { name: "Passkey 등록" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "새 복구 코드 발급" })).toBeEnabled();
+    expect(screen.queryByText("역할: ADMIN")).not.toBeInTheDocument();
+  });
+
+  it("recovery code 검증 성공 뒤 rotation 실패를 사용 전 상태로 되돌리지 않는다", async () => {
+    const user = userEvent.setup();
+    const verifyRecoveryCode = vi.fn().mockResolvedValue({
+      required: true,
+      authenticationStage: "RECOVERY_ROTATION_REQUIRED",
+      activeCredentialCount: 1,
+      initialEnrollmentRequired: false,
+      recoveryCodesAvailable: false,
+    });
+    const client = createClient({
+      getSession: vi.fn().mockResolvedValue(ADMIN),
+      getWebAuthnStatus: vi.fn().mockResolvedValue({
+        required: true,
+        authenticationStage: "FIRST_FACTOR_VERIFIED",
+        activeCredentialCount: 1,
+        initialEnrollmentRequired: false,
+        recoveryCodesAvailable: true,
+      }),
+      verifyRecoveryCode,
+      rotateRecoveryCodes: vi
+        .fn()
+        .mockRejectedValue(new AdminAuthError("unavailable")),
+    });
+
+    render(<AdminAuthShell client={client} />);
+    await user.type(
+      await screen.findByLabelText("복구 코드"),
+      "00000000-11111111-22222222-33333333",
+    );
+    await user.click(screen.getByRole("button", { name: "복구 코드 사용" }));
+
+    expect(verifyRecoveryCode).toHaveBeenCalledTimes(1);
+    expect(
+      await screen.findByRole("heading", { name: "복구 코드 교체 필요" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("복구 코드")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "새 복구 코드 발급" })).toBeEnabled();
+    expect(screen.queryByText("역할: ADMIN")).not.toBeInTheDocument();
+  });
+
+  it("Passkey 성공 뒤 fresh CSRF가 준비될 때까지 dashboard를 열지 않는다", async () => {
+    const user = userEvent.setup();
+    let resolveFreshCsrf: (() => void) | undefined;
+    const prepareSessionCsrf = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          resolveFreshCsrf = resolve;
+        }),
+      );
+    const client = createClient({
+      getSession: vi.fn().mockResolvedValue(ADMIN),
+      getWebAuthnStatus: vi
+        .fn()
+        .mockResolvedValueOnce({
+          required: true,
+          authenticationStage: "FIRST_FACTOR_VERIFIED",
+          activeCredentialCount: 1,
+          initialEnrollmentRequired: false,
+          recoveryCodesAvailable: true,
+        })
+        .mockResolvedValueOnce({
+          required: true,
+          authenticationStage: "SECOND_FACTOR_VERIFIED",
+          activeCredentialCount: 1,
+          initialEnrollmentRequired: false,
+          recoveryCodesAvailable: true,
+        }),
+      authenticatePasskey: vi.fn().mockResolvedValue({
+        required: true,
+        authenticationStage: "SECOND_FACTOR_VERIFIED",
+        activeCredentialCount: 1,
+        initialEnrollmentRequired: false,
+        recoveryCodesAvailable: true,
+      }),
+      prepareSessionCsrf,
+    });
+
+    render(<AdminAuthShell client={client} />);
+    await user.click(
+      await screen.findByRole("button", { name: "Passkey로 계속" }),
+    );
+
+    await waitFor(() => expect(prepareSessionCsrf).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("역할: ADMIN")).not.toBeInTheDocument();
+    resolveFreshCsrf?.();
+    expect(await screen.findByText("역할: ADMIN")).toBeInTheDocument();
+  });
+
+  it("Passkey 성공 뒤 fresh CSRF 실패를 1차 인증으로 되돌리지 않고 session 재확인으로 복구한다", async () => {
+    const user = userEvent.setup();
+    const getSession = vi.fn().mockResolvedValue(ADMIN);
+    const getWebAuthnStatus = vi
+      .fn()
+      .mockResolvedValueOnce({
+        required: true,
+        authenticationStage: "FIRST_FACTOR_VERIFIED",
+        activeCredentialCount: 1,
+        initialEnrollmentRequired: false,
+        recoveryCodesAvailable: true,
+      })
+      .mockResolvedValueOnce({
+        required: true,
+        authenticationStage: "SECOND_FACTOR_VERIFIED",
+        activeCredentialCount: 1,
+        initialEnrollmentRequired: false,
+        recoveryCodesAvailable: true,
+      });
+    const prepareSessionCsrf = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new AdminAuthError("unavailable"))
+      .mockResolvedValueOnce(undefined);
+    const authenticatePasskey = vi.fn().mockResolvedValue({
+      required: true,
+      authenticationStage: "SECOND_FACTOR_VERIFIED",
+      activeCredentialCount: 1,
+      initialEnrollmentRequired: false,
+      recoveryCodesAvailable: true,
+    });
+    const client = createClient({
+      getSession,
+      getWebAuthnStatus,
+      prepareSessionCsrf,
+      authenticatePasskey,
+    });
+
+    render(<AdminAuthShell client={client} />);
+    const passkeyButton = await screen.findByRole("button", {
+      name: "Passkey로 계속",
+    });
+    expect(passkeyButton).toHaveFocus();
+    await user.click(passkeyButton);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "관리자 서비스를 일시적으로 사용할 수 없습니다.",
+    );
+    expect(screen.queryByLabelText("비밀번호")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Passkey로 계속" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "다시 시도" }));
+
+    expect(await screen.findByText("역할: ADMIN")).toBeInTheDocument();
+    expect(authenticatePasskey).toHaveBeenCalledTimes(1);
+    expect(getSession).toHaveBeenCalledTimes(2);
+    expect(prepareSessionCsrf).toHaveBeenCalledTimes(3);
+    expect(getWebAuthnStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("Passkey 실패를 anonymous나 password 오류로 위장하지 않는다", async () => {
+    const user = userEvent.setup();
+    const client = createClient({
+      getSession: vi.fn().mockResolvedValue(ADMIN),
+      getWebAuthnStatus: vi.fn().mockResolvedValue({
+        required: true,
+        authenticationStage: "FIRST_FACTOR_VERIFIED",
+        activeCredentialCount: 1,
+        initialEnrollmentRequired: false,
+        recoveryCodesAvailable: false,
+      }),
+      authenticatePasskey: vi
+        .fn()
+        .mockRejectedValue(new AdminAuthError("webauthn-failed")),
+    });
+
+    render(<AdminAuthShell client={client} />);
+    await user.click(
+      await screen.findByRole("button", { name: "Passkey로 계속" }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Passkey 확인을 완료하지 못했습니다.",
+    );
+    expect(screen.queryByLabelText("비밀번호")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Passkey로 계속" })).toBeEnabled();
+  });
+
   it("초기 session 확인 상태를 접근 가능한 텍스트로 표시한 뒤 로그인 form을 연다", async () => {
     let resolveSession: ((value: null) => void) | undefined;
     const client = createClient({

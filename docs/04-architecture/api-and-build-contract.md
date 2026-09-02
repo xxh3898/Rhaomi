@@ -3,7 +3,7 @@ title: "API·빌드 계약"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-31"
+last_updated: "2026-09-02"
 review_trigger: "관리 API·build 입력 변경 시"
 ---
 
@@ -15,19 +15,32 @@ review_trigger: "관리 API·build 입력 변경 시"
 
 ## 현재 관리자 인증 API
 
-| method | path | anonymous | CSRF | 응답 |
-|---|---|---:|---:|---|
-| `GET` | `/api/admin/auth/csrf` | 허용 | N/A | header name, parameter name, token |
-| `POST` | `/api/admin/auth/login` | 허용 | 필수 | id, email, role |
-| `GET` | `/api/admin/auth/me` | 거부 | N/A | id, email, role |
-| `POST` | `/api/admin/auth/logout` | 거부 | 필수 | `204 No Content` |
+| method | path | 최소 인증 단계 | CSRF | 응답 |
+|---|---|---|---:|---|
+| `GET` | `/api/admin/auth/csrf` | anonymous | N/A | header name, parameter name, token |
+| `POST` | `/api/admin/auth/login` | anonymous | 필수 | id, email, role |
+| `GET` | `/api/admin/auth/me` | first factor | N/A | id, email, role |
+| `POST` | `/api/admin/auth/logout` | first factor | 필수 | `204 No Content` |
+| `GET` | `/api/admin/auth/webauthn/status` | first factor | N/A | required, stage, active credential count, enrollment/recovery 상태 |
+| `GET` | `/api/admin/auth/webauthn/registration/options` | 초기 0개면 first factor, 그 외 second factor | N/A | server challenge와 RP·user options |
+| `POST` | `/api/admin/auth/webauthn/registration` | options와 같은 session/account | 필수 | 검증 뒤 second factor 상태 |
+| `GET` | `/api/admin/auth/webauthn/authentication/options` | first factor | N/A | single-use assertion challenge |
+| `POST` | `/api/admin/auth/webauthn/authentication` | options와 같은 session/account | 필수 | 검증 뒤 second factor 상태 |
+| `POST` | `/api/admin/auth/recovery-codes/verify` | first factor | 필수 | restricted recovery rotation 상태 |
+| `POST` | `/api/admin/auth/recovery-codes/rotate` | second factor 또는 recovery rotation required | 필수 | 한 번만 노출하는 새 recovery code set |
+| `GET` | `/api/admin/auth/webauthn/credentials` | second factor | N/A | active credential의 secret-free metadata |
+| `DELETE` | `/api/admin/auth/webauthn/credentials/{credentialId}` | second factor | 필수 | `204 No Content` |
 
-- 인증은 server session에 저장한다.
+- 인증은 server session에 `FIRST_FACTOR_VERIFIED`, `SECOND_FACTOR_VERIFIED`, `RECOVERY_ROTATION_REQUIRED` 중 하나로 저장한다. 콘텐츠·미디어를 포함한 business `/api/admin/**`는 second factor authority만 허용한다.
 - login 실패는 잘못된 password, 없는 email과 inactive account를 같은 401 계약으로 처리한다.
 - 인증 service 또는 repository 장애는 내부 원인을 노출하지 않는 503 `AUTH_SERVICE_UNAVAILABLE`로 처리한다.
 - login password는 UTF-8 최대 72 byte이며 초과 입력은 credential 비교 전에 400 `INVALID_REQUEST`로 거부한다.
 - request/response와 인증 완료 principal·저장된 `SecurityContext`에 `password_hash`를 포함하지 않는다.
-- `/api/admin/**`는 위 anonymous 예외 외 인증이 기본이다.
+- WebAuthn challenge는 최소 32 random byte이며 server session의 account·purpose에 결합하고 TTL 안에서 한 번만 사용한다. RP ID와 origin은 server 설정 authority이고 user verification은 required다.
+- WebAuthn 등록이 0개인 초기 enrollment만 first factor에서 허용하며 active credential이 하나라도 있으면 추가 등록은 second factor가 필요하다. credential revoke는 마지막 usable factor를 제거하지 못한다.
+- recovery code는 평문을 rotation response에 한 번만 반환하고 PostgreSQL에는 SHA-256 hash만 저장한다. 사용하면 같은 set 전체를 폐기하고 recovery rotation 전에는 business API를 허용하지 않는다.
+- WebAuthn·recovery 성공은 session ID를 다시 회전하며 browser는 이전 CSRF를 폐기하고 fresh CSRF 준비 뒤에만 mutation-ready 상태가 된다.
+- `/api/admin/**`는 위 ceremony/status/logout 예외 외 second factor 인증이 기본이다.
 - 아직 설계하지 않은 `/api/**`는 deny한다.
 - 세 anonymous endpoint 외 non-API path와 미허용 Actuator path를 포함한 모든 request는 deny한다.
 
@@ -328,7 +341,7 @@ transformer가 만든 `content.json`은 Build Snapshot V2의 public content를 �
   "codeSha": "0123456789abcdef0123456789abcdef01234567",
   "codeImageTag": "sha-0123456789abcdef0123456789abcdef01234567",
   "codeImageDigest": "sha256:<64 lowercase hex>",
-  "flywayVersion": "9",
+  "flywayVersion": "10",
   "sbomReference": "sha256:<64 lowercase hex>",
   "siteSha256": "<64 lowercase hex>"
 }

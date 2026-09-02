@@ -177,7 +177,7 @@ tracked `ops/production/com.rhaomi.backup.plist`는 매일 host local 03:30에 f
 2. shared lock과 writer quiescence 뒤 host owner-only capture state에서 custom dump+media를 캡처하고 runtime state·writer 복구 후 complete set 및 exact-release eligibility 발급
 3. source writer를 다시 physical stop하고 host capture state에서만 DB/media를 상태 B로 변경
 4. 별도 Compose project의 fresh named volume·빈 owner-only media root에 restore하고 directory `0700`/file `0600` 확인
-5. isolated backend/publisher 시작 직전에만 runtime state로 전환해 복구 결과가 B가 아닌 A인지, Flyway V1~V9/JPA schema, representative checksum/decode와 static publication 확인
+5. isolated backend/publisher 시작 직전에만 runtime state로 전환해 복구 결과가 B가 아닌 A인지, Flyway V1~V10/JPA schema, representative checksum/decode와 static publication 확인
 6. PostgreSQL restart와 일반 Compose `down`→`up` 뒤 같은 named-volume identity·row 지속을 확인하고 writer 종료 뒤 media를 최종 host `0700`/`0600`으로 복귀
 7. fake HomeOps adapter에서 backup RUNNING→SUCCESS lifecycle identity, telemetry failure의 backup false-failure 0과 actual endpoint/HMAC 접근 0 확인
 
@@ -200,7 +200,7 @@ isolated restore는 task validator source이며 production overwrite command가 
 ## quarterly restore drill
 
 - isolated Compose project와 새 PostgreSQL named volume·media root
-- `pg_restore`와 Flyway V1~V9 schema validation
+- `pg_restore`와 Flyway V1~V10 schema validation
 - `shop_settings`, `gallery_items`, `notices` 조회
 - 대표 private canonical media checksum·decode
 - 정적 사이트 build

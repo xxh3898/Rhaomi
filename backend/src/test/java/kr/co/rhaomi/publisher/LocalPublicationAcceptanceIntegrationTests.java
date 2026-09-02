@@ -895,7 +895,7 @@ class LocalPublicationAcceptanceIntegrationTests {
         environment.put("RHAOMI_CODE_SHA", codeSha);
         environment.put("RHAOMI_CODE_IMAGE_TAG", "sha-" + codeSha);
         environment.put("RHAOMI_CODE_IMAGE_DIGEST", IMAGE_DIGEST);
-        environment.put("RHAOMI_FLYWAY_VERSION", "9");
+        environment.put("RHAOMI_FLYWAY_VERSION", "10");
         environment.put("RHAOMI_SBOM_REFERENCE", IMAGE_DIGEST);
         environment.put("RHAOMI_PUBLISHER_BUILD_TIMEOUT_MS", "180000");
         environment.put("RHAOMI_RELEASE_RETENTION", "10");

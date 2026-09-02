@@ -59,42 +59,49 @@ build API와 stateless credential 경계, Node full release adapter와 credentia
 ### Static admin client
 
 - `/admin/` HTML은 누구나 받을 수 있는 Static Export이며 그 존재나 client-side session check를 접근제어로 보지 않는다.
-- 업무 API의 최종 경계는 backend session·CSRF이고 anonymous `/me`와 업무 endpoint는 계속 거부한다.
+- 업무 API의 최종 경계는 backend session·CSRF와 `ADMIN_SECOND_FACTOR_VERIFIED` authority다. password 성공 직후의 `FIRST_FACTOR_VERIFIED`와 recovery 사용 뒤의 `RECOVERY_ROTATION_REQUIRED`에서는 dashboard와 업무 mutation UI를 노출하지 않는다.
 - browser는 same-origin relative `/api/admin/**`만 사용하며 CORS를 열거나 backend host를 bundle에 넣지 않는다.
 - password·CSRF·session id·관리자 identity를 localStorage, sessionStorage, IndexedDB, cookie 직접 쓰기, URL query/hash에 저장하지 않는다.
+- WebAuthn challenge·credential response와 recovery code도 browser storage·URL·log에 저장하지 않는다. ceremony와 state-changing request는 network 실패 뒤 자동 재전송하지 않는다.
 - backend의 알 수 없는 `message`, exception, path, SQL detail은 UI에 표시하지 않는다.
 
 ## endpoint 정책
 
-| 경로 | anonymous | authenticated ADMIN | 비고 |
-|---|---:|---:|---|
-| `GET /api/admin/auth/csrf` | 허용 | 허용 | CSRF token 발급 |
-| `POST /api/admin/auth/login` | 허용 | 허용 | 유효 CSRF 필요 |
-| `GET /api/admin/auth/me` | 거부 | 허용 | 최소 식별 정보만 반환 |
-| `POST /api/admin/auth/logout` | 거부 | 허용 | 유효 CSRF 필요, session 무효화 |
-| `GET /api/admin/breeds[/<id>]` | 거부 | 허용 | 전체 상태 조회, deterministic sort |
-| `POST /api/admin/breeds` | 거부 | 허용 | 유효 CSRF 필요, 항상 draft 생성 |
-| `PUT /api/admin/breeds/<id>` | 거부 | 허용 | 유효 CSRF 필요, 전체 mutable field 수정 |
-| `GET /api/admin/services[/<id>]` | 거부 | 허용 | 전체 상태 조회, deterministic sort |
-| `POST /api/admin/services` | 거부 | 허용 | 유효 CSRF 필요, 항상 draft 생성 |
-| `PUT /api/admin/services/<id>` | 거부 | 허용 | 유효 CSRF 필요, 전체 mutable field 수정 |
-| `GET /api/admin/notices[/<id>]` | 거부 | 허용 | 모든 상태·시각 조회, deterministic sort |
-| `POST /api/admin/notices` | 거부 | 허용 | 유효 CSRF 필요, 항상 draft 생성 |
-| `PUT /api/admin/notices/<id>` | 거부 | 허용 | 유효 CSRF 필요, immutable slug·전체 mutable field 수정 |
-| `GET /api/admin/gallery-items[/<id>]` | 거부 | 허용 | 모든 상태 조회, deterministic sort, scalar relation id만 반환 |
-| `POST /api/admin/gallery-items` | 거부 | 허용 | 유효 CSRF 필요, 항상 draft 생성 |
-| `PUT /api/admin/gallery-items/<id>` | 거부 | 허용 | 유효 CSRF 필요, 전체 mutable field·관계·게시 상태 검증 |
-| `GET /api/admin/shop-settings` | 거부 | 허용 | 현재 singleton 조회, 미초기화 404 |
-| `PUT /api/admin/shop-settings` | 거부 | 허용 | 유효 CSRF 필요, 최초 201·이후 200 full update와 active media 검증 |
-| `GET /api/admin/media[/<id>]` | 거부 | 허용 | active·archived metadata 조회 |
-| `GET /api/admin/media/<id>/content` | 거부 | 허용 | private no-store canonical master |
-| `POST /api/admin/media` | 거부 | 허용 | 유효 CSRF 필요, 실제 byte 검증 후 active upload |
-| `PUT /api/admin/media/<id>` | 거부 | 허용 | 유효 CSRF 필요, status만 archive·restore |
-| `/api/admin/**` 나머지 | 거부 | 기본 인증 필요 | 명시 controller가 없으면 업무 수행 불가 |
-| `/api/**` 나머지 | 거부 | 거부 | 명시 설계 전 fail closed |
-| `GET /actuator/health` | 허용 | 허용 | application-level 최소 health, production public Nginx는 차단하고 HomeOps internal probe만 사용 |
-| `/actuator/**` 나머지 | 거부 | 거부 | health 외 노출 금지 |
-| 그 밖의 모든 path | 거부 | 거부 | 명시 정책 전 `denyAll` |
+| 경로 | anonymous | FIRST | RECOVERY_REQUIRED | SECOND | 비고 |
+|---|---:|---:|---:|---:|---|
+| `GET /api/admin/auth/csrf` | 허용 | 허용 | 허용 | 허용 | CSRF token 발급 |
+| `POST /api/admin/auth/login` | 허용 | 허용 | 허용 | 허용 | 유효 CSRF 필요 |
+| `GET /api/admin/auth/me` | 거부 | 허용 | 허용 | 허용 | 최소 식별 정보만 반환 |
+| `POST /api/admin/auth/logout` | 거부 | 허용 | 허용 | 허용 | 유효 CSRF 필요, 모든 인증 단계 session 무효화 |
+| `GET /api/admin/auth/webauthn/status` | 거부 | 허용 | 허용 | 허용 | stage·active credential 수·recovery 가능 여부만 반환 |
+| `GET/POST /api/admin/auth/webauthn/registration[/options]` | 거부 | active credential 0개일 때만 허용 | 거부 | 허용 | POST는 CSRF 필요, account는 session principal에 고정 |
+| `GET/POST /api/admin/auth/webauthn/authentication[/options]` | 거부 | 허용 | 허용 | 허용 | POST는 CSRF 필요, 성공 시 SECOND로 session rotation |
+| `POST /api/admin/auth/recovery-codes/verify` | 거부 | 허용 | 거부 | 거부 | CSRF 필요, 성공 시 기존 set 폐기와 RECOVERY_REQUIRED 전환 |
+| `POST /api/admin/auth/recovery-codes/rotate` | 거부 | 거부 | 허용 | 허용 | CSRF 필요, plaintext는 성공 response에서 한 번만 반환 |
+| `GET/DELETE /api/admin/auth/webauthn/credentials[/<id>]` | 거부 | 거부 | 거부 | 허용 | DELETE는 CSRF 필요, 마지막 usable factor 제거 금지 |
+| `GET /api/admin/breeds[/<id>]` | 거부 | 거부 | 거부 | 허용 | 전체 상태 조회, deterministic sort |
+| `POST /api/admin/breeds` | 거부 | 거부 | 거부 | 허용 | 유효 CSRF 필요, 항상 draft 생성 |
+| `PUT /api/admin/breeds/<id>` | 거부 | 거부 | 거부 | 허용 | 유효 CSRF 필요, 전체 mutable field 수정 |
+| `GET /api/admin/services[/<id>]` | 거부 | 거부 | 거부 | 허용 | 전체 상태 조회, deterministic sort |
+| `POST /api/admin/services` | 거부 | 거부 | 거부 | 허용 | 유효 CSRF 필요, 항상 draft 생성 |
+| `PUT /api/admin/services/<id>` | 거부 | 거부 | 거부 | 허용 | 유효 CSRF 필요, 전체 mutable field 수정 |
+| `GET /api/admin/notices[/<id>]` | 거부 | 거부 | 거부 | 허용 | 모든 상태·시각 조회, deterministic sort |
+| `POST /api/admin/notices` | 거부 | 거부 | 거부 | 허용 | 유효 CSRF 필요, 항상 draft 생성 |
+| `PUT /api/admin/notices/<id>` | 거부 | 거부 | 거부 | 허용 | 유효 CSRF 필요, immutable slug·전체 mutable field 수정 |
+| `GET /api/admin/gallery-items[/<id>]` | 거부 | 거부 | 거부 | 허용 | 모든 상태 조회, deterministic sort, scalar relation id만 반환 |
+| `POST /api/admin/gallery-items` | 거부 | 거부 | 거부 | 허용 | 유효 CSRF 필요, 항상 draft 생성 |
+| `PUT /api/admin/gallery-items/<id>` | 거부 | 거부 | 거부 | 허용 | 유효 CSRF 필요, 전체 mutable field·관계·게시 상태 검증 |
+| `GET /api/admin/shop-settings` | 거부 | 거부 | 거부 | 허용 | 현재 singleton 조회, 미초기화 404 |
+| `PUT /api/admin/shop-settings` | 거부 | 거부 | 거부 | 허용 | 유효 CSRF 필요, 최초 201·이후 200 full update와 active media 검증 |
+| `GET /api/admin/media[/<id>]` | 거부 | 거부 | 거부 | 허용 | active·archived metadata 조회 |
+| `GET /api/admin/media/<id>/content` | 거부 | 거부 | 거부 | 허용 | private no-store canonical master |
+| `POST /api/admin/media` | 거부 | 거부 | 거부 | 허용 | 유효 CSRF 필요, 실제 byte 검증 후 active upload |
+| `PUT /api/admin/media/<id>` | 거부 | 거부 | 거부 | 허용 | 유효 CSRF 필요, status만 archive·restore |
+| `/api/admin/**` 나머지 | 거부 | 거부 | 거부 | 거부 | 명시 controller·authority가 없으면 업무 수행 불가 |
+| `/api/**` 나머지 | 거부 | 거부 | 거부 | 거부 | 명시 설계 전 fail closed |
+| `GET /actuator/health` | 허용 | 허용 | 허용 | 허용 | application-level 최소 health, production public Nginx는 차단하고 HomeOps internal probe만 사용 |
+| `/actuator/**` 나머지 | 거부 | 거부 | 거부 | 거부 | health 외 노출 금지 |
+| 그 밖의 모든 path | 거부 | 거부 | 거부 | 거부 | 명시 정책 전 `denyAll` |
 
 ## 세션·CSRF
 
@@ -102,6 +109,7 @@ build API와 stateless credential 경계, Node full release adapter와 credentia
 - session cookie는 `HttpOnly`와 `SameSite=Lax`를 명시한다.
 - 운영에서는 TLS와 함께 `Secure=true`를 강제하며 production profile이 false 설정으로 기동되지 않게 한다.
 - 로그인 성공 시 session fixation 방어로 session id를 교체한다.
+- WebAuthn registration·assertion 또는 recovery-code rotation으로 인증 stage가 바뀔 때도 session id를 다시 교체한다. 교체가 끝난 뒤 client는 이전 CSRF를 폐기하고 fresh CSRF 성공 전 업무 mutation-ready 상태로 전환하지 않는다.
 - static admin client는 login POST 성공 response의 identity를 검증한 직후 password·form email과 pre-login CSRF를 제거한다. credential input이 제거된 뒤에만 fresh CSRF를 요청하고 성공 전에는 authenticated mutation을 노출하지 않는다.
 - post-login fresh CSRF 실패는 credential 실패나 anonymous로 축소하지 않는다. 재시도는 `/me`로 기존 session을 확인한 뒤 fresh CSRF를 다시 준비하며 login·logout을 자동 재전송하지 않는다.
 - `ProviderManager` 인증 완료 시 principal credential을 지우고 password hash가 없는 `SecurityContext`만 session에 저장한다.
@@ -123,11 +131,14 @@ build API와 stateless credential 경계, Node full release adapter와 credentia
 ## 2FA와 계정 수명주기
 
 - 관리자 2차 인증의 기본 target은 기존 password/session/CSRF 위의 WebAuthn/passkey다. SMS 2FA는 사용하지 않고 TOTP fallback은 별도 근거 없이 추가하지 않는다.
-- WebAuthn/passkey는 운영 배포 게이트다. 현재 backend bootstrap에는 포함하지 않으며 password-only 상태를 production-ready로 표현하지 않는다.
+- WebAuthn/passkey source는 Spring Security WebAuthn/WebAuthn4J 검증 계층, Flyway V10 credential·recovery table과 `FIRST_FACTOR_VERIFIED → SECOND_FACTOR_VERIFIED` session authority로 구현했다. bootstrap은 계속 password 1차 계정만 만들며 password-only 상태를 production-ready로 표현하지 않는다.
+- active passkey가 0개면 FIRST session에서 최초 registration만 허용한다. 1개 이상이면 추가 registration options와 completion 모두 SECOND session에서만 허용하고 completion transaction이 관리자 row를 잠근 뒤 active count를 다시 검증한다.
+- challenge는 server가 생성한 32 byte 이상 random value이며 account·session·ceremony purpose에 묶고 1~10분 bounded TTL, single-use consume를 적용한다. `userVerification=required`와 server-owned RP ID·approved origin을 사용한다.
 - passkey private key는 authenticator/device authority이며 Rhaomi server가 수집·저장·로그하지 않는다. registration ceremony는 credential ID·public key와 필요한 authenticator metadata를, authentication ceremony는 assertion을 RP에 전달한다.
 - server는 credential ID, public key, 관리자 account binding과 필요한 authenticator/sign-counter metadata로 RP-side credential record를 유지한다. 이 record는 private key나 recovery secret과 구분하고 일반 API response·log·release evidence에 노출하지 않는다.
 - authenticator 분실·폐기, 무단 등록 의심 또는 운영자 변경 시 해당 WebAuthn registration을 revoke/remove한다. 이는 server가 private key를 rotate하는 절차가 아니다.
-- recovery code만 관련 server secret inventory에 두고 password manager와 별도 offline copy에 보관한다. code 사용·노출 의심·재발급 또는 운영자 변경 시 기존 code를 무효화하고 새 set으로 rotation한다.
+- recovery code만 관련 server secret inventory에 둔다. V10은 SHA-256 one-way representation만 저장하고 plaintext 10개는 rotation 성공 response에서 한 번만 반환한다. code 한 개를 사용하면 같은 set 전체를 무효화하고 `RECOVERY_ROTATION_REQUIRED`에서는 status·logout·recovery rotation만 허용한다. 이 단계에서 WebAuthn assertion/registration으로 rotation을 우회하거나 새 set 발급 전 업무 API를 사용할 수 없다. production plaintext 발급·보관은 별도 provisioning 승인이다.
+- registration·assertion·recovery 검증/rotation의 DB 변경은 transaction commit이 성공한 뒤에만 session stage를 승격한다. DB commit 실패를 성공한 2차 인증 session으로 남기지 않는다.
 - 공유 계정을 만들지 않는다.
 - 운영자 변경 시 계정을 즉시 비활성화하고 활성 session을 폐기한다.
 - 강한 고유 비밀번호와 검증된 `PasswordEncoder`를 사용한다.

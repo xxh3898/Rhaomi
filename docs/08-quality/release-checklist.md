@@ -53,7 +53,9 @@ review_trigger: "출시 기준 변경 시"
 - [ ] server session·CSRF·fixation 방어
 - [ ] 관리자 API field allowlist와 anonymous deny
 - [ ] build API credential·read-only policy
-- [ ] 관리자 WebAuthn/passkey 2차 인증, authenticator private key server 비수집, RP-side credential record, registration revoke/remove, recovery-code secret·rotation과 password-only production 차단
+- [x] source 관리자 WebAuthn/passkey 2차 인증: FIRST/SECOND/RECOVERY authority, V10 RP-side credential·one-way recovery code, initial enrollment·revoke/lockout·session rotation과 password-only 업무 API 차단
+- [x] source browser ceremony: strict base64url, `navigator.credentials`, dashboard stage gate, challenge/assertion/recovery material의 storage·URL·log·자동 재전송 0
+- [ ] actual production RP/FQDN/HTTPS config, 운영 account/passkey enrollment·recovery-code 1회 발급/보관과 Safari/VoiceOver acceptance
 - [ ] 상태 validation
 - [ ] archive 운영
 - [ ] `/admin/` media list·authenticated preview·single upload·archive/restore와 401/403 non-retry 계약
@@ -152,7 +154,7 @@ review_trigger: "출시 기준 변경 시"
 - [x] canonical Mac public/media/state/build-workspace bind mapping과 web/media RO·backend/publisher 최소 RW, publisher image source의 workspace 외 read-only rendered contract
 - [x] project-scoped PostgreSQL named volume, task 일반 Compose `down`→`up` sentinel·identity persistence
 - [x] project Nginx static/admin proxy, relative `/admin` redirect, fixed backend forwarded `https:443`, build/internal/actuator/manifest deny, nested hidden file 404와 query-bearing Referrer access-log 제외
-- [x] task temp overlay·one-shot V1~V9 migration/schema validation, normal backend/publisher Flyway·bootstrap 비활성
+- [x] task temp overlay·one-shot V1~V10 migration/schema validation, normal backend/publisher Flyway·bootstrap 비활성
 - [x] native amd64/arm64 validator와 Hosted exact-head evidence, task container/network cleanup
 
 위 완료 표시는 repository source와 task-scoped local/Hosted 환경에만 적용된다. actual `/private/var/lib/rhaomi`·production volume·Secret·loopback/FQDN·Cloudflare/GHCR/deploy evidence 없이 아래 production 항목을 완료 처리하지 않는다.
@@ -164,7 +166,7 @@ review_trigger: "출시 기준 변경 시"
 - [x] canonical Dockerfile required exact-head build arg, `linux/amd64`·`linux/arm64`, exact SHA tag, existing tag overwrite 거부, returned digest apply, published platform manifest·attestation와 OCI source/revision·attached SBOM·provenance·scan evidence
 - [x] pinned Tailscale/SSH known-host authority와 fixed `/private/var/lib/rhaomi/app/bin/deploy-rhaomi.sh` + strict `--release-sha`·`--image`·`--sbom` argv
 - [x] fixed host config/Docker credential, release-bound backup prerequisite, atomic global deploy lock와 caller override 폐기
-- [x] public web 유지 + backend/publisher physical exit 후에만 one-shot Flyway V1~V9→Flyway-disabled schema validation
+- [x] public web 유지 + backend/publisher physical exit 후에만 one-shot Flyway V1~V10→Flyway-disabled schema validation
 - [x] migration/schema/backend health/publisher start/runtime image mismatch 뒤 writer quiescence·auto-resume 0, quiescence 미확인 시 own lock 보존, runtime same-image verification·bounded redacted evidence
 - [x] malformed task mode·wrong registry/digest/revision·duplicate option·lock contention·secret marker task regression
 - [x] Mac mini native Linux arm64와 Hosted Linux amd64의 exact-head D-IMP-1·2·3 source/runtime acceptance

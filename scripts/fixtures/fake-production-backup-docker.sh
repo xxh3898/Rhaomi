@@ -80,7 +80,7 @@ compose_command() {
               printf 'PGDMPfake-archive'
               ;;
             *pg_restore*) [ "$failure_stage" != dump-verify ] ;;
-            *flyway_schema_history*) printf '%s\n' 9 ;;
+            *flyway_schema_history*) printf '%s\n' 10 ;;
             *) exit 64 ;;
           esac
           ;;

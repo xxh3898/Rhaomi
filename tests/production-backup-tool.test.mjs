@@ -97,7 +97,7 @@ async function completeSet(context, setId, startedAt, purpose = "scheduled") {
     mode: 0o600,
   });
   return run(
-    ["finalize", setId, purpose, startedAt, SOURCE_SHA, SOURCE_DIGEST, "9"],
+    ["finalize", setId, purpose, startedAt, SOURCE_SHA, SOURCE_DIGEST, "10"],
     context.environment,
   );
 }
@@ -172,7 +172,7 @@ test("incomplete에서 full-read 검증을 거친 set만 atomic complete·eligib
       "2026-08-31T18:30:00.123456Z",
       SOURCE_SHA,
       SOURCE_DIGEST,
-      "9",
+      "10",
     ],
     context.environment,
   );
@@ -286,7 +286,7 @@ test("media symlink·special indirection과 non-canonical manifest/evidence를 �
         verifiedAt: "2026-03-01T00:00:00Z",
         sourceReleaseSha: SOURCE_SHA,
         sourceImageDigest: SOURCE_DIGEST,
-        sourceFlywayVersion: "9",
+        sourceFlywayVersion: "10",
         postgresDump: { relativePath: "../postgres.dump", sha256: "a".repeat(64), sizeBytes: 1 },
         media: { fileCount: 0, totalSizeBytes: 0, treeSha256: "b".repeat(64), files: [] },
         sameHostFailureDomain: true,
@@ -302,7 +302,7 @@ test("media symlink·special indirection과 non-canonical manifest/evidence를 �
         backupManifestSha256: "a".repeat(64),
         sourceReleaseSha: SOURCE_SHA,
         sourceImageDigest: SOURCE_DIGEST,
-        sourceFlywayVersion: "9",
+        sourceFlywayVersion: "10",
         createdAt: "2026-09-01T24:00:00Z",
         status: "eligible",
       }),

@@ -169,7 +169,7 @@ describe("publishStaticRelease", () => {
         RHAOMI_CODE_SHA: CODE_SHA,
         RHAOMI_CODE_IMAGE_TAG: `sha-${CODE_SHA}`,
         RHAOMI_CODE_IMAGE_DIGEST: DIGEST,
-        RHAOMI_FLYWAY_VERSION: "9",
+        RHAOMI_FLYWAY_VERSION: "10",
         RHAOMI_SBOM_REFERENCE: DIGEST,
         RHAOMI_PUBLISHER_BUILD_TIMEOUT_MS: "120000",
       };

@@ -2,13 +2,23 @@ import {
   ADMIN_ROLE,
   type AdminAuthClient,
   type AdminAuthErrorKind,
+  type AdminAuthenticationStage,
   type AdminIdentity,
   type AdminMutationMethod,
+  type AdminWebAuthnStatus,
   type CsrfToken,
   type JsonValidator,
   type LoginCredentials,
   type LogoutResult,
+  type RecoveryCodes,
 } from "./types";
+import {
+  browserCredentialProvider,
+  createPasskey,
+  getPasskeyAssertion,
+  isAuthenticationOptions,
+  isRegistrationOptions,
+} from "./webauthn";
 
 const AUTH_PATH = "/api/admin/auth";
 const ADMIN_PATH_PREFIX = "/api/admin/";
@@ -92,6 +102,41 @@ function isCsrfToken(value: unknown): value is CsrfToken {
     HEADER_NAME_PATTERN.test(value.headerName) &&
     typeof value.token === "string" &&
     value.token.length > 0
+  );
+}
+
+const AUTHENTICATION_STAGES: readonly AdminAuthenticationStage[] = [
+  "FIRST_FACTOR_VERIFIED",
+  "SECOND_FACTOR_VERIFIED",
+  "RECOVERY_ROTATION_REQUIRED",
+];
+
+function isAdminWebAuthnStatus(value: unknown): value is AdminWebAuthnStatus {
+  return (
+    isRecord(value) &&
+    typeof value.required === "boolean" &&
+    typeof value.authenticationStage === "string" &&
+    AUTHENTICATION_STAGES.includes(
+      value.authenticationStage as AdminAuthenticationStage,
+    ) &&
+    typeof value.activeCredentialCount === "number" &&
+    Number.isSafeInteger(value.activeCredentialCount) &&
+    value.activeCredentialCount >= 0 &&
+    typeof value.initialEnrollmentRequired === "boolean" &&
+    typeof value.recoveryCodesAvailable === "boolean"
+  );
+}
+
+function isRecoveryCodes(value: unknown): value is RecoveryCodes {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.recoveryCodes) &&
+    value.recoveryCodes.length === 10 &&
+    value.recoveryCodes.every(
+      (code) =>
+        typeof code === "string" &&
+        /^[0-9a-f]{8}(?:-[0-9a-f]{8}){3}$/u.test(code),
+    )
   );
 }
 
@@ -275,6 +320,84 @@ export class DefaultAdminAuthClient implements AdminAuthClient {
     await this.#fetchCsrf();
   }
 
+  async getWebAuthnStatus(): Promise<AdminWebAuthnStatus> {
+    return this.requestAuthenticatedJson(
+      `${AUTH_PATH}/webauthn/status`,
+      isAdminWebAuthnStatus,
+    );
+  }
+
+  async registerPasskey(label: string): Promise<AdminWebAuthnStatus> {
+    if (label.length === 0 || [...label].length > 100) {
+      throw new AdminAuthError("invalid-request");
+    }
+    const options = await this.requestAuthenticatedJson(
+      `${AUTH_PATH}/webauthn/registration/options`,
+      isRegistrationOptions,
+    );
+    let credential: unknown;
+    try {
+      credential = await createPasskey(
+        options,
+        label,
+        browserCredentialProvider(),
+      );
+    } catch (error) {
+      throw new AdminAuthError(
+        error instanceof Error && error.message === "WEBAUTHN_UNSUPPORTED"
+          ? "webauthn-unsupported"
+          : "webauthn-failed",
+      );
+    }
+    return this.#requestMfaMutation(
+      `${AUTH_PATH}/webauthn/registration`,
+      credential,
+      isAdminWebAuthnStatus,
+    );
+  }
+
+  async authenticatePasskey(): Promise<AdminWebAuthnStatus> {
+    const options = await this.requestAuthenticatedJson(
+      `${AUTH_PATH}/webauthn/authentication/options`,
+      isAuthenticationOptions,
+    );
+    let assertion: unknown;
+    try {
+      assertion = await getPasskeyAssertion(
+        options,
+        browserCredentialProvider(),
+      );
+    } catch (error) {
+      throw new AdminAuthError(
+        error instanceof Error && error.message === "WEBAUTHN_UNSUPPORTED"
+          ? "webauthn-unsupported"
+          : "webauthn-failed",
+      );
+    }
+    return this.#requestMfaMutation(
+      `${AUTH_PATH}/webauthn/authentication`,
+      assertion,
+      isAdminWebAuthnStatus,
+    );
+  }
+
+  async verifyRecoveryCode(code: string): Promise<AdminWebAuthnStatus> {
+    return this.#requestMfaMutation(
+      `${AUTH_PATH}/recovery-codes/verify`,
+      { code },
+      isAdminWebAuthnStatus,
+    );
+  }
+
+  async rotateRecoveryCodes(): Promise<RecoveryCodes> {
+    const result = await this.#requestMfaMutation(
+      `${AUTH_PATH}/recovery-codes/rotate`,
+      {},
+      isRecoveryCodes,
+    );
+    return result;
+  }
+
   async logout(): Promise<LogoutResult> {
     const csrfToken = this.#csrfToken ?? (await this.#fetchCsrf());
     const response = await this.#request(`${AUTH_PATH}/logout`, {
@@ -402,6 +525,48 @@ export class DefaultAdminAuthClient implements AdminAuthClient {
     );
     this.#csrfToken = csrfToken;
     return csrfToken;
+  }
+
+  async #requestMfaMutation<T>(
+    path: string,
+    body: unknown,
+    validator: JsonValidator<T>,
+  ): Promise<T> {
+    const csrfToken = this.#csrfToken ?? (await this.#fetchCsrf());
+    const response = await this.#request(path, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        [csrfToken.headerName]: csrfToken.token,
+      },
+      body: JSON.stringify(body),
+    });
+    if (response.status === 401) {
+      const code = await readApiErrorCode(response);
+      if (code === "WEBAUTHN_VERIFICATION_FAILED") {
+        throw new AdminAuthError("webauthn-failed");
+      }
+      this.clearSession();
+      this.#onSessionExpired();
+      throw new AdminAuthError("session-expired");
+    }
+    if (response.status === 403) {
+      this.#csrfToken = null;
+      throw new AdminAuthError("forbidden");
+    }
+    if (!isSuccessStatus(response.status)) {
+      throw new AdminAuthError(
+        response.status === 400 ? "invalid-request" : "unavailable",
+      );
+    }
+    const result = await decodeJson(
+      response,
+      validator,
+      () => new AdminAuthError("unavailable"),
+    );
+    // 2차 인증/복구 rotation은 session fixation을 다시 수행하므로 token을 폐기한다.
+    this.#csrfToken = null;
+    return result;
   }
 
   async #assertAuthenticatedSuccess(

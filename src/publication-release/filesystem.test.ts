@@ -61,7 +61,7 @@ async function candidate(
     codeSha: SHA,
     codeImageTag: `sha-${SHA}`,
     codeImageDigest: DIGEST,
-    flywayVersion: "9",
+    flywayVersion: "10",
     sbomReference: DIGEST,
     siteSha256: await siteTreeSha256(siteRoot),
   };
@@ -89,7 +89,7 @@ async function exactParentRelease(
     codeSha: SHA,
     codeImageTag: `sha-${SHA}`,
     codeImageDigest: DIGEST,
-    flywayVersion: "9",
+    flywayVersion: "10",
     sbomReference: DIGEST,
     siteSha256: await siteTreeSha256(siteRoot),
   };
