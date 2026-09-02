@@ -368,7 +368,7 @@ review_trigger: "제품 기능 변경 시"
 
 **Then** fixed Node executable·script·generation argv와 allowlist environment만 사용하고 단일 bounded machine JSON을 typed result로 매핑한다. credential·URL·path·UUID·stack은 argv, output, durable state와 public artifact에 남지 않는다. interrupt·shutdown 시 root와 관찰한 descendant의 physical exit 전에는 Java body와 filesystem lock scope를 종료하지 않는다.
 
-**Given** 실제 PostgreSQL 18.6·Flyway V1~V9 publication state와 backend Build API를 사용한 full integration일 때
+**Given** 실제 PostgreSQL 18.6·Flyway V1~V10 publication state와 backend Build API를 사용한 full integration일 때
 
 **Then** first success, higher generation과 previous 보존, lower generation no-op, transient same-generation retry 후 success, terminal invalid snapshot의 current 유지가 DB result와 release filesystem에서 함께 일치한다. normal backend와 default Compose에는 publisher bean·service·public route가 추가되지 않는다.
 
@@ -416,8 +416,42 @@ review_trigger: "제품 기능 변경 시"
 
 **Given** 초기 public domain과 관리자·콘텐츠 gate를 판정할 때
 
-**Then** 사용자 소유 기존 도메인 전략은 결정됐고 exact FQDN만 provisioning input이다. password 위 WebAuthn/passkey는 authenticator private key를 server가 수집·저장·로그하지 않고 RP-side credential ID·public key·필요 metadata만 유지해야 한다. registration revoke/remove와 별도 recovery-code secret 무효화·rotation은 구현 blocker이며 실제 NAP·정책·문구·링크·사진·게시 권한은 매장 운영자 승인 전 `EXTERNAL_DECISION_REQUIRED`다.
+**Then** 사용자 소유 기존 도메인 전략은 결정됐고 exact FQDN만 provisioning input이다. password 위 WebAuthn/passkey source는 authenticator private key를 server가 수집·저장·로그하지 않고 RP-side credential ID·public key·필요 metadata만 유지하며 registration revoke와 별도 recovery-code secret 무효화·rotation을 구현한다. exact RP/origin, 실제 운영 passkey·recovery-code provisioning은 production blocker이고 실제 NAP·정책·문구·링크·사진·게시 권한은 매장 운영자 승인 전 `EXTERNAL_DECISION_REQUIRED`다.
 
 **Given** automated DOM·접근성·HEIC test가 모두 성공했을 때
 
 **Then** 실제 iPhone Safari·VoiceOver evidence가 없으면 `PHYSICAL_ACCEPTANCE_REQUIRED`를 유지하고 production acceptance로 승격하지 않는다.
+
+## AC-26 관리자 WebAuthn/passkey 2차 인증
+
+**Given** anonymous 또는 password만 성공한 `FIRST_FACTOR_VERIFIED` session일 때
+
+**Then** 일반 `/api/admin/**` 업무 endpoint와 dashboard를 거부한다. auth status·logout·WebAuthn assertion·허용된 recovery flow만 사용할 수 있고 active passkey가 0개일 때에만 current session account의 최초 registration을 허용한다.
+
+**Given** active passkey가 이미 한 개 이상일 때
+
+**Then** password-only session의 추가 registration options/completion을 거부하고 `SECOND_FACTOR_VERIFIED`만 자신의 credential을 추가·목록 조회·revoke할 수 있다. completion은 관리자 row lock 뒤 active count를 다시 검증하며 recovery factor 없이 마지막 active passkey를 제거하지 않는다.
+
+**Given** registration 또는 authentication ceremony를 시작할 때
+
+**Then** Spring Security WebAuthn/WebAuthn4J가 32 byte 이상 server random challenge, `userVerification=required`, server-owned RP ID·approved origin으로 option을 만든다. challenge는 session·account·purpose에 묶고 1~10분 TTL과 completion 첫 단계 single-use consume를 적용한다.
+
+**Given** valid P-256 registration/assertion일 때
+
+**Then** Flyway V10 RP-side record에는 credential ID·COSE public key·필요 authenticator/counter/backup metadata와 audit만 저장하고 private key는 저장하지 않는다. 성공 시 session id를 다시 교체하고 fresh CSRF 전에는 업무 mutation-ready UI를 열지 않는다.
+
+**Given** expired/replayed challenge, wrong account/purpose/RP/origin/credential/signature, revoked credential, UV 미충족 또는 inactive admin일 때
+
+**Then** second factor로 승격하지 않고 account·credential·crypto detail을 포함하지 않는 고정 failure contract로 종료한다. database/repository 내부 장애는 credential failure로 위장하지 않는다.
+
+**Given** recovery code set을 발급하거나 사용할 때
+
+**Then** plaintext 10개는 성공 response에서 한 번만 표시하고 DB에는 SHA-256 one-way representation만 저장한다. 한 code 사용으로 기존 set 전체를 무효화하고 replay를 거부하며 새 set rotation 전 `RECOVERY_ROTATION_REQUIRED`에서는 업무 API를 금지한다. 검증 성공 뒤 rotation이 실패해도 UI는 사용 전 state로 되돌아가지 않는다.
+
+**Given** WebAuthn registration/assertion, recovery verify/rotate 또는 credential revoke request일 때
+
+**Then** valid CSRF 없이는 거부하고 browser는 challenge·assertion·credential material·recovery code를 storage·URL·console에 남기거나 network 실패 뒤 자동 재전송하지 않는다.
+
+**Given** source와 CI gate가 통과했을 때
+
+**Then** actual production RP/FQDN/HTTPS config, 운영 account/passkey enrollment, recovery-code 발급·보관과 physical browser acceptance가 `NOT RUN`이면 `overallProductionReadiness=HOLD`를 유지한다.

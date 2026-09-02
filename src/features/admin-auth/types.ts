@@ -20,6 +20,23 @@ export type CsrfToken = Readonly<{
 
 export type LogoutResult = "logged-out" | "session-ended";
 
+export type AdminAuthenticationStage =
+  | "FIRST_FACTOR_VERIFIED"
+  | "SECOND_FACTOR_VERIFIED"
+  | "RECOVERY_ROTATION_REQUIRED";
+
+export type AdminWebAuthnStatus = Readonly<{
+  required: boolean;
+  authenticationStage: AdminAuthenticationStage;
+  activeCredentialCount: number;
+  initialEnrollmentRequired: boolean;
+  recoveryCodesAvailable: boolean;
+}>;
+
+export type RecoveryCodes = Readonly<{
+  recoveryCodes: readonly string[];
+}>;
+
 export type JsonValidator<T> = (value: unknown) => value is T;
 
 export type AdminMutationMethod = "POST" | "PUT";
@@ -53,12 +70,19 @@ export type AdminAuthErrorKind =
   | "service-unavailable"
   | "forbidden"
   | "session-expired"
+  | "webauthn-failed"
+  | "webauthn-unsupported"
   | "unavailable";
 
 export interface AdminAuthClient extends AdminApiTransport {
   getSession(): Promise<AdminIdentity | null>;
   login(credentials: LoginCredentials): Promise<AdminIdentity>;
   prepareSessionCsrf(): Promise<void>;
+  getWebAuthnStatus(): Promise<AdminWebAuthnStatus>;
+  registerPasskey(label: string): Promise<AdminWebAuthnStatus>;
+  authenticatePasskey(): Promise<AdminWebAuthnStatus>;
+  verifyRecoveryCode(code: string): Promise<AdminWebAuthnStatus>;
+  rotateRecoveryCodes(): Promise<RecoveryCodes>;
   logout(): Promise<LogoutResult>;
   clearSession(): void;
 }

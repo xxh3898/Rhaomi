@@ -46,9 +46,9 @@ flowchart LR
 ## 현재 구현 경계
 
 - Next.js Static Export 공개 frontend
-- Spring Boot session auth와 견종·서비스·공지·갤러리·매장정보·private media 관리자 API
-- PostgreSQL과 Flyway V1~V9 publication producer·claim/generation state
-- local/test bootstrap과 `/admin/` 인증 셸·콘텐츠 CRUD UI
+- Spring Boot staged password+WebAuthn session auth와 견종·서비스·공지·갤러리·매장정보·private media 관리자 API
+- PostgreSQL과 Flyway V1~V10 publication state·WebAuthn credential metadata·recovery hash state
+- local/test bootstrap과 `/admin/` passkey enrollment/assertion·recovery rotation·콘텐츠 CRUD UI
 - active generation에 묶인 stateless internal read-only build snapshot·public-scope media API
 - transport-independent snapshot transformer, authenticated Build API HTTP/media adapter, generated V2 Static Export·validator·immutable release/switch와 dedicated non-web publisher polling/debounce/coalesce/lock/executor
 - `/api/build/**`를 먼저 거부하는 local same-origin gateway, 최소 health와 Hosted CI
@@ -67,11 +67,11 @@ flowchart LR
 
 ### 관리자 경계
 
-- 후속 same-origin `/admin`
+- same-origin Static Export `/admin`
 - Spring Boot `/api/admin/**`
 - 관리자 server session
 
-login/csrf 외 관리 endpoint는 인증이 필요하고 state-changing request는 CSRF token을 요구한다.
+login/csrf 외 관리 endpoint는 인증이 필요하고 state-changing request는 CSRF token을 요구한다. password first factor만으로 business API를 사용할 수 없고 server가 검증한 passkey second factor와 fresh CSRF가 필요하다. passkey private key는 authenticator/device authority이며 server에는 credential ID·public key·검증 metadata만 저장한다.
 
 ### 내부 운영 경계
 

@@ -459,6 +459,13 @@ function validateEnvironmentBoundary(
   assert.equal(backend.environment.SPRING_FLYWAY_ENABLED, "false");
   assert.equal(backend.environment.RHAOMI_SESSION_COOKIE_SECURE, "true");
   assert.equal(backend.environment.RHAOMI_BOOTSTRAP_ADMIN_ENABLED, "false");
+  assert.equal(backend.environment.RHAOMI_ADMIN_WEBAUTHN_REQUIRED, "true");
+  assert.equal(backend.environment.RHAOMI_WEBAUTHN_RP_ID, "validation.invalid");
+  assert.equal(
+    backend.environment.RHAOMI_WEBAUTHN_ORIGIN,
+    "https://validation.invalid",
+  );
+  assert.equal(backend.environment.RHAOMI_WEBAUTHN_CHALLENGE_TTL, "5m");
   assert.equal(publisher.environment.SPRING_FLYWAY_ENABLED, "false");
   assert.equal(migration.environment.SPRING_FLYWAY_ENABLED, "true");
   assert.equal(schemaValidate.environment.SPRING_FLYWAY_ENABLED, "false");
@@ -474,6 +481,11 @@ function validateEnvironmentBoundary(
   assert.equal(backend.environment.BUILD_API_CREDENTIAL, undefined);
   assert.equal(postgres.environment.RHAOMI_BUILD_SERVICE_TOKEN, undefined);
   assert.equal(postgres.environment.BUILD_API_CREDENTIAL, undefined);
+  for (const service of [web, publisher, postgres, migration, schemaValidate]) {
+    assert.equal(service.environment?.RHAOMI_WEBAUTHN_RP_ID, undefined);
+    assert.equal(service.environment?.RHAOMI_WEBAUTHN_ORIGIN, undefined);
+    assert.equal(service.environment?.RHAOMI_WEBAUTHN_RP_NAME, undefined);
+  }
   for (const service of [migration, schemaValidate]) {
     assert.equal(service.environment.RHAOMI_BUILD_SERVICE_TOKEN, undefined);
     assert.equal(service.environment.BUILD_API_CREDENTIAL, undefined);

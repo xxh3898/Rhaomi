@@ -37,7 +37,7 @@ class ProductionDatabaseTaskApplicationIntegrationTests {
                 assertTaskContext(context, true);
             }
 
-            assertEquals("9", latestFlywayVersion(schemaUrl, username, password));
+            assertEquals("10", latestFlywayVersion(schemaUrl, username, password));
 
             try (var context = ProductionDatabaseTaskApplication.run(new String[] {
                 ProductionDatabaseTaskApplication.SCHEMA_VALIDATE_ARGUMENT,

@@ -232,7 +232,7 @@ async function main() {
       severityCounts: validation.severityCounts,
       x265ComponentCount: validation.x265ComponentCount,
     },
-    flywayTarget: "9",
+    flywayTarget: "10",
     workflowRunId,
   };
   await writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");

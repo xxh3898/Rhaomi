@@ -49,6 +49,13 @@ management:
       show-details: never
 
 rhaomi:
+  admin-auth:
+    webauthn:
+      required: ${RHAOMI_ADMIN_WEBAUTHN_REQUIRED:false}
+      rp-id: ${RHAOMI_WEBAUTHN_RP_ID:localhost}
+      origin: ${RHAOMI_WEBAUTHN_ORIGIN:http://localhost:3000}
+      rp-name: ${RHAOMI_WEBAUTHN_RP_NAME:Rhaomi Admin}
+      challenge-ttl: ${RHAOMI_WEBAUTHN_CHALLENGE_TTL:5m}
   build-service:
     token: ${RHAOMI_BUILD_SERVICE_TOKEN:}
   publisher:

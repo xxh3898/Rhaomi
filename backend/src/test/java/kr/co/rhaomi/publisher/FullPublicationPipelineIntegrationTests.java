@@ -248,7 +248,7 @@ class FullPublicationPipelineIntegrationTests {
         environment.put("RHAOMI_CODE_SHA", CODE_SHA);
         environment.put("RHAOMI_CODE_IMAGE_TAG", "sha-" + CODE_SHA);
         environment.put("RHAOMI_CODE_IMAGE_DIGEST", DIGEST);
-        environment.put("RHAOMI_FLYWAY_VERSION", "9");
+        environment.put("RHAOMI_FLYWAY_VERSION", "10");
         environment.put("RHAOMI_SBOM_REFERENCE", DIGEST);
         environment.put("RHAOMI_PUBLISHER_BUILD_TIMEOUT_MS", "120000");
         environment.put("RHAOMI_RELEASE_RETENTION", "5");

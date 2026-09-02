@@ -28,7 +28,7 @@ import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.security.web.savedrequest.NullRequestCache;
 
 @Configuration
-@EnableConfigurationProperties(BootstrapAdminProperties.class)
+@EnableConfigurationProperties({BootstrapAdminProperties.class, AdminWebAuthnProperties.class})
 public class SecurityConfig {
 
     @Bean
@@ -48,10 +48,27 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/admin/auth/login")
                         .permitAll()
+                        .requestMatchers(
+                                "/api/admin/auth/me",
+                                "/api/admin/auth/logout",
+                                "/api/admin/auth/webauthn/registration/options",
+                                "/api/admin/auth/webauthn/registration",
+                                "/api/admin/auth/webauthn/authentication/options",
+                                "/api/admin/auth/webauthn/authentication",
+                                "/api/admin/auth/webauthn/status",
+                                "/api/admin/auth/recovery-codes/verify",
+                                "/api/admin/auth/recovery-codes/rotate")
+                        .authenticated()
+                        .requestMatchers(
+                                "/api/admin/auth/webauthn/credentials",
+                                "/api/admin/auth/webauthn/credentials/**")
+                        .hasAuthority("ADMIN_SECOND_FACTOR_VERIFIED")
+                        .requestMatchers("/api/admin/auth/**")
+                        .denyAll()
                         .requestMatchers("/actuator/**")
                         .denyAll()
                         .requestMatchers("/api/admin/**")
-                        .authenticated()
+                        .hasAuthority("ADMIN_SECOND_FACTOR_VERIFIED")
                         .requestMatchers("/api/**")
                         .denyAll()
                         .anyRequest()

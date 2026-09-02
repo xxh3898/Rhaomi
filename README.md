@@ -171,7 +171,7 @@ RHAOMI_PRODUCTION_COMPOSE_EVIDENCE_DIR=/path/to/task-evidence \
 sh scripts/validate-production-compose.sh
 ```
 
-script는 image OCI revision과 current Git HEAD 일치, profile opt-in one-shot Flyway V1~V9 migration·Flyway-disabled schema validation, malformed task mode 거부, normal backend/publisher의 Flyway·bootstrap 비활성, writer 정지 중 public static 200, web-only loopback port, internal network adjacency, bind RO/RW, publisher isolated build-workspace RW와 나머지 image source RO, public deny route, `Secure` session cookie와 일반 Compose `down`→`up` sentinel persistence를 확인한다. task container/network와 marker temp root는 정리하지만 PostgreSQL task volume과 image는 삭제하지 않고 exact retained volume을 보고한다. base의 `/private/var/lib/rhaomi`를 만들거나 변경하지 않으며 production Secret·FQDN·Cloudflare·GHCR·deploy도 다루지 않는다.
+script는 image OCI revision과 current Git HEAD 일치, profile opt-in one-shot Flyway V1~V10 migration·Flyway-disabled schema validation, malformed task mode 거부, normal backend/publisher의 Flyway·bootstrap 비활성, writer 정지 중 public static 200, web-only loopback port, internal network adjacency, bind RO/RW, publisher isolated build-workspace RW와 나머지 image source RO, public deny route, `Secure` session cookie와 일반 Compose `down`→`up` sentinel persistence를 확인한다. task container/network와 marker temp root는 정리하지만 PostgreSQL task volume과 image는 삭제하지 않고 exact retained volume을 보고한다. base의 `/private/var/lib/rhaomi`를 만들거나 변경하지 않으며 production Secret·FQDN·Cloudflare·GHCR·deploy도 다루지 않는다.
 
 ### Production release/deploy contract acceptance
 
@@ -200,8 +200,8 @@ task validator는 source A backup 뒤 DB/media를 B로 바꾸고 fresh PostgreSQ
 
 - 고객 페이지는 정적 HTML로 배포하며 SSR을 사용하지 않는다.
 - 공개 사이트는 런타임에 Spring Boot나 PostgreSQL에 의존하지 않는다.
-- 관리자 인증은 HttpOnly session cookie와 CSRF 보호를 사용하는 Spring Security 기반이다.
-- `/admin/`은 noindex인 Static Export client shell이며 backend session이 최종 보안 경계다. login POST와 identity 검증이 끝나면 form credential과 pre-login CSRF를 먼저 제거하고, 별도 fresh CSRF 준비가 성공한 뒤에만 authenticated mutation-ready 상태가 된다. 준비 실패 재시도는 `/me`로 기존 session을 확인한 뒤 fresh CSRF만 다시 획득한다.
+- 관리자 인증은 HttpOnly session cookie와 CSRF 보호를 사용하는 Spring Security password+WebAuthn 기반이다. password 성공은 first factor일 뿐이며 passkey second factor 전에는 콘텐츠·미디어 business API를 사용할 수 없다.
+- `/admin/`은 noindex인 Static Export client shell이며 backend session이 최종 보안 경계다. login POST와 identity 검증이 끝나면 form credential과 pre-login CSRF를 먼저 제거하고, fresh CSRF 뒤 WebAuthn 상태를 확인한다. active passkey가 없으면 초기 등록과 recovery code rotation, 있으면 passkey assertion을 마친 뒤 session ID 재교체와 다시 받은 fresh CSRF까지 성공해야 mutation-ready dashboard가 열린다. recovery code 사용 session은 새 code set을 rotation하기 전까지 제한된다.
 - local browser 요청은 Nginx gateway의 same-origin `/api/**`를 사용한다. frontend는 host port를 열지 않고 gateway는 PostgreSQL network에 참여하지 않는다.
 - 견종·서비스 기준정보는 관리자 session·CSRF가 적용된 API로 생성·조회·수정·보관할 수 있다.
 - 공지는 같은 인증 경계에서 생성·조회·수정·보관하며 게시 필수값과 게시·만료 기간을 검증한다.

@@ -3,7 +3,7 @@ title: "도메인 데이터 모델"
 status: "proposed"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-31"
+last_updated: "2026-09-02"
 review_trigger: "PostgreSQL table·field·API 변경 시"
 ---
 
@@ -11,12 +11,12 @@ review_trigger: "PostgreSQL table·field·API 변경 시"
 
 ## 구현 상태
 
-- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`, Flyway V4·V7의 `shop_settings`, Flyway V5의 `media_assets`, Flyway V6의 `gallery_items`, Flyway V8의 `content_revision_state`·`publishing_outbox` producer, Flyway V9의 `publish_generation_state`와 outbox claim·lease·attempt/result state
+- 현재 구현: Flyway V1의 `admin_users`, Flyway V2의 `breeds`·`services`, Flyway V3의 `notices`, Flyway V4·V7의 `shop_settings`, Flyway V5의 `media_assets`, Flyway V6의 `gallery_items`, Flyway V8의 `content_revision_state`·`publishing_outbox` producer, Flyway V9의 `publish_generation_state`와 outbox claim·lease·attempt/result state, Flyway V10의 `admin_webauthn_credentials`·`admin_recovery_codes`
 - 현재 read model: active generation 기반 internal build snapshot·public-scope canonical media content
 - 현재 publication read/use model: polling publisher·30초 debounce, actual Java→Node release executor, generated V2 content/media manifest, 공개 이미지 파생본과 Hero·프로필·OG 정적 렌더링, private release manifest·atomic switch
 - 후속 구현: production Compose·secret·Mac path provisioning, operational status UI와 실제 public acceptance
 
-`breeds`, `services`, `notices`, `shop_settings`, `media_assets`, `gallery_items`와 V8·V9 publication table은 현재 schema 계약이다. Build API response, generated V2 snapshot/media manifest와 private release manifest는 이 schema를 변경하지 않는 current read/build model이다. release filesystem artifact는 PostgreSQL schema authority가 아니며 이번 구현에 Flyway V10은 없다.
+`breeds`, `services`, `notices`, `shop_settings`, `media_assets`, `gallery_items`, V8·V9 publication table과 V10 관리자 second-factor table은 현재 schema 계약이다. Build API response, generated V2 snapshot/media manifest와 private release manifest는 이 schema를 변경하지 않는 current read/build model이다. release filesystem artifact는 PostgreSQL schema authority가 아니다.
 
 ## 현재 `admin_users`
 
@@ -31,6 +31,42 @@ review_trigger: "PostgreSQL table·field·API 변경 시"
 | `updated_at` | timestamptz | Y | audit timestamp |
 
 schema source of truth는 `backend/src/main/resources/db/migration/V1__create_admin_users.sql`이다.
+
+## 현재 관리자 WebAuthn·recovery state
+
+### `admin_webauthn_credentials`
+
+| field | type | 필수 | 설명 |
+|---|---|---:|---|
+| `id` | UUID | Y | server-generated row identity |
+| `admin_user_id` | UUID FK | Y | `admin_users(id)`, delete 기본 restrict |
+| `credential_id` | bytea | Y | authenticator public credential identifier, global unique |
+| `credential_type` | varchar(32) | Y | 현재 public-key credential type |
+| `public_key_cose` | bytea | Y | assertion 검증용 COSE public key |
+| `signature_count` | bigint | Y | 0 이상인 authenticator counter |
+| `uv_initialized` | boolean | Y | user-verification state metadata |
+| `transports` | varchar(255) | Y | canonical transport metadata |
+| `backup_eligible`·`backup_state` | boolean | Y | authenticator backup metadata |
+| `attestation_object`·`attestation_client_data_json` | bytea | Y | 검증 library가 관리하는 registration evidence |
+| `label` | varchar(100) | Y | nonblank operator label |
+| `status` | varchar(16) | Y | `ACTIVE | REVOKED`; physical delete 없음 |
+| `created_at`·`updated_at`·`last_used_at` | timestamp(6) with time zone | Y | server-owned audit/use timestamp |
+| `revoked_at` | timestamp(6) with time zone | N | revoked일 때만 필수 |
+
+passkey private key는 authenticator/device authority이며 server가 수집·저장·log하지 않는다. authentication lookup은 active credential만 사용하고 revoke는 audit row를 보존한다.
+
+### `admin_recovery_codes`
+
+| field | type | 필수 | 설명 |
+|---|---|---:|---|
+| `id` | UUID | Y | server-generated row identity |
+| `admin_user_id` | UUID FK | Y | `admin_users(id)`, delete 기본 restrict |
+| `code_set_id` | UUID | Y | 한 번에 발급한 recovery code set identity |
+| `code_hash` | varchar(64) | Y | lowercase SHA-256, global unique; plaintext 저장 금지 |
+| `created_at` | timestamp(6) with time zone | Y | set 발급 시각 |
+| `used_at`·`revoked_at` | timestamp(6) with time zone | N | 사용 또는 set 폐기 terminal state |
+
+recovery code 평문은 rotation response에서 한 번만 반환한다. 한 code가 사용되면 같은 set의 나머지를 폐기하고 새 set rotation 전까지 session은 `RECOVERY_ROTATION_REQUIRED`로 business API를 사용하지 못한다. 두 table의 source of truth는 `backend/src/main/resources/db/migration/V10__create_admin_webauthn_credentials_and_recovery_codes.sql`이며 V1~V9는 수정하지 않는다.
 
 ## 현재 publication database state
 
@@ -91,10 +127,10 @@ schema source of truth는 `backend/src/main/resources/db/migration/V1__create_ad
 
 ## 현재 build snapshot read model
 
-- Build API는 새 table·column 없이 V1~V9 current row를 하나의 read-only PostgreSQL `REPEATABLE READ` transaction에서 조회한다.
+- Build API는 second-factor table을 public snapshot에 포함하지 않고 V1~V10 schema의 콘텐츠·publication current row만 하나의 read-only PostgreSQL `REPEATABLE READ` transaction에서 조회한다.
 - active `PROCESSING` generation과 live lease가 request gate이고, response `contentRevision`은 해당 event의 과거 값이 아니라 같은 snapshot에서 읽은 current singleton 값이다.
 - Build Snapshot V2 top-level은 `schemaVersion`, `contentRevision`, `publishGeneration`, server-owned microsecond `generatedAt`, `shop`, `services`, `breeds`, `galleryItems`, `notices`, `mediaAssets`만 허용한다.
-- database source-of-truth는 `BIGINT`, Java internal source-of-truth는 `long`이다. HTTP/generated JSON 경계의 revision/generation만 canonical decimal string이며 `contentRevision`은 0 이상, `publishGeneration`은 1 이상이고 둘 다 `Long.MAX_VALUE` 이하다. 이 wire 변경에는 Flyway V10이나 data migration이 없다.
+- database source-of-truth는 `BIGINT`, Java internal source-of-truth는 `long`이다. HTTP/generated JSON 경계의 revision/generation만 canonical decimal string이며 `contentRevision`은 0 이상, `publishGeneration`은 1 이상이고 둘 다 `Long.MAX_VALUE` 이하다. 이 wire 변경 자체에는 DB column/type migration이 없다.
 - Shop은 공개 business field 26개만, Breed·Service·Gallery·Notice는 각 public field allowlist만, media manifest는 `id`, `contentType`, `byteSize`, `width`, `height`만 반환한다.
 - audit, status, storage key/path, persisted hash, source filename/type, claim owner·lease·event ID는 ordering·validation input일 수 있지만 DTO에는 노출하지 않는다.
 - collection은 published/time 조건으로 filter하고 relation target·active media·실제 canonical master size/hash를 다시 검증한다. 명시적 invalid relation/file은 silent omission 없이 전체 snapshot 오류다.

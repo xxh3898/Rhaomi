@@ -124,7 +124,7 @@ class PublicationExecutorSettingsTest {
         environment.put("RHAOMI_CODE_SHA", "b".repeat(40));
         environment.put("RHAOMI_CODE_IMAGE_TAG", "sha-" + "b".repeat(40));
         environment.put("RHAOMI_CODE_IMAGE_DIGEST", "sha256:" + "c".repeat(64));
-        environment.put("RHAOMI_FLYWAY_VERSION", "9");
+        environment.put("RHAOMI_FLYWAY_VERSION", "10");
         environment.put("RHAOMI_SBOM_REFERENCE", "sha256:" + "d".repeat(64));
         environment.put("RHAOMI_RELEASE_RETENTION", "5");
         environment.put("PATH", "/usr/local/bin:/usr/bin:/bin");

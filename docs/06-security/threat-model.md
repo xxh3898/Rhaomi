@@ -26,7 +26,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 ## 공격 표면
 
 - Spring Boot 관리자 login과 `/api/admin/**`
-- 향후 WebAuthn registration·authentication·registration revoke/remove와 recovery-code 복구
+- WebAuthn registration·authentication·registration revoke/remove와 recovery-code 검증·rotation
 - session cookie와 CSRF token 전달
 - local/test 관리자 bootstrap
 - Actuator health
@@ -45,11 +45,16 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | 관리자 credential 탈취 | 콘텐츠 변조, 내부 데이터 접근 | BCrypt, 일반화된 로그인 실패, WebAuthn/passkey 배포 게이트, RP-side credential record 최소 접근, recovery code 보호, session 폐기 |
 | passkey private key의 server 수집·기록 | authenticator trust 경계 붕괴, key 유출 | private key는 authenticator/device authority, server input·DB·환경변수·log·backup·release evidence에서 금지 |
 | WebAuthn registration 위조·record 변조 | 공격자 authenticator 등록, 관리자 사칭 | credential ID·public key·account binding·sign-counter metadata integrity, registration 승인, 분실·폐기·의심 시 credential record revoke/remove |
+| password-only session의 업무 권한 획득 | password 탈취만으로 콘텐츠 변조 | FIRST/SECOND authority 분리, 모든 업무 `/api/admin/**`의 `ADMIN_SECOND_FACTOR_VERIFIED` 요구, 최초 zero-credential registration 외 password-only 추가 등록 금지 |
+| challenge 탈취·재전송·purpose 혼동·동시 consume | assertion 재사용, 같은 ceremony의 중복 권한 획득, 다른 account나 ceremony로 권한 획득 | 32 byte 이상 server random challenge, session/account/purpose binding, bounded TTL, options 저장과 completion consume의 동일 session-state critical section, 동시 요청 중 최대 한 번의 ceremony 획득, RP ID/origin·UV 검증 |
+| 동시 initial registration | password-only session 여러 개에서 공격자 credential 추가 | completion transaction의 관리자 row lock과 active credential count 재검증, credential ID DB unique |
 | recovery code 노출·재사용 | second factor 우회 | recovery code만 secret inventory로 관리하고 사용·노출·재발급·운영자 변경 시 기존 code 무효화와 새 set rotation |
+| recovery 검증 뒤 rotation 일부 실패·우회 | 이미 사용된 code 재시도, Passkey 재인증으로 rotation 생략, 업무 권한 오노출 | set 전체 즉시 무효화, `RECOVERY_ROTATION_REQUIRED`에서는 status·logout·rotation만 허용하고 WebAuthn ceremony·업무 API 거부, UI는 검증 전 상태로 되돌리지 않고 explicit rotation retry만 제공 |
+| credential/recovery DB commit 실패와 session stage 불일치 | 저장되지 않은 factor로 SECOND 권한 획득 | 관리자 row lock을 포함한 DB transaction이 commit된 뒤에만 session fixation 방어와 stage 승격 수행, commit 실패 시 기존 stage 유지 |
 | session 탈취 | 관리자 권한 사용 | HttpOnly, SameSite, production Secure/TLS fail-fast, log 마스킹 |
 | CSRF | 관리자 의도와 다른 변경 | Spring Security CSRF 유지, token 없는 state change 거부 |
-| session fixation | 로그인 전 session 탈취 연계 | 로그인 성공 시 session id 교체 |
-| 비활성 계정 로그인 | 해지 계정 재사용 | `active` 확인과 동일한 401 실패 |
+| session fixation | 로그인 전 session 탈취 연계 | password 성공과 WebAuthn/recovery stage 승격마다 session id 교체, 이전 CSRF 폐기 |
+| 비활성 계정 로그인·stage 승격 | 해지 계정 재사용 | password에서 `active` 확인과 동일한 401, WebAuthn/recovery completion에서 DB active 재확인 후 승격 |
 | bootstrap 오용 | default 관리자 생성 | 기본 비활성, 완전한 env 요구, production profile 차단 |
 | API fail-open | 미설계 endpoint 노출 | login/csrf/health만 anonymous, API·Actuator·non-API 모두 명시 전 `denyAll` |
 | password hash 노출 | offline cracking | entity 직접 반환 금지, DTO allowlist, 인증 완료 credential erase, session principal·log·body 검사 |
@@ -121,7 +126,8 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 
 ## 출시 차단
 
-- 관리자 WebAuthn/passkey 2차 인증 없음 또는 password-only production 허용
+- source WebAuthn/passkey 2차 인증을 끄거나 password-only production을 허용함
+- exact production RP ID·approved HTTPS origin·RP name, 실제 관리자 passkey enrollment와 recovery-code 발급·보관 evidence 없이 production을 승인함
 - passkey private key를 server가 수집·저장·로그하거나 RP-side credential record와 recovery-code secret을 같은 rotation 대상으로 취급
 - WebAuthn registration revoke/remove와 recovery-code 무효화·rotation 절차 부재
 - TLS 없이 production session cookie 사용
@@ -141,7 +147,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - HomeOps release→live compatibility 재검증→Rhaomi release/provisioning, V14·disabled web mapping·fixed inventory·fresh Agent capability와 actual monitor/control evidence 없이 automatic recovery를 활성화함
 - backend mapping을 만들거나 `FAILED`·`OUTCOME_UNKNOWN`을 자동 재실행함
 
-현재 local backend·gateway와 `/admin/` 인증 셸·미디어·매장정보·견종·서비스·갤러리·공지 관리 UI는 운영 배포 대상이 아니므로 WebAuthn/passkey·TLS·운영 account provisioning을 구현하지 않는다. noindex와 client session 확인도 보안 통제로 간주하지 않으며, 실제 iPhone Safari HEIC upload·shop/견종/서비스/갤러리/공지 form·VoiceOver 증거가 없는 상태를 운영 준비 완료로 표현하지 않는다.
+현재 source에는 Spring Security WebAuthn/WebAuthn4J 검증, Flyway V10 RP-side record·one-way recovery code, FIRST/SECOND/RECOVERY stage와 Static Export ceremony UI가 구현돼 있다. 그러나 실제 RP/FQDN·TLS·운영 account/passkey·recovery-code provisioning은 수행하지 않았으므로 운영 배포 대상 또는 production-ready로 표현하지 않는다. noindex와 client session 확인도 보안 통제로 간주하지 않으며, 실제 iPhone Safari passkey/HEIC upload·shop/견종/서비스/갤러리/공지 form·VoiceOver 증거가 없는 상태를 운영 준비 완료로 표현하지 않는다.
 
 ## 출시 후 개선
 

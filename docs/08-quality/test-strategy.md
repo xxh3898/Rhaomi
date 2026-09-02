@@ -35,6 +35,14 @@ review_trigger: "기술·기능 범위 변경 시"
 - post-login CSRF 실패의 unavailable 분리와 `/me`+fresh CSRF recovery, 기존 session의 mutation-ready 전 fresh CSRF 준비
 - login 400/401/403/503 fixed error mapping, password 제거와 UTF-8 72-byte client 안내
 - logout 204/401/403, mutation non-retry와 authenticated API 401 session-expired 처리
+- FIRST session의 dashboard 비노출, zero-credential initial enrollment과 existing-credential assertion 분기, SECOND 전환 뒤 fresh CSRF 전 업무 UI 비노출
+- WebAuthn option strict shape·32 byte challenge·`userVerification=required`, canonical unpadded base64url와 `navigator.credentials.create/get` serialization
+- unsupported/invalid WebAuthn을 password·anonymous/session-expiry로 오분류하지 않고 ceremony/mutation 자동 재전송 0
+- initial registration 또는 recovery verify 성공 뒤 recovery-code rotation 실패 시 이전 state로 복귀하지 않고 `RECOVERY_ROTATION_REQUIRED` explicit retry 유지
+- `RECOVERY_ROTATION_REQUIRED`에서 WebAuthn assertion/registration과 업무 API를 모두 거부하고 recovery rotation 완료 뒤에만 SECOND 권한 복구
+- credential/recovery DB transaction commit 뒤 session stage 승격 순서와 commit 실패의 권한 승격 0
+- recovery code 10개 1회 표시, 보관 확인 전 dashboard 비노출과 browser storage·URL·console credential material 0
+- recovery code 보관 확인 뒤 fresh CSRF와 server MFA status를 다시 확인하고, 그 사이 session expiry에는 dashboard를 열지 않음
 - visible label/autocomplete, Enter, pending 중복 방지, live alert, password focus, retry와 identity
 - browser storage·URL·log credential/token 비저장 정적 검사
 - 매장정보·갤러리·미디어·견종·서비스·공지가 모두 enabled인 dashboard navigation과 same-page 관리 홈 복귀
@@ -90,6 +98,8 @@ review_trigger: "기술·기능 범위 변경 시"
 - email 정규화·password hash 생성
 - bootstrap UTF-8 password 72-byte 허용·73-byte encoder 전 거부
 - 인증 service·repository 장애의 generic 503과 내부 detail 비노출
+- production WebAuthn required·RP ID·HTTPS origin·RP name·1~10분 TTL fail-fast와 non-production synthetic config 허용
+- Spring-managed `spring-security-webauthn`/WebAuthn4J 사용과 custom CBOR·COSE·signature production parser 0
 
 ### Backend PostgreSQL integration
 
@@ -107,6 +117,13 @@ review_trigger: "기술·기능 범위 변경 시"
 - HttpOnly·SameSite session cookie와 fixation 후 id 변경
 - response의 password/hash 비노출
 - health 외 미설계 API·Actuator·non-API path deny
+- V9→V10·clean V1→V10 migration, credential/recovery FK·unique·audit·one-way hash와 private-key/plaintext column 0
+- password 성공만으로 business API 403, FIRST/SECOND/RECOVERY authority와 stage별 ceremony·credential endpoint allowlist
+- real P-256 synthetic authenticator의 valid registration/assertion 200, second-factor session id 재교체와 business API 허용
+- challenge account/purpose/TTL/single-use, registration·authentication 동일 session completion을 latch로 겹친 실제 HTTP 요청에서 정확히 한 consume·한 `SECOND_FACTOR_VERIFIED`·나머지 generic 401, RP crypto operation 정확히 1회, wrong RP/origin/credential/signature/UV, revoked credential의 generic failure와 inactive account stage 승격 거부
+- zero active credential initial registration 허용, active credential account의 password-only 추가 registration 거부와 completion account-row lock 재검증
+- recovery plaintext persistence 0, valid one-time use·set 전체 무효화·replay 거부·forced rotation, 마지막 usable factor lockout 방지
+- registration/assertion/recovery/credential state change의 CSRF 없는 요청 403
 
 ### 견종·서비스 domain/API/DB
 
@@ -233,7 +250,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - active PROCESSING generation+live lease 성공, pending·retry-wait·terminal·expired·unknown·nonpositive generation 거부
 - read-only PostgreSQL REPEATABLE READ transaction과 단일 server-owned microsecond generatedAt, current revision과 target event revision 분리
 - exact top-level·Shop·Breed·Service·Gallery·Notice·Media key allowlist, `schemaVersion=2`, canonical decimal string revision/generation과 `codeImageDigest`·audit·storage/hash·claim field 부재
-- 실제 PostgreSQL 18.6·Flyway V1~V9에서 `9007199254740993`과 `9223372036854775807` active generation HTTP 200, JSON string exact 보존과 content revision `0` 경계
+- 실제 PostgreSQL 18.6·Flyway V1~V10에서 `9007199254740993`과 `9223372036854775807` active generation HTTP 200, JSON string exact 보존과 content revision `0` 경계
 - published Breed/Service ordering, Gallery due/future와 relation published 조건, Notice active/future/expired·pinned ordering, Markdown source 보존
 - Shop singleton·NAP/time/HTTPS/image-alt validation, Service final state와 direct-invalid content 전체 422
 - Shop/Gallery relation의 active media distinct union·id ordering과 canonical master size·SHA 검증, invalid/missing/corrupt file 전체 snapshot 실패
@@ -334,7 +351,7 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - source contract test가 service inventory, external same-image backend/publisher, pinned web/PostgreSQL image, `build:`·`latest` 부재를 확인
 - canonical base `/private/var/lib/rhaomi` source와 overlay-only temp source가 분리되고 host `/srv/rhaomi`, source checkout·Docker socket mount가 없음을 확인
 - rendered JSON에서 web-only `127.0.0.1` port와 전용 `loopback-edge`, 세 service internal network adjacency, bind target/mode, project-scoped PostgreSQL volume name과 cleanup label 확인
-- profile opt-in non-web migration task로 PostgreSQL 18.6·Flyway V1~V9를 적용하고 Flyway-disabled schema task로 재검증한 뒤 normal backend/publisher의 Flyway·bootstrap 비활성 확인
+- profile opt-in non-web migration task로 PostgreSQL 18.6·Flyway V1~V10을 적용하고 Flyway-disabled schema task로 재검증한 뒤 normal backend/publisher의 Flyway·bootstrap 비활성 확인
 - actual container inspect의 `PortBindings`, `NetworkSettings`, `Mounts`와 web public RO, backend media RW, publisher public/state/lock RW·media RO probe
 - static home/admin·immutable asset, anonymous admin upstream, `Secure` session cookie, build/internal/actuator/manifest/dot/unknown 404와 internal valid Bearer authentication 확인
 - external형 Host로 `/admin`을 요청해 `308`, exact `Location: /admin/`, internal `http://`·`:8080`·validation loopback port 부재를 확인하고 runtime Nginx config의 fixed `X-Forwarded-Proto: https`·`X-Forwarded-Port: 443`을 확인
@@ -352,7 +369,7 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - canonical production Dockerfile의 required `RHAOMI_GIT_HEAD`와 exact release SHA binding, amd64+arm64, exact SHA tag·existing-tag overwrite 거부, returned OCI index digest, platform별 manifest·attestation와 OCI source/revision, attached SPDX SBOM·SLSA provenance·attached-SBOM scan evidence, `latest` 0
 - pinned Tailscale action/binary checksum, strict SSH host authority, fixed remote executable과 세 scalar argv; heredoc·free-form shell·credential argv 0
 - Java one-shot mode의 exact/unknown/duplicate/publisher-mode mutual exclusion, `WebApplicationType.NONE`, controller·admin bootstrap·publisher loop 0
-- actual PostgreSQL 18.6 clean schema의 migration V1~V9·JPA validate 성공, Flyway-disabled schema validate 성공, empty schema 실패
+- actual PostgreSQL 18.6 clean schema의 migration V1~V10·JPA validate 성공, Flyway-disabled schema validate 성공, empty schema 실패
 - production Compose default four-service 불변, `production-task` profile의 same-image `migration`·`schema-validate`, data network only·port/mount 0·restart 0
 - fixed Mac entrypoint의 lower-case SHA·fixed GHCR digest·SBOM strict input, fixed root/config/Docker credential, owner/mode, release-bound backup gate, atomic mkdir lock·own-token cleanup
 - exact digest pull·RepoDigest·OCI revision을 writer stop 전 검증하고 backend/publisher `exited` 후에만 migration→schema validation 실행
@@ -377,7 +394,7 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - pull 전 host envelope, pull 후 read-only target verifier 순서와 repository/deploy-state write 실패·media/network/credential 0; verifier failure에서 writer stop 0·repository mutation 0
 - source A backup 뒤 writer physical stop+host capture state에서만 DB/media B mutation, fresh Compose project·PostgreSQL named volume·빈 media root의 `pg_restore`/media restore가 A인지 확인
 - isolated media restore 직후와 final writer stop 뒤 host `0700`/`0600`, runtime validation 직전 `0750`/`0640`, nested directory/file 동일 계약 확인
-- Flyway V1~V9/JPA schema, Shop·Breed·Service·Gallery·Notice·audit/relation row, representative PNG checksum/decode와 동일 static publisher 성공
+- Flyway V1~V10/JPA schema, Shop·Breed·Service·Gallery·Notice·audit/relation/WebAuthn row, representative PNG checksum/decode와 동일 static publisher 성공
 - PostgreSQL restart와 일반 Compose `down`→`up` 뒤 restored row/schema·same volume identity persistence
 - retention KST daily 7/weekly 4/monthly 6, 최신 3·on-demand 보호, incomplete·same-size latest corruption·정상 set 3개 미만의 apply refusal와 post-check
 - synthetic credential marker의 output/evidence 0, production path/workflow/GHCR/Tailscale mutation 0, Docker volume/image delete·prune 0
@@ -403,7 +420,7 @@ Mac native Linux arm64와 Hosted Backend Linux amd64는 같은 production image/
 - `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning` ordering, V14→disabled mapping→inventory→Agent capability→read-only check→별도 enable/drill approval sequence
 - production state의 HomeOps release/application deploy `COMPLETED`·V14 `APPLIED`와 Rhaomi release·mapping create/enable·Agent rollout·notification·restart/drill `NOT_RUN`, task evidence의 mapping enable/restart-drill mutation 0
 - activation preflight와 evidence의 secret marker·private path 0, actual HomeOps network/Secret/repository 접근 0
-- existing deploy/backup failure/quiescence/permission lifecycle과 production Compose regression, Flyway V1~V9·public route·3-job Hosted structure 불변
+- existing deploy/backup failure/quiescence/permission lifecycle과 production Compose regression, additive Flyway V10·public route·3-job Hosted structure 불변
 
 이 검증은 Rhaomi source/task와 read-only release evidence다. HomeOps D-IMP-5b production release·application deploy·V14 적용은 확인했지만 actual monitored-service/control/notification·Rhaomi fixed inventory·mapping create/enable·Agent rollout·restart/drill은 실행하지 않는다. Fixed recovery backend action test는 local allowlist regression일 뿐 backend automatic mapping evidence가 아니다.
 
@@ -436,7 +453,7 @@ Mac native Linux arm64와 Hosted Backend Linux amd64는 같은 production image/
 - raw HTTP `9007199254740993` → Node parser → V2 `content.json`·`media-manifest.json`과 machine CLI의 exact string 보존
 - CLI environment-only credential, fixed argv, safe one-line JSON과 exit `0/20/21/22`, secret/URL/path/UUID/stack leak 0
 - Linux amd64 Hosted와 Linux arm64 Mac Compose Node 24/Sharp 실행
-- 8f6 staging-only CLI 실행 시 publication DB state, Flyway V1~V9, default Compose와 public/admin route 불변; 8f7 actual executor full gate는 아래 별도 suite에서 검증
+- 8f6 staging-only CLI 실행 시 publication DB state, Flyway V1~V10, default Compose와 public/admin route 불변; 8f7 actual executor full gate는 아래 별도 suite에서 검증
 
 ## 현재 Phase 1C-8f7 정적 render·release 단위·통합 자동 검증
 
@@ -448,7 +465,7 @@ Mac native Linux arm64와 Hosted Backend Linux amd64는 같은 production image/
 - release root의 one-direct-child package confinement, exact-parent current/previous와 sibling/absolute/out-of-root 거부, validation 뒤와 switch 직전 `BigInt` stale guard, equal/lower no-op, immutable collision과 `Long.MAX_VALUE`
 - candidate loopback home/notice/media/404 pre-switch smoke, previous/current atomic symlink 뒤 동일 post-switch smoke, existing/first release rollback, 실패 candidate cleanup과 smoke 성공 뒤에만 실행되는 retention 보호, post-switch housekeeping 실패의 `DEFERRED` success 분리
 - actual Java process executor의 fixed argv/allowlist environment, safe machine result, root·descendant physical termination과 lock lifetime
-- PostgreSQL 18.6·Flyway V1~V9 active generation의 Build API→Sharp→Next→release→DB state success, higher/previous, lower no-op, transient same-generation retry, terminal current 유지
+- PostgreSQL 18.6·Flyway V1~V10 active generation의 Build API→Sharp→Next→release→DB state success, higher/previous, lower no-op, transient same-generation retry, terminal current 유지
 
 다음은 여전히 후속 운영 통합 범위다.
 
@@ -497,7 +514,7 @@ Mac native Linux arm64와 Hosted Backend Linux amd64는 같은 production image/
 - protected source와 분리된 Mac mini local backup set, manifest/check와 retention·prune post-check
 - isolated restore의 manifest·DB·media·static build와 local RPO·RTO, single-host loss accepted risk evidence
 - raw PGDATA volume을 required restic input으로 사용하지 않고 `pg_dump -Fc`를 새 isolated named volume에 `pg_restore`
-- password 위 WebAuthn/passkey의 authenticator private key server 비수집·RP-side credential ID/public key/필요 metadata, registration revoke/remove, recovery-code secret 무효화·rotation과 password-only production 차단
+- exact production RP/FQDN/HTTPS에서 password 위 WebAuthn/passkey의 authenticator private key server 비수집·RP-side credential ID/public key/필요 metadata, 실제 registration/revoke·recovery-code 발급/rotation과 password-only production 차단
 - 사용자 소유 기존 도메인의 exact FQDN·canonical/OG/sitemap/robots/public HTTPS smoke
 - 실제 매장 운영자의 NAP·정책·문구·링크·사진·게시 권한 승인
 - HomeOps synthetic/internal/container/host/DB/publisher/backup threshold·alert

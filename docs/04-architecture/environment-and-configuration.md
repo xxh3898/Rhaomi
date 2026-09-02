@@ -55,9 +55,14 @@ host Compose CLI는 Git 제외 `.env.dev.local`을 interpolation source로 읽�
 | `SPRING_DATASOURCE_USERNAME` | Y 취급 | backend DB user |
 | `SPRING_DATASOURCE_PASSWORD` | Y | backend DB password |
 | `RHAOMI_SESSION_COOKIE_SECURE` | N | local HTTP는 `false`, production TLS는 `true` |
+| `RHAOMI_ADMIN_WEBAUTHN_REQUIRED` | N | local 기본 `false`, production은 반드시 `true`인 WebAuthn 2차 인증 gate |
+| `RHAOMI_WEBAUTHN_RP_ID` | N | browser credential scope의 exact RP ID; wildcard 금지 |
+| `RHAOMI_WEBAUTHN_ORIGIN` | N | production은 path·query·fragment 없는 승인된 HTTPS origin과 443만 허용 |
+| `RHAOMI_WEBAUTHN_RP_NAME` | N | passkey 등록 화면에 표시할 nonblank RP 이름 |
+| `RHAOMI_WEBAUTHN_CHALLENGE_TTL` | N | challenge single-use TTL, production 1~10분·현재 5분 |
 | `RHAOMI_BUILD_SERVICE_TOKEN` | Y | backend-only internal build API의 64자 lowercase hex Bearer credential |
 
-Compose는 `POSTGRES_*`에서 backend의 `SPRING_DATASOURCE_*`를 내부 service hostname으로 구성한다. `RHAOMI_BUILD_SERVICE_TOKEN`도 backend environment에만 전달하며 frontend·gateway environment와 filesystem에는 전달하지 않는다. production에서는 운영 전용 Secret과 정확한 runtime contract를 별도 Compose에서 사용한다.
+Compose는 `POSTGRES_*`에서 backend의 `SPRING_DATASOURCE_*`를 내부 service hostname으로 구성한다. `RHAOMI_BUILD_SERVICE_TOKEN`도 backend environment에만 전달하며 frontend·gateway environment와 filesystem에는 전달하지 않는다. WebAuthn RP 설정도 backend server configuration에만 두고 browser에는 ceremony response의 public RP/origin 정보만 전달한다. production Compose는 WebAuthn을 강제로 활성화하고 RP ID·origin·name을 required interpolation으로 받으며 실제 값은 별도 provisioning gate에서 확정한다.
 
 ## private media
 
@@ -161,7 +166,7 @@ production release manifest에는 exact `main` SHA, image tag·digest, Flyway ve
 | `RHAOMI_CODE_SHA` | N | exact 40 lowercase hex code identity |
 | `RHAOMI_CODE_IMAGE_TAG` | N | non-secret immutable image identity |
 | `RHAOMI_CODE_IMAGE_DIGEST` | N | `sha256:<64 lowercase hex>` |
-| `RHAOMI_FLYWAY_VERSION` | N | release DB contract version, 현재 `9` |
+| `RHAOMI_FLYWAY_VERSION` | N | release DB contract version, 현재 `10` |
 | `RHAOMI_SBOM_REFERENCE` | N | published OCI index의 `sha256:<64 lowercase hex>` digest. amd64/arm64 attached SBOM·provenance attestation을 소유하는 index authority |
 | `RHAOMI_PUBLISHER_BUILD_TIMEOUT_MS` | N | Next build timeout, 1,000~3,600,000ms; 미설정 600,000ms |
 | `RHAOMI_RELEASE_RETENTION` | N | 1~100, 기본 5; current·previous 별도 보호 |
@@ -241,7 +246,7 @@ validator는 exact-HEAD production image를 재사용하고 Darwin에서는 `/pr
 - tracked `ops/production/deploy-rhaomi.sh`는 production에서 `/private/var/lib/rhaomi/app/bin/deploy-rhaomi.sh`로 versioned provisioning할 fixed wrapper다. fixed Compose/env/Docker config, backup eligibility와 global deploy lock를 검증하고 requested digest·OCI revision을 writer 정지 전에 확인한다.
 - tracked HomeOps integration inventory는 compatibility JSON, shared Python core와 status/event/recovery entrypoint를 같은 fixed bin root에 versioned provisioning한다. actual HomeOps reporter absolute path를 Rhaomi env에 저장하지 않고 OS account home 아래 current HomeOps runtime inventory와 pinned owner·mode·SHA를 검증한다. HomeOps endpoint/HMAC secret은 Rhaomi `production.env`, container environment와 CLI에 없다.
 - production backend/publisher 일반 기동은 Flyway mutation을 수행하지 않는다. global deploy lock을 보유한 채 public web을 유지하고 두 writer의 physical exit를 확인한 뒤에만 `migration`→`schema-validate`를 실행한다.
-- migration은 Flyway V1~V9을 적용하고 JPA validate를 수행하며, schema task는 Flyway를 끌 채 JPA validate만 수행한다. 두 task는 exact CLI opt-in, non-web, admin bootstrap·publisher worker 0이고 성공 후 종료한다.
+- migration은 기존 V1~V9를 수정하지 않고 additive V10까지 적용한 뒤 JPA validate를 수행하며, schema task는 Flyway를 끈 채 JPA validate만 수행한다. 두 task는 exact CLI opt-in, non-web, admin bootstrap·publisher worker 0이고 성공 후 종료한다.
 - writer maintenance 시작 뒤 migration/schema/backend health/publisher start/runtime image identity 실패는 false success를 금지하고 backend/publisher를 다시 정지한다. quiescence 확인 뒤에만 own lock을 해제하며 확인 실패 시 lock을 보존한다. old writer를 자동 resume하지 않는다.
 - production session cookie는 TLS에서 `Secure=true`가 아니면 기동을 실패시킨다.
 - 실제 Mac mini에서 canonical directory 생성·ownership·permission, public/media/state/build-workspace bind mount, publisher image source의 workspace 외 read-only와 PostgreSQL named volume identity를 검증한다.

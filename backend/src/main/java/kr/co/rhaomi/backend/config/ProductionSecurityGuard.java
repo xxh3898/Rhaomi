@@ -14,14 +14,17 @@ public class ProductionSecurityGuard implements ApplicationRunner {
     private final Environment environment;
     private final boolean secureSessionCookie;
     private final BuildServiceProperties buildServiceProperties;
+    private final AdminWebAuthnProperties webAuthnProperties;
 
     public ProductionSecurityGuard(
             Environment environment,
             @Value("${server.servlet.session.cookie.secure:false}") boolean secureSessionCookie,
-            BuildServiceProperties buildServiceProperties) {
+            BuildServiceProperties buildServiceProperties,
+            AdminWebAuthnProperties webAuthnProperties) {
         this.environment = environment;
         this.secureSessionCookie = secureSessionCookie;
         this.buildServiceProperties = buildServiceProperties;
+        this.webAuthnProperties = webAuthnProperties;
     }
 
     @Override
@@ -35,6 +38,7 @@ public class ProductionSecurityGuard implements ApplicationRunner {
                 throw new IllegalStateException(
                         "production profile에서는 build service token이 필요합니다.");
             }
+            webAuthnProperties.validateProduction();
         }
     }
 }
