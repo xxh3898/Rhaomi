@@ -72,6 +72,7 @@ test("관리자 WebAuthn 2차 인증과 recovery lifecycle을 fail-closed로 고
     security,
     properties,
     webAuthnService,
+    ceremonyStore,
     recoveryService,
     browserWebAuthn,
     adminShell,
@@ -86,6 +87,9 @@ test("관리자 WebAuthn 2차 인증과 recovery lifecycle을 fail-closed로 고
     ),
     source(
       "backend/src/main/java/kr/co/rhaomi/backend/auth/webauthn/AdminWebAuthnService.java",
+    ),
+    source(
+      "backend/src/main/java/kr/co/rhaomi/backend/auth/webauthn/AdminWebAuthnCeremonyStore.java",
     ),
     source(
       "backend/src/main/java/kr/co/rhaomi/backend/auth/webauthn/AdminRecoveryCodeService.java",
@@ -126,8 +130,13 @@ test("관리자 WebAuthn 2차 인증과 recovery lifecycle을 fail-closed로 고
     webAuthnService,
     /transactions\.execute[\s\S]*authenticationStages\.promote/u,
   );
-  assert.match(webAuthnService, /session\.removeAttribute\(REGISTRATION_SESSION_ATTRIBUTE\)/u);
-  assert.match(webAuthnService, /session\.removeAttribute\(AUTHENTICATION_SESSION_ATTRIBUTE\)/u);
+  assert.match(webAuthnService, /ceremonies\.storeRegistration/u);
+  assert.match(webAuthnService, /ceremonies\.consumeRegistration/u);
+  assert.match(webAuthnService, /ceremonies\.storeAuthentication/u);
+  assert.match(webAuthnService, /ceremonies\.consumeAuthentication/u);
+  assert.equal((ceremonyStore.match(/synchronized \(session\)/gu) ?? []).length, 2);
+  assert.match(ceremonyStore, /session\.getAttribute\(attributeName\)/u);
+  assert.match(ceremonyStore, /session\.removeAttribute\(attributeName\)/u);
   assert.match(recoveryService, /MessageDigest\.getInstance\("SHA-256"\)/u);
   assert.match(recoveryService, /RECOVERY_ROTATION_REQUIRED/u);
   assert.match(

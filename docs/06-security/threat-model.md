@@ -46,7 +46,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | passkey private key의 server 수집·기록 | authenticator trust 경계 붕괴, key 유출 | private key는 authenticator/device authority, server input·DB·환경변수·log·backup·release evidence에서 금지 |
 | WebAuthn registration 위조·record 변조 | 공격자 authenticator 등록, 관리자 사칭 | credential ID·public key·account binding·sign-counter metadata integrity, registration 승인, 분실·폐기·의심 시 credential record revoke/remove |
 | password-only session의 업무 권한 획득 | password 탈취만으로 콘텐츠 변조 | FIRST/SECOND authority 분리, 모든 업무 `/api/admin/**`의 `ADMIN_SECOND_FACTOR_VERIFIED` 요구, 최초 zero-credential registration 외 password-only 추가 등록 금지 |
-| challenge 탈취·재전송·purpose 혼동 | assertion 재사용, 다른 account나 ceremony로 권한 획득 | 32 byte 이상 server random challenge, session/account/purpose binding, bounded TTL, completion 첫 단계 single-use consume, RP ID/origin·UV 검증 |
+| challenge 탈취·재전송·purpose 혼동·동시 consume | assertion 재사용, 같은 ceremony의 중복 권한 획득, 다른 account나 ceremony로 권한 획득 | 32 byte 이상 server random challenge, session/account/purpose binding, bounded TTL, options 저장과 completion consume의 동일 session-state critical section, 동시 요청 중 최대 한 번의 ceremony 획득, RP ID/origin·UV 검증 |
 | 동시 initial registration | password-only session 여러 개에서 공격자 credential 추가 | completion transaction의 관리자 row lock과 active credential count 재검증, credential ID DB unique |
 | recovery code 노출·재사용 | second factor 우회 | recovery code만 secret inventory로 관리하고 사용·노출·재발급·운영자 변경 시 기존 code 무효화와 새 set rotation |
 | recovery 검증 뒤 rotation 일부 실패·우회 | 이미 사용된 code 재시도, Passkey 재인증으로 rotation 생략, 업무 권한 오노출 | set 전체 즉시 무효화, `RECOVERY_ROTATION_REQUIRED`에서는 status·logout·rotation만 허용하고 WebAuthn ceremony·업무 API 거부, UI는 검증 전 상태로 되돌리지 않고 explicit rotation retry만 제공 |

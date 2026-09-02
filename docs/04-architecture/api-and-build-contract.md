@@ -36,7 +36,7 @@ review_trigger: "관리 API·build 입력 변경 시"
 - 인증 service 또는 repository 장애는 내부 원인을 노출하지 않는 503 `AUTH_SERVICE_UNAVAILABLE`로 처리한다.
 - login password는 UTF-8 최대 72 byte이며 초과 입력은 credential 비교 전에 400 `INVALID_REQUEST`로 거부한다.
 - request/response와 인증 완료 principal·저장된 `SecurityContext`에 `password_hash`를 포함하지 않는다.
-- WebAuthn challenge는 최소 32 random byte이며 server session의 account·purpose에 결합하고 TTL 안에서 한 번만 사용한다. RP ID와 origin은 server 설정 authority이고 user verification은 required다.
+- WebAuthn challenge는 최소 32 random byte이며 server session의 account·purpose에 결합하고 TTL 안에서 한 번만 사용한다. registration·authentication options 저장과 completion consume은 같은 `HttpSession`의 짧은 원자적 session-state 경계를 사용하므로 동시 completion에서도 최대 한 요청만 ceremony를 획득한다. RP ID와 origin은 server 설정 authority이고 user verification은 required다.
 - WebAuthn 등록이 0개인 초기 enrollment만 first factor에서 허용하며 active credential이 하나라도 있으면 추가 등록은 second factor가 필요하다. credential revoke는 마지막 usable factor를 제거하지 못한다.
 - recovery code는 평문을 rotation response에 한 번만 반환하고 PostgreSQL에는 SHA-256 hash만 저장한다. 사용하면 같은 set 전체를 폐기하고 recovery rotation 전에는 business API를 허용하지 않는다.
 - WebAuthn·recovery 성공은 session ID를 다시 회전하며 browser는 이전 CSRF를 폐기하고 fresh CSRF 준비 뒤에만 mutation-ready 상태가 된다.

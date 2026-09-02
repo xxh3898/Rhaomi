@@ -4,8 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import jakarta.servlet.http.HttpSession;
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 import java.net.CookieManager;
@@ -31,6 +36,9 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import kr.co.rhaomi.backend.admin.AdminUser;
 import kr.co.rhaomi.backend.admin.AdminUserRepository;
@@ -41,8 +49,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.webauthn.management.WebAuthnRelyingPartyOperations;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -88,6 +98,12 @@ class AdminWebAuthnApiIntegrationTests {
 
     @MockitoBean
     private Clock clock;
+
+    @MockitoSpyBean
+    private AdminWebAuthnCeremonyStore ceremonies;
+
+    @MockitoSpyBean
+    private WebAuthnRelyingPartyOperations operations;
 
     @BeforeEach
     void setUp() {
@@ -193,6 +209,58 @@ class AdminWebAuthnApiIntegrationTests {
                 get(authenticationClient, "/api/admin/auth/webauthn/registration/options")
                         .statusCode());
         assertTrue(credentials.findAll().getFirst().toCredentialRecord().getSignatureCount() >= 1);
+    }
+
+    @Test
+    void should_consumeRegistrationCeremonyExactlyOnce_whenHttpCompletionsOverlap()
+            throws Exception {
+        var client = newClient();
+        assertEquals(200, login(client, ADMIN_EMAIL).statusCode());
+        var options = json(get(client, "/api/admin/auth/webauthn/registration/options"));
+        var fixture = PasskeyFixture.create(
+                options.get("user").get("id").asText(), RP_ID, ORIGIN);
+        var registrationBody = objectMapper.writeValueAsString(
+                fixture.registration(options.get("challenge").asText()));
+        var csrf = fetchCsrf(client);
+        var consumersEntered = new CountDownLatch(2);
+        doAnswer(invocation -> {
+                    awaitConcurrentConsumers(consumersEntered);
+                    return invocation.callRealMethod();
+                })
+                .when(ceremonies)
+                .consumeRegistration(any(HttpSession.class), any());
+
+        var responses = postJsonConcurrently(
+                client, "/api/admin/auth/webauthn/registration", registrationBody, csrf);
+
+        assertExactlyOneSecondFactorAndOneGenericFailure(responses);
+        assertEquals(1, credentials.count());
+        verify(operations, times(1)).registerCredential(any());
+    }
+
+    @Test
+    void should_consumeAuthenticationCeremonyExactlyOnce_whenHttpCompletionsOverlap()
+            throws Exception {
+        var fixture = enrollPasskey();
+        var client = newClient();
+        assertEquals(200, login(client, ADMIN_EMAIL).statusCode());
+        var options = json(get(client, "/api/admin/auth/webauthn/authentication/options"));
+        var assertionBody = objectMapper.writeValueAsString(fixture.assertion(
+                options.get("challenge").asText(), ORIGIN, (byte) 0x05, false));
+        var csrf = fetchCsrf(client);
+        var consumersEntered = new CountDownLatch(2);
+        doAnswer(invocation -> {
+                    awaitConcurrentConsumers(consumersEntered);
+                    return invocation.callRealMethod();
+                })
+                .when(ceremonies)
+                .consumeAuthentication(any(HttpSession.class), any());
+
+        var responses = postJsonConcurrently(
+                client, "/api/admin/auth/webauthn/authentication", assertionBody, csrf);
+
+        assertExactlyOneSecondFactorAndOneGenericFailure(responses);
+        verify(operations, times(1)).authenticate(any());
     }
 
     @Test
@@ -585,6 +653,55 @@ class AdminWebAuthnApiIntegrationTests {
         assertEquals(403, recovery.statusCode());
         assertEquals(403, get(assertionClient, "/api/admin/breeds").statusCode());
         assertEquals(403, get(recoveryClient, "/api/admin/breeds").statusCode());
+    }
+
+    private List<HttpResponse<String>> postJsonConcurrently(
+            TestClient client, String path, String body, String csrf) throws Exception {
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var first = executor.submit(() -> postJson(client, path, body, csrf));
+            var second = executor.submit(() -> postJson(client, path, body, csrf));
+            return List.of(
+                    first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS));
+        } finally {
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    private void assertExactlyOneSecondFactorAndOneGenericFailure(
+            List<HttpResponse<String>> responses) throws Exception {
+        assertEquals(1, responses.stream().filter(response -> response.statusCode() == 200).count());
+        assertEquals(1, responses.stream().filter(response -> response.statusCode() == 401).count());
+
+        var success = responses.stream()
+                .filter(response -> response.statusCode() == 200)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(
+                "SECOND_FACTOR_VERIFIED",
+                json(success).get("authenticationStage").asText());
+
+        var rejected = responses.stream()
+                .filter(response -> response.statusCode() == 401)
+                .findFirst()
+                .orElseThrow();
+        assertTrue(rejected.body().contains("WEBAUTHN_VERIFICATION_FAILED"));
+        assertFalse(rejected.body().toLowerCase().contains("challenge"));
+        assertFalse(rejected.body().toLowerCase().contains("signature"));
+        assertFalse(rejected.body().toLowerCase().contains("origin"));
+    }
+
+    private static void awaitConcurrentConsumers(CountDownLatch consumersEntered) {
+        consumersEntered.countDown();
+        try {
+            if (!consumersEntered.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Concurrent HTTP completions did not overlap");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Concurrent HTTP completion was interrupted", exception);
+        }
     }
 
     private PasskeyFixture enrollPasskey() throws Exception {

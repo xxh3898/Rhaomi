@@ -120,7 +120,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - V9→V10·clean V1→V10 migration, credential/recovery FK·unique·audit·one-way hash와 private-key/plaintext column 0
 - password 성공만으로 business API 403, FIRST/SECOND/RECOVERY authority와 stage별 ceremony·credential endpoint allowlist
 - real P-256 synthetic authenticator의 valid registration/assertion 200, second-factor session id 재교체와 business API 허용
-- challenge account/purpose/TTL/single-use, wrong RP/origin/credential/signature/UV, revoked credential의 generic failure와 inactive account stage 승격 거부
+- challenge account/purpose/TTL/single-use, registration·authentication 동일 session completion을 latch로 겹친 실제 HTTP 요청에서 정확히 한 consume·한 `SECOND_FACTOR_VERIFIED`·나머지 generic 401, RP crypto operation 정확히 1회, wrong RP/origin/credential/signature/UV, revoked credential의 generic failure와 inactive account stage 승격 거부
 - zero active credential initial registration 허용, active credential account의 password-only 추가 registration 거부와 completion account-row lock 재검증
 - recovery plaintext persistence 0, valid one-time use·set 전체 무효화·replay 거부·forced rotation, 마지막 usable factor lockout 방지
 - registration/assertion/recovery/credential state change의 CSRF 없는 요청 403

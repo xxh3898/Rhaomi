@@ -31,12 +31,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 class AdminWebAuthnService {
 
-    private static final String REGISTRATION_SESSION_ATTRIBUTE =
-            AdminWebAuthnService.class.getName() + ".REGISTRATION";
-    private static final String AUTHENTICATION_SESSION_ATTRIBUTE =
-            AdminWebAuthnService.class.getName() + ".AUTHENTICATION";
-
     private final WebAuthnRelyingPartyOperations operations;
+    private final AdminWebAuthnCeremonyStore ceremonies;
     private final AdminWebAuthnCredentialRepository credentials;
     private final AdminRecoveryCodeRepository recoveryCodes;
     private final AdminWebAuthnProperties properties;
@@ -47,6 +43,7 @@ class AdminWebAuthnService {
 
     AdminWebAuthnService(
             WebAuthnRelyingPartyOperations operations,
+            AdminWebAuthnCeremonyStore ceremonies,
             AdminWebAuthnCredentialRepository credentials,
             AdminRecoveryCodeRepository recoveryCodes,
             AdminWebAuthnProperties properties,
@@ -55,6 +52,7 @@ class AdminWebAuthnService {
             Clock clock,
             PlatformTransactionManager transactionManager) {
         this.operations = operations;
+        this.ceremonies = ceremonies;
         this.credentials = credentials;
         this.recoveryCodes = recoveryCodes;
         this.properties = properties;
@@ -80,9 +78,8 @@ class AdminWebAuthnService {
         var options = operations.createPublicKeyCredentialCreationOptions(
                 new ImmutablePublicKeyCredentialCreationOptionsRequest(authentication));
         requireChallenge(options.getChallenge().getBytes());
-        session.setAttribute(
-                REGISTRATION_SESSION_ATTRIBUTE,
-                new RegistrationCeremony(principal.id(), clock.instant(), options));
+        ceremonies.storeRegistration(
+                session, new RegistrationCeremony(principal.id(), clock.instant(), options));
         return WebAuthnRegistrationOptionsResponse.from(options);
     }
 
@@ -92,7 +89,8 @@ class AdminWebAuthnService {
             HttpServletRequest request,
             HttpServletResponse response) {
         var principal = AdminAuthenticationStageService.principal(authentication);
-        var ceremony = consumeRegistration(request.getSession(false));
+        var ceremony = ceremonies.consumeRegistration(
+                request.getSession(false), RegistrationCeremony.class);
         if (registration == null) {
             throw new WebAuthnVerificationException();
         }
@@ -136,9 +134,8 @@ class AdminWebAuthnService {
         var options = operations.createCredentialRequestOptions(
                 new ImmutablePublicKeyCredentialRequestOptionsRequest(authentication));
         requireChallenge(options.getChallenge().getBytes());
-        session.setAttribute(
-                AUTHENTICATION_SESSION_ATTRIBUTE,
-                new AuthenticationCeremony(principal.id(), clock.instant(), options));
+        ceremonies.storeAuthentication(
+                session, new AuthenticationCeremony(principal.id(), clock.instant(), options));
         return WebAuthnAuthenticationOptionsResponse.from(options);
     }
 
@@ -148,7 +145,8 @@ class AdminWebAuthnService {
             HttpServletRequest request,
             HttpServletResponse response) {
         var principal = AdminAuthenticationStageService.principal(authentication);
-        var ceremony = consumeAuthentication(request.getSession(false));
+        var ceremony = ceremonies.consumeAuthentication(
+                request.getSession(false), AuthenticationCeremony.class);
         requireFirstFactor(principal.authenticationStage());
         var completedStatus = Objects.requireNonNull(transactions.execute(ignored -> {
             accountSecurity.requireActiveForUpdate(principal.id());
@@ -265,30 +263,6 @@ class AdminWebAuthnService {
             throw new WebAuthnInvalidRequestException();
         }
         return label;
-    }
-
-    private static RegistrationCeremony consumeRegistration(HttpSession session) {
-        if (session == null) {
-            throw new WebAuthnVerificationException();
-        }
-        var stored = session.getAttribute(REGISTRATION_SESSION_ATTRIBUTE);
-        session.removeAttribute(REGISTRATION_SESSION_ATTRIBUTE);
-        if (!(stored instanceof RegistrationCeremony ceremony)) {
-            throw new WebAuthnVerificationException();
-        }
-        return ceremony;
-    }
-
-    private static AuthenticationCeremony consumeAuthentication(HttpSession session) {
-        if (session == null) {
-            throw new WebAuthnVerificationException();
-        }
-        var stored = session.getAttribute(AUTHENTICATION_SESSION_ATTRIBUTE);
-        session.removeAttribute(AUTHENTICATION_SESSION_ATTRIBUTE);
-        if (!(stored instanceof AuthenticationCeremony ceremony)) {
-            throw new WebAuthnVerificationException();
-        }
-        return ceremony;
     }
 
     private record RegistrationCeremony(
