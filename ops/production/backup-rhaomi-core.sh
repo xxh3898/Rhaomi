@@ -24,13 +24,14 @@ backup_rhaomi() {
   trap 'exit 143' TERM
 
   validate_backup_fixed_configuration
+  validate_backup_lifecycle
   load_backup_repository_authority
   validate_backup_repository
   configure_backup_environment
   validate_backup_media_authority
 
   case "$backup_mode" in
-    scheduled | on-demand | predeploy) create_application_consistent_backup ;;
+    scheduled | on-demand | predeploy | first-activation) create_application_consistent_backup ;;
     structural-check)
       backup_tool verify "$requested_backup_set_id" structural >/dev/null ||
         backup_fail BACKUP_VERIFICATION_FAILED
@@ -86,7 +87,7 @@ parse_backup_arguments() {
     scheduled | on-demand)
       [ "$target_seen" = false ] && [ "$set_seen" = false ] || backup_fail BACKUP_INPUT_INVALID
       ;;
-    predeploy)
+    predeploy | first-activation)
       [ "$target_seen" = true ] && [ "$set_seen" = false ] || backup_fail BACKUP_INPUT_INVALID
       printf '%s' "$target_release_sha" | grep -Eq '^[0-9a-f]{40}$' ||
         backup_fail BACKUP_INPUT_INVALID
@@ -126,6 +127,7 @@ initialize_backup_authorities() {
   if [ -n "$backup_validation_compose_file" ] && [ "$(uname -s)" = Linux ]; then
     backup_linux_validation_permissions=true
   fi
+  rhaomi_lifecycle_initialize "$backup_root"
 }
 
 validate_backup_host_root() {
@@ -213,6 +215,24 @@ validate_backup_fixed_configuration() {
   backup_require_file_mode "$homeops_event_adapter" 700
   [ "$(backup_owner_id "$homeops_event_adapter")" = "$(id -u)" ] ||
     backup_fail BACKUP_HOST_INVALID
+}
+
+validate_backup_lifecycle() {
+  case "$backup_mode" in
+    first-activation)
+      rhaomi_lifecycle_require_state RECOVERY_ACCEPTANCE_REQUIRED "$target_release_sha" ||
+        backup_fail BACKUP_LIFECYCLE_INVALID
+      [ ! -e "$backup_root/state/deploy/first-activation-backup.json" ] &&
+        [ ! -L "$backup_root/state/deploy/first-activation-backup.json" ] &&
+        [ ! -e "$backup_root/state/deploy/first-activation-backup.env" ] &&
+        [ ! -L "$backup_root/state/deploy/first-activation-backup.env" ] ||
+        backup_fail BACKUP_LIFECYCLE_INVALID
+      ;;
+    *)
+      rhaomi_lifecycle_require_state STEADY_STATE ||
+        backup_fail BACKUP_LIFECYCLE_INVALID
+      ;;
+  esac
 }
 
 load_backup_repository_authority() {
@@ -319,8 +339,17 @@ transition_backup_validation_media_state() {
 }
 
 create_application_consistent_backup() {
-  verify_backup_public_web
+  if [ "$backup_mode" != first-activation ]; then
+    verify_backup_public_web
+  fi
   inspect_backup_source_identity
+  if [ "$backup_mode" = first-activation ]; then
+    [ "$backup_source_release_sha" = "$target_release_sha" ] ||
+      backup_fail BACKUP_SOURCE_IDENTITY_INVALID
+    rhaomi_lifecycle_require_state \
+      RECOVERY_ACCEPTANCE_REQUIRED "$target_release_sha" "$backup_source_image_digest" ||
+      backup_fail BACKUP_LIFECYCLE_INVALID
+  fi
   backup_set_id="$(date -u '+%Y%m%dT%H%M%SZ')-$(openssl rand -hex 6)"
   validate_backup_set_id "$backup_set_id"
   backup_started_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
@@ -335,7 +364,9 @@ create_application_consistent_backup() {
   compose_backup_production stop --timeout 30 backend publisher ||
     backup_fail BACKUP_WRITER_STOP_FAILED
   verify_backup_writer_quiescence
-  verify_backup_public_web
+  if [ "$backup_mode" != first-activation ]; then
+    verify_backup_public_web
+  fi
   transition_backup_validation_media_state capture ||
     backup_fail BACKUP_MEDIA_PERMISSION_INVALID
 
@@ -363,7 +394,58 @@ create_application_consistent_backup() {
   if [ "$backup_mode" = predeploy ]; then
     backup_tool issue-eligibility "$backup_set_id" "$target_release_sha" >/dev/null ||
       backup_fail BACKUP_ELIGIBILITY_FAILED
+  elif [ "$backup_mode" = first-activation ]; then
+    backup_tool verify "$backup_set_id" full-read >/dev/null ||
+      backup_fail BACKUP_VERIFICATION_FAILED
+    write_first_activation_backup_candidate
   fi
+}
+
+write_first_activation_backup_candidate() {
+  candidate_evidence="$backup_root/state/deploy/first-activation-backup.json"
+  candidate_contract="$backup_root/state/deploy/first-activation-backup.env"
+  [ ! -e "$candidate_evidence" ] && [ ! -L "$candidate_evidence" ] &&
+    [ ! -e "$candidate_contract" ] && [ ! -L "$candidate_contract" ] ||
+    backup_fail BACKUP_LIFECYCLE_INVALID
+
+  candidate_manifest="$backup_repository_root/sets/$backup_set_id/backup-manifest.json"
+  backup_require_regular_file "$candidate_manifest"
+  candidate_manifest_sha=$(openssl dgst -sha256 "$candidate_manifest" | awk '{print $NF}')
+  printf '%s' "$candidate_manifest_sha" | grep -Eq '^[0-9a-f]{64}$' ||
+    backup_fail BACKUP_VERIFICATION_FAILED
+  candidate_created_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+
+  candidate_evidence_temp=$(mktemp "$backup_root/state/deploy/.first-activation-backup.json.tmp.XXXXXX") ||
+    backup_fail BACKUP_LIFECYCLE_INVALID
+  chmod 600 "$candidate_evidence_temp" || backup_fail BACKUP_LIFECYCLE_INVALID
+  printf '%s\n' \
+    '{' \
+    '  "schemaVersion": 1,' \
+    '  "status": "RECOVERY_BACKUP_VERIFIED",' \
+    "  \"releaseSha\": \"${target_release_sha}\"," \
+    "  \"imageDigest\": \"${backup_source_image_digest}\"," \
+    "  \"backupSetId\": \"${backup_set_id}\"," \
+    "  \"backupManifestSha256\": \"${candidate_manifest_sha}\"," \
+    "  \"verifiedAt\": \"${candidate_created_at}\"" \
+    '}' >"$candidate_evidence_temp" || backup_fail BACKUP_LIFECYCLE_INVALID
+  mv "$candidate_evidence_temp" "$candidate_evidence" ||
+    backup_fail BACKUP_LIFECYCLE_INVALID
+  candidate_evidence_sha=$(openssl dgst -sha256 "$candidate_evidence" | awk '{print $NF}')
+
+  candidate_contract_temp=$(mktemp "$backup_root/state/deploy/.first-activation-backup.env.tmp.XXXXXX") ||
+    backup_fail BACKUP_LIFECYCLE_INVALID
+  chmod 600 "$candidate_contract_temp" || backup_fail BACKUP_LIFECYCLE_INVALID
+  printf '%s\n' \
+    'schemaVersion=1' \
+    'status=RECOVERY_BACKUP_VERIFIED' \
+    "releaseSha=$target_release_sha" \
+    "imageDigest=$backup_source_image_digest" \
+    "backupSetId=$backup_set_id" \
+    "backupManifestSha256=$candidate_manifest_sha" \
+    "evidenceSha256=$candidate_evidence_sha" >"$candidate_contract_temp" ||
+    backup_fail BACKUP_LIFECYCLE_INVALID
+  mv "$candidate_contract_temp" "$candidate_contract" ||
+    backup_fail BACKUP_LIFECYCLE_INVALID
 }
 
 inspect_backup_source_identity() {
@@ -426,7 +508,9 @@ restore_backup_writers() {
   wait_for_backup_container "$backup_publisher_id" running 60 || return 1
   [ "$(docker inspect --format '{{.Image}}' "$backup_backend_id")" = "$backup_source_image_id" ] || return 1
   [ "$(docker inspect --format '{{.Image}}' "$backup_publisher_id")" = "$backup_source_image_id" ] || return 1
-  verify_backup_public_web
+  if [ "$backup_mode" != first-activation ]; then
+    verify_backup_public_web
+  fi
 }
 
 wait_for_backup_container() {

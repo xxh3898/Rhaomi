@@ -3,7 +3,7 @@ title: "정기 유지보수"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-01"
+last_updated: "2026-09-02"
 review_trigger: "운영 주기 변경 시"
 ---
 
@@ -11,7 +11,7 @@ review_trigger: "운영 주기 변경 시"
 
 ## 구현 상태
 
-아래 주기는 [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)와 [ADR-013](../09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md)의 production 목표다. local/CI release retention에 더해 D-IMP-4 fixed backup/retention source와 task-scoped isolated restore는 구현됐다. tracked plist와 explicit retention apply는 actual Mac에 install/run하지 않았고 local repository·HomeOps monitor·maintenance provisioning도 미완료다. `retentionStatus=DEFERRED`인 public release나 backup incomplete/checksum failure를 cleanup 성공으로 오기록하지 않는다.
+아래 주기는 [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md), [ADR-013](../09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md)과 [ADR-016](../09-decisions/ADR-016-verified-empty-first-production-activation.md)의 production 목표다. local/CI release retention에 더해 D-IMP-4 fixed backup/retention·task-scoped isolated restore와 first-activation lifecycle source는 구현됐다. tracked plist와 explicit retention apply는 actual Mac에 install/run하지 않았고 local repository·HomeOps monitor·maintenance provisioning도 미완료다. `retentionStatus=DEFERRED`인 public release나 backup incomplete/checksum failure를 cleanup 성공으로 오기록하지 않는다.
 
 ## 매일 자동
 
@@ -89,6 +89,7 @@ review_trigger: "운영 주기 변경 시"
 ## 자동화 금지 경계
 
 - backup·deploy lock이 있을 때 stateless service restart
+- `STEADY_STATE` 전 first-activation lifecycle state/evidence 삭제·재발급, scheduled backup·automatic recovery 실행
 - Compose `down`·`up`, PostgreSQL restart와 volume mutation
 - `docker compose down -v`, `docker volume prune`, PostgreSQL named volume direct delete
 - migration·restore·backup 삭제

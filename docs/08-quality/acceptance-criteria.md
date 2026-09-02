@@ -404,7 +404,7 @@ review_trigger: "제품 기능 변경 시"
 
 ## AC-25 Phase 1D production contract freeze
 
-**Given** ADR-010~014가 `approved / Accepted`이고 Phase 1C-8f8 synthetic local/CI acceptance가 완료됐을 때
+**Given** ADR-010~016이 `approved / Accepted`이고 Phase 1C-8f8 synthetic local/CI acceptance가 완료됐을 때
 
 **When** production readiness를 판정하면
 
@@ -455,3 +455,25 @@ review_trigger: "제품 기능 변경 시"
 **Given** source와 CI gate가 통과했을 때
 
 **Then** actual production RP/FQDN/HTTPS config, 운영 account/passkey enrollment, recovery-code 발급·보관과 physical browser acceptance가 `NOT RUN`이면 `overallProductionReadiness=HOLD`를 유지한다.
+
+## AC-27 verified-empty 최초 production activation
+
+**Given** production lifecycle state가 없고 fixed inventory가 provision됐을 때
+
+**When** explicit first-activation bootstrap을 요청하면
+
+**Then** current·previous·deploy marker·eligibility·complete backup set·production container/volume·canonical DB/media/public predecessor가 모두 부재임을 확인하고 exact SHA/digest absence evidence와 `FIRST_ACTIVATION_BOOTSTRAPPING`을 mutation 전에 원자 기록한다. 하나라도 존재하거나 판정이 불가능하면 bootstrap mutation은 0이다.
+
+**Given** verified-empty evidence에 결합된 exact release를 bootstrap할 때
+
+**Then** public web·host port 없이 PostgreSQL, Flyway V1~V10, Flyway-disabled schema, backend health와 publisher running/same-image를 순서대로 확인한 뒤에만 `RECOVERY_ACCEPTANCE_REQUIRED`가 된다. partial failure는 `UNINITIALIZED`로 돌아가거나 automatic retry되지 않는다.
+
+**Given** `RECOVERY_ACCEPTANCE_REQUIRED`일 때
+
+**When** fixed first-activation backup과 recovery acceptance를 실행하면
+
+**Then** writer quiescence, `pg_dump -Fc`·media complete set full-read, read-only verifier, tmpfs PostgreSQL·isolated media restore, Flyway V10/JPA, representative API/static/media smoke와 recovery process 종료를 모두 확인한 뒤에만 exact backup evidence와 `STEADY_STATE`를 기록한다.
+
+**Given** lifecycle이 `STEADY_STATE`이거나 bootstrap/recovery가 partial·unknown일 때
+
+**Then** first-activation 재진입을 거부한다. steady-state release는 기존 fresh `predeploy` backup eligibility를 계속 요구하고 public/admin/content·Cloudflare·HomeOps activation은 별도 production gate로 남는다.

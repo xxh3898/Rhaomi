@@ -69,6 +69,7 @@ CSRF 발급 endpoint를 availability probe로 호출하지 않는다. 실제 log
 
 ### 백업
 
+- production lifecycle `FIRST_ACTIVATION_*`·`RECOVERY_ACCEPTANCE_*`·`STEADY_STATE`; partial/unknown first activation은 public activation과 automatic recovery 대상에서 제외
 - 마지막 local backup 성공 시각과 local RPO
 - backup-set ID, dump·media size와 file count
 - protected source와 분리된 Mac mini local repository identity·capacity·manifest/check 결과
@@ -111,6 +112,7 @@ Current HomeOps `MonitoredServiceRequest`는 GET/HEAD와 `expectedStatus`를 제
 
 필수 조건:
 
+- valid `STEADY_STATE`; first-activation bootstrap 또는 recovery acceptance 중에는 mapping을 enable하거나 restart를 실행하지 않음
 - 정의된 연속 health 실패
 - deploy lock과 backup lock 없음
 - 같은 service restart 후 30분 cooldown

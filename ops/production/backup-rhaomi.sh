@@ -13,5 +13,6 @@ unset \
   RHAOMI_CLEANUP_TASK \
   RHAOMI_CLEANUP_GIT_HEAD
 
+. /private/var/lib/rhaomi/app/bin/production-lifecycle-core.sh
 . /private/var/lib/rhaomi/app/bin/backup-rhaomi-core.sh
 backup_rhaomi /private/var/lib/rhaomi "$@"

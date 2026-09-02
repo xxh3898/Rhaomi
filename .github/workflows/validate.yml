@@ -140,6 +140,11 @@ jobs:
           RHAOMI_PRODUCTION_BACKUP_CONTROL_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-production-backup-control-evidence
         run: sh scripts/validate-production-backup-control.sh
 
+      - name: Production verified-empty first-activation 계약 검증
+        env:
+          RHAOMI_PRODUCTION_FIRST_ACTIVATION_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-production-first-activation-evidence
+        run: sh scripts/validate-production-first-activation.sh
+
       - name: Production application-consistent backup·isolated restore 검증
         env:
           RHAOMI_CLEANUP_TASK: 59-homeops-activation-preflight
@@ -190,6 +195,15 @@ jobs:
         with:
           name: production-backup-control-evidence-${{ github.event.pull_request.head.sha }}
           path: ${{ runner.temp }}/rhaomi-production-backup-control-evidence
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Production first-activation evidence 보존
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-first-activation-evidence-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/rhaomi-production-first-activation-evidence
           if-no-files-found: error
           retention-days: 14
 

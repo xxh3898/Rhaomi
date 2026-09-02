@@ -5,6 +5,7 @@ set -eu
 main() {
   repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
   core_script="$repo_dir/ops/production/deploy-rhaomi-core.sh"
+  lifecycle_core_script="$repo_dir/ops/production/production-lifecycle-core.sh"
   fake_docker_source="$repo_dir/scripts/fixtures/fake-production-docker.sh"
   fake_homeops_source="$repo_dir/scripts/fixtures/fake-homeops-event-adapter.sh"
   git_head=$(git -C "$repo_dir" rev-parse HEAD)
@@ -36,6 +37,7 @@ main() {
 
   validate_invalid_inputs
   validate_host_and_backup_gates
+  validate_lifecycle_gate
   validate_success_path
   validate_telemetry_failure
   validate_lock_contention
@@ -55,6 +57,7 @@ main() {
     "exactDigestValidation=verified" \
     "hostPermissionGate=verified" \
     "backupEligibilityGate=verified" \
+    "steadyStateLifecycleGate=verified" \
     "backupEnvelopeBeforePull=verified" \
     "readOnlyTargetVerifierBeforeWriterMutation=verified" \
     "staleEligibilityReplay=blocked" \
@@ -158,6 +161,30 @@ prepare_case() {
   cp "$fake_homeops_source" "$case_root/app/bin/report-rhaomi-event.py"
   chmod 700 "$case_root/app/bin/report-rhaomi-event.py"
   : >"$case_homeops_log"
+  write_lifecycle_state
+}
+
+write_lifecycle_state() {
+  lifecycle_evidence="$case_root/state/deploy/first-activation-recovery.json"
+  printf '%s\n' \
+    '{' \
+    '  "schemaVersion": 1,' \
+    "  \"releaseSha\": \"${release_sha}\"," \
+    "  \"imageDigest\": \"${image_digest}\"," \
+    '  "state": "STEADY_STATE"' \
+    '}' >"$lifecycle_evidence"
+  chmod 600 "$lifecycle_evidence"
+  lifecycle_hash=$(openssl dgst -sha256 "$lifecycle_evidence" | awk '{print $NF}')
+  printf '%s\n' \
+    'schemaVersion=1' \
+    'state=STEADY_STATE' \
+    "releaseSha=$release_sha" \
+    "imageDigest=$image_digest" \
+    'updatedAt=2026-09-02T00:00:00Z' \
+    'evidenceFile=first-activation-recovery.json' \
+    "evidenceSha256=$lifecycle_hash" \
+    >"$case_root/state/deploy/production-lifecycle.env"
+  chmod 600 "$case_root/state/deploy/production-lifecycle.env"
 }
 
 run_case() {
@@ -176,10 +203,12 @@ run_case() {
     /bin/sh -eu -c '
       . "$1"
       shift
+      . "$1"
+      shift
       task_root=$1
       shift
       deploy_rhaomi "$task_root" "$@"
-    ' sh "$core_script" "$case_root" "$@"
+    ' sh "$lifecycle_core_script" "$core_script" "$case_root" "$@"
 }
 
 validate_invalid_inputs() {
@@ -342,6 +371,20 @@ validate_target_verifier_failure() {
   [ ! -d "$case_root/state/locks/rhaomi-deploy.lock" ]
 }
 
+validate_lifecycle_gate() {
+  prepare_case invalid-lifecycle
+  printf '%s\n' tampered >>"$case_root/state/deploy/first-activation-recovery.json"
+  if run_case '' \
+    --release-sha "$release_sha" \
+    --image "$image_reference" \
+    --sbom "$sbom_reference" >"$case_output" 2>&1; then
+    echo "invalid production lifecycle deploy가 성공했습니다." >&2
+    exit 1
+  fi
+  grep -Fq DEPLOY_LIFECYCLE_INVALID "$case_output"
+  [ ! -s "$case_log" ]
+}
+
 update_evidence_created_at() {
   replacement=$1
   evidence_file="$case_root/state/deploy/backup-eligibility.json"
@@ -444,10 +487,12 @@ validate_lock_contention() {
     /bin/sh -eu -c '
       . "$1"
       shift
+      . "$1"
+      shift
       task_root=$1
       shift
       deploy_rhaomi "$task_root" "$@"
-    ' sh "$core_script" "$case_root" \
+    ' sh "$lifecycle_core_script" "$core_script" "$case_root" \
       --release-sha "$release_sha" \
       --image "$image_reference" \
       --sbom "$sbom_reference" >"$case_output" 2>&1 &

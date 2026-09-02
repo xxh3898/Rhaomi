@@ -92,6 +92,8 @@ main() {
   RHAOMI_BACKUP_VALIDATION_COMPOSE_FILE="$source_root/app/compose.production.validation.yaml"
   export RHAOMI_BACKUP_VALIDATION_COMPOSE_FILE
   # shellcheck disable=SC1090
+  . "$repo_dir/ops/production/production-lifecycle-core.sh"
+  # shellcheck disable=SC1090
   . "$repo_dir/ops/production/backup-rhaomi-core.sh"
   backup_output=$(backup_rhaomi \
     "$source_root" \
@@ -365,6 +367,33 @@ prepare_validation_host() {
     "RHAOMI_CLEANUP_GIT_HEAD=$git_head" \
     >"$host_root/app/production.env"
   chmod 600 "$host_root/app/production.env" "$host_root/app/docker/config.json"
+  if [ "$host_role" = source ]; then
+    write_validation_lifecycle "$host_root"
+  fi
+}
+
+write_validation_lifecycle() {
+  host_root=$1
+  lifecycle_evidence="$host_root/state/deploy/first-activation-recovery.json"
+  printf '%s\n' \
+    '{' \
+    '  "schemaVersion": 1,' \
+    "  \"releaseSha\": \"${git_head}\"," \
+    "  \"imageDigest\": \"${image_id}\"," \
+    '  "state": "STEADY_STATE"' \
+    '}' >"$lifecycle_evidence"
+  chmod 600 "$lifecycle_evidence"
+  lifecycle_hash=$(openssl dgst -sha256 "$lifecycle_evidence" | awk '{print $NF}')
+  printf '%s\n' \
+    'schemaVersion=1' \
+    'state=STEADY_STATE' \
+    "releaseSha=$git_head" \
+    "imageDigest=$image_id" \
+    'updatedAt=2026-09-02T00:00:00Z' \
+    'evidenceFile=first-activation-recovery.json' \
+    "evidenceSha256=$lifecycle_hash" \
+    >"$host_root/state/deploy/production-lifecycle.env"
+  chmod 600 "$host_root/state/deploy/production-lifecycle.env"
 }
 
 prepare_validation_compose_cli() {

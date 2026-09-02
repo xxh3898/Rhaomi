@@ -24,6 +24,7 @@ deploy_rhaomi() {
   trap 'exit 143' TERM
 
   validate_fixed_configuration
+  validate_deploy_lifecycle
   configure_release_environment
   deploy_started_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
   deploy_event_started=true
@@ -140,6 +141,12 @@ initialize_fixed_authorities() {
   deploy_event_terminal=false
   deploy_failure_code=DEPLOY_FAILED
   homeops_telemetry=not_configured
+  rhaomi_lifecycle_initialize "$deploy_root"
+}
+
+validate_deploy_lifecycle() {
+  rhaomi_lifecycle_require_state STEADY_STATE ||
+    deploy_fail DEPLOY_LIFECYCLE_INVALID
 }
 
 validate_host_root() {

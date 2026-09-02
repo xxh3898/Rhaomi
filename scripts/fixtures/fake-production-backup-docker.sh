@@ -133,6 +133,9 @@ compose_command() {
         finalize)
           [ "$failure_stage" != finalize ] || exit 1
           set_id=$1
+          printf '%s\n' '{"contract":"synthetic-backup-manifest"}' \
+            >"$repository/sets/.incomplete-$set_id/backup-manifest.json"
+          chmod 400 "$repository/sets/.incomplete-$set_id/backup-manifest.json"
           mv "$repository/sets/.incomplete-$set_id" "$repository/sets/$set_id"
           if [ "$failure_stage" = lock-release ]; then
             [ -n "$lock_owner" ] || exit 64

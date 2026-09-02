@@ -27,6 +27,7 @@ review_trigger: "출시 기준 변경 시"
 - [x] [Production readiness matrix](../07-operations/production-readiness.md)의 계약·local/CI·구현·provisioning·외부 승인·physical acceptance vocabulary
 - [x] ADR-010 topology/code release, ADR-011 publisher, ADR-013 HomeOps, ADR-014 decoder-only runtime contract 정렬
 - [x] ADR-012 초기 Mac mini local-only backup amendment와 single-host disaster accepted risk
+- [x] ADR-016 verified-empty one-time bootstrap·first backup/isolated restore·steady-state 전환 contract 정렬
 - [x] 초기 사용자 소유 domain 전략, authenticator private key/RP-side record/recovery-code secret을 분리한 WebAuthn/passkey 2차 인증 target, 실제 매장 운영자 콘텐츠·사진 승인 authority
 
 위 체크는 문서 계약이 승인됐다는 뜻만 가진다. production 구현·provisioning·deploy 항목을 통과시키지 않으며 overall production readiness는 계속 `HOLD`다.
@@ -220,6 +221,18 @@ review_trigger: "출시 기준 변경 시"
 
 위 완료 표시는 source와 task-scoped local/Hosted evidence다. actual Mac repository path·capacity·scheduler, production DB/media backup, production restore/RPO·RTO는 계속 아래 운영 항목에서 미완료다.
 
+### Verified-empty first-activation source·task validation
+
+- [x] current·previous·deploy marker·eligibility·complete backup set·production container/volume·media/public predecessor의 모두-부재 검사와 unknown/contradictory fail-close
+- [x] verified-empty evidence와 `FIRST_ACTIVATION_BOOTSTRAPPING` state를 exact SHA/digest에 결합한 owner-only regular file·symlink 거부·atomic write
+- [x] public web·host port 없이 PostgreSQL→Flyway V1~V10→schema validation→backend health→publisher running/same-image bootstrap
+- [x] partial migration/schema/health 실패 뒤 `UNINITIALIZED` 자동 복귀·verified-empty 재사용·automatic retry 0
+- [x] `RECOVERY_ACCEPTANCE_REQUIRED`에서만 first-activation backup을 허용하고 shared lock·writer quiescence·capture/recovery·complete full-read 계약 유지
+- [x] read-only verifier, tmpfs PostgreSQL, isolated media와 no-port backend/publisher/static smoke를 통과한 뒤에만 `STEADY_STATE` 기록
+- [x] steady-state 이후 first-activation 영구 거부와 normal predeploy eligibility requirement 불변
+
+위 완료 표시는 repository source와 synthetic task evidence다. actual `/private/var/lib/rhaomi`, production container/volume/DB/media/repository를 검사·생성·변경하지 않았고 workflow dispatch·backup·restore·migration·public activation도 수행하지 않았다.
+
 ## 보안·운영
 
 - [ ] HTTPS
@@ -230,6 +243,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] publisher public network·Docker socket 부재
 - [ ] secrets scan
 - [ ] production session `Secure`, TLS와 관리자 WebAuthn/passkey 2차 인증·RP/private-key 경계 확인
+- [ ] bounded login rate-limit 구현·failure regression·운영 threshold 확인; 현재 `NOT_IMPLEMENTED` production blocker
 - [ ] exact main SHA·immutable image·digest와 `latest` 부재
 - [ ] GitHub production environment 수동 승인과 고정 Tailscale deploy entrypoint
 - [ ] write maintenance·one-shot Flyway·schema validate·expand/contract
@@ -238,6 +252,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] `/srv/rhaomi/public`이 web/publisher Linux container target일 뿐 Mac host source가 아님
 - [ ] PostgreSQL host PGDATA bind 부재, production project-scoped named volume exact identity·mount
 - [ ] PostgreSQL container restart와 일반 Compose `down`·`up` 뒤 DB persistence
+- [ ] verified-empty first-activation evidence, private exact-image bootstrap, first backup full-read·isolated restore acceptance와 `STEADY_STATE` 확정
 - [ ] production `docker compose down -v`, `docker volume prune`, named volume direct delete 금지
 - [ ] DB `pg_dump -Fc`와 canonical media의 동일 backup-set manifest
 - [ ] raw PostgreSQL volume required restic input 부재와 새 isolated named volume `pg_restore` 검증

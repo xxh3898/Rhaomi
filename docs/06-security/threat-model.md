@@ -43,6 +43,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | 위협 | 영향 | 통제 |
 |---|---|---|
 | 관리자 credential 탈취 | 콘텐츠 변조, 내부 데이터 접근 | BCrypt, 일반화된 로그인 실패, WebAuthn/passkey 배포 게이트, RP-side credential record 최소 접근, recovery code 보호, session 폐기 |
+| 관리자 login brute force | password 추측·계정 공격 | generic credential failure와 WebAuthn은 구현됐으나 login rate limit은 `NOT_IMPLEMENTED`; bounded rate-limit source/test를 public 관리자 인증 전 production blocker로 유지 |
 | passkey private key의 server 수집·기록 | authenticator trust 경계 붕괴, key 유출 | private key는 authenticator/device authority, server input·DB·환경변수·log·backup·release evidence에서 금지 |
 | WebAuthn registration 위조·record 변조 | 공격자 authenticator 등록, 관리자 사칭 | credential ID·public key·account binding·sign-counter metadata integrity, registration 승인, 분실·폐기·의심 시 credential record revoke/remove |
 | password-only session의 업무 권한 획득 | password 탈취만으로 콘텐츠 변조 | FIRST/SECOND authority 분리, 모든 업무 `/api/admin/**`의 `ADMIN_SECOND_FACTOR_VERIFIED` 요구, 최초 zero-credential registration 외 password-only 추가 등록 금지 |
@@ -117,6 +118,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | backup prerequisite 우회 | 복구 authority 없는 migration | fixed `0600` 4-line marker→eligibility JSON SHA→target SHA·complete-set manifest/artifact full-read chain, fixed repository config·owner/mode/sentinel, writer mutation 전 재검증 |
 | backup path/manifest indirection | repository 밖 private file read·overwrite 또는 invalid set 승격 | caller path override 금지, canonical physical root·relative path allowlist, symlink/special file 거부, `.incomplete` full-read 뒤 same-filesystem atomic complete rename |
 | deploy/backup writer maintenance race | snapshot·migration 중 다른 writer 재기동 | 동일 `rhaomi-deploy.lock`, backend/publisher physical exit 확인, writer 복구 실패 시 own lock 보존 |
+| partial 최초 activation을 empty로 재분류 | 기존 DB/media/release authority 덮어쓰기, backup 없는 public 활성화 | mutation 전 verified-empty absence evidence, durable one-time lifecycle, 동일 operation lock, recovery acceptance 전 public/admin/content activation 금지, partial/unknown 자동 retry·state 삭제 금지 |
 | corrupt/latest backup retention | 정상 복구점 삭제와 invalid latest 신뢰 | apply 전 모든 complete set full-read, incomplete/checksum failure/<3 verified 차단, 최신 3개·on-demand 보호와 post-check |
 | local-only backup 동시 손실 | host/storage 전체 장애에서 production data와 backup 동시 손실 | 초기 accepted risk 명시, local manifest/check·isolated restore; external/offsite는 future hardening |
 | future backup key 탈취·분실 | 민감 원본 노출 또는 복구 불가 | external hardening 도입 시 별도 encrypted repository, 제한된 password source, password manager+offline recovery key |
@@ -128,6 +130,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 
 - source WebAuthn/passkey 2차 인증을 끄거나 password-only production을 허용함
 - exact production RP ID·approved HTTPS origin·RP name, 실제 관리자 passkey enrollment와 recovery-code 발급·보관 evidence 없이 production을 승인함
+- bounded login rate-limit source와 failure regression 없이 public 관리자 인증을 활성화함
 - passkey private key를 server가 수집·저장·로그하거나 RP-side credential record와 recovery-code secret을 같은 rotation 대상으로 취급
 - WebAuthn registration revoke/remove와 recovery-code 무효화·rotation 절차 부재
 - TLS 없이 production session cookie 사용
@@ -142,17 +145,18 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - publication outbox·revision/generation state의 HTTP response 또는 외부 network 노출
 - normal backend process의 publisher loop/thread와 publisher process의 controller·web port 노출
 - protected exact-SHA/digest release·fixed entrypoint·one-shot Flyway/schema validation·restore drill의 actual production acceptance 부재
+- verified-empty evidence·비공개 bootstrap·첫 application-consistent backup·isolated restore acceptance 없이 최초 runtime을 `STEADY_STATE` 또는 public-ready로 표시함
 - Mac `/private/var/lib/rhaomi` ownership·bind smoke, PostgreSQL named-volume restart/일반 `down` persistence와 isolated `pg_restore` 증거 부재
 - HomeOps 자동 복구가 DB·volume·migration·backup을 변경할 수 있음
 - HomeOps release→live compatibility 재검증→Rhaomi release/provisioning, V14·disabled web mapping·fixed inventory·fresh Agent capability와 actual monitor/control evidence 없이 automatic recovery를 활성화함
 - backend mapping을 만들거나 `FAILED`·`OUTCOME_UNKNOWN`을 자동 재실행함
 
-현재 source에는 Spring Security WebAuthn/WebAuthn4J 검증, Flyway V10 RP-side record·one-way recovery code, FIRST/SECOND/RECOVERY stage와 Static Export ceremony UI가 구현돼 있다. 그러나 실제 RP/FQDN·TLS·운영 account/passkey·recovery-code provisioning은 수행하지 않았으므로 운영 배포 대상 또는 production-ready로 표현하지 않는다. noindex와 client session 확인도 보안 통제로 간주하지 않으며, 실제 iPhone Safari passkey/HEIC upload·shop/견종/서비스/갤러리/공지 form·VoiceOver 증거가 없는 상태를 운영 준비 완료로 표현하지 않는다.
+현재 source에는 Spring Security WebAuthn/WebAuthn4J 검증, Flyway V10 RP-side record·one-way recovery code, FIRST/SECOND/RECOVERY stage와 Static Export ceremony UI가 구현돼 있다. 그러나 실제 RP/FQDN·TLS·운영 account/passkey·recovery-code provisioning은 수행하지 않았고 login rate limit도 구현되지 않았다. 따라서 운영 배포 대상 또는 production-ready로 표현하지 않는다. noindex와 client session 확인도 보안 통제로 간주하지 않으며, 실제 iPhone Safari passkey/HEIC upload·shop/견종/서비스/갤러리/공지 form·VoiceOver 증거가 없는 상태를 운영 준비 완료로 표현하지 않는다.
 
 ## 출시 후 개선
 
 - 관리자 IP/Access 정책
 - 공유 session store가 필요한 규모인지 측정
 - 외부 heartbeat가 필요한지 same-host blind spot 근거로 재검토
-- 중앙 log와 login rate limit
+- 중앙 log
 - 정기 보안 scan
