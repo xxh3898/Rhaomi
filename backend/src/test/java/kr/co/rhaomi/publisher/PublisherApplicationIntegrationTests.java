@@ -40,7 +40,7 @@ class PublisherApplicationIntegrationTests {
             "--rhaomi.publisher.executor.code-sha=" + "b".repeat(40),
             "--rhaomi.publisher.executor.code-image-tag=sha-" + "b".repeat(40),
             "--rhaomi.publisher.executor.code-image-digest=sha256:" + "c".repeat(64),
-            "--rhaomi.publisher.executor.flyway-version=9",
+            "--rhaomi.publisher.executor.flyway-version=10",
             "--rhaomi.publisher.executor.sbom-reference=sha256:" + "d".repeat(64)
         })) {
             assertFalse(context instanceof WebServerApplicationContext);

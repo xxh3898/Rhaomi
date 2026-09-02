@@ -165,7 +165,7 @@ def prepare_root(parent: Path) -> Path:
                 "backupManifestSha256": "d" * 64,
                 "sourceReleaseSha": RELEASE_SHA,
                 "sourceImageDigest": IMAGE_DIGEST,
-                "sourceFlywayVersion": "9",
+                "sourceFlywayVersion": "10",
                 "createdAt": "2026-09-01T11:00:00Z",
                 "status": "eligible",
             },

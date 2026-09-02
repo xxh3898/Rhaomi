@@ -112,6 +112,10 @@ test("production Compose가 external same-image와 최소 service topology를 �
   assert.match(backend, /SPRING_FLYWAY_ENABLED: "false"/u);
   assert.match(backend, /RHAOMI_SESSION_COOKIE_SECURE: "true"/u);
   assert.match(backend, /RHAOMI_BOOTSTRAP_ADMIN_ENABLED: "false"/u);
+  assert.match(backend, /RHAOMI_ADMIN_WEBAUTHN_REQUIRED: "true"/u);
+  assert.match(backend, /RHAOMI_WEBAUTHN_RP_ID: \$\{RHAOMI_WEBAUTHN_RP_ID:\?[^}]+\}/u);
+  assert.match(backend, /RHAOMI_WEBAUTHN_ORIGIN: \$\{RHAOMI_WEBAUTHN_ORIGIN:\?[^}]+\}/u);
+  assert.match(backend, /RHAOMI_WEBAUTHN_CHALLENGE_TTL: "5m"/u);
   assert.match(publisher, /SPRING_FLYWAY_ENABLED: "false"/u);
   assert.match(
     publisher,
@@ -146,6 +150,10 @@ test("production Compose가 external same-image와 최소 service topology를 �
   assert.match(backend, /RHAOMI_BUILD_SERVICE_TOKEN:/u);
   assert.doesNotMatch(web, /BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN|POSTGRES_PASSWORD/u);
   assert.doesNotMatch(postgres, /BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN/u);
+  assert.doesNotMatch(
+    `${web}\n${publisher}\n${postgres}`,
+    /RHAOMI_WEBAUTHN_(?:RP_ID|ORIGIN|RP_NAME)/u,
+  );
 
   assert.match(compose, /web-backend:[\s\S]*internal: true/u);
   assert.match(compose, /build-internal:[\s\S]*internal: true/u);

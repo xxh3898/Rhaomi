@@ -398,7 +398,7 @@ inspect_backup_source_identity() {
     backup_fail BACKUP_SOURCE_IDENTITY_INVALID
   backup_source_flyway_version=$(compose_backup_production exec --no-TTY postgres sh -ec \
     'exec psql --no-psqlrc --tuples-only --no-align --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" --command="SELECT version FROM flyway_schema_history WHERE success AND version IS NOT NULL ORDER BY installed_rank DESC LIMIT 1"')
-  [ "$backup_source_flyway_version" = 9 ] || backup_fail BACKUP_SOURCE_SCHEMA_INVALID
+  [ "$backup_source_flyway_version" = 10 ] || backup_fail BACKUP_SOURCE_SCHEMA_INVALID
   RHAOMI_PRODUCTION_IMAGE=$backup_source_image_reference
   export RHAOMI_PRODUCTION_IMAGE
 }

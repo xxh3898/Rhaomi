@@ -190,7 +190,7 @@ export function parseBackupManifest(value) {
     sourceReleaseSha: matchedString(input.sourceReleaseSha, SHA_PATTERN),
     sourceImageDigest: matchedString(input.sourceImageDigest, DIGEST_PATTERN),
     sourceFlywayVersion:
-      input.sourceFlywayVersion === "9" ? input.sourceFlywayVersion : fail(),
+      input.sourceFlywayVersion === "10" ? input.sourceFlywayVersion : fail(),
     postgresDump: {
       relativePath:
         dump.relativePath === DUMP_NAME ? dump.relativePath : fail(),
@@ -218,7 +218,7 @@ export function parseBackupEligibility(value) {
     sourceReleaseSha: matchedString(input.sourceReleaseSha, SHA_PATTERN),
     sourceImageDigest: matchedString(input.sourceImageDigest, DIGEST_PATTERN),
     sourceFlywayVersion:
-      input.sourceFlywayVersion === "9" ? input.sourceFlywayVersion : fail(),
+      input.sourceFlywayVersion === "10" ? input.sourceFlywayVersion : fail(),
     createdAt: strictInstant(input.createdAt),
     status: "eligible",
   };

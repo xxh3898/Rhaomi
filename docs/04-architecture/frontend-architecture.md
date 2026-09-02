@@ -3,7 +3,7 @@ title: "프론트엔드 아키텍처"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-30"
+last_updated: "2026-09-02"
 review_trigger: "Next.js 구조 또는 렌더링 방식 변경 시"
 ---
 
@@ -55,7 +55,7 @@ Static Export에서도 빌드 시 Server Component를 사용할 수 있다. 단,
 - 서비스 아코디언
 - 문의 channel bottom sheet
 - 제한적인 section reveal
-- `/admin/`의 session 확인·로그인·로그아웃 인증 셸
+- `/admin/`의 session 확인·password first factor·passkey 등록/assertion·recovery rotation·로그아웃 인증 셸
 - `/admin/`의 dashboard navigation, private media manager, shop settings form과 견종·서비스 manager
 - active private media를 선택하는 reusable single media picker
 
@@ -71,16 +71,21 @@ Client boundary는 가장 작은 상호작용 단위에 둔다.
 → 기존 session이면 fresh GET csrf
 → anonymous이면 pre-login GET csrf → POST login → identity 검증
 → password·form email 제거 + pre-login csrf 폐기
-→ React credential 제거 반영 뒤 fresh GET csrf
-→ fresh csrf 성공 뒤에만 dashboard shell
+→ React credential 제거 반영 뒤 fresh GET csrf → GET WebAuthn status
+→ active passkey 0이면 create() 등록 → recovery code rotation·1회 표시
+→ active passkey가 있으면 get() assertion
+→ second-factor session ID 교체 뒤 이전 csrf 폐기 → fresh GET csrf
+→ fresh csrf 성공 뒤에만 mutation-ready dashboard shell
 → fresh csrf로 POST logout
 ```
 
 - API base는 상대경로 `/api/admin/**`만 사용하고 browser host·port env를 만들지 않는다.
 - 모든 request는 `credentials: "same-origin"`, read request는 `cache: "no-store"`다.
 - JSON shape와 status를 공통 client에서 검증하고 backend raw message를 UI에 전달하지 않는다.
-- password와 CSRF는 필요한 동안 memory에만 두며 localStorage, sessionStorage, IndexedDB, cookie 직접 쓰기, URL과 log에 저장하지 않는다.
+- password, WebAuthn challenge/response, recovery code와 CSRF는 필요한 동안 memory에만 두며 localStorage, sessionStorage, IndexedDB, cookie 직접 쓰기, URL과 log에 저장하지 않는다.
 - post-login fresh CSRF 실패는 invalid credential이나 anonymous로 바꾸지 않는다. 명시적 재시도에서 `/me`로 이미 생성된 session을 확인하고 fresh CSRF를 다시 준비한다.
+- WebAuthn browser adapter는 canonical unpadded base64url만 수용하고 `navigator.credentials.create/get`의 ArrayBuffer 경계를 명시적으로 직렬화한다. ceremony failure를 password 오류·anonymous·session expiry로 바꾸거나 자동 재전송하지 않는다.
+- initial registration이나 recovery verify가 server에서 성공한 뒤 recovery rotation이 실패하면 이전 first-factor 화면으로 되돌리지 않고 제한 상태에서 rotation만 명시적으로 재시도한다. 평문 recovery code는 새 set response에서 한 번만 표시하며 storage·URL·console에 쓰지 않는다.
 - admin API의 401은 in-memory 인증 상태를 비우고, 403 mutation은 자동 재시도하지 않는다.
 - 공통 admin transport는 authenticated JSON GET, CSRF-protected JSON·multipart mutation과 authenticated image Blob GET만 제공한다. media feature가 CSRF store나 인증 client를 별도로 만들지 않는다.
 - media preview는 authenticated GET의 JPEG/PNG content-type을 검증해 object URL을 만들고 item 교체·refresh·unmount에서 revoke한다. `IntersectionObserver`로 현재 viewport 근처 항목만 bounded fetch한다.

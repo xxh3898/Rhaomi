@@ -591,7 +591,7 @@ def eligibility_status(root: Path, now: dt.datetime) -> dict[str, object]:
             or SHA_PATTERN.fullmatch(value["sourceReleaseSha"]) is None
             or not isinstance(value["sourceImageDigest"], str)
             or DIGEST_PATTERN.fullmatch(value["sourceImageDigest"]) is None
-            or value["sourceFlywayVersion"] != "9"
+            or value["sourceFlywayVersion"] != "10"
             or not isinstance(value["createdAt"], str)
         ):
             raise HomeOpsContractError("RHAOMI_STATUS_INVALID")

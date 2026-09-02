@@ -35,7 +35,7 @@ Rhaomi/
 │   ├── src/main/java/kr/co/rhaomi/
 │   │   ├── backend/
 │   │   │   ├── admin/             # admin_users domain
-│   │   │   ├── auth/              # login/me/logout/csrf API
+│   │   │   ├── auth/              # staged login·WebAuthn·recovery code·session API
 │   │   │   ├── build/             # stateless read-only snapshot·public-scope media API
 │   │   │   ├── breed/             # 견종 관리 domain/API
 │   │   │   ├── content/           # 상태·audit·공통 오류 계약
@@ -49,7 +49,7 @@ Rhaomi/
 │   │   ├── publisher/             # dedicated non-web poll/debounce/coalesce/lock control plane
 │   │   └── production/            # exact CLI non-web migration/schema task root
 │   ├── src/main/resources/
-│   │   ├── db/migration/          # Flyway V1~V9, V8 producer·V9 claim/generation state
+│   │   ├── db/migration/          # Flyway V1~V10, V10 WebAuthn credential·recovery hash state
 │   │   └── application.yml
 │   ├── src/test/                  # PostgreSQL auth·콘텐츠·build snapshot/media 계약
 │   ├── Dockerfile.dev             # exact Java 25 + development libheif runtime
@@ -112,8 +112,8 @@ Rhaomi/
 - `backend/build`, `.gradle`, `.next`, `out`, `node_modules`는 생성 파일이므로 Git에 포함하지 않는다.
 - Directus runtime, schema snapshot, permission artifact와 provisioning script는 현재 구조에 없다.
 - 관리자 collection controller는 견종·서비스·공지·갤러리의 `GET`, `POST`, `PUT`을 제공한다. 매장정보 singleton은 `GET`, `PUT`, private media는 list/detail/content `GET`, upload `POST`, status `PUT`만 제공하며 모든 domain에서 `PATCH`·`DELETE`를 제공하지 않는다.
-- `/admin/`은 인증 상태·로그인·로그아웃과 매장정보·미디어·견종·서비스·갤러리·공지 관리 component를 same-page Static Export shell에서 제공한다.
-- `src/features/admin-auth`는 relative `/api/admin/**`, same-origin credential, GET no-store, response shape와 고정 오류 mapping을 한 경계에서 처리한다.
+- `/admin/`은 password first factor, passkey 등록·assertion, one-time recovery code rotation, 인증 상태·로그아웃과 매장정보·미디어·견종·서비스·갤러리·공지 관리 component를 same-page Static Export shell에서 제공한다. second factor와 fresh CSRF가 준비되기 전에는 business UI를 열지 않는다.
+- `src/features/admin-auth`는 relative `/api/admin/**`, same-origin credential, strict base64url WebAuthn browser adapter, GET no-store, response shape와 고정 오류 mapping을 한 경계에서 처리한다. password·challenge·CSRF·recovery code를 storage·URL·log에 보존하지 않는다.
 - `infra/nginx/dev.conf`는 local 개발 전용이다. `infra/nginx/production.conf`는 project loopback Nginx의 static/admin/deny/cache 계약이며 host edge TLS·Cloudflare 설정은 포함하지 않는다.
 - `backend/.../publication`은 domain transaction 밖에서 호출할 수 없는 `MANDATORY` producer recorder와 deterministic JDBC state service를 둔다. state service는 due claim, source/boundary 최소 stale 판정, generation·lease·retry·terminal/coalesce primitive만 제공하며 HTTP controller, scheduler, background executor나 범용 queue framework를 제공하지 않는다.
 - `kr.co.rhaomi.publisher`는 exact mode argument 전용 non-web root와 state adapter, fixed debounce/highest coalesce, lease heartbeat, advisory lock과 fixed-process Node release executor를 둔다. child·descendant physical exit 전에는 Java body와 lock을 종료하지 않는다.

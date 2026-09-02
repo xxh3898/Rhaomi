@@ -3,7 +3,7 @@ title: "의존성·라이선스 정책"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-31"
+last_updated: "2026-09-02"
 review_trigger: "주요 의존성·라이선스 변경 시"
 ---
 
@@ -13,6 +13,8 @@ review_trigger: "주요 의존성·라이선스 변경 시"
 
 - Java 25 LTS
 - Spring Boot `4.1.1`
+- Spring Security WebAuthn `7.1.1` — Apache-2.0, RP ceremony와 Spring Security integration
+- WebAuthn4J `0.31.9.RELEASE` — Apache-2.0, transitive CBOR·COSE·attestation·assertion 검증 계층
 - Gradle Wrapper `9.7.1`
 - PostgreSQL `18.6-alpine3.23`
 - NightMonkeys `imageio-heif 1.1.0` — MIT, Java 22+ FFM ImageIO adapter
@@ -24,7 +26,7 @@ review_trigger: "주요 의존성·라이선스 변경 시"
 - Next.js와 frontend dependency는 `package-lock.json` 기준
 - Docker image는 검증한 exact tag를 사용하고 운영에서는 가능하면 digest까지 고정
 
-Spring Boot 버전은 구현 시점의 Spring 공식 stable과 system requirements를 확인해 선택했다. major/minor 변경은 별도 Issue에서 Java·Gradle·plugin 호환성과 보안 변경을 함께 검토한다.
+Spring Boot 버전은 구현 시점의 Spring 공식 stable과 system requirements를 확인해 선택했다. WebAuthn은 Spring Boot BOM이 관리하는 Spring Security module과 그 transitive WebAuthn4J를 사용하며 application code가 CBOR·COSE·signature crypto를 직접 구현하지 않는다. major/minor 변경은 별도 Issue에서 Java·Gradle·plugin 호환성과 보안 변경을 함께 검토한다.
 
 ## 현재 개발 HEIC runtime 인벤토리
 

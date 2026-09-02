@@ -123,7 +123,7 @@ local private media volume·upload API, same-origin development gateway, dedicat
 | `backend` | 관리자 session/auth, 콘텐츠 API, private media 검증·정규화·master 소유 | Nginx를 통해서만 |
 | `postgres` | 관리자와 후속 콘텐츠 데이터 영속화 | 금지 |
 | `publisher` | immediate pending·due scheduled event, overdue recovery, 두 revision, 30초 debounce, lock, snapshot·derivative·Static Export·atomic switch | 금지 |
-| `migration` | exact CLI opt-in Flyway V1~V9 migration 후 JPA schema validation, one-shot | 금지 |
+| `migration` | exact CLI opt-in Flyway V1~V10 migration 후 JPA schema validation, one-shot | 금지 |
 | `schema-validate` | Flyway 없이 JPA schema compatibility validation, one-shot | 금지 |
 | `backup-tool` | network-disabled strict manifest·media inventory·eligibility·restore/retention filesystem operation; host wrapper가 writer quiescence·`pg_dump`를 조정 | 금지 |
 | `backup-verifier` | fixed eligibility argv, repository/deploy-state read-only full-read와 `<24h` freshness 검증; media·credential 없음 | 금지 |

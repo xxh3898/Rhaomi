@@ -90,7 +90,7 @@ review_trigger: "관리 backend·배포 event 변경 시"
 - [x] staging result·CLI의 canonical revision/generation string 보존, fixed argv, environment-only credential, safe JSON/exit family와 token·URL/path·UUID·stack 비노출
 - [x] `0` content revision, safe integer 경계, `9007199254740993`, `Long.MAX_VALUE` 성공과 zero generation·leading zero·overflow·JSON number 거부
 - [x] frontend/gateway credential environment/filesystem 0, public `/api/build/**` 404 유지
-- [x] 8f6 staging-only 범위에서 Java `PublicationBuildExecutor` transient placeholder와 publication state·Flyway V1~V9 불변
+- [x] 8f6 staging-only 범위에서 Java `PublicationBuildExecutor` transient placeholder와 publication state 불변; 현재 full regression은 additive Flyway V10까지 적용
 - [x] Linux amd64 Hosted와 Linux arm64 Mac Compose의 Node 24/Sharp orchestration suite 실행 계약
 
 ## Phase 1C-8f7 Next release·atomic switch 완료
@@ -106,7 +106,7 @@ review_trigger: "관리 backend·배포 event 변경 시"
 - [x] post-switch smoke 성공 뒤 release 5개 retention과 current·previous 보호, stale·smoke 실패 candidate cleanup 및 실패 시 retention 미실행, post-switch housekeeping 실패의 `DEFERRED` success 분리와 malformed/out-of-root link fail closed
 - [x] actual Java fixed-process executor의 safe result/exit mapping, malformed·multiple·oversized output와 launch failure 분류
 - [x] root가 먼저 끝나거나 interrupt를 무시하는 descendant의 physical exit 전 executor·global lock 반환 금지
-- [x] 실제 PostgreSQL 18.6·Flyway V1~V9·Build API·Sharp·Next·release·control loop full E2E의 success·higher·lower no-op·transient retry·terminal current 유지
+- [x] 실제 PostgreSQL 18.6·Flyway V1~V10·Build API·Sharp·Next·release·control loop full E2E의 success·higher·lower no-op·transient retry·terminal current 유지
 - [x] Java 25+Node 24 validation-only image의 Linux amd64/arm64 publisher·transformer 실행 계약과 default Compose service 불변
 
 ## Phase 1C-8f8 sample content·local publication acceptance 완료

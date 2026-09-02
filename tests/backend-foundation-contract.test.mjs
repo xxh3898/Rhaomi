@@ -65,6 +65,97 @@ test("Flyway와 Spring Security의 fail-closed 계약을 보존한다", async ()
   assert.doesNotMatch(security, /csrf\([^)]*disable/);
 });
 
+test("관리자 WebAuthn 2차 인증과 recovery lifecycle을 fail-closed로 고정한다", async () => {
+  const [
+    build,
+    migration,
+    security,
+    properties,
+    webAuthnService,
+    ceremonyStore,
+    recoveryService,
+    browserWebAuthn,
+    adminShell,
+  ] = await Promise.all([
+    source("backend/build.gradle"),
+    source(
+      "backend/src/main/resources/db/migration/V10__create_admin_webauthn_credentials_and_recovery_codes.sql",
+    ),
+    source("backend/src/main/java/kr/co/rhaomi/backend/config/SecurityConfig.java"),
+    source(
+      "backend/src/main/java/kr/co/rhaomi/backend/config/AdminWebAuthnProperties.java",
+    ),
+    source(
+      "backend/src/main/java/kr/co/rhaomi/backend/auth/webauthn/AdminWebAuthnService.java",
+    ),
+    source(
+      "backend/src/main/java/kr/co/rhaomi/backend/auth/webauthn/AdminWebAuthnCeremonyStore.java",
+    ),
+    source(
+      "backend/src/main/java/kr/co/rhaomi/backend/auth/webauthn/AdminRecoveryCodeService.java",
+    ),
+    source("src/features/admin-auth/webauthn.ts"),
+    source("src/app/admin/_components/AdminAuthShell.tsx"),
+  ]);
+
+  assert.match(
+    build,
+    /implementation 'org\.springframework\.security:spring-security-webauthn'/u,
+  );
+  assert.match(migration, /CREATE TABLE admin_webauthn_credentials/u);
+  assert.match(migration, /CREATE TABLE admin_recovery_codes/u);
+  assert.match(migration, /credential_id BYTEA NOT NULL/u);
+  assert.match(migration, /public_key_cose BYTEA NOT NULL/u);
+  assert.match(migration, /CONSTRAINT uk_admin_webauthn_credentials_credential_id UNIQUE/u);
+  assert.match(migration, /code_hash VARCHAR\(64\) NOT NULL/u);
+  assert.doesNotMatch(migration, /private_key|code_plaintext|DROP\s|TRUNCATE\s/iu);
+
+  assert.match(
+    security,
+    /requestMatchers\("\/api\/admin\/\*\*"\)\s*\.hasAuthority\("ADMIN_SECOND_FACTOR_VERIFIED"\)/u,
+  );
+  assert.match(security, /\/api\/admin\/auth\/webauthn\/registration/u);
+  assert.match(security, /\/api\/admin\/auth\/recovery-codes\/verify/u);
+  assert.doesNotMatch(security, /csrf\([^)]*disable/u);
+  assert.match(properties, /production profile에서는 WebAuthn 2차 인증이 필요/u);
+  assert.match(properties, /"https"\.equals\(parsedOrigin\.getScheme\(\)\)/u);
+  assert.match(properties, /Duration\.ofMinutes\(1\)/u);
+  assert.match(properties, /Duration\.ofMinutes\(10\)/u);
+
+  assert.match(webAuthnService, /operations\.registerCredential/u);
+  assert.match(webAuthnService, /operations\.authenticate/u);
+  assert.match(webAuthnService, /requireFirstFactor\(principal\.authenticationStage\(\)\)/u);
+  assert.match(webAuthnService, /stage == AdminAuthenticationStage\.RECOVERY_ROTATION_REQUIRED/u);
+  assert.match(
+    webAuthnService,
+    /transactions\.execute[\s\S]*authenticationStages\.promote/u,
+  );
+  assert.match(webAuthnService, /ceremonies\.storeRegistration/u);
+  assert.match(webAuthnService, /ceremonies\.consumeRegistration/u);
+  assert.match(webAuthnService, /ceremonies\.storeAuthentication/u);
+  assert.match(webAuthnService, /ceremonies\.consumeAuthentication/u);
+  assert.equal((ceremonyStore.match(/synchronized \(session\)/gu) ?? []).length, 2);
+  assert.match(ceremonyStore, /session\.getAttribute\(attributeName\)/u);
+  assert.match(ceremonyStore, /session\.removeAttribute\(attributeName\)/u);
+  assert.match(recoveryService, /MessageDigest\.getInstance\("SHA-256"\)/u);
+  assert.match(recoveryService, /RECOVERY_ROTATION_REQUIRED/u);
+  assert.match(
+    recoveryService,
+    /transactions\.execute(?:WithoutResult)?[\s\S]*authenticationStages\.promote/u,
+  );
+  assert.doesNotMatch(recoveryService, /logger|System\.out|printStackTrace/u);
+
+  assert.match(browserWebAuthn, /navigator\.credentials/u);
+  assert.match(browserWebAuthn, /decodeBase64Url/u);
+  assert.match(browserWebAuthn, /encodeBase64Url/u);
+  assert.match(adminShell, /state\.kind === "second-factor"/u);
+  assert.match(adminShell, /state\.kind === "recovery-rotation"/u);
+  assert.doesNotMatch(
+    `${browserWebAuthn}\n${adminShell}`,
+    /localStorage|sessionStorage|indexedDB|console\./u,
+  );
+});
+
 test("견종·서비스 V2와 제한된 관리자 API 계약을 고정한다", async () => {
   const [application, migration, breedController, serviceController] = await Promise.all([
     source("backend/src/main/resources/application.yml"),

@@ -3,7 +3,7 @@ title: "정보 구조"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-30"
+last_updated: "2026-09-02"
 review_trigger: "페이지·섹션 순서 변경 시"
 ---
 
@@ -33,7 +33,7 @@ review_trigger: "페이지·섹션 순서 변경 시"
 |---|---|---|
 | `/admin/` | session 기반 관리자 login·관리 홈·매장정보·갤러리·미디어·견종·서비스·공지 UI | Static Export client shell |
 
-`/admin/`은 공개 navigation과 sitemap에 링크하지 않고 `noindex, nofollow, noarchive`를 유지한다. 관리 홈과 매장정보·갤러리·미디어·견종·서비스·공지 manager는 query/hash나 추가 route 없이 같은 client state에서 전환한다. 여섯 관리 영역은 모두 사용 가능하다.
+`/admin/`은 공개 navigation과 sitemap에 링크하지 않고 `noindex, nofollow, noarchive`를 유지한다. password first factor 뒤 passkey 등록/assertion과 필요한 recovery code rotation, second-factor session 교체와 fresh CSRF가 완료돼야 관리 홈을 표시한다. 관리 홈과 매장정보·갤러리·미디어·견종·서비스·공지 manager는 query/hash나 추가 route 없이 같은 client state에서 전환한다. 여섯 관리 영역은 모두 사용 가능하다.
 
 ### 현재 관리자 화면 구조
 

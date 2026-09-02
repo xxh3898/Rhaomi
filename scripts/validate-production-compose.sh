@@ -170,12 +170,15 @@ export RHAOMI_POSTGRES_DB=rhaomi_validation
 export RHAOMI_POSTGRES_USER=rhaomi_validation
 export RHAOMI_POSTGRES_PASSWORD="$postgres_password"
 export RHAOMI_BUILD_SERVICE_TOKEN="$build_token"
+export RHAOMI_WEBAUTHN_RP_ID=validation.invalid
+export RHAOMI_WEBAUTHN_ORIGIN=https://validation.invalid
+export RHAOMI_WEBAUTHN_RP_NAME="Rhaomi Validation Admin"
 export RHAOMI_PUBLISHER_OWNER="validation-${git_short}-$$"
 export RHAOMI_PUBLIC_SITE_URL=https://validation.invalid
 export RHAOMI_CODE_SHA="$git_head"
 export RHAOMI_CODE_IMAGE_TAG="$production_image"
 export RHAOMI_CODE_IMAGE_DIGEST="$image_id"
-export RHAOMI_FLYWAY_VERSION=9
+export RHAOMI_FLYWAY_VERSION=10
 export RHAOMI_SBOM_REFERENCE="$image_id"
 export RHAOMI_CLEANUP_TASK="$cleanup_task"
 export RHAOMI_CLEANUP_GIT_HEAD="$git_head"
@@ -226,8 +229,8 @@ compose_validation run --rm --no-deps migration \
   >"$validation_root/raw/migration-task.txt" 2>&1
 flyway_version=$(database_query \
   "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1")
-if [ "$flyway_version" != "9" ]; then
-  echo "one-shot migration이 Flyway V1~V9를 적용하지 못했습니다." >&2
+if [ "$flyway_version" != "10" ]; then
+  echo "one-shot migration이 Flyway V1~V10을 적용하지 못했습니다." >&2
   exit 1
 fi
 compose_validation run --rm --no-deps schema-validate \

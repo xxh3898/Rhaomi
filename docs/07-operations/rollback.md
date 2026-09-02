@@ -70,7 +70,7 @@ Nginx 설정이 바뀌지 않았다면 reload 없이 전환하는 구조를 우�
 - DB data와 후속 원본 image storage 일치 확인
 - backup-set manifest와 canonical media checksum·file count 확인
 - restore source는 eligibility marker가 아니라 선택한 read-only complete set의 manifest/dump/media full-read 결과로 확정
-- task-scoped path는 fresh named volume·빈 media root에서 Flyway V1~V9/JPA schema, audit/relation row, representative media decode, static publisher와 restart/down-up persistence를 검증
+- task-scoped path는 fresh named volume·빈 media root에서 Flyway V1~V10/JPA schema, audit/relation/WebAuthn row, representative media decode, static publisher와 restart/down-up persistence를 검증
 - 운영 전환 전 동일 publisher pipeline의 정적 build
 - 직접 운영 DB 덮어쓰기는 승인 후 수행
 - production named volume raw file copy·volume swap을 rollback authority로 사용하지 않음

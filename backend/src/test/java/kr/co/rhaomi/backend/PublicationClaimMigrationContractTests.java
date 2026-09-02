@@ -106,8 +106,8 @@ class PublicationClaimMigrationContractTests {
     }
 
     @Test
-    void should_validateJpaMappingsAgainstV9_when_applicationContextStarts() {
-        assertEquals("9", jdbcTemplate.queryForObject(
+    void should_validateJpaMappingsAgainstV10_when_applicationContextStarts() {
+        assertEquals("10", jdbcTemplate.queryForObject(
                 """
                 SELECT version
                 FROM flyway_schema_history

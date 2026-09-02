@@ -16,14 +16,21 @@ public final class AdminPrincipal implements UserDetails, CredentialsContainer {
     private String passwordHash;
     private final AdminRole role;
     private final boolean active;
+    private final AdminAuthenticationStage authenticationStage;
 
     public AdminPrincipal(
-            UUID id, String email, String passwordHash, AdminRole role, boolean active) {
+            UUID id,
+            String email,
+            String passwordHash,
+            AdminRole role,
+            boolean active,
+            AdminAuthenticationStage authenticationStage) {
         this.id = id;
         this.email = email;
         this.passwordHash = passwordHash;
         this.role = role;
         this.active = active;
+        this.authenticationStage = authenticationStage;
     }
 
     public UUID id() {
@@ -38,9 +45,26 @@ public final class AdminPrincipal implements UserDetails, CredentialsContainer {
         return role;
     }
 
+    public AdminAuthenticationStage authenticationStage() {
+        return authenticationStage;
+    }
+
+    public AdminPrincipal withAuthenticationStage(AdminAuthenticationStage stage) {
+        return new AdminPrincipal(id, email, null, role, active, stage);
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
+        var authorities = new java.util.ArrayList<GrantedAuthority>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_" + role.name()));
+        authorities.add(new SimpleGrantedAuthority("ADMIN_FIRST_FACTOR_VERIFIED"));
+        if (authenticationStage == AdminAuthenticationStage.SECOND_FACTOR_VERIFIED) {
+            authorities.add(new SimpleGrantedAuthority("ADMIN_SECOND_FACTOR_VERIFIED"));
+        }
+        if (authenticationStage == AdminAuthenticationStage.RECOVERY_ROTATION_REQUIRED) {
+            authorities.add(new SimpleGrantedAuthority("ADMIN_RECOVERY_ROTATION_REQUIRED"));
+        }
+        return List.copyOf(authorities);
     }
 
     @Override
@@ -65,6 +89,6 @@ public final class AdminPrincipal implements UserDetails, CredentialsContainer {
 
     @Override
     public String toString() {
-        return "AdminPrincipal{id=" + id + ", role=" + role + "}";
+        return "AdminPrincipal{id=" + id + ", role=" + role + ", stage=" + authenticationStage + "}";
     }
 }

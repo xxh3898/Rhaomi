@@ -30,7 +30,8 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 - passkey credential private key는 authenticator/device authority다. Rhaomi RP server는 private key를 수집·저장·로그하지 않고 DB, 환경변수, backup과 release evidence의 입력으로도 받지 않는다.
 - server-side WebAuthn credential record는 credential ID, credential public key, 관리자 account binding과 인증 검증에 필요한 authenticator/sign-counter metadata다. 예를 들어 `signCount`, transport와 backup-state metadata를 포함할 수 있으며 private key나 recovery secret과 구분한다.
 - RP-side credential record는 인증 integrity와 account privacy를 위해 최소 접근 데이터로 보호하지만, public key material 자체를 server secret 또는 rotation key로 분류하지 않는다.
-- recovery code만 WebAuthn 관련 server secret inventory에 포함한다. raw recovery code는 Git, 일반 log와 release evidence에 기록하지 않는다. 사용·폐기 audit은 raw code 없이 server-side 식별자와 상태만 기록한다.
+- Flyway V10은 credential ID, COSE public key, attestation 검증 material, counter·UV·transport·backup metadata와 created/updated/last-used/revoked audit만 저장한다. private key나 authenticator secret column은 두지 않는다.
+- recovery code만 WebAuthn 관련 server secret inventory에 포함한다. raw recovery code 10개는 rotation 성공 response에서 한 번만 전달하고 V10에는 SHA-256 lowercase hex one-way representation과 set/status audit만 저장한다. raw code는 Git, 일반 log, browser storage·URL과 release evidence에 기록하지 않는다.
 
 ## 저장 원칙
 
@@ -40,6 +41,7 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 - Docker Compose에 실제 credential 평문 literal 금지
 - password는 Spring Security의 검증된 encoder로 단방향 hash 저장
 - WebAuthn registration은 RP-side credential record만 저장하고 authenticator private key를 server input·storage·log로 받지 않음
+- WebAuthn RP ID·approved HTTPS origin·RP name·challenge TTL은 server-owned non-secret config이고 client가 임의 origin/RP를 선택하지 못하게 함
 - session과 CSRF token은 URL query에 넣지 않음
 - log, error response, test report, build artifact에 password/hash/session/token 출력 금지
 - 사람 비밀번호와 향후 서비스 credential 분리
@@ -62,7 +64,7 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 - production: TLS와 `Secure=true` 필수
 - session id를 response body나 application log에 포함하지 않음
 - logout과 계정 비활성화 절차에서 session 폐기 확인
-- CSRF cookie는 static admin client가 표준 double-submit 방식으로 읽을 수 있지만 인증 credential로 사용하지 않음
+- CSRF token은 server session에 저장하고 same-origin CSRF endpoint response에서 browser memory로만 전달한다. session id와 함께 storage·URL·log에 남기지 않음
 
 ## bootstrap
 
@@ -84,7 +86,7 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 | Tailscale deploy identity | host·operator 변경 또는 노출 의심 |
 | Mac private GHCR pull credential | package 권한·host·operator 변경 또는 노출 의심 |
 | WebAuthn RP-side registration | authenticator 분실·폐기, 무단 등록 의심 또는 운영자 변경 시 해당 credential record revoke/remove. server-side private key rotation 대상으로 취급하지 않음 |
-| recovery code | 사용·노출 의심·재발급 또는 운영자 변경 시 기존 code를 무효화하고 새 set으로 rotation |
+| recovery code | code 한 개 사용·노출 의심·재발급 또는 운영자 변경 시 기존 set 전체를 무효화하고 새 set으로 rotation. rotation 전 `RECOVERY_ROTATION_REQUIRED`에서는 업무 API 금지 |
 | future restic repository password·recovery key | 노출 의심·복구 사본 훼손·접근자 변경 |
 
 ## 데이터 분류

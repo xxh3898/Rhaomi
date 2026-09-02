@@ -211,6 +211,29 @@ describe("DefaultAdminAuthClient", () => {
     expect(onSessionExpired).toHaveBeenCalledTimes(1);
   });
 
+  it("WebAuthn 검증 401을 session expiry로 위장하거나 자동 재전송하지 않는다", async () => {
+    const onSessionExpired = vi.fn();
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ headerName: "X-CSRF-TOKEN", token: "mfa-csrf" }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ code: "WEBAUTHN_VERIFICATION_FAILED" }, 401),
+      );
+    const client = new DefaultAdminAuthClient({ fetcher, onSessionExpired });
+
+    await expect(client.verifyRecoveryCode("00000000-11111111-22222222-33333333"))
+      .rejects.toMatchObject({ kind: "webauthn-failed" });
+
+    expect(onSessionExpired).not.toHaveBeenCalled();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls.map(([path]) => path)).toEqual([
+      "/api/admin/auth/csrf",
+      "/api/admin/auth/recovery-codes/verify",
+    ]);
+  });
+
   it("logout 403 mutation을 자동 재시도하지 않고 다음 사용자 시도에서 CSRF를 갱신한다", async () => {
     const fetcher = vi
       .fn()

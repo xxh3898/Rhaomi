@@ -351,12 +351,15 @@ prepare_validation_host() {
     "RHAOMI_POSTGRES_USER=$database_name" \
     "RHAOMI_POSTGRES_PASSWORD=$postgres_password" \
     "RHAOMI_BUILD_SERVICE_TOKEN=$build_token" \
+    'RHAOMI_WEBAUTHN_RP_ID=validation.invalid' \
+    'RHAOMI_WEBAUTHN_ORIGIN=https://validation.invalid' \
+    'RHAOMI_WEBAUTHN_RP_NAME=Rhaomi Validation Admin' \
     "RHAOMI_PUBLISHER_OWNER=backup-${project_name}" \
     'RHAOMI_PUBLIC_SITE_URL=https://validation.invalid' \
     "RHAOMI_CODE_SHA=$git_head" \
     "RHAOMI_CODE_IMAGE_TAG=$production_image" \
     "RHAOMI_CODE_IMAGE_DIGEST=$image_id" \
-    'RHAOMI_FLYWAY_VERSION=9' \
+    'RHAOMI_FLYWAY_VERSION=10' \
     "RHAOMI_SBOM_REFERENCE=$image_id" \
     "RHAOMI_CLEANUP_TASK=$cleanup_task" \
     "RHAOMI_CLEANUP_GIT_HEAD=$git_head" \
