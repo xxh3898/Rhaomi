@@ -8,6 +8,7 @@ export PATH
 unset CDPATH ENV BASH_ENV
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$script_dir/production-lifecycle-core.sh"
 . "$script_dir/deploy-rhaomi-core.sh"
 
 deploy_rhaomi /private/var/lib/rhaomi "$@"

@@ -3,7 +3,7 @@ title: "롤백"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-01"
+last_updated: "2026-09-02"
 review_trigger: "배포 저장구조 변경 시"
 ---
 
@@ -11,7 +11,7 @@ review_trigger: "배포 저장구조 변경 시"
 
 ## 구현 상태
 
-이 문서는 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)의 목표 rollback 계약이다. publisher control loop와 local/CI release adapter는 이전 `current/previous` link snapshot과 same-attempt smoke rollback을 구현했다. D-IMP-3 fixed deploy의 failure maintenance hold에 이어 D-IMP-4는 shared operation lock, application-consistent complete set, exact-release eligibility와 fresh named-volume/media restore task path를 구현했다. production service/image/path·backup repository·schedule installation, 승인된 higher-generation rollback trigger와 actual backup/restore는 아직 provision되지 않았다. 초기 backup은 Mac mini 내부에만 있으므로 host/storage 전체 손실 복구를 보장하지 않는다.
+이 문서는 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md)와 [ADR-016](../09-decisions/ADR-016-verified-empty-first-production-activation.md)의 목표 rollback 계약이다. publisher control loop와 local/CI release adapter는 이전 `current/previous` link snapshot과 same-attempt smoke rollback을 구현했다. D-IMP-3 fixed deploy의 failure maintenance hold에 이어 D-IMP-4는 shared operation lock, application-consistent complete set, exact-release eligibility와 fresh named-volume/media restore task path를 구현했다. First activation은 partial bootstrap/recovery 실패를 자동 rollback하거나 `UNINITIALIZED`로 되돌리지 않고 lifecycle/evidence를 보존해 human corrective를 요구한다. production service/image/path·backup repository·schedule installation, 승인된 higher-generation rollback trigger와 actual backup/restore는 아직 provision되지 않았다. 초기 backup은 Mac mini 내부에만 있으므로 host/storage 전체 손실 복구를 보장하지 않는다.
 
 local/CI의 same-attempt smoke rollback은 실패한 candidate가 publication success로 기록되기 전 filesystem을 복구하는 동작이다. 이미 성공한 낮은 generation release를 운영에서 직접 재활성화하는 절차와 다르며, 아래 production rollback은 계속 더 높은 새 `publishGeneration`을 요구한다.
 
@@ -77,6 +77,7 @@ Nginx 설정이 바뀌지 않았다면 reload 없이 전환하는 구조를 우�
 
 ## 코드 롤백
 
+- `FIRST_ACTIVATION_BOOTSTRAPPING` 또는 `RECOVERY_ACCEPTANCE_REQUIRED|IN_PROGRESS`에서 실패하면 state/evidence를 삭제해 verified-empty를 재발급하지 않는다. public ingress를 계속 비활성으로 두고 DB/media/container·lock의 actual 상태를 진단한 별도 corrective 승인을 요구한다.
 - 직전 정상 exact `main` SHA와 image digest 또는 release artifact 사용
 - DB schema가 forward-only로 변경되었는지 확인
 - 현재 DB data와 이전 code의 호환성 확인

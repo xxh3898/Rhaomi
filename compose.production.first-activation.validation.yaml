@@ -1,0 +1,33 @@
+x-first-activation-validation-labels: &first-activation-validation-labels
+  io.homeserver.cleanup.environment: development
+  io.homeserver.cleanup.project: rhaomi
+  io.homeserver.cleanup.task: ${RHAOMI_CLEANUP_TASK:?RHAOMI_CLEANUP_TASK is required}
+  io.homeserver.cleanup.lifecycle: task
+  io.homeserver.cleanup.retain: "false"
+  io.homeserver.cleanup.git-head: ${RHAOMI_CLEANUP_GIT_HEAD:?RHAOMI_CLEANUP_GIT_HEAD is required}
+
+services:
+  first-activation-backup-verifier:
+    labels: *first-activation-validation-labels
+  first-activation-media-restore:
+    labels: *first-activation-validation-labels
+  first-activation-postgres:
+    labels: *first-activation-validation-labels
+  first-activation-schema-validate:
+    labels: *first-activation-validation-labels
+  first-activation-backend:
+    labels: *first-activation-validation-labels
+  first-activation-publisher:
+    labels: *first-activation-validation-labels
+  first-activation-static:
+    labels: *first-activation-validation-labels
+  first-activation-smoke:
+    labels: *first-activation-validation-labels
+
+networks:
+  first-activation-public:
+    labels: *first-activation-validation-labels
+  first-activation-build:
+    labels: *first-activation-validation-labels
+  first-activation-data:
+    labels: *first-activation-validation-labels

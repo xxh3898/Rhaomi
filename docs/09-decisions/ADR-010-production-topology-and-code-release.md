@@ -3,7 +3,7 @@ title: "ADR-010: Production topology와 코드 릴리스"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-01"
+last_updated: "2026-09-02"
 review_trigger: "운영 진입 경로·배포·마이그레이션·릴리스 보존 변경 시"
 ---
 
@@ -11,13 +11,13 @@ review_trigger: "운영 진입 경로·배포·마이그레이션·릴리스 보
 
 - 결정일: 2026-08-29
 - 상태: Accepted
-- 관련 결정: [ADR-001](ADR-001-nextjs-static-export.md), [ADR-008](ADR-008-runtime-independent-public-site.md), [ADR-009](ADR-009-spring-boot-backend-admin.md)
+- 관련 결정: [ADR-001](ADR-001-nextjs-static-export.md), [ADR-008](ADR-008-runtime-independent-public-site.md), [ADR-009](ADR-009-spring-boot-backend-admin.md), [ADR-016](ADR-016-verified-empty-first-production-activation.md)
 
 ## 맥락
 
 Rhaomi는 macOS Mac mini에서 다른 홈서버 서비스와 함께 운영될 예정이며 공개 정적 사이트, same-origin 관리자 API, PostgreSQL과 private media를 서로 다른 신뢰 경계로 분리해야 한다. macOS의 root system volume은 일반 Linux host와 같은 writable `/srv` 계약을 제공하지 않고 Docker Desktop의 기본 host file sharing에도 `/srv`가 포함되지 않는다. `main` merge, image 생성, 운영 반영과 Flyway migration도 하나의 암묵적 자동 단계로 묶지 않아야 한다.
 
-이 결정의 D-IMP-2 source implementation으로 production Compose와 project Nginx, task-scoped validation overlay를 추가했다. D-IMP-3은 exact-main release workflow·fixed deploy와 one-shot migration/schema validation을, D-IMP-4는 fixed shared-lock backup·strict complete set·release eligibility와 task-scoped isolated restore를 source로 구현했다. Cloudflare Tunnel·host edge, private GHCR package/visibility, actual GitHub Environment/reviewer/secret, Tailscale identity, Mac entrypoint/config/path/volume/backup repository/schedule/FQDN은 아직 provision되지 않았고 workflow dispatch·deploy·production migration·backup을 수행하지 않았다.
+이 결정의 D-IMP-2 source implementation으로 production Compose와 project Nginx, task-scoped validation overlay를 추가했다. D-IMP-3은 exact-main release workflow·fixed deploy와 one-shot migration/schema validation을, D-IMP-4는 fixed shared-lock backup·strict complete set·release eligibility와 task-scoped isolated restore를 source로 구현했다. [ADR-016](ADR-016-verified-empty-first-production-activation.md)은 predecessor가 없는 최초 production에만 verified-empty evidence→비공개 bootstrap→첫 application-consistent backup·isolated restore→`STEADY_STATE`를 허용하는 one-time lifecycle을 추가한다. Cloudflare Tunnel·host edge, private GHCR package/visibility, actual GitHub Environment/reviewer/secret, Tailscale identity, Mac entrypoint/config/path/volume/backup repository/schedule/FQDN은 아직 provision되지 않았고 workflow dispatch·deploy·production migration·backup을 수행하지 않았다.
 
 Issue #43은 같은 계약의 build·validate·private manifest·immutable install·`previous/current` switch·post-switch smoke·rollback·retention primitive를 격리된 local/CI filesystem과 actual Java→Node executor로 구현했다. 이 증거는 `/private/var/lib/rhaomi` ownership·Docker Desktop bind, production image/digest·secret, Nginx·Cloudflare, public HTTPS 또는 deploy entrypoint provisioning 완료를 뜻하지 않는다.
 
@@ -41,7 +41,7 @@ Internet
 - public origin은 Cloudflare/host edge에서 종료되는 HTTPS다. project Nginx의 내부 HTTP scheme·8080·provisioning loopback port는 외부 redirect authority가 아니며, Nginx-generated redirect는 relative `Location`만 사용한다.
 - project Nginx는 `/api/admin/**`에 `X-Forwarded-Proto: https`, `X-Forwarded-Port: 443`을 직접 설정한다. client가 보낸 forwarded scheme/port를 신뢰하거나 내부 `$scheme`을 external origin으로 전달하지 않는다.
 - 고객 공개 화면과 `/admin/`은 같은 origin을 사용한다.
-- `/admin/`은 검색 제외 대상일 뿐 인증 경계가 아니다. Spring session·CSRF, 출시 전 WebAuthn/passkey 2차 인증과 rate limit이 업무 경계다. password-only production은 허용하지 않는다.
+- `/admin/`은 검색 제외 대상일 뿐 인증 경계가 아니다. Spring session·CSRF와 WebAuthn/passkey 2차 인증 source는 구현됐지만 실제 RP/account/passkey provisioning은 별도 gate다. 로그인 rate limit은 아직 구현되지 않은 production blocker이며, 이를 추가·검증하기 전에는 public 관리자 인증을 활성화하지 않는다. password-only production은 허용하지 않는다.
 - PostgreSQL, backend direct port, publisher, backup과 HomeOps는 public exposure가 없다.
 - Tailscale은 SSH, HomeOps UI와 운영 장애 대응에만 사용한다.
 - public Nginx는 `/api/build/**`, `/internal/**`와 `/actuator/**`를 거부한다. HomeOps의 최소 health 조회는 내부 경로를 사용한다.
@@ -53,7 +53,9 @@ Internet
 /private/var/lib/rhaomi/
 ├── app/
 │   ├── bin/deploy-rhaomi.sh
+│   ├── bin/first-activate-rhaomi.sh
 │   ├── compose.production.yaml
+│   ├── compose.production.first-activation.yaml
 │   ├── production.env
 │   └── docker/config.json
 ├── public/
@@ -65,7 +67,11 @@ Internet
 ├── state/
 │   ├── publisher/
 │   │   └── build-workspace/
-│   ├── deploy/backup-eligible.env
+│   ├── deploy/
+│   │   ├── backup-eligible.env
+│   │   ├── production-lifecycle.env
+│   │   ├── first-activation-bootstrap.json
+│   │   └── first-activation-recovery.json
 │   └── locks/
 └── logs/
 ```
@@ -121,6 +127,8 @@ feature → dev
 ### 배포 순서
 
 D-IMP-3 fixed code-image apply와 D-IMP-4 release-bound backup source는 다음 경계를 구현한다.
+
+predecessor가 없는 최초 production은 이 steady-state 순서를 우회하지 않는다. [ADR-016](ADR-016-verified-empty-first-production-activation.md)의 별도 explicit mode에서 verified-empty evidence를 mutation 전에 고정하고 public web 없이 exact image·Flyway V1~V10·schema·backend·publisher를 bootstrap한다. 이어 첫 application-consistent backup을 read-only full-read하고 별도 no-port recovery Compose에서 PostgreSQL·media·schema·API·static publication을 복구 검증해 `STEADY_STATE`가 된 뒤에만 아래 normal release 순서를 사용할 수 있다. partial·unknown 실패는 자동 retry하거나 empty로 되돌리지 않는다.
 
 1. protected Environment 승인 뒤 fixed SSH argv로 exact target SHA의 fresh `predeploy` backup·eligibility 발급; 실패 시 deploy invocation 0
 2. deploy strict input과 canonical host root 검증, `/private/var/lib/rhaomi/state/locks`의 atomic global deploy lock 획득
@@ -228,6 +236,8 @@ Docker Desktop host sharing·path와 DB internal layout에 결합되고 portable
 - [x] pinned Tailscale transport·fixed SSH argv·Mac deploy entrypoint source 구현
 - [ ] actual Tailscale deploy identity·host/user/known-hosts·Mac entrypoint/config installation
 - [x] one-shot Flyway/schema task·writer quiescence와 post-start/runtime identity failure maintenance hold 구현
+- [x] verified-empty evidence·one-time private bootstrap·first backup/isolated restore acceptance·`STEADY_STATE` lifecycle source와 task validator 구현
+- [ ] actual Mac에서 first-activation inventory 설치·verified-empty 실행·first backup/isolated restore acceptance
 - [ ] 실제 Mac mini에서 `/private/var/lib/rhaomi` directory ownership·permission과 public/media/state/build-workspace bind mount, publisher image source의 workspace 외 read-only 검증
 - [ ] PostgreSQL project-scoped named volume restart·일반 Compose `down` persistence와 destructive volume command 금지 검증
 - [x] task-scoped application-consistent backup에서 fresh named volume로 `pg_restore`·media/static·restart/down-up 검증

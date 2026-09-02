@@ -5,6 +5,7 @@ umask 077
 
 repository_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 core="$repository_root/ops/production/backup-rhaomi-core.sh"
+lifecycle_core="$repository_root/ops/production/production-lifecycle-core.sh"
 fake_docker="$repository_root/scripts/fixtures/fake-production-backup-docker.sh"
 fake_homeops="$repository_root/scripts/fixtures/fake-homeops-event-adapter.sh"
 evidence_dir=${RHAOMI_PRODUCTION_BACKUP_CONTROL_EVIDENCE_DIR:-}
@@ -122,6 +123,7 @@ prepare_case() {
     "$case_root/app/bin/report-rhaomi-event.py"
   : >"$log_file"
   : >"$homeops_log"
+  write_lifecycle_state "$case_root" STEADY_STATE "$release_sha" "$image_digest"
   export \
     RHAOMI_BACKUP_TEST_LOG="$log_file" \
     RHAOMI_BACKUP_TEST_STATE_DIR="$state_dir" \
@@ -138,8 +140,48 @@ prepare_case() {
   export PATH
 }
 
+write_lifecycle_state() {
+  lifecycle_root=$1
+  lifecycle_state=$2
+  lifecycle_release=$3
+  lifecycle_digest=$4
+  case "$lifecycle_state" in
+    RECOVERY_ACCEPTANCE_REQUIRED)
+      lifecycle_evidence_name=first-activation-bootstrap.json
+      lifecycle_evidence_state=RECOVERY_ACCEPTANCE_REQUIRED
+      ;;
+    STEADY_STATE)
+      lifecycle_evidence_name=first-activation-recovery.json
+      lifecycle_evidence_state=STEADY_STATE
+      ;;
+    *) exit 64 ;;
+  esac
+  lifecycle_evidence="$lifecycle_root/state/deploy/$lifecycle_evidence_name"
+  printf '%s\n' \
+    '{' \
+    '  "schemaVersion": 1,' \
+    "  \"releaseSha\": \"${lifecycle_release}\"," \
+    "  \"imageDigest\": \"${lifecycle_digest}\"," \
+    "  \"state\": \"${lifecycle_evidence_state}\"" \
+    '}' >"$lifecycle_evidence"
+  chmod 600 "$lifecycle_evidence"
+  lifecycle_hash=$(openssl dgst -sha256 "$lifecycle_evidence" | awk '{print $NF}')
+  printf '%s\n' \
+    'schemaVersion=1' \
+    "state=$lifecycle_state" \
+    "releaseSha=$lifecycle_release" \
+    "imageDigest=$lifecycle_digest" \
+    'updatedAt=2026-09-02T00:00:00Z' \
+    "evidenceFile=$lifecycle_evidence_name" \
+    "evidenceSha256=$lifecycle_hash" \
+    >"$lifecycle_root/state/deploy/production-lifecycle.env"
+  chmod 600 "$lifecycle_root/state/deploy/production-lifecycle.env"
+}
+
 run_backup() {
   (
+    # shellcheck disable=SC1090
+    . "$lifecycle_core"
     # shellcheck disable=SC1090
     . "$core"
     backup_rhaomi "$case_root" "$@"
@@ -266,6 +308,17 @@ validate_lock_contention() {
   [ "$(cat "$case_root/state/locks/rhaomi-deploy.lock/owner")" = deploy-owner ]
 }
 
+validate_lifecycle_gate() {
+  prepare_case invalid-lifecycle
+  printf '%s\n' tampered >>"$case_root/state/deploy/first-activation-recovery.json"
+  if run_backup --mode scheduled >"$validation_parent/invalid-lifecycle.out" 2>&1; then
+    echo "invalid production lifecycle backup이 성공했습니다." >&2
+    exit 1
+  fi
+  grep -Fq BACKUP_LIFECYCLE_INVALID "$validation_parent/invalid-lifecycle.out"
+  [ ! -s "$log_file" ]
+}
+
 validate_predeploy_and_redaction() {
   prepare_case predeploy
   output=$(run_backup --mode predeploy --target-release-sha "$release_sha")
@@ -278,12 +331,36 @@ validate_predeploy_and_redaction() {
   fi
 }
 
+validate_first_activation_backup() {
+  prepare_case first-activation-backup
+  write_lifecycle_state \
+    "$case_root" RECOVERY_ACCEPTANCE_REQUIRED "$release_sha" "$image_digest"
+  output=$(run_backup --mode first-activation --target-release-sha "$release_sha")
+  printf '%s\n' "$output" | grep -Fq '"status": "complete"'
+  [ -f "$case_root/state/deploy/first-activation-backup.json" ]
+  [ -f "$case_root/state/deploy/first-activation-backup.env" ]
+  grep -Fq 'status=RECOVERY_BACKUP_VERIFIED' \
+    "$case_root/state/deploy/first-activation-backup.env"
+  grep -Fq ' verify ' "$log_file"
+  ! grep -Fq ' issue-eligibility ' "$log_file"
+  first_log_count=$(wc -l <"$log_file" | tr -d ' ')
+  if run_backup --mode first-activation --target-release-sha "$release_sha" \
+    >"$validation_parent/first-activation-reuse.out" 2>&1; then
+    echo "first-activation backup reuse가 성공했습니다." >&2
+    exit 1
+  fi
+  grep -Fq BACKUP_LIFECYCLE_INVALID "$validation_parent/first-activation-reuse.out"
+  [ "$(wc -l <"$log_file" | tr -d ' ')" = "$first_log_count" ]
+}
+
 validate_success
 validate_telemetry_failure
 validate_lock_release_failure
 validate_failure_recovery
 validate_lock_contention
+validate_lifecycle_gate
 validate_predeploy_and_redaction
+validate_first_activation_backup
 
 if [ -n "$evidence_dir" ]; then
   printf '%s\n' \
@@ -299,6 +376,8 @@ if [ -n "$evidence_dir" ]; then
     '  "permissionFailureLockHold": "verified",' \
     '  "restartFailureLockHold": "verified",' \
     '  "predeployEligibilityMode": "verified",' \
+    '  "steadyStateLifecycleGate": "verified",' \
+    '  "firstActivationBackupMode": "verified",' \
     '  "secretLeakCount": 0,' \
     '  "productionPathMutation": 0,' \
     '  "status": "success"' \
@@ -316,6 +395,8 @@ printf '%s\n' \
   'permissionFailureLockHold=verified' \
   'restartFailureLockHold=verified' \
   'predeployEligibilityMode=verified' \
+  'steadyStateLifecycleGate=verified' \
+  'firstActivationBackupMode=verified' \
   'productionPathMutation=0' \
   'dockerVolumeDelete=0' \
   'status=success'

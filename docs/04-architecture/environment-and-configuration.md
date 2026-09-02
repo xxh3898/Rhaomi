@@ -113,6 +113,8 @@ acceptance PostgreSQL은 `/var/lib/postgresql` tmpfs를 사용하고 host port·
 | Fixed Docker credential config | Y | `/private/var/lib/rhaomi/app/docker/config.json`, directory `0700`·file `0600` |
 | Fixed deploy entrypoint | N | `/private/var/lib/rhaomi/app/bin/deploy-rhaomi.sh` |
 | Fixed backup entrypoint | N | `/private/var/lib/rhaomi/app/bin/backup-rhaomi.sh`; repository path CLI override 금지 |
+| Fixed first-activation entrypoint | N | `/private/var/lib/rhaomi/app/bin/first-activate-rhaomi.sh`; `bootstrap|accept-recovery` fixed action과 exact SHA/digest만 허용 |
+| Fixed first-activation Compose | N | `/private/var/lib/rhaomi/app/compose.production.first-activation.yaml`; host port·production public/media bind 없는 recovery-only inventory |
 | Fixed HomeOps status entrypoint | N | `/private/var/lib/rhaomi/app/bin/status-rhaomi.py`; argument·public route 없음 |
 | Fixed HomeOps event adapter | N | `/private/var/lib/rhaomi/app/bin/report-rhaomi-event.py`; reporter/URL/Secret override 없음 |
 | Fixed recovery target | N | `/private/var/lib/rhaomi/app/bin/recover-rhaomi-service.py restart rhaomi-web\|backend`; shared lock과 exact allowlist |
@@ -126,6 +128,7 @@ acceptance PostgreSQL은 `/var/lib/postgresql` tmpfs를 사용하고 host port·
 | Mac publisher build workspace | Y 취급 | `/private/var/lib/rhaomi/state/publisher/build-workspace`; image source는 RO, 이 target만 RW |
 | Mac lock root | N | `/private/var/lib/rhaomi/state/locks`; deploy/backup은 같은 `rhaomi-deploy.lock`, publisher executor는 별도 `publisher.lock` 사용 |
 | Deploy backup eligibility | Y 취급 | `/private/var/lib/rhaomi/state/deploy/backup-eligibility.json`과 exact hash에 결합된 4-line `backup-eligible.env`, 모두 `0600` |
+| Production lifecycle | Y 취급 | `/private/var/lib/rhaomi/state/deploy/production-lifecycle.env`와 exact hash-bound `first-activation-bootstrap.json`·`first-activation-recovery.json`; owner-only `0600`, symlink 거부, atomic write |
 | Local backup repository | Y 취급 | exact path는 provisioning input; fixed `production.env`의 단일 `RHAOMI_BACKUP_REPOSITORY_ROOT`, owner-only root/sets와 exact sentinel 필요 |
 | Mac logs | Y 취급 | `/private/var/lib/rhaomi/logs` |
 
@@ -228,7 +231,7 @@ image에는 production credential, domain, Mac host path를 bake하지 않는다
 | project Nginx | `infra/nginx/production.conf` |
 | runtime validator | `scripts/validate-production-compose.sh` |
 | default service inventory | `rhaomi-web`, `backend`, `publisher`, `postgres` |
-| opt-in one-shot inventory | `production-task` profile의 `migration`, `schema-validate`; `production-backup` profile의 network-disabled RW `backup-tool`과 read-only `backup-verifier` |
+| opt-in one-shot inventory | `production-task` profile의 `migration`, `schema-validate`; `production-backup` profile의 network-disabled RW `backup-tool`과 read-only `backup-verifier`; 별도 first-activation Compose의 no-port verifier/tmpfs restore/backend/publisher/static smoke |
 | network | web 전용 non-internal `loopback-edge`; `web-backend`, `build-internal`, `data-internal`은 internal |
 | published port | `127.0.0.1:${RHAOMI_WEB_LOOPBACK_PORT}:8080`만 허용 |
 | external origin | redirect는 relative `Location`; backend forwarded origin은 config가 고정한 `https:443` |
@@ -240,10 +243,11 @@ validator는 exact-HEAD production image를 재사용하고 Darwin에서는 `/pr
 
 ## Production deploy·migration — source implemented, external/host provisioning planned
 
-- `.github/workflows/production-release.yml`은 `workflow_dispatch` only며 exact current `main` SHA와 요청 40자 SHA 일치를 검증한다. validation은 read-only, publish만 `packages: write`, deploy만 `environment: production`과 environment secret을 받는다.
+- `.github/workflows/production-release.yml`은 `workflow_dispatch` only며 exact current `main` SHA와 요청 40자 SHA 일치를 검증한다. `deployment_mode=steady-state|first-activation`을 caller가 명시하고 runtime state로 추론하지 않는다. validation은 read-only, publish만 `packages: write`, deploy만 `environment: production`과 environment secret을 받는다.
 - `backend/Dockerfile.production`의 required `RHAOMI_GIT_HEAD` build arg에 exact release SHA를 전달해 `linux/amd64`·`linux/arm64`를 exact SHA tag에 publish하고, 이미 존재하는 SHA tag는 덮어쓰지 않는다. apply authority는 returned manifest digest다. publish 뒤 platform manifest·attestation, OCI source/revision, attached SPDX SBOM·SLSA provenance와 attached-SBOM scan을 machine-check하며 local pre-publish evidence와 분리한다.
 - protected GitHub `production` Environment 승인 뒤에만 pinned Tailscale identity와 fixed SSH target을 사용한다. remote argv는 `--release-sha`, `--image`, `--sbom`만 허용하고 credential을 전달하지 않는다.
 - tracked `ops/production/deploy-rhaomi.sh`는 production에서 `/private/var/lib/rhaomi/app/bin/deploy-rhaomi.sh`로 versioned provisioning할 fixed wrapper다. fixed Compose/env/Docker config, backup eligibility와 global deploy lock를 검증하고 requested digest·OCI revision을 writer 정지 전에 확인한다.
+- tracked `ops/production/first-activate-rhaomi.sh`는 predecessor 없는 host의 별도 fixed wrapper다. mutation 전에 verified-empty absence matrix와 `FIRST_ACTIVATION_BOOTSTRAPPING` evidence를 고정하고, public web 없는 exact image bootstrap 뒤 `RECOVERY_ACCEPTANCE_REQUIRED`만 만든다. fixed `first-activation` backup과 별도 no-port recovery Compose의 full-read/restore acceptance가 성공한 뒤에만 `STEADY_STATE`를 원자 기록한다.
 - tracked HomeOps integration inventory는 compatibility JSON, shared Python core와 status/event/recovery entrypoint를 같은 fixed bin root에 versioned provisioning한다. actual HomeOps reporter absolute path를 Rhaomi env에 저장하지 않고 OS account home 아래 current HomeOps runtime inventory와 pinned owner·mode·SHA를 검증한다. HomeOps endpoint/HMAC secret은 Rhaomi `production.env`, container environment와 CLI에 없다.
 - production backend/publisher 일반 기동은 Flyway mutation을 수행하지 않는다. global deploy lock을 보유한 채 public web을 유지하고 두 writer의 physical exit를 확인한 뒤에만 `migration`→`schema-validate`를 실행한다.
 - migration은 기존 V1~V9를 수정하지 않고 additive V10까지 적용한 뒤 JPA validate를 수행하며, schema task는 Flyway를 끈 채 JPA validate만 수행한다. 두 task는 exact CLI opt-in, non-web, admin bootstrap·publisher worker 0이고 성공 후 종료한다.
@@ -253,7 +257,7 @@ validator는 exact-HEAD production image를 재사용하고 Darwin에서는 `/pr
 - PostgreSQL restart와 일반 Compose `down`·`up` 뒤 data persistence를 검증하고 `down -v`·volume prune/delete가 고정 entrypoint·runbook에 없음을 확인한다.
 - application-consistent backup을 새 isolated PostgreSQL named volume에 `pg_restore`해 복구 authority를 확인한다.
 
-workflow·fixed entrypoint·one-shot task source와 task-only validator는 구현했지만 private GHCR package/visibility, GitHub `production` Environment·required reviewer·branch policy·secret, Tailscale identity, actual Mac entrypoint/config/path/volume·loopback/FQDN은 생성·provision하지 않았다. production workflow도 dispatch하지 않았고 GHCR push·deploy·migration을 수행하지 않았다.
+workflow·fixed deploy/first-activation entrypoint·one-shot task source와 task-only validator는 구현했지만 private GHCR package/visibility, GitHub `production` Environment·required reviewer·branch policy·secret, Tailscale identity, actual Mac entrypoint/config/path/volume·loopback/FQDN은 생성·provision하지 않았다. production workflow도 dispatch하지 않았고 GHCR push·deploy·migration·backup·restore를 수행하지 않았다.
 
 ## Backup·HomeOps inventory — source implemented, provisioning planned
 

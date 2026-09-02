@@ -117,6 +117,7 @@ build API와 stateless credential 경계, Node full release adapter와 credentia
 - static admin client는 CSRF endpoint에서 받은 token을 state-changing request header에 보낸다.
 - admin API 401은 client의 in-memory 인증 상태를 제거하고 403 mutation은 권한/CSRF 오류로 구분하며 자동 반복하지 않는다.
 - password, password hash, session id, CSRF token을 application log에 남기지 않는다.
+- login credential failure를 일반화하는 계약은 rate limiting을 대신하지 않는다. 현재 login rate-limit source/test는 없으며 bounded 정책을 구현·검증하기 전에는 public production 관리자 인증을 활성화하지 않는다.
 
 ## 관리자 bootstrap
 

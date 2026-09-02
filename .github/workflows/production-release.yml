@@ -7,6 +7,14 @@ on:
         description: "현재 main의 exact 40-character lowercase SHA"
         required: true
         type: string
+      deployment_mode:
+        description: "steady-state 또는 최초 1회 verified-empty activation"
+        required: true
+        default: steady-state
+        type: choice
+        options:
+          - steady-state
+          - first-activation
 
 permissions:
   contents: read
@@ -123,6 +131,11 @@ jobs:
         env:
           RHAOMI_PRODUCTION_DEPLOY_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-release-validation-evidence/deploy
         run: sh scripts/validate-production-deploy.sh
+
+      - name: verified-empty first-activation 계약 검증
+        env:
+          RHAOMI_PRODUCTION_FIRST_ACTIVATION_EVIDENCE_DIR: ${{ runner.temp }}/rhaomi-release-validation-evidence/first-activation
+        run: sh scripts/validate-production-first-activation.sh
 
       - name: release validation evidence 보존
         if: always()
@@ -288,6 +301,7 @@ jobs:
       RELEASE_SHA: ${{ inputs.release_sha }}
       IMAGE_REFERENCE: ghcr.io/xxh3898/rhaomi@${{ needs.publish_image.outputs.digest }}
       SBOM_REFERENCE: ${{ needs.publish_image.outputs.sbom_reference }}
+      DEPLOYMENT_MODE: ${{ inputs.deployment_mode }}
       TARGET_HOST: ${{ vars.RHAOMI_PRODUCTION_TARGET_HOST }}
       TARGET_USER: ${{ vars.RHAOMI_PRODUCTION_TARGET_USER }}
     steps:
@@ -300,6 +314,7 @@ jobs:
           [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$IMAGE_REFERENCE" =~ ^ghcr\.io/xxh3898/rhaomi@sha256:[0-9a-f]{64}$ ]]
           [[ "$SBOM_REFERENCE" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$DEPLOYMENT_MODE" = "steady-state" || "$DEPLOYMENT_MODE" = "first-activation" ]]
           [[ "$TARGET_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$ ]]
           [[ "$TARGET_USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]
 
@@ -322,7 +337,8 @@ jobs:
           install -m 600 /dev/null "${RUNNER_TEMP}/rhaomi-known-hosts"
           printf '%s\n' "$SSH_KNOWN_HOSTS" >"${RUNNER_TEMP}/rhaomi-known-hosts"
 
-      - name: fixed Mac predeploy backup·deploy entrypoint 실행
+      - name: fixed Mac steady-state predeploy backup·deploy entrypoint 실행
+        if: ${{ inputs.deployment_mode == 'steady-state' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -342,6 +358,34 @@ jobs:
             -o "UserKnownHostsFile=${RUNNER_TEMP}/rhaomi-known-hosts" \
             -- "${TARGET_USER}@${TARGET_HOST}" \
             /private/var/lib/rhaomi/app/bin/deploy-rhaomi.sh \
+            --release-sha "$RELEASE_SHA" \
+            --image "$IMAGE_REFERENCE" \
+            --sbom "$SBOM_REFERENCE"
+
+      - name: fixed Mac verified-empty first-activation·recovery acceptance 실행
+        if: ${{ inputs.deployment_mode == 'first-activation' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh_options=(
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=yes
+            -o "UserKnownHostsFile=${RUNNER_TEMP}/rhaomi-known-hosts"
+          )
+          ssh "${ssh_options[@]}" -- "${TARGET_USER}@${TARGET_HOST}" \
+            /private/var/lib/rhaomi/app/bin/first-activate-rhaomi.sh \
+            --mode bootstrap \
+            --release-sha "$RELEASE_SHA" \
+            --image "$IMAGE_REFERENCE" \
+            --sbom "$SBOM_REFERENCE"
+          ssh "${ssh_options[@]}" -- "${TARGET_USER}@${TARGET_HOST}" \
+            /private/var/lib/rhaomi/app/bin/backup-rhaomi.sh \
+            --mode first-activation \
+            --target-release-sha "$RELEASE_SHA"
+          ssh "${ssh_options[@]}" -- "${TARGET_USER}@${TARGET_HOST}" \
+            /private/var/lib/rhaomi/app/bin/first-activate-rhaomi.sh \
+            --mode accept-recovery \
             --release-sha "$RELEASE_SHA" \
             --image "$IMAGE_REFERENCE" \
             --sbom "$SBOM_REFERENCE"
