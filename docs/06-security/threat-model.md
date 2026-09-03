@@ -43,7 +43,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | 위협 | 영향 | 통제 |
 |---|---|---|
 | 관리자 credential 탈취 | 콘텐츠 변조, 내부 데이터 접근 | BCrypt, 일반화된 로그인 실패, WebAuthn/passkey 배포 게이트, RP-side credential record 최소 접근, recovery code 보호, session 폐기 |
-| 관리자 login brute force | password 추측·계정 공격 | generic credential failure와 WebAuthn은 구현됐으나 login rate limit은 `NOT_IMPLEMENTED`; bounded rate-limit source/test를 public 관리자 인증 전 production blocker로 유지 |
+| 관리자 login brute force | password 추측·계정 공격 | CSRF·validation 뒤 process-global 10/2초와 SHA-256 identifier 5/5분 token bucket, generic 429+`Retry-After`, success reset·credential-failure 소비 유지·service-failure identifier 복구, 30분 idle cleanup·2,048 hard bound·fail-closed invariant, WebAuthn production gate |
 | passkey private key의 server 수집·기록 | authenticator trust 경계 붕괴, key 유출 | private key는 authenticator/device authority, server input·DB·환경변수·log·backup·release evidence에서 금지 |
 | WebAuthn registration 위조·record 변조 | 공격자 authenticator 등록, 관리자 사칭 | credential ID·public key·account binding·sign-counter metadata integrity, registration 승인, 분실·폐기·의심 시 credential record revoke/remove |
 | password-only session의 업무 권한 획득 | password 탈취만으로 콘텐츠 변조 | FIRST/SECOND authority 분리, 모든 업무 `/api/admin/**`의 `ADMIN_SECOND_FACTOR_VERIFIED` 요구, 최초 zero-credential registration 외 password-only 추가 등록 금지 |
@@ -151,7 +151,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - HomeOps release→live compatibility 재검증→Rhaomi release/provisioning, V14·disabled web mapping·fixed inventory·fresh Agent capability와 actual monitor/control evidence 없이 automatic recovery를 활성화함
 - backend mapping을 만들거나 `FAILED`·`OUTCOME_UNKNOWN`을 자동 재실행함
 
-현재 source에는 Spring Security WebAuthn/WebAuthn4J 검증, Flyway V10 RP-side record·one-way recovery code, FIRST/SECOND/RECOVERY stage와 Static Export ceremony UI가 구현돼 있다. 그러나 실제 RP/FQDN·TLS·운영 account/passkey·recovery-code provisioning은 수행하지 않았고 login rate limit도 구현되지 않았다. 따라서 운영 배포 대상 또는 production-ready로 표현하지 않는다. noindex와 client session 확인도 보안 통제로 간주하지 않으며, 실제 iPhone Safari passkey/HEIC upload·shop/견종/서비스/갤러리/공지 form·VoiceOver 증거가 없는 상태를 운영 준비 완료로 표현하지 않는다.
+현재 source에는 Spring Security WebAuthn/WebAuthn4J 검증, Flyway V10 RP-side record·one-way recovery code, FIRST/SECOND/RECOVERY stage, bounded in-memory login rate limit과 Static Export ceremony UI가 구현돼 있다. 그러나 실제 RP/FQDN·TLS·운영 account/passkey·recovery-code provisioning과 rate-limit 포함 exact image release·production HTTPS 검증은 수행하지 않았다. 또한 limiter는 단일 process memory authority라 restart 시 quota가 reset되고 multi-instance 간 공유되지 않는다. 따라서 운영 배포 대상 또는 production-ready로 표현하지 않는다. noindex와 client session 확인도 보안 통제로 간주하지 않으며, 실제 iPhone Safari passkey/HEIC upload·shop/견종/서비스/갤러리/공지 form·VoiceOver 증거가 없는 상태를 운영 준비 완료로 표현하지 않는다.
 
 ## 출시 후 개선
 

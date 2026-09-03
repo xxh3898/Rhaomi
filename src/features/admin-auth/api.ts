@@ -247,6 +247,9 @@ function mapLoginFailure(status: number): AdminAuthError {
   if (status === 403) {
     return new AdminAuthError("forbidden");
   }
+  if (status === 429) {
+    return new AdminAuthError("rate-limited");
+  }
   if (status === 503) {
     return new AdminAuthError("service-unavailable");
   }

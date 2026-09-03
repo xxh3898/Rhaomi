@@ -67,6 +67,7 @@ export interface AdminApiTransport {
 export type AdminAuthErrorKind =
   | "invalid-credentials"
   | "invalid-request"
+  | "rate-limited"
   | "service-unavailable"
   | "forbidden"
   | "session-expired"

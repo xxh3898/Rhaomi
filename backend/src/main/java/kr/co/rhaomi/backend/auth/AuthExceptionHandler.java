@@ -1,6 +1,8 @@
 package kr.co.rhaomi.backend.auth;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -16,6 +18,15 @@ public class AuthExceptionHandler {
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     ApiError handleInvalidCredentials() {
         return new ApiError("INVALID_CREDENTIALS", "이메일 또는 비밀번호를 확인해 주세요.");
+    }
+
+    @ExceptionHandler(LoginRateLimitExceededException.class)
+    ResponseEntity<ApiError> handleLoginRateLimit(LoginRateLimitExceededException exception) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(exception.retryAfterSeconds()))
+                .body(new ApiError(
+                        "LOGIN_RATE_LIMITED",
+                        "로그인 시도가 많습니다. 잠시 후 다시 시도해 주세요."));
     }
 
     @ExceptionHandler(AuthenticationServiceException.class)
