@@ -74,6 +74,9 @@ function loginErrorMessage(error: unknown): string {
     if (error.kind === "forbidden") {
       return "로그인 요청을 확인할 수 없습니다. 다시 시도해 주세요.";
     }
+    if (error.kind === "rate-limited") {
+      return "로그인 시도가 많습니다. 잠시 후 다시 시도해 주세요.";
+    }
   }
 
   return "로그인 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.";

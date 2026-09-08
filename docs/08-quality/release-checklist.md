@@ -243,7 +243,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] publisher public network·Docker socket 부재
 - [ ] secrets scan
 - [ ] production session `Secure`, TLS와 관리자 WebAuthn/passkey 2차 인증·RP/private-key 경계 확인
-- [ ] bounded login rate-limit 구현·failure regression·운영 threshold 확인; 현재 `NOT_IMPLEMENTED` production blocker
+- [ ] exact released image에서 bounded login rate-limit(process-global 10/2초, identifier 5/5분), generic 429·positive `Retry-After`, credential/service failure·concurrency·restart-reset 제한 확인
 - [ ] exact main SHA·immutable image·digest와 `latest` 부재
 - [ ] GitHub production environment 수동 승인과 고정 Tailscale deploy entrypoint
 - [ ] write maintenance·one-shot Flyway·schema validate·expand/contract

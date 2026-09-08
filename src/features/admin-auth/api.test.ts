@@ -135,6 +135,7 @@ describe("DefaultAdminAuthClient", () => {
     [400, "invalid-request"],
     [401, "invalid-credentials"],
     [403, "forbidden"],
+    [429, "rate-limited"],
     [503, "service-unavailable"],
     [500, "unavailable"],
   ])("login status %i를 %s로 매핑한다", async (status, kind) => {
@@ -150,6 +151,28 @@ describe("DefaultAdminAuthClient", () => {
     await expect(
       client.login({ email: ADMIN.email, password: "wrong" }),
     ).rejects.toMatchObject({ kind });
+  });
+
+  it("login 429를 rate-limited로 구분하고 자동 재전송하지 않는다", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ headerName: "X-CSRF-TOKEN", token: "csrf" }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ code: "LOGIN_RATE_LIMITED" }, 429),
+      );
+    const client = new DefaultAdminAuthClient({ fetcher });
+
+    await expect(
+      client.login({ email: ADMIN.email, password: "wrong" }),
+    ).rejects.toMatchObject({ kind: "rate-limited" });
+
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls.map(([path]) => path)).toEqual([
+      "/api/admin/auth/csrf",
+      "/api/admin/auth/login",
+    ]);
   });
 
   it("잘못된 CSRF shape를 request에 사용하지 않는다", async () => {

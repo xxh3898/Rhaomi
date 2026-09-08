@@ -1,0 +1,2 @@
+org.springframework.test.context.TestExecutionListener=\
+kr.co.rhaomi.backend.auth.AdminLoginRateLimiterResetTestExecutionListener

@@ -41,7 +41,7 @@ Internet
 - public origin은 Cloudflare/host edge에서 종료되는 HTTPS다. project Nginx의 내부 HTTP scheme·8080·provisioning loopback port는 외부 redirect authority가 아니며, Nginx-generated redirect는 relative `Location`만 사용한다.
 - project Nginx는 `/api/admin/**`에 `X-Forwarded-Proto: https`, `X-Forwarded-Port: 443`을 직접 설정한다. client가 보낸 forwarded scheme/port를 신뢰하거나 내부 `$scheme`을 external origin으로 전달하지 않는다.
 - 고객 공개 화면과 `/admin/`은 같은 origin을 사용한다.
-- `/admin/`은 검색 제외 대상일 뿐 인증 경계가 아니다. Spring session·CSRF와 WebAuthn/passkey 2차 인증 source는 구현됐지만 실제 RP/account/passkey provisioning은 별도 gate다. 로그인 rate limit은 아직 구현되지 않은 production blocker이며, 이를 추가·검증하기 전에는 public 관리자 인증을 활성화하지 않는다. password-only production은 허용하지 않는다.
+- `/admin/`은 검색 제외 대상일 뿐 인증 경계가 아니다. Spring session·CSRF, WebAuthn/passkey 2차 인증과 bounded in-memory login rate-limit source는 구현됐지만 실제 RP/account/passkey provisioning과 exact image·production HTTPS rate-limit 검증은 별도 gate다. limiter는 single backend process authority이고 restart 시 quota reset을 초기 제한으로 수용한다. production evidence 전에는 public 관리자 인증을 활성화하지 않으며 password-only production은 허용하지 않는다.
 - PostgreSQL, backend direct port, publisher, backup과 HomeOps는 public exposure가 없다.
 - Tailscale은 SSH, HomeOps UI와 운영 장애 대응에만 사용한다.
 - public Nginx는 `/api/build/**`, `/internal/**`와 `/actuator/**`를 거부한다. HomeOps의 최소 health 조회는 내부 경로를 사용한다.

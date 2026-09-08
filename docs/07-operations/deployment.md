@@ -98,7 +98,7 @@ Durable cooldown은 30분이고 `FAILED`·`OUTCOME_UNKNOWN` no-auto-retry를 유
 - [ ] fixed entrypoint·Compose·`production.env`·Docker credential config의 Mac installation·owner·mode
 - [ ] approved job이 만든 24시간 미만의 exact release SHA-bound D-IMP-4 backup eligibility·manifest evidence
 - [ ] 관리자 password+WebAuthn/passkey 2차 인증, authenticator private key server 비수집, RP-side credential ID·public key·필요 metadata, registration revoke/remove, recovery-code secret의 password manager+별도 offline copy·rotation
-- [ ] 로그인 rate limit 구현·failure/lockout 계약 검증; 현재 source에 없으므로 public 관리자 인증의 production blocker
+- [ ] exact released image의 bounded login rate limit과 generic 429·positive `Retry-After`, credential/service failure·concurrency·single-process restart-reset 제한 검증; production evidence 전 public 관리자 인증 차단
 - [ ] protected source와 분리된 Mac mini local backup repository/path·ownership·permission·capacity
 - [ ] `pg_dump -Fc`와 canonical media를 묶은 동일 backup-set manifest·retention·check
 - [ ] isolated full restore drill

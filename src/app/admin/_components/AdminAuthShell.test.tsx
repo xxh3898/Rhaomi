@@ -551,6 +551,7 @@ describe("AdminAuthShell", () => {
     ["invalid-request", "입력 형식을 확인해 주세요."],
     ["invalid-credentials", "이메일 또는 비밀번호를 확인해 주세요."],
     ["forbidden", "로그인 요청을 확인할 수 없습니다."],
+    ["rate-limited", "로그인 시도가 많습니다. 잠시 후 다시 시도해 주세요."],
     ["service-unavailable", "인증 서비스를 일시적으로 사용할 수 없습니다."],
   ] as const)("login %s 실패를 고정 문구로 표시하고 password를 제거한다", async (kind, message) => {
     const user = userEvent.setup();
