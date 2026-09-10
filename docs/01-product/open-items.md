@@ -3,7 +3,7 @@ title: "미확정 항목"
 status: "draft"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-02"
+last_updated: "2026-09-10"
 review_trigger: "항목 확정 시"
 ---
 
@@ -29,6 +29,8 @@ review_trigger: "항목 확정 시"
 | 관리자 WebAuthn/passkey 2차 인증 | source 구현 완료 / 운영 미프로비저닝 | 조치호·은총쌤 | production RP ID·HTTPS origin·RP name 확정, 실제 운영 account/passkey enrollment·revoke/remove·recovery-code 1회 발급/보관/rotation과 password-only production 차단 검증 |
 | 관리자 login rate limit | source 구현 / release 미반영 | 조치호 | process-global 10/2초·identifier 5/5분 bounded 정책과 generic 429 regression은 구현됨; exact image release·production HTTPS 검증 전 public 관리자 인증 활성화 금지 |
 | 최초 production activation | source gate 구현 / 운영 미실행 | 조치호 | actual Mac verified-empty evidence, exact image private bootstrap, first application-consistent backup·isolated restore acceptance와 `STEADY_STATE` 확정; public/admin/content activation은 이후 별도 승인 |
+| production 최초 관리자 | Stage 0A source 구현 / 운영 미실행 | 조치호 | #96 dev integration·Source Release 후 valid `STEADY_STATE`·exact image에서 별도 승인된 fixed one-shot 생성, WebAuthn/passkey·recovery-code physical acceptance; raw credential evidence 0 |
+| production 초기 콘텐츠 | Stage 0B source 미구현 | 조치호·은총쌤 | #97 owner-approved bundle·atomic application validation/write·canonical first publication source, dev integration·Source Release·exact-main 재검증 |
 | 실제 iPhone HEIC 업로드 | 미검증 | 조치호·은총쌤 | 후속 `/admin` UI에서 iPhone Safari 원본 선택·업로드·방향·색상 확인 |
 | 실제 iPhone Safari·VoiceOver | 미검증 | 조치호·은총쌤 | actual public HTTPS와 `/admin`의 320px·focus·form·VoiceOver 표본 acceptance |
 
@@ -64,7 +66,7 @@ review_trigger: "항목 확정 시"
 - 외장 SSD·iCloud 3-2-1과 offsite RPO는 future hardening이다. 구현 전에는 offsite 상태를 `NOT_CONFIGURED / DEFERRED`로 두고 local backup 성공을 offsite `PASS`로 표시하지 않는다.
 - Mac host filesystem authority는 `/private/var/lib/rhaomi`이고 PostgreSQL primary PGDATA는 production project-scoped Docker named volume이다. exact ownership·permission·rendered volume identity, bind/persistence smoke와 logical backup→isolated `pg_restore` 증거는 provisioning 전까지 출시 차단이다.
 - `/srv/rhaomi`는 Linux web/publisher container target에만 허용한다. Mac host `synthetic.conf`·Docker Desktop custom File Sharing, PostgreSQL host PGDATA bind와 raw-volume restic backup은 production 계약이 아니다.
-- [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-016](../09-decisions/ADR-016-verified-empty-first-production-activation.md)는 production 운영·lossless wire·one-time verified-empty activation 계약을 확정했다. D-IMP-1~4와 D-IMP-5a Rhaomi integration, HomeOps D-IMP-5b decision/mapping/cooldown, first-activation source·preflight까지 local/Hosted evidence를 확보했다. HomeOps application release/deploy와 V14는 production에 적용됐고 Agent artifact는 게시됐지만 live Agent rollout은 미수행이다. [Production readiness matrix](../07-operations/production-readiness.md)가 이를 actual Rhaomi provisioning·외부 승인·물리 acceptance와 분리한다. 실제 Rhaomi Mac path/volume·publisher Secret, GHCR·GitHub Environment·deploy/Flyway, backup repository/schedule·production first activation/backup/restore, HomeOps mapping·Agent capability와 passkey는 아직 provision되지 않았다. login rate-limit source 구현도 release·production 적용 증거가 아니며 local/Hosted 증거를 production `PASS`로 표시하지 않는다.
+- [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)~[ADR-017](../09-decisions/ADR-017-production-initial-admin-authority.md)은 production 운영·lossless wire·one-time verified-empty activation·최초 관리자 source 계약을 확정했다. D-IMP-1~4와 D-IMP-5a Rhaomi integration, HomeOps D-IMP-5b decision/mapping/cooldown, first-activation·initial-admin source/preflight까지 local/Hosted evidence를 확보했다. HomeOps application release/deploy와 V14는 production에 적용됐고 Agent artifact는 게시됐지만 live Agent rollout은 미수행이다. [Production readiness matrix](../07-operations/production-readiness.md)가 이를 actual Rhaomi provisioning·외부 승인·물리 acceptance와 분리한다. 실제 Rhaomi Mac path/volume·publisher Secret, GHCR·GitHub Environment·deploy/Flyway, backup repository/schedule·production first activation/backup/restore, HomeOps mapping·Agent capability와 관리자/passkey는 아직 provision되지 않았다. login rate-limit과 initial-admin source 구현도 release·production 적용 증거가 아니며 local/Hosted 증거를 production `PASS`로 표시하지 않는다.
 - Phase 1C-8f8 sample은 tmpfs/temp root에서만 생성되고 migration·production profile·default fixture로 seed되지 않는다. local PASS를 실제 NAP·예약 정책·고객/반려견 사진 승인이나 production 공개 PASS로 해석하지 않는다.
 - 이번 Issue에서는 실제 이미지·갤러리 seed, 운영 `shop_settings` provisioning과 production migration을 실행하지 않는다. 실제 값·게시 권한 확인과 별도 운영 승인을 거친 후속 작업으로 남긴다.
 

@@ -35,7 +35,8 @@ test("production Compose가 external same-image와 최소 service topology를 �
   const backend = serviceBlock(compose, "backend", "publisher");
   const publisher = serviceBlock(compose, "publisher", "migration");
   const migration = serviceBlock(compose, "migration", "schema-validate");
-  const schemaValidate = serviceBlock(compose, "schema-validate", "backup-tool");
+  const schemaValidate = serviceBlock(compose, "schema-validate", "initial-admin");
+  const initialAdmin = serviceBlock(compose, "initial-admin", "backup-tool");
   const backupTool = serviceBlock(compose, "backup-tool", "backup-verifier");
   const backupVerifier = serviceBlock(compose, "backup-verifier", "postgres");
   const postgres = serviceBlock(compose, "postgres");
@@ -54,6 +55,7 @@ test("production Compose가 external same-image와 최소 service topology를 �
           "publisher:",
           "migration:",
           "schema-validate:",
+          "initial-admin:",
           "backup-tool:",
           "backup-verifier:",
           "postgres:",
@@ -65,6 +67,7 @@ test("production Compose가 external same-image와 최소 service topology를 �
       "publisher:",
       "migration:",
       "schema-validate:",
+      "initial-admin:",
       "backup-tool:",
       "backup-verifier:",
       "postgres:",
@@ -88,7 +91,7 @@ test("production Compose가 external same-image와 최소 service topology를 �
   assert.match(web, /user: "101:101"/u);
   assert.match(web, /homeops\.managed: "true"/u);
   assert.doesNotMatch(
-    `${backend}\n${publisher}\n${migration}\n${schemaValidate}\n${backupTool}\n${backupVerifier}\n${postgres}`,
+    `${backend}\n${publisher}\n${migration}\n${schemaValidate}\n${initialAdmin}\n${backupTool}\n${backupVerifier}\n${postgres}`,
     /homeops\.managed/u,
   );
   assert.match(web, /\/var\/cache\/nginx:rw,noexec,nosuid,size=64m,uid=101,gid=101,mode=0750/u);
@@ -98,7 +101,7 @@ test("production Compose가 external same-image와 최소 service topology를 �
   );
 
   assert.match(web, /127\.0\.0\.1:\$\{RHAOMI_WEB_LOOPBACK_PORT:\?[^}]+\}:8080/u);
-  assert.doesNotMatch(`${backend}\n${publisher}\n${postgres}`, /ports:/u);
+  assert.doesNotMatch(`${backend}\n${publisher}\n${initialAdmin}\n${postgres}`, /ports:/u);
   assert.match(web, /source: \/private\/var\/lib\/rhaomi\/public[\s\S]*target: \/srv\/rhaomi\/public[\s\S]*read_only: true/u);
   assert.match(backend, /source: \/private\/var\/lib\/rhaomi\/data\/media[\s\S]*target: \/var\/lib\/rhaomi\/media/u);
   assert.match(publisher, /source: \/private\/var\/lib\/rhaomi\/public[\s\S]*target: \/srv\/rhaomi\/public/u);
@@ -130,6 +133,19 @@ test("production Compose가 external same-image와 최소 service topology를 �
   assert.match(schemaValidate, /--rhaomi\.production-task=schema-validate/u);
   assert.match(schemaValidate, /SPRING_FLYWAY_ENABLED: "false"/u);
   assert.match(schemaValidate, /SPRING_JPA_HIBERNATE_DDL_AUTO: validate/u);
+  assert.match(initialAdmin, /profiles: \["production-task"\]/u);
+  assert.match(initialAdmin, /--rhaomi\.production-task=initial-admin/u);
+  assert.match(initialAdmin, /SPRING_FLYWAY_ENABLED: "false"/u);
+  assert.match(initialAdmin, /SPRING_JPA_HIBERNATE_DDL_AUTO: validate/u);
+  assert.match(initialAdmin, /RHAOMI_BOOTSTRAP_ADMIN_ENABLED: "false"/u);
+  assert.match(initialAdmin, /read_only: true/u);
+  assert.match(initialAdmin, /cap_drop: \["ALL"\]/u);
+  assert.match(initialAdmin, /no-new-privileges:true/u);
+  assert.match(initialAdmin, /networks:\s*\n\s+- data-internal/u);
+  assert.doesNotMatch(
+    initialAdmin,
+    /volumes:|RHAOMI_(?:INITIAL_ADMIN|BOOTSTRAP_ADMIN)_(?:EMAIL|PASSWORD)|RHAOMI_WEBAUTHN|BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN/u,
+  );
   assert.match(backupTool, /profiles: \["production-backup"\]/u);
   assert.match(backupVerifier, /profiles: \["production-backup"\]/u);
   assert.match(backupVerifier, /entrypoint: \["\/usr\/local\/bin\/rhaomi-backup-verifier"\]/u);
@@ -151,7 +167,7 @@ test("production Compose가 external same-image와 최소 service topology를 �
   assert.doesNotMatch(web, /BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN|POSTGRES_PASSWORD/u);
   assert.doesNotMatch(postgres, /BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN/u);
   assert.doesNotMatch(
-    `${web}\n${publisher}\n${postgres}`,
+    `${web}\n${publisher}\n${initialAdmin}\n${postgres}`,
     /RHAOMI_WEBAUTHN_(?:RP_ID|ORIGIN|RP_NAME)/u,
   );
 
@@ -209,6 +225,7 @@ test("validation overlay가 task temp source와 one-shot service label만 덮어
   assert.match(overlay, /source: \$\{RHAOMI_PRODUCTION_VALIDATION_ROOT:\?[^}]+\}\/state\/locks/u);
   assert.match(overlay, /migration:[\s\S]*labels: \*validation-labels/u);
   assert.match(overlay, /schema-validate:[\s\S]*labels: \*validation-labels/u);
+  assert.match(overlay, /initial-admin:[\s\S]*labels: \*validation-labels/u);
   assert.match(overlay, /backup-verifier:[\s\S]*labels: \*validation-labels/u);
   assert.match(
     overlay,
@@ -234,6 +251,9 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(entrypoint, /CREATE TABLE[\s\S]*validation_sentinel/u);
   assert.match(entrypoint, /run --rm --no-deps migration/u);
   assert.match(entrypoint, /run --rm --no-deps schema-validate/u);
+  assert.match(entrypoint, /verify_initial_admin_runtime_boundary/u);
+  assert.match(entrypoint, /run --rm --no-deps -T initial-admin/u);
+  assert.match(entrypoint, /initialAdminNonInteractiveMutation=0/u);
   assert.match(entrypoint, /verify_writers_stopped/u);
   assert.match(entrypoint, /publicStaticDuringMaintenance=200/u);
   assert.match(entrypoint, /compose_runtime down/u);

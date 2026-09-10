@@ -3,7 +3,7 @@ title: "출시 체크리스트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-02"
+last_updated: "2026-09-10"
 review_trigger: "출시 기준 변경 시"
 ---
 
@@ -233,6 +233,17 @@ review_trigger: "출시 기준 변경 시"
 
 위 완료 표시는 repository source와 synthetic task evidence다. actual `/private/var/lib/rhaomi`, production container/volume/DB/media/repository를 검사·생성·변경하지 않았고 workflow dispatch·backup·restore·migration·public activation도 수행하지 않았다.
 
+### Production initial-admin Stage 0A source·task validation
+
+- [x] exact `--rhaomi.production-task=initial-admin`, non-web context, controller·AdminBootstrap·publisher loop·Flyway apply 0
+- [x] TTY-only email/password input, confirmation buffer clear, argv·environment·file·mount·machine evidence raw credential 0
+- [x] PostgreSQL transaction advisory lock 후 zero-admin re-check, existing-admin/replay mutation 0, concurrent invocation commit 최대 1
+- [x] invalid email, 11-byte ASCII password, UTF-8 73-byte password encoder 전 거부와 72-byte 허용, transaction failure row 0
+- [x] production Compose exact image·DB-only network·port/mount 0·read-only root·all-capability drop·no-new-privileges
+- [x] fixed Mac wrapper의 `STEADY_STATE`·exact SHA/digest·shared operation lock·writer physical exit/recovery, 불확실 시 own-lock 보존
+
+위 완료 표시는 Issue #96 source/task evidence다. Actual production account/password/passkey/recovery code, Mac inventory, workflow dispatch·GHCR publish·release·deploy를 수행하지 않았다. Issue #97 Stage 0B와 Source Release/back-sync/exact-main 재검증 전에 Issue #95 Stage A를 시작하지 않는다.
+
 ## 보안·운영
 
 - [ ] HTTPS
@@ -243,6 +254,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] publisher public network·Docker socket 부재
 - [ ] secrets scan
 - [ ] production session `Secure`, TLS와 관리자 WebAuthn/passkey 2차 인증·RP/private-key 경계 확인
+- [ ] exact released image의 fixed initial-admin invocation·zero-admin evidence·bounded non-sensitive result, 후속 passkey/recovery-code physical acceptance
 - [ ] exact released image에서 bounded login rate-limit(process-global 10/2초, identifier 5/5분), generic 429·positive `Retry-After`, credential/service failure·concurrency·restart-reset 제한 확인
 - [ ] exact main SHA·immutable image·digest와 `latest` 부재
 - [ ] GitHub production environment 수동 승인과 고정 Tailscale deploy entrypoint

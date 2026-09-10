@@ -3,7 +3,7 @@ title: "Production readiness matrix"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호·은총쌤"
-last_updated: "2026-09-02"
+last_updated: "2026-09-10"
 review_trigger: "production 구현·provisioning·외부 승인·물리 기기 증거 변경 시"
 ---
 
@@ -42,6 +42,7 @@ matrix의 `현재 상태`는 해당 행에서 가장 가까운 다음 gate 하�
 |---|---|---|---|---:|---|
 | ingress / public web | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md), [배포](deployment.md) | canonical project Nginx와 web-only loopback Compose source, task static/admin/deny/404 smoke | `PROVISIONING_REQUIRED` | 예 | actual loopback port/FQDN, Cloudflare DNS/HTTPS→Tunnel→host edge와 public HTTPS smoke |
 | backend / admin session·CSRF | [ADR-009](../09-decisions/ADR-009-spring-boot-backend-admin.md), [접근제어](../06-security/access-control.md) | Java 25/PostgreSQL auth·session fixation·CSRF·fail-closed API 계약과 Hosted CI | `PROVISIONING_REQUIRED` | 예 | production TLS·`Secure` cookie와 운영 계정 |
+| production 최초 관리자 authority | [ADR-017](../09-decisions/ADR-017-production-initial-admin-authority.md), [배포](deployment.md) | exact-image TTY-only non-web task, PostgreSQL transaction lock·zero-admin concurrency, shared operation lock·writer recovery의 source/task evidence | `LOCAL_CI_VERIFIED` | 예 | #96 integration·Source Release 후 actual `STEADY_STATE` host에서 별도 승인된 account 생성; passkey/recovery acceptance 전 password-only production 금지 |
 | login rate limit | [접근제어](../06-security/access-control.md), [위협 모델](../06-security/threat-model.md) | process-global 10/2초·SHA-256 identifier 5/5분 limiter, generic 429, refill/reset/503 복구·concurrency·CSRF/validation ordering regression | `LOCAL_CI_VERIFIED` | 예 | exact released image와 production HTTPS에서 generic 429·`Retry-After` smoke; single-process/restart-reset 제한 유지 확인 |
 | admin second factor | [접근제어](../06-security/access-control.md), [위협 모델](../06-security/threat-model.md) | Spring Security WebAuthn/WebAuthn4J, FIRST/SECOND/RECOVERY authority, V10 RP-side credential·one-way recovery code, Static Export ceremony와 automated contract 구현 | `PROVISIONING_REQUIRED` | 예 | exact production RP ID·approved HTTPS origin·RP name, 실제 운영 account/passkey enrollment·recovery-code 발급/보관, public HTTPS Safari/VoiceOver와 session rotation evidence; password-only production 금지 |
 | PostgreSQL persistence / migration | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md), [환경설정](../04-architecture/environment-and-configuration.md) | PostgreSQL 18.6·Flyway V1~V10, exact CLI non-web migration/schema task, task project-scoped volume identity·일반 `down` sentinel persistence | `PROVISIONING_REQUIRED` | 예 | actual production volume identity·capacity·restart persistence, approved backup 후 actual one-shot V10 migration·schema validate |
@@ -67,6 +68,7 @@ matrix의 `현재 상태`는 해당 행에서 가장 가까운 다음 gate 하�
 - automated DOM·ARIA·HEIC test는 iPhone Safari·VoiceOver 물리 acceptance를 대체하지 않는다.
 - production blocker가 `예`인 행은 해당 evidence가 확보되기 전 production deploy 승인을 받을 수 없다.
 - first-activation source/CI 성공은 실제 host가 empty라는 증거가 아니며 public ingress·관리자·콘텐츠 활성화 권한도 아니다. actual verified-empty·bootstrap·first backup·isolated restore acceptance 뒤에만 `STEADY_STATE`를 기록한다.
+- initial-admin source/CI 성공은 실제 administrator가 생성됐다는 증거가 아니다. Issue #97 initial-content source, 두 Issue의 dev integration과 Source Release/back-sync/exact-main 재검증 전에 Issue #95 Stage A로 진행하지 않는다.
 - login rate limit source와 automated regression은 `LOCAL_CI_VERIFIED` 범위다. exact image release·production HTTPS 증거가 없고 single-process/restart-reset 제한이 있으므로 public 관리자 인증의 production blocker를 해제하지 않는다. WebAuthn이나 generic credential error도 production rate-limit evidence를 대체하지 않는다.
 
 HomeOps monitoring/recovery의 `PROVISIONING_REQUIRED`는 현재 구현된 HTTP status equality check와 `failureThreshold=3`으로 `rhaomi-web` mapping을 provision할 수 있다는 근거에만 적용한다. Keyword/body/content probe capability는 별도 `IMPLEMENTATION_REQUIRED` future enhancement이며 current status-based automatic recovery provisioning을 완료된 것으로 바꾸거나 차단하지 않는다.
