@@ -6,7 +6,7 @@ import kr.co.rhaomi.backend.admin.AdminUserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
-final class InitialAdminProvisioningService {
+class InitialAdminProvisioningService {
 
     private final AdminUserRepository adminUserRepository;
     private final PasswordEncoder passwordEncoder;

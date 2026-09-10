@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -21,6 +22,8 @@ import kr.co.rhaomi.backend.config.AdminBootstrap;
 import kr.co.rhaomi.publisher.PublisherControlLoop;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.web.server.context.WebServerApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -90,43 +93,50 @@ class ProductionInitialAdminTaskIntegrationTests {
     }
 
     @Test
-    void should_allowAtMostOneCommit_when_twoTaskInvocationsOverlap() throws Exception {
+    void should_allowAtMostOneCommit_when_twoProvisioningTransactionsOverlap() throws Exception {
         withMigratedSchema(schemaUrl -> {
-            var ready = new CountDownLatch(2);
-            var start = new CountDownLatch(1);
-            var outcomes = new ArrayList<TaskOutcome>();
-            try (var executor = Executors.newFixedThreadPool(2)) {
-                var futures = List.of(
-                        executor.submit(() -> runConcurrentTask(
-                                schemaUrl,
-                                "concurrent.one@example.com",
-                                "concurrent-password-one-123!",
-                                ready,
-                                start)),
-                        executor.submit(() -> runConcurrentTask(
-                                schemaUrl,
-                                "concurrent.two@example.com",
-                                "concurrent-password-two-123!",
-                                ready,
-                                start)));
+            try (var context = initialAdminServiceContext(schemaUrl)) {
+                var provisioningService = context.getBean(InitialAdminProvisioningService.class);
+                var ready = new CountDownLatch(2);
+                var start = new CountDownLatch(1);
+                var outcomes = new ArrayList<TaskOutcome>();
+                try (var executor = Executors.newFixedThreadPool(2)) {
+                    var futures = List.of(
+                            executor.submit(() -> runConcurrentProvisioning(
+                                    provisioningService,
+                                    "concurrent.one@example.com",
+                                    "concurrent-password-one-123!",
+                                    ready,
+                                    start)),
+                            executor.submit(() -> runConcurrentProvisioning(
+                                    provisioningService,
+                                    "concurrent.two@example.com",
+                                    "concurrent-password-two-123!",
+                                    ready,
+                                    start)));
 
-                assertTrue(ready.await(30, TimeUnit.SECONDS));
-                start.countDown();
-                for (var future : futures) {
-                    outcomes.add(future.get(120, TimeUnit.SECONDS));
+                    assertTrue(ready.await(30, TimeUnit.SECONDS));
+                    start.countDown();
+                    for (var future : futures) {
+                        outcomes.add(future.get(120, TimeUnit.SECONDS));
+                    }
                 }
-            }
 
-            assertEquals(1L, outcomes.stream().filter(TaskOutcome::success).count());
-            assertEquals(1L, outcomes.stream().filter(outcome -> !outcome.success()).count());
-            assertEquals(1L, queryLong(schemaUrl, "SELECT COUNT(*) FROM admin_users"));
-            var combinedEvidence = outcomes.stream()
-                    .map(outcome -> outcome.output() + messageChain(outcome.failure()))
-                    .reduce("", String::concat);
-            assertFalse(combinedEvidence.contains("concurrent-password-one-123!"));
-            assertFalse(combinedEvidence.contains("concurrent-password-two-123!"));
-            assertFalse(combinedEvidence.contains("concurrent.one@example.com"));
-            assertFalse(combinedEvidence.contains("concurrent.two@example.com"));
+                assertEquals(1L, outcomes.stream().filter(TaskOutcome::success).count());
+                assertEquals(1L, outcomes.stream().filter(outcome -> !outcome.success()).count());
+                assertTrue(outcomes.stream()
+                        .filter(outcome -> !outcome.success())
+                        .allMatch(outcome -> messageChain(outcome.failure())
+                                .contains("INITIAL_ADMIN_ALREADY_PROVISIONED")));
+                assertEquals(1L, queryLong(schemaUrl, "SELECT COUNT(*) FROM admin_users"));
+                var combinedEvidence = outcomes.stream()
+                        .map(outcome -> messageChain(outcome.failure()))
+                        .reduce("", String::concat);
+                assertFalse(combinedEvidence.contains("concurrent-password-one-123!"));
+                assertFalse(combinedEvidence.contains("concurrent-password-two-123!"));
+                assertFalse(combinedEvidence.contains("concurrent.one@example.com"));
+                assertFalse(combinedEvidence.contains("concurrent.two@example.com"));
+            }
         });
     }
 
@@ -152,35 +162,44 @@ class ProductionInitialAdminTaskIntegrationTests {
         });
     }
 
-    private TaskOutcome runConcurrentTask(
-            String schemaUrl,
+    private TaskOutcome runConcurrentProvisioning(
+            InitialAdminProvisioningService provisioningService,
             String email,
             String password,
             CountDownLatch ready,
             CountDownLatch start) {
-        var output = new ByteArrayOutputStream();
+        ready.countDown();
         try {
-            var credentialSource = (InitialAdminCredentialSource) () -> {
-                ready.countDown();
-                try {
-                    if (!start.await(30, TimeUnit.SECONDS)) {
-                        throw new IllegalStateException("concurrency gate timeout");
-                    }
-                } catch (InterruptedException exception) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException("concurrency gate interrupted");
-                }
-                return new InitialAdminCredential(email, password);
-            };
-            try (var ignored = ProductionDatabaseTaskApplication.runInitialAdmin(
-                    taskArguments(schemaUrl),
-                    credentialSource,
-                    new PrintStream(output, true, StandardCharsets.UTF_8))) {
-                return new TaskOutcome(true, null, output.toString(StandardCharsets.UTF_8));
+            if (!start.await(30, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("concurrency gate timeout");
             }
+            provisioningService.provision(new InitialAdminCredential(email, password));
+            return new TaskOutcome(true, null);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return new TaskOutcome(false, new IllegalStateException("concurrency gate interrupted"));
         } catch (Throwable throwable) {
-            return new TaskOutcome(false, throwable, output.toString(StandardCharsets.UTF_8));
+            return new TaskOutcome(false, throwable);
         }
+    }
+
+    private AnnotationConfigApplicationContext initialAdminServiceContext(String schemaUrl) {
+        var context = new AnnotationConfigApplicationContext();
+        var properties = new HashMap<String, Object>();
+        properties.put("spring.datasource.url", schemaUrl);
+        properties.put(
+                "spring.datasource.username", requiredEnvironment("SPRING_DATASOURCE_USERNAME"));
+        properties.put(
+                "spring.datasource.password", requiredEnvironment("SPRING_DATASOURCE_PASSWORD"));
+        properties.put("spring.flyway.enabled", false);
+        properties.put("spring.jpa.hibernate.ddl-auto", "validate");
+        properties.put("spring.main.web-application-type", "none");
+        context.getEnvironment()
+                .getPropertySources()
+                .addFirst(new MapPropertySource("initialAdminConcurrencyTest", properties));
+        context.register(ProductionInitialAdminTaskConfiguration.class);
+        context.refresh();
+        return context;
     }
 
     private org.springframework.context.ConfigurableApplicationContext runInitialAdmin(
@@ -306,7 +325,7 @@ class ProductionInitialAdminTaskIntegrationTests {
         return current.getMessage();
     }
 
-    private record TaskOutcome(boolean success, Throwable failure, String output) {}
+    private record TaskOutcome(boolean success, Throwable failure) {}
 
     @FunctionalInterface
     private interface SchemaAction {
