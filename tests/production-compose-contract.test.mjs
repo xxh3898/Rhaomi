@@ -252,6 +252,11 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(entrypoint, /run --rm --no-deps migration/u);
   assert.match(entrypoint, /run --rm --no-deps schema-validate/u);
   assert.match(entrypoint, /verify_initial_admin_runtime_boundary/u);
+  assert.match(entrypoint, /compose_validation create --no-build initial-admin/u);
+  assert.doesNotMatch(
+    entrypoint,
+    /compose_validation create --no-build --no-deps initial-admin/u,
+  );
   assert.match(entrypoint, /run --rm --no-deps -T initial-admin/u);
   assert.match(entrypoint, /initialAdminNonInteractiveMutation=0/u);
   assert.match(entrypoint, /verify_writers_stopped/u);

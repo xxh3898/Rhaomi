@@ -546,7 +546,7 @@ verify_initial_admin_runtime_boundary() {
 
   RHAOMI_INITIAL_ADMIN_EMAIL="$initial_admin_email_marker" \
     RHAOMI_INITIAL_ADMIN_PASSWORD="$initial_admin_password_marker" \
-    compose_validation create --no-build --no-deps initial-admin >/dev/null
+    compose_validation create --no-build initial-admin >/dev/null
   initial_admin_id=$(compose_validation ps --all --quiet initial-admin)
   [ -n "$initial_admin_id" ] || {
     echo "initial-admin one-shot container를 inspect할 수 없습니다." >&2
