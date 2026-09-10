@@ -603,6 +603,15 @@ verify_initial_admin_runtime_boundary() {
     echo "non-interactive initial-admin fail-close가 mutation 0을 보장하지 못했습니다." >&2
     exit 1
   fi
+
+  if ! docker container rm "$initial_admin_id" >/dev/null; then
+    echo "inspect용 initial-admin container를 제거하지 못했습니다." >&2
+    exit 1
+  fi
+  if docker container inspect "$initial_admin_id" >/dev/null 2>&1; then
+    echo "inspect용 initial-admin container 제거를 확인할 수 없습니다." >&2
+    exit 1
+  fi
 }
 
 directory_content_digest() {

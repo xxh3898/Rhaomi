@@ -259,6 +259,27 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   );
   assert.match(entrypoint, /run --rm --no-deps -T initial-admin/u);
   assert.match(entrypoint, /initialAdminNonInteractiveMutation=0/u);
+  const initialAdminBoundaryMatch = entrypoint.match(
+    /verify_initial_admin_runtime_boundary\(\) \{\n([\s\S]*?)\n\}/u,
+  );
+  assert.ok(initialAdminBoundaryMatch);
+  const initialAdminBoundary = initialAdminBoundaryMatch[1];
+  const mutationCheckIndex = initialAdminBoundary.indexOf(
+    "non-interactive initial-admin fail-close가 mutation 0을 보장하지 못했습니다.",
+  );
+  const exactRemovalIndex = initialAdminBoundary.indexOf(
+    'docker container rm "$initial_admin_id"',
+  );
+  const absenceCheckIndex = initialAdminBoundary.indexOf(
+    'docker container inspect "$initial_admin_id"',
+  );
+  assert.ok(mutationCheckIndex >= 0);
+  assert.ok(exactRemovalIndex > mutationCheckIndex);
+  assert.ok(absenceCheckIndex > exactRemovalIndex);
+  assert.doesNotMatch(
+    initialAdminBoundary,
+    /docker (?:system|container|volume|image|network) prune/u,
+  );
   assert.match(entrypoint, /verify_writers_stopped/u);
   assert.match(entrypoint, /publicStaticDuringMaintenance=200/u);
   assert.match(entrypoint, /compose_runtime down/u);
