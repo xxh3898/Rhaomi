@@ -221,6 +221,9 @@ docker run --rm --network none \
     "$git_head" \
   >"$evidence_dir/production-compose-contract.json"
 
+sh "$repo_dir/scripts/validate-production-initial-admin.sh" \
+  >"$evidence_dir/production-initial-admin-control.txt"
+
 compose_started=true
 verify_backup_verifier_read_only_boundary
 compose_validation up --detach postgres >/dev/null
@@ -241,6 +244,7 @@ if compose_validation run --rm --no-deps schema-validate \
   echo "malformed production task mode가 성공했습니다." >&2
   exit 1
 fi
+verify_initial_admin_runtime_boundary
 
 compose_runtime up --detach rhaomi-web backend publisher postgres >/dev/null
 wait_healthy postgres 90
@@ -329,6 +333,9 @@ printf '%s\n' \
   "normalBootstrapDisabled=true" \
   "oneShotMigration=true" \
   "oneShotSchemaValidation=true" \
+  "oneShotInitialAdmin=true" \
+  "initialAdminCredentialIsolation=verified" \
+  "initialAdminNonInteractiveMutation=0" \
   "oneShotHttpListener=false" \
   "writerQuiescenceBeforeMigration=true" \
   "publicStaticDuringMaintenance=200" \
@@ -528,6 +535,81 @@ verify_backup_verifier_read_only_boundary() {
   if [ "$(directory_content_digest "$validation_root/backup-repository")" != "$repository_before" ] ||
     [ "$(directory_content_digest "$validation_root/state/deploy")" != "$deploy_state_before" ]; then
     echo "read-only backup verifier가 recovery authority를 변경했습니다." >&2
+    exit 1
+  fi
+}
+
+verify_initial_admin_runtime_boundary() {
+  initial_admin_email_marker='synthetic-initial-admin@example.invalid'
+  initial_admin_password_marker='synthetic-initial-admin-password-must-not-cross-boundary'
+  administrator_count_before=$(database_query "SELECT COUNT(*) FROM admin_users")
+
+  RHAOMI_INITIAL_ADMIN_EMAIL="$initial_admin_email_marker" \
+    RHAOMI_INITIAL_ADMIN_PASSWORD="$initial_admin_password_marker" \
+    compose_validation create --no-build initial-admin >/dev/null
+  initial_admin_id=$(compose_validation ps --all --quiet initial-admin)
+  [ -n "$initial_admin_id" ] || {
+    echo "initial-admin one-shot container를 inspect할 수 없습니다." >&2
+    exit 1
+  }
+
+  [ "$(docker inspect "$initial_admin_id" --format '{{.HostConfig.ReadonlyRootfs}}')" = true ]
+  [ "$(docker inspect "$initial_admin_id" --format '{{len .Mounts}}')" = 0 ]
+  initial_admin_ports=$(docker inspect "$initial_admin_id" --format '{{json .HostConfig.PortBindings}}')
+  [ "$initial_admin_ports" = "{}" ] || [ "$initial_admin_ports" = "null" ]
+  [ "$(docker inspect "$initial_admin_id" --format '{{json .Config.Cmd}}')" = \
+    '["java","-jar","/opt/rhaomi/backend.jar","--rhaomi.production-task=initial-admin"]' ]
+
+  if docker inspect "$initial_admin_id" \
+    --format '{{range .Config.Env}}{{println .}}{{end}}{{json .Config.Cmd}}' |
+    grep -Eq \
+      'RHAOMI_(INITIAL_ADMIN|BOOTSTRAP_ADMIN)_(EMAIL|PASSWORD)|RHAOMI_(WEBAUTHN_RP|BUILD_SERVICE_TOKEN)|BUILD_API_CREDENTIAL'; then
+    echo "initial-admin container에 미허용 credential 경계가 있습니다." >&2
+    exit 1
+  fi
+  if docker inspect "$initial_admin_id" \
+    --format '{{range .Config.Env}}{{println .}}{{end}}{{json .Config.Cmd}}' |
+    grep -Fq "$initial_admin_email_marker" ||
+    docker inspect "$initial_admin_id" \
+      --format '{{range .Config.Env}}{{println .}}{{end}}{{json .Config.Cmd}}' |
+      grep -Fq "$initial_admin_password_marker"; then
+    echo "initial-admin raw credential marker가 Docker inspect에 노출됐습니다." >&2
+    exit 1
+  fi
+
+  if RHAOMI_INITIAL_ADMIN_EMAIL="$initial_admin_email_marker" \
+    RHAOMI_INITIAL_ADMIN_PASSWORD="$initial_admin_password_marker" \
+    compose_validation run --rm --no-deps -T initial-admin \
+      >"$validation_root/raw/initial-admin-non-interactive.txt" 2>&1; then
+    echo "non-interactive initial-admin task가 성공했습니다." >&2
+    exit 1
+  fi
+  grep -Fq INITIAL_ADMIN_INTERACTIVE_TERMINAL_REQUIRED \
+    "$validation_root/raw/initial-admin-non-interactive.txt"
+  if grep -Fq "$initial_admin_email_marker" \
+    "$validation_root/raw/initial-admin-non-interactive.txt" ||
+    grep -Fq "$initial_admin_password_marker" \
+      "$validation_root/raw/initial-admin-non-interactive.txt" ||
+    grep -Fq "$postgres_password" \
+      "$validation_root/raw/initial-admin-non-interactive.txt" ||
+    grep -Fq "$build_token" \
+      "$validation_root/raw/initial-admin-non-interactive.txt"; then
+    echo "initial-admin stdout/stderr에 credential이 노출됐습니다." >&2
+    exit 1
+  fi
+
+  administrator_count_after=$(database_query "SELECT COUNT(*) FROM admin_users")
+  if [ "$administrator_count_before" != 0 ] || [ "$administrator_count_after" != 0 ]; then
+    echo "non-interactive initial-admin fail-close가 mutation 0을 보장하지 못했습니다." >&2
+    exit 1
+  fi
+
+  if ! docker container rm "$initial_admin_id" >/dev/null; then
+    echo "inspect용 initial-admin container를 제거하지 못했습니다." >&2
+    exit 1
+  fi
+  if docker container inspect "$initial_admin_id" >/dev/null 2>&1; then
+    echo "inspect용 initial-admin container 제거를 확인할 수 없습니다." >&2
     exit 1
   fi
 }

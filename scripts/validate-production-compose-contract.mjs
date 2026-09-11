@@ -48,6 +48,7 @@ process.stdout.write(
       postgresVolume: base.volumes["postgres-data"].name,
       oneShotMigration: true,
       oneShotSchemaValidation: true,
+      oneShotInitialAdmin: true,
       backupVerifierReadOnly: true,
       backupVerifierNetworkDisabled: true,
       secretsPrinted: false,
@@ -112,6 +113,7 @@ function validateBase(config) {
       "backend",
       "backup-tool",
       "backup-verifier",
+      "initial-admin",
       "migration",
       "postgres",
       "publisher",
@@ -137,6 +139,7 @@ function validateBase(config) {
     backend,
     "backup-tool": backupTool,
     "backup-verifier": backupVerifier,
+    "initial-admin": initialAdmin,
     migration,
     postgres,
     publisher,
@@ -147,6 +150,7 @@ function validateBase(config) {
   assert.equal(publisher.image, expectedImage);
   assert.equal(migration.image, expectedImage);
   assert.equal(schemaValidate.image, expectedImage);
+  assert.equal(initialAdmin.image, expectedImage);
   assert.equal(backupTool.image, expectedImage);
   assert.equal(backupVerifier.image, expectedImage);
   assert.match(web.image, /^nginx:[^@]+@sha256:[0-9a-f]{64}$/u);
@@ -157,6 +161,7 @@ function validateBase(config) {
     publisher,
     migration,
     schemaValidate,
+    initialAdmin,
     backupTool,
     backupVerifier,
     postgres,
@@ -192,6 +197,7 @@ function validateBase(config) {
   assert.deepEqual(networks(publisher), ["build-internal", "data-internal"]);
   assert.deepEqual(networks(migration), ["data-internal"]);
   assert.deepEqual(networks(schemaValidate), ["data-internal"]);
+  assert.deepEqual(networks(initialAdmin), ["data-internal"]);
   assert.deepEqual(networks(postgres), ["data-internal"]);
   assert.deepEqual(networks(backupTool), []);
   assert.deepEqual(networks(backupVerifier), []);
@@ -214,6 +220,7 @@ function validateBase(config) {
     publisher,
     migration,
     schemaValidate,
+    initialAdmin,
     backupTool,
     backupVerifier,
     postgres,
@@ -240,8 +247,15 @@ function validateBase(config) {
     "/opt/rhaomi/backend.jar",
     "--rhaomi.production-task=schema-validate",
   ]);
+  assert.deepEqual(initialAdmin.command, [
+    "java",
+    "-jar",
+    "/opt/rhaomi/backend.jar",
+    "--rhaomi.production-task=initial-admin",
+  ]);
   assert.deepEqual(migration.profiles, ["production-task"]);
   assert.deepEqual(schemaValidate.profiles, ["production-task"]);
+  assert.deepEqual(initialAdmin.profiles, ["production-task"]);
   assert.deepEqual(backupTool.command, [
     "node",
     "/opt/rhaomi/source/scripts/rhaomi-backup-tool.mjs",
@@ -257,6 +271,7 @@ function validateBase(config) {
     publisher,
     migration,
     schemaValidate,
+    initialAdmin,
     backupTool,
     backupVerifier,
     postgres,
@@ -267,6 +282,7 @@ function validateBase(config) {
     publisher,
     migration,
     schemaValidate,
+    initialAdmin,
     backupTool,
     backupVerifier,
     postgres,
@@ -277,6 +293,7 @@ function validateBase(config) {
     publisher,
     migration,
     schemaValidate,
+    initialAdmin,
     backupTool,
     backupVerifier,
   ]) {
@@ -294,6 +311,7 @@ function validateValidation(config) {
       "backup-permission",
       "backup-tool",
       "backup-verifier",
+      "initial-admin",
       "migration",
       "postgres",
       "publisher",
@@ -305,6 +323,7 @@ function validateValidation(config) {
   assert.equal(config.services.publisher.image, expectedImage);
   assert.equal(config.services.migration.image, expectedImage);
   assert.equal(config.services["schema-validate"].image, expectedImage);
+  assert.equal(config.services["initial-admin"].image, expectedImage);
   assert.equal(config.services["backup-tool"].image, expectedImage);
   assert.equal(config.services["backup-verifier"].image, expectedImage);
   assert.equal(config.services["backup-permission"].image, expectedImage);
@@ -317,13 +336,22 @@ function validateValidation(config) {
     config.services["schema-validate"].environment.SPRING_FLYWAY_ENABLED,
     "false",
   );
+  assert.equal(
+    config.services["initial-admin"].environment.SPRING_FLYWAY_ENABLED,
+    "false",
+  );
   assert.equal(config.services.migration.environment.SPRING_JPA_HIBERNATE_DDL_AUTO, "validate");
   assert.equal(
     config.services["schema-validate"].environment.SPRING_JPA_HIBERNATE_DDL_AUTO,
     "validate",
   );
+  assert.equal(
+    config.services["initial-admin"].environment.SPRING_JPA_HIBERNATE_DDL_AUTO,
+    "validate",
+  );
   assert.deepEqual(networks(config.services.migration), ["data-internal"]);
   assert.deepEqual(networks(config.services["schema-validate"]), ["data-internal"]);
+  assert.deepEqual(networks(config.services["initial-admin"]), ["data-internal"]);
   assert.deepEqual(networks(config.services["backup-permission"]), []);
   assert.deepEqual(networks(config.services["backup-verifier"]), []);
   assert.deepEqual(config.services["backup-permission"].profiles, ["production-backup"]);
@@ -451,6 +479,7 @@ function validateEnvironmentBoundary(
   publisher,
   migration,
   schemaValidate,
+  initialAdmin,
   backupTool,
   backupVerifier,
   postgres,
@@ -469,8 +498,11 @@ function validateEnvironmentBoundary(
   assert.equal(publisher.environment.SPRING_FLYWAY_ENABLED, "false");
   assert.equal(migration.environment.SPRING_FLYWAY_ENABLED, "true");
   assert.equal(schemaValidate.environment.SPRING_FLYWAY_ENABLED, "false");
+  assert.equal(initialAdmin.environment.SPRING_FLYWAY_ENABLED, "false");
   assert.equal(migration.environment.SPRING_JPA_HIBERNATE_DDL_AUTO, "validate");
   assert.equal(schemaValidate.environment.SPRING_JPA_HIBERNATE_DDL_AUTO, "validate");
+  assert.equal(initialAdmin.environment.SPRING_JPA_HIBERNATE_DDL_AUTO, "validate");
+  assert.equal(initialAdmin.environment.RHAOMI_BOOTSTRAP_ADMIN_ENABLED, "false");
   assert.equal(publisher.environment.BUILD_API_INTERNAL_URL, "http://backend:8080");
   assert.equal(
     publisher.environment.BUILD_API_CREDENTIAL,
@@ -481,14 +513,25 @@ function validateEnvironmentBoundary(
   assert.equal(backend.environment.BUILD_API_CREDENTIAL, undefined);
   assert.equal(postgres.environment.RHAOMI_BUILD_SERVICE_TOKEN, undefined);
   assert.equal(postgres.environment.BUILD_API_CREDENTIAL, undefined);
-  for (const service of [web, publisher, postgres, migration, schemaValidate]) {
+  for (const service of [
+    web,
+    publisher,
+    postgres,
+    migration,
+    schemaValidate,
+    initialAdmin,
+  ]) {
     assert.equal(service.environment?.RHAOMI_WEBAUTHN_RP_ID, undefined);
     assert.equal(service.environment?.RHAOMI_WEBAUTHN_ORIGIN, undefined);
     assert.equal(service.environment?.RHAOMI_WEBAUTHN_RP_NAME, undefined);
   }
-  for (const service of [migration, schemaValidate]) {
+  for (const service of [migration, schemaValidate, initialAdmin]) {
     assert.equal(service.environment.RHAOMI_BUILD_SERVICE_TOKEN, undefined);
     assert.equal(service.environment.BUILD_API_CREDENTIAL, undefined);
+    assert.equal(service.environment.RHAOMI_BOOTSTRAP_ADMIN_EMAIL, undefined);
+    assert.equal(service.environment.RHAOMI_BOOTSTRAP_ADMIN_PASSWORD, undefined);
+    assert.equal(service.environment.RHAOMI_INITIAL_ADMIN_EMAIL, undefined);
+    assert.equal(service.environment.RHAOMI_INITIAL_ADMIN_PASSWORD, undefined);
   }
   assert.deepEqual(backupTool.environment, {
     RHAOMI_BACKUP_DEPLOY_STATE_ROOT: "/var/lib/rhaomi/deploy-state",
@@ -519,6 +562,7 @@ function validateBaseMounts(
   publisher,
   migration,
   schemaValidate,
+  initialAdmin,
   backupTool,
   backupVerifier,
   postgres,
@@ -543,6 +587,7 @@ function validateBaseMounts(
   ]);
   assert.equal(migration.volumes, undefined);
   assert.equal(schemaValidate.volumes, undefined);
+  assert.equal(initialAdmin.volumes, undefined);
   assert.deepEqual(mountMap(backupTool), {
     "/var/lib/rhaomi/backup-repository": resolve(validationRoot, "backup-repository"),
     "/var/lib/rhaomi/media": "/private/var/lib/rhaomi/data/media",

@@ -68,6 +68,9 @@ services:
   schema-validate:
     labels: *validation-labels
 
+  initial-admin:
+    labels: *validation-labels
+
   backup-tool:
     labels: *validation-labels
     environment:

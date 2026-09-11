@@ -3,7 +3,7 @@ title: "ADR-010: Production topology와 코드 릴리스"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-02"
+last_updated: "2026-09-10"
 review_trigger: "운영 진입 경로·배포·마이그레이션·릴리스 보존 변경 시"
 ---
 
@@ -11,7 +11,7 @@ review_trigger: "운영 진입 경로·배포·마이그레이션·릴리스 보
 
 - 결정일: 2026-08-29
 - 상태: Accepted
-- 관련 결정: [ADR-001](ADR-001-nextjs-static-export.md), [ADR-008](ADR-008-runtime-independent-public-site.md), [ADR-009](ADR-009-spring-boot-backend-admin.md), [ADR-016](ADR-016-verified-empty-first-production-activation.md)
+- 관련 결정: [ADR-001](ADR-001-nextjs-static-export.md), [ADR-008](ADR-008-runtime-independent-public-site.md), [ADR-009](ADR-009-spring-boot-backend-admin.md), [ADR-016](ADR-016-verified-empty-first-production-activation.md), [ADR-017](ADR-017-production-initial-admin-authority.md)
 
 ## 맥락
 
@@ -54,6 +54,7 @@ Internet
 ├── app/
 │   ├── bin/deploy-rhaomi.sh
 │   ├── bin/first-activate-rhaomi.sh
+│   ├── bin/provision-initial-admin-rhaomi.sh
 │   ├── compose.production.yaml
 │   ├── compose.production.first-activation.yaml
 │   ├── production.env
@@ -85,7 +86,7 @@ Internet
 - PostgreSQL backup/restore authority는 `pg_dump -Fc`와 `pg_restore`다. raw named volume은 required restic backup input이 아니다.
 - media는 Mac canonical root의 host bind mount로 container lifecycle과 분리한다.
 - publisher 상태와 전역 lock은 `state`에 두고 release 산출물과 구분한다.
-- `app`에는 versioned production Compose inventory와 고정 deploy entrypoint, owner-only production env·Docker credential config를 두되 production source build worktree로 사용하지 않는다. caller-supplied env/config path나 inherited Compose/Docker override를 production authority로 사용하지 않는다.
+- `app`에는 versioned production Compose inventory와 고정 deploy·first-activation·initial-admin entrypoint, owner-only production env·Docker credential config를 두되 production source build worktree로 사용하지 않는다. caller-supplied env/config path나 inherited Compose/Docker override를 production authority로 사용하지 않는다.
 - `logs`에는 host-side deploy·publisher·backup evidence를 bounded·redacted 형태로 두고 service stdout/stderr의 Docker `local` driver rotation과 구분한다.
 
 ### host source와 container target
@@ -169,7 +170,7 @@ input·path·backup envelope·digest/revision·target verifier 실패는 writer 
 
 - production backend 일반 기동은 schema를 자동 변경하지 않고 validate만 한다.
 - Flyway migration은 deploy lock과 maintenance 안의 one-shot service만 수행한다.
-- one-shot mode는 exact `--rhaomi.production-task=migrate|schema-validate`로만 활성하고 non-web·admin bootstrap 0·publisher loop 0을 강제한다. migration은 Flyway 후 JPA validate, schema task는 Flyway disabled + JPA validate다.
+- one-shot mode는 exact `--rhaomi.production-task=migrate|schema-validate|initial-admin`으로만 활성한다. 세 task 모두 non-web·일반 admin bootstrap 0·publisher loop 0을 강제한다. Migration은 Flyway 후 JPA validate, schema task는 Flyway disabled + JPA validate다. Initial-admin task는 Flyway disabled + JPA validate 뒤 [ADR-017](ADR-017-production-initial-admin-authority.md)의 TTY credential·PostgreSQL transaction lock·zero-admin 재검증만 수행한다.
 - additive expand/contract를 우선하고 새 code와 직전 code가 전환 구간에서 공존 가능한 schema를 유지한다.
 - column/table 삭제, 대량 변환과 비가역 migration은 별도 승인, on-demand backup과 isolated restore 검증이 필요하다.
 - 검증되지 않은 destructive rollback을 실행하지 않는다.

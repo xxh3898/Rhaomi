@@ -1,5 +1,6 @@
 package kr.co.rhaomi.backend;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import kr.co.rhaomi.publisher.PublisherControlLoop;
@@ -18,8 +19,10 @@ class PublisherIsolationIntegrationTests {
     private ApplicationContext applicationContext;
 
     @Test
-    void should_notCreatePublisherLoopOrLifecycle_when_normalBackendStarts() {
+    void should_notCreatePublisherOrInitialAdminTaskBeans_when_normalBackendStarts() {
         assertTrue(applicationContext.getBeansOfType(PublisherControlLoop.class).isEmpty());
         assertTrue(applicationContext.getBeansOfType(PublisherLifecycle.class).isEmpty());
+        assertFalse(applicationContext.containsBean("initialAdminCredentialSource"));
+        assertFalse(applicationContext.containsBean("initialAdminProvisioningRunner"));
     }
 }
