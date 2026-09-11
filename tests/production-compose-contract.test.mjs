@@ -394,7 +394,6 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(entrypoint, /REDACTED_BUILD_TOKEN/u);
   assert.match(entrypoint, /prepare_linux_bind_ownership/u);
   assert.match(entrypoint, /restore_linux_bind_ownership/u);
-  assert.match(entrypoint, /verify_initial_content_validation_fixture 0 0/u);
   assert.match(
     entrypoint,
     /verify_initial_content_validation_fixture \\\n+\s+"\$validation_host_uid" "\$validation_host_gid"/u,
@@ -407,6 +406,23 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(
     entrypoint,
     /chown -R "\$2:\$3"[\s\S]*\/validation\/initial-content/u,
+  );
+  assert.match(
+    entrypoint,
+    /validation_bind_ownership_prepared=true\n\s+run_bind_ownership_helper prepare/u,
+  );
+  assert.match(entrypoint, /assert_initial_content_identity 0 0/u);
+  assert.match(
+    entrypoint,
+    /assert_initial_content_identity "\$2" "\$3"/u,
+  );
+  assert.match(
+    entrypoint,
+    /stat -c "%u:%g:%a" "\$directory"[\s\S]*:700/u,
+  );
+  assert.match(
+    entrypoint,
+    /stat -c "%u:%g:%a" "\$file"[\s\S]*:600/u,
   );
   const ownershipHelperMatch = entrypoint.match(
     /run_bind_ownership_helper\(\) \{\n([\s\S]*?)\n\}/u,

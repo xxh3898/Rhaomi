@@ -480,9 +480,8 @@ prepare_linux_bind_ownership() {
     return 0
   fi
 
-  run_bind_ownership_helper prepare
   validation_bind_ownership_prepared=true
-  verify_initial_content_validation_fixture 0 0
+  run_bind_ownership_helper prepare
   validation_bind_ownership_mode=docker-helper-root-owned
 }
 
@@ -555,6 +554,24 @@ run_bind_ownership_helper() {
     --volume "$validation_root/state/initial-content:/validation/initial-content" \
     "$production_image" \
     sh -ec '
+      assert_initial_content_identity() {
+        expected_uid=$1
+        expected_gid=$2
+        for directory in \
+          /validation/initial-content \
+          /validation/initial-content/media; do
+          [ "$(stat -c "%u:%g:%a" "$directory")" = \
+            "${expected_uid}:${expected_gid}:700" ] || exit 65
+        done
+        for file in \
+          /validation/initial-content/manifest.json \
+          /validation/initial-content/content.json \
+          /validation/initial-content/media/cover.png; do
+          [ "$(stat -c "%u:%g:%a" "$file")" = \
+            "${expected_uid}:${expected_gid}:600" ] || exit 65
+        done
+      }
+
       case "$1" in
         prepare)
           chown 0:0 /validation/public /validation/media /validation/publisher \
@@ -563,10 +580,12 @@ run_bind_ownership_helper() {
           chmod 0755 /validation/public
           chmod 0750 /validation/media /validation/publisher \
             /validation/publisher/build-workspace /validation/locks
+          assert_initial_content_identity 0 0
           ;;
         restore)
           chown -R "$2:$3" /validation/public /validation/media \
             /validation/publisher /validation/locks /validation/initial-content
+          assert_initial_content_identity "$2" "$3"
           ;;
         *) exit 64 ;;
       esac
