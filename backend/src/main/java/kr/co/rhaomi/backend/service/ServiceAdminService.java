@@ -59,6 +59,30 @@ public class ServiceAdminService {
     }
 
     @Transactional
+    public ServiceResponse createPublishedForInitialImport(
+            ServiceCreateRequest request, UUID actorId) {
+        Objects.requireNonNull(actorId, "actorId");
+        if (serviceRepository.existsBySlug(request.slug())) {
+            throw new SlugConflictException();
+        }
+        var service = GroomingService.create(
+                request.name(),
+                request.slug(),
+                request.description(),
+                request.priceText(),
+                request.sortOrder(),
+                actorId);
+        service.update(
+                ContentStatus.PUBLISHED,
+                request.name(),
+                request.description(),
+                request.priceText(),
+                request.sortOrder() == null ? 100 : request.sortOrder(),
+                actorId);
+        return ServiceResponse.from(save(service));
+    }
+
+    @Transactional
     public ServiceResponse update(UUID id, ServiceUpdateRequest request, UUID actorId) {
         Objects.requireNonNull(actorId, "actorId");
         var service = find(id);

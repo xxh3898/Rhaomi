@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rhaomi.invalid/contracts/initial-content/content-v1.schema.json",
+  "title": "Rhaomi initial content v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "shopSettings", "breeds", "services", "notices", "galleryItems"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "shopSettings": { "$ref": "#/$defs/shopSettings" },
+    "breeds": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/breed" }
+    },
+    "services": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/service" }
+    },
+    "notices": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/notice" }
+    },
+    "galleryItems": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/galleryItem" }
+    }
+  },
+  "$defs": {
+    "key": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+    },
+    "nullableKey": {
+      "oneOf": [{ "$ref": "#/$defs/key" }, { "type": "null" }]
+    },
+    "nullableString": {
+      "type": ["string", "null"]
+    },
+    "instant": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]{1,6})?Z$"
+    },
+    "nullableInstant": {
+      "oneOf": [{ "$ref": "#/$defs/instant" }, { "type": "null" }]
+    },
+    "shopSettings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shopName", "regionLabel", "businessType", "phone", "address", "openingTime",
+        "closingTime", "closedWeekday", "parkingAvailable", "parkingNote", "heroTitle",
+        "heroDescription", "groomerName", "groomerIntro", "reservationNotice", "heroMediaKey",
+        "heroImageAltText", "groomerMediaKey", "groomerImageAltText", "ogMediaKey", "instagramUrl",
+        "naverBlogUrl", "naverMapUrl", "kakaoMapUrl", "naverTalktalkUrl", "kakaoChannelUrl"
+      ],
+      "properties": {
+        "shopName": { "type": "string" },
+        "regionLabel": { "type": "string" },
+        "businessType": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "openingTime": { "type": "string" },
+        "closingTime": { "type": "string" },
+        "closedWeekday": { "$ref": "#/$defs/nullableString" },
+        "parkingAvailable": { "type": "boolean" },
+        "parkingNote": { "$ref": "#/$defs/nullableString" },
+        "heroTitle": { "$ref": "#/$defs/nullableString" },
+        "heroDescription": { "$ref": "#/$defs/nullableString" },
+        "groomerName": { "$ref": "#/$defs/nullableString" },
+        "groomerIntro": { "$ref": "#/$defs/nullableString" },
+        "reservationNotice": { "$ref": "#/$defs/nullableString" },
+        "heroMediaKey": { "$ref": "#/$defs/nullableKey" },
+        "heroImageAltText": { "$ref": "#/$defs/nullableString" },
+        "groomerMediaKey": { "$ref": "#/$defs/nullableKey" },
+        "groomerImageAltText": { "$ref": "#/$defs/nullableString" },
+        "ogMediaKey": { "$ref": "#/$defs/nullableKey" },
+        "instagramUrl": { "$ref": "#/$defs/nullableString" },
+        "naverBlogUrl": { "$ref": "#/$defs/nullableString" },
+        "naverMapUrl": { "$ref": "#/$defs/nullableString" },
+        "kakaoMapUrl": { "$ref": "#/$defs/nullableString" },
+        "naverTalktalkUrl": { "$ref": "#/$defs/nullableString" },
+        "kakaoChannelUrl": { "$ref": "#/$defs/nullableString" }
+      }
+    },
+    "breed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "slug", "description", "sortOrder"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "description": { "$ref": "#/$defs/nullableString" },
+        "sortOrder": { "type": "integer" }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "name", "slug", "description", "priceText", "sortOrder"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "description": { "$ref": "#/$defs/nullableString" },
+        "priceText": { "$ref": "#/$defs/nullableString" },
+        "sortOrder": { "type": "integer" }
+      }
+    },
+    "notice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "title", "slug", "summary", "bodyMarkdown", "pinned", "publishedAt", "expiresAt"],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "summary": { "$ref": "#/$defs/nullableString" },
+        "bodyMarkdown": { "$ref": "#/$defs/nullableString" },
+        "pinned": { "type": "boolean" },
+        "publishedAt": { "$ref": "#/$defs/instant" },
+        "expiresAt": { "$ref": "#/$defs/nullableInstant" }
+      }
+    },
+    "galleryItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key", "dogName", "breedKey", "primaryServiceKey", "coverMediaKey", "beforeMediaKey",
+        "afterMediaKey", "summary", "altText", "featured", "sortOrder", "performedAt", "publishedAt"
+      ],
+      "properties": {
+        "key": { "$ref": "#/$defs/key" },
+        "dogName": { "$ref": "#/$defs/nullableString" },
+        "breedKey": { "$ref": "#/$defs/key" },
+        "primaryServiceKey": { "$ref": "#/$defs/key" },
+        "coverMediaKey": { "$ref": "#/$defs/key" },
+        "beforeMediaKey": { "$ref": "#/$defs/nullableKey" },
+        "afterMediaKey": { "$ref": "#/$defs/nullableKey" },
+        "summary": { "$ref": "#/$defs/nullableString" },
+        "altText": { "$ref": "#/$defs/nullableString" },
+        "featured": { "type": "boolean" },
+        "sortOrder": { "type": "integer" },
+        "performedAt": { "$ref": "#/$defs/nullableInstant" },
+        "publishedAt": { "$ref": "#/$defs/instant" }
+      }
+    }
+  }
+}

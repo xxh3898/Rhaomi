@@ -3,7 +3,7 @@ title: "저장소 구조"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-10"
+last_updated: "2026-09-11"
 review_trigger: "module·배포 구조 변경 시"
 ---
 
@@ -47,7 +47,7 @@ Rhaomi/
 │   │   │   ├── service/           # 미용 서비스 관리 domain/API
 │   │   │   └── shop/              # 매장정보 singleton·media relation domain/API와 검증
 │   │   ├── publisher/             # dedicated non-web poll/debounce/coalesce/lock control plane
-│   │   └── production/            # exact CLI non-web migration/schema/initial-admin task root
+│   │   └── production/            # exact CLI non-web migration/schema/initial-admin/initial-content task root
 │   ├── src/main/resources/
 │   │   ├── db/migration/          # Flyway V1~V10, V10 WebAuthn credential·recovery hash state
 │   │   └── application.yml
@@ -66,6 +66,8 @@ Rhaomi/
 │   ├── first-activate-rhaomi-core.sh # one-time lifecycle·private bootstrap·acceptance core
 │   ├── provision-initial-admin-rhaomi.sh # fixed TTY-only zero-admin wrapper
 │   ├── provision-initial-admin-rhaomi-core.sh # lifecycle·shared-lock·writer recovery core
+│   ├── import-initial-content-rhaomi.sh # fixed zero-argument owner-bundle wrapper
+│   ├── import-initial-content-rhaomi-core.sh # bundle permission·lifecycle·shared-lock·writer recovery core
 │   ├── production-lifecycle-core.sh # hash-bound lifecycle/evidence state primitive
 │   ├── backup-rhaomi.sh           # fixed Mac backup wrapper
 │   ├── backup-rhaomi-core.sh      # shared lock·dump/media·complete/eligibility core
@@ -87,6 +89,7 @@ Rhaomi/
 │   ├── validate-production-image.sh
 │   ├── validate-production-compose.sh
 │   ├── validate-production-compose-contract.mjs
+│   ├── validate-production-initial-content.sh
 │   ├── validate-production-deploy.sh
 │   ├── validate-production-first-activation.sh
 │   ├── rhaomi-first-activation-smoke.sh
@@ -104,6 +107,7 @@ Rhaomi/
 │   ├── verify-published-production-image.mjs # published index·platform attestation evidence 검증
 │   └── validate-export.mjs
 ├── tests/                         # frontend·runtime contract
+├── contracts/initial-content/     # tracked manifest/content structural JSON Schema v1
 ├── docs/
 ├── compose.dev.yaml
 ├── compose.production.yaml        # canonical production service/network/mount inventory
@@ -126,7 +130,7 @@ Rhaomi/
 - `infra/nginx/dev.conf`는 local 개발 전용이다. `infra/nginx/production.conf`는 project loopback Nginx의 static/admin/deny/cache 계약이며 host edge TLS·Cloudflare 설정은 포함하지 않는다.
 - `backend/.../publication`은 domain transaction 밖에서 호출할 수 없는 `MANDATORY` producer recorder와 deterministic JDBC state service를 둔다. state service는 due claim, source/boundary 최소 stale 판정, generation·lease·retry·terminal/coalesce primitive만 제공하며 HTTP controller, scheduler, background executor나 범용 queue framework를 제공하지 않는다.
 - `kr.co.rhaomi.publisher`는 exact mode argument 전용 non-web root와 state adapter, fixed debounce/highest coalesce, lease heartbeat, advisory lock과 fixed-process Node release executor를 둔다. child·descendant physical exit 전에는 Java body와 lock을 종료하지 않는다.
-- `kr.co.rhaomi.production`은 exact `--rhaomi.production-task=migrate|schema-validate|initial-admin`만 허용하는 별도 non-web root다. backend controller·일반 admin bootstrap·publisher worker를 scan하지 않는다. Migration은 Flyway+JPA validate, schema task는 Flyway-disabled JPA validate, initial-admin은 TTY credential·PostgreSQL transaction lock·zero-admin re-check 후 종료한다.
+- `kr.co.rhaomi.production`은 exact `--rhaomi.production-task=migrate|schema-validate|initial-admin|initial-content`만 허용하는 별도 non-web root다. backend controller·일반 admin bootstrap·publisher worker를 scan하지 않는다. Migration은 Flyway+JPA validate, schema task는 Flyway-disabled JPA validate, initial-admin은 TTY credential·PostgreSQL transaction lock·zero-admin re-check, initial-content는 tracked bundle·pristine state·application validation/media normalization·single pending event 후 종료한다.
 - `backend/.../build`는 별도 stateless principal과 GET allowlist, active generation gate, read-only `REPEATABLE READ` snapshot, exact DTO와 current public relation media 조회만 제공한다. admin session을 재사용하거나 publication/content state를 변경하지 않는다.
 - `src/build-transformer`는 backend나 browser transport에 의존하지 않는 strict `BuildSnapshotV2` parser, lossless int64 canonical string validator, `MediaContentProvider` port, responsive image transformer와 staging writer를 제공한다. publisher loop·HTTP·release filesystem은 포함하지 않는다.
 - `src/build-orchestration`은 environment-only Build API config, bounded no-redirect snapshot client, manifest-scoped memory media provider와 transformer staging을 제공하고, `src/publication-release`가 이를 Next render·manifest·switch에 조합한다.
@@ -136,7 +140,7 @@ Rhaomi/
 - `scripts/prepare-publication-staging.mts`는 generation과 private output path만 argv로 받고 URL/credential은 environment에서 읽으며 safe JSON/exit family만 출력한다.
 - `scripts/publish-static-release.mts`는 generation만 argv로 받고 full release result를 safe one-line JSON과 fixed exit family로 출력한다.
 - `.github/workflows/production-release.yml`은 exact current `main` SHA의 수동 release만 받고 validation→immutable multi-arch GHCR publish→protected Environment·Tailscale→fixed Mac argv를 분리한다. caller가 `steady-state|first-activation` mode를 명시하고 runtime state에서 자동 추론하지 않는다. PR Validate는 이 workflow를 dispatch하거나 package를 push하지 않는다.
-- `ops/production` source는 production host의 fixed `/private/var/lib/rhaomi/app/bin` inventory로 provision할 대상이지 현재 Git worktree에서 production root를 변경하는 installer가 아니다. First-activation과 initial-admin source도 task temp fixture에서만 lifecycle·lock·writer·failure 계약을 검증하고 actual production path/DB를 만들거나 수정하지 않는다. HomeOps adapter도 HMAC/endpoint를 복제하지 않고 pinned current reporter를 account-home inventory에서 검증해 호출한다. Activation preflight는 production compatibility pin과 next source evidence를 분리한 tracked review contract이며 mapping installer가 아니다.
+- `ops/production` source는 production host의 fixed `/private/var/lib/rhaomi/app/bin` inventory로 provision할 대상이지 현재 Git worktree에서 production root를 변경하는 installer가 아니다. First-activation, initial-admin과 initial-content source도 task temp fixture에서만 lifecycle·lock·writer·failure 계약을 검증하고 actual production path/DB를 만들거나 수정하지 않는다. HomeOps adapter도 HMAC/endpoint를 복제하지 않고 pinned current reporter를 account-home inventory에서 검증해 호출한다. Activation preflight는 production compatibility pin과 next source evidence를 분리한 tracked review contract이며 mapping installer가 아니다.
 
 ## 전체 제품 목표 구조 — planned
 
@@ -217,7 +221,7 @@ planned 경로는 관련 Issue가 구현할 때만 추가한다.
 ### `infra`
 
 - `infra/nginx/dev.conf`는 local same-origin gateway만 정의
-- `compose.production.yaml`과 `infra/nginx/production.conf`는 four-service default topology, opt-in migration/schema/initial-admin·network-disabled backup tool과 project Nginx를 정의하고 validation overlay가 task temp source만 치환
+- `compose.production.yaml`과 `infra/nginx/production.conf`는 four-service default topology, opt-in migration/schema/initial-admin/initial-content·network-disabled backup tool과 project Nginx를 정의하고 validation overlay가 task temp source만 치환
 - workflow·fixed deploy entrypoint source는 구현됐지만 actual production Secret·Mac ownership·volume·ingress/GHCR/Environment/Tailscale provisioning과 backup job은 후속
 - local 개발 Compose와 운영 credential·volume을 공유하지 않음
 - production Compose는 repository 밖 Mac host `/private/var/lib/rhaomi`의 public/media/state 및 publisher isolated build-workspace bind source와 production project-scoped PostgreSQL named volume을 명시적으로 구분

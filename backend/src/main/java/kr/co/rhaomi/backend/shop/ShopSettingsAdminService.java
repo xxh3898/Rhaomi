@@ -57,6 +57,19 @@ public class ShopSettingsAdminService {
         return new PutResult(ShopSettingsResponse.from(updated), false);
     }
 
+    @Transactional
+    public UUID createForInitialImport(ShopSettingsRequest request, UUID actorId) {
+        Objects.requireNonNull(actorId, "actorId");
+        var values = ShopSettingsValues.from(request);
+        validateMediaRelations(values);
+        if (shopSettingsRepository.findBySingletonKeyTrue().isPresent()) {
+            throw new ShopSettingsInvalidRequestException();
+        }
+        return shopSettingsRepository
+                .saveAndFlush(ShopSettings.create(values, actorId))
+                .getId();
+    }
+
     private void validateMediaRelations(ShopSettingsValues values) {
         var relationIds = Stream.of(
                 values.heroImageId(), values.groomerImageId(), values.ogImageId())

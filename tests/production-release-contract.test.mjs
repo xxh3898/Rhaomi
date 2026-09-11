@@ -204,24 +204,31 @@ test("approved remote predeploy 실패 시 actual workflow run block이 deploy�
   assert.doesNotMatch(invocations[0], /deploy-rhaomi\.sh/u);
 });
 
-test("production Compose가 same-image non-web database·initial-admin task profile을 제공한다", async () => {
+test("production Compose가 same-image non-web database·initial authority task profile을 제공한다", async () => {
   const compose = await source("compose.production.yaml");
 
-  for (const service of ["migration", "schema-validate", "initial-admin"]) {
+  for (const service of [
+    "migration",
+    "schema-validate",
+    "initial-admin",
+    "initial-content",
+  ]) {
     assert.match(compose, new RegExp(`\\n  ${service}:`, "u"));
   }
-  assert.equal((compose.match(/profiles: \["production-task"\]/gu) ?? []).length, 3);
+  assert.equal((compose.match(/profiles: \["production-task"\]/gu) ?? []).length, 4);
   assert.equal(
     (compose.match(/image: \$\{RHAOMI_PRODUCTION_IMAGE:\?[^}]+\}/gu) ?? []).length,
-    7,
+    8,
   );
   assert.match(compose, /--rhaomi\.production-task=migrate/u);
   assert.match(compose, /--rhaomi\.production-task=schema-validate/u);
   assert.match(compose, /--rhaomi\.production-task=initial-admin/u);
+  assert.match(compose, /--rhaomi\.production-task=initial-content/u);
   assert.match(compose, /migration:[\s\S]*SPRING_FLYWAY_ENABLED: "true"/u);
   assert.match(compose, /schema-validate:[\s\S]*SPRING_FLYWAY_ENABLED: "false"/u);
   assert.match(compose, /initial-admin:[\s\S]*SPRING_FLYWAY_ENABLED: "false"/u);
-  assert.equal((compose.match(/SPRING_JPA_HIBERNATE_DDL_AUTO: validate/gu) ?? []).length, 3);
+  assert.match(compose, /initial-content:[\s\S]*SPRING_FLYWAY_ENABLED: "false"/u);
+  assert.equal((compose.match(/SPRING_JPA_HIBERNATE_DDL_AUTO: validate/gu) ?? []).length, 4);
 });
 
 test("fixed Mac deploy entrypoint가 lock, backup, digest, writer quiescence와 failure hold를 구현한다", async () => {

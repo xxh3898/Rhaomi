@@ -3,7 +3,7 @@ title: "Rhaomi 프로젝트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-02"
+last_updated: "2026-09-11"
 review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 ---
 
@@ -23,7 +23,7 @@ review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 
 ## 현재 구현 범위
 
-Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1~8f7에서 transactional outbox, generation state, internal Build API, strict transformer, non-web control loop, generated V2 Next Static Export와 immutable release·atomic switch를 구현했다. Phase 1C-8f8은 synthetic production-like dataset을 실제 local bootstrap·same-origin Admin HTTP로 저장하고, 30초 scheduled publish·expiry·overdue·stale/coalesce에서 Build API→transformer→Next→release를 끝까지 실행한 뒤 backend·PostgreSQL을 중단한 read-only Nginx에서 홈·공지·media·SEO·접근성·runtime 독립을 검증한다. Phase 1D는 [Production readiness matrix](docs/07-operations/production-readiness.md)에서 승인 계약, local/CI 증거, 구현·provisioning, 외부 콘텐츠 승인과 physical-device acceptance를 분리해 contract를 freeze한다. D-IMP-1 canonical image, D-IMP-2 production Compose·project Nginx, D-IMP-3 exact-main 수동 release, D-IMP-4 backup/restore에 이어 [ADR-016](docs/09-decisions/ADR-016-verified-empty-first-production-activation.md)의 one-time verified-empty→private bootstrap→first backup/isolated restore→steady-state source gate를 구현했다. 이는 actual `/private/var/lib/rhaomi`, 운영 PostgreSQL volume·Secret·FQDN·Cloudflare/GHCR/Environment/Tailscale provisioning, workflow dispatch·deploy·backup·restore 또는 실제 콘텐츠 공개를 뜻하지 않는다.
+Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Boot 관리자 인증 기반을 유지한다. Phase 1C-1~6의 콘텐츠·매장정보·private media·갤러리 API와 relation, Phase 1C-7의 `/admin/` Static Export 인증 셸·local same-origin Nginx gateway, Phase 1C-8a~8e의 여섯 관리자 UI에 이어 Phase 1C-8f1~8f7에서 transactional outbox, generation state, internal Build API, strict transformer, non-web control loop, generated V2 Next Static Export와 immutable release·atomic switch를 구현했다. Phase 1C-8f8은 synthetic production-like dataset을 실제 local bootstrap·same-origin Admin HTTP로 저장하고, 30초 scheduled publish·expiry·overdue·stale/coalesce에서 Build API→transformer→Next→release를 끝까지 실행한 뒤 backend·PostgreSQL을 중단한 read-only Nginx에서 홈·공지·media·SEO·접근성·runtime 독립을 검증한다. Phase 1D는 [Production readiness matrix](docs/07-operations/production-readiness.md)에서 승인 계약, local/CI 증거, 구현·provisioning, 외부 콘텐츠 승인과 physical-device acceptance를 분리해 contract를 freeze한다. D-IMP-1 canonical image, D-IMP-2 production Compose·project Nginx, D-IMP-3 exact-main 수동 release, D-IMP-4 backup/restore에 이어 [ADR-016](docs/09-decisions/ADR-016-verified-empty-first-production-activation.md)의 verified-empty lifecycle, [ADR-017](docs/09-decisions/ADR-017-production-initial-admin-authority.md)의 최초 관리자와 [ADR-018](docs/09-decisions/ADR-018-production-initial-content-authority.md)의 tracked bundle initial-content source gate를 구현했다. 이는 actual `/private/var/lib/rhaomi`, 운영 PostgreSQL volume·Secret·FQDN·Cloudflare/GHCR/Environment/Tailscale provisioning, workflow dispatch·deploy·backup·restore, 실제 account/content import 또는 public release를 뜻하지 않는다.
 
 ```text
 .
@@ -43,6 +43,7 @@ Phase 0 기준 문서와 Issue #1의 Static Export 기반, Issue #3의 Spring Bo
 ├── backend/                 # Spring Boot API·publisher와 canonical decoder-only production Dockerfile
 ├── infra/nginx/             # local gateway와 production static/admin fail-closed config
 ├── ops/production/           # fixed Mac deploy·backup·first-activation wrapper/core
+├── contracts/initial-content/ # initial content manifest/content JSON Schema v1
 ├── scripts/                 # 정적 산출물·gateway·HEIC·Compose smoke 검증
 ├── tests/                   # frontend·runtime contract test
 ├── docs/                    # 제품·아키텍처·운영 기준 문서

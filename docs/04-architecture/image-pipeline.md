@@ -3,7 +3,7 @@ title: "이미지 파이프라인"
 status: "proposed"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-31"
+last_updated: "2026-09-11"
 review_trigger: "미디어 형식·저장소 변경 시"
 ---
 
@@ -50,6 +50,7 @@ JPEG / PNG / HEIC / HEIF upload
 - `active | archived` 모두 row와 master를 유지하며 physical delete 없음
 - 갤러리와 매장정보 Hero·프로필·OG relation은 private `media_assets` UUID만 저장하며 storage key·path·hash를 embed하지 않음
 - 매장정보 relation 대상의 후속 archive는 cascade하지 않으며 public build가 active status와 file을 다시 검증
+- ADR-018 initial-content one-shot도 별도 file writer를 만들지 않고 기존 `MediaAdminService` ingestion을 사용한다. Bundle source의 실제 소비 size/SHA-256을 manifest와 대조하고 transaction rollback이면 새 master를 정리하며 기존 canonical file은 삭제하지 않는다.
 
 ### 공개 파생본
 

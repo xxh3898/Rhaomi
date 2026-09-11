@@ -71,6 +71,21 @@ services:
   initial-admin:
     labels: *validation-labels
 
+  initial-content:
+    labels: *validation-labels
+    volumes:
+      - type: bind
+        source: ${RHAOMI_PRODUCTION_VALIDATION_ROOT:?RHAOMI_PRODUCTION_VALIDATION_ROOT is required}/state/initial-content
+        target: /run/rhaomi-initial-content
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${RHAOMI_PRODUCTION_VALIDATION_ROOT:?RHAOMI_PRODUCTION_VALIDATION_ROOT is required}/data/media
+        target: /var/lib/rhaomi/media
+        bind:
+          create_host_path: false
+
   backup-tool:
     labels: *validation-labels
     environment:

@@ -170,7 +170,7 @@ input·path·backup envelope·digest/revision·target verifier 실패는 writer 
 
 - production backend 일반 기동은 schema를 자동 변경하지 않고 validate만 한다.
 - Flyway migration은 deploy lock과 maintenance 안의 one-shot service만 수행한다.
-- one-shot mode는 exact `--rhaomi.production-task=migrate|schema-validate|initial-admin`으로만 활성한다. 세 task 모두 non-web·일반 admin bootstrap 0·publisher loop 0을 강제한다. Migration은 Flyway 후 JPA validate, schema task는 Flyway disabled + JPA validate다. Initial-admin task는 Flyway disabled + JPA validate 뒤 [ADR-017](ADR-017-production-initial-admin-authority.md)의 TTY credential·PostgreSQL transaction lock·zero-admin 재검증만 수행한다.
+- one-shot mode는 exact `--rhaomi.production-task=migrate|schema-validate|initial-admin|initial-content`로만 활성한다. 네 task 모두 non-web·일반 admin bootstrap 0·publisher loop 0을 강제한다. Migration은 Flyway 후 JPA validate, schema task는 Flyway disabled + JPA validate다. Initial-admin task는 Flyway disabled + JPA validate 뒤 [ADR-017](ADR-017-production-initial-admin-authority.md)의 TTY credential·PostgreSQL transaction lock·zero-admin 재검증만 수행한다. Initial-content task는 [ADR-018](ADR-018-production-initial-content-authority.md)의 tracked bundle·pristine state·application transaction만 수행하며 publisher generation과 release filesystem을 직접 변경하지 않는다.
 - additive expand/contract를 우선하고 새 code와 직전 code가 전환 구간에서 공존 가능한 schema를 유지한다.
 - column/table 삭제, 대량 변환과 비가역 migration은 별도 승인, on-demand backup과 isolated restore 검증이 필요하다.
 - 검증되지 않은 destructive rollback을 실행하지 않는다.

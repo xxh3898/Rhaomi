@@ -281,6 +281,53 @@ services:
     restart: "no"
     logging: *production-logging
 
+  initial-content:
+    profiles: ["production-task"]
+    image: ${RHAOMI_PRODUCTION_IMAGE:?RHAOMI_PRODUCTION_IMAGE is required}
+    init: true
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    working_dir: /opt/rhaomi
+    command:
+      [
+        "java",
+        "-jar",
+        "/opt/rhaomi/backend.jar",
+        "--rhaomi.production-task=initial-content",
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: production
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${RHAOMI_POSTGRES_DB:?RHAOMI_POSTGRES_DB is required}
+      SPRING_DATASOURCE_USERNAME: ${RHAOMI_POSTGRES_USER:?RHAOMI_POSTGRES_USER is required}
+      SPRING_DATASOURCE_PASSWORD: ${RHAOMI_POSTGRES_PASSWORD:?RHAOMI_POSTGRES_PASSWORD is required}
+      SPRING_FLYWAY_ENABLED: "false"
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      RHAOMI_BOOTSTRAP_ADMIN_ENABLED: "false"
+      RHAOMI_MEDIA_ROOT: /var/lib/rhaomi/media
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+    volumes:
+      - type: bind
+        source: /private/var/lib/rhaomi/state/initial-content
+        target: /run/rhaomi-initial-content
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /private/var/lib/rhaomi/data/media
+        target: /var/lib/rhaomi/media
+        bind:
+          create_host_path: false
+    networks:
+      - data-internal
+    restart: "no"
+    logging: *production-logging
+
   backup-tool:
     profiles: ["production-backup"]
     image: ${RHAOMI_PRODUCTION_IMAGE:?RHAOMI_PRODUCTION_IMAGE is required}

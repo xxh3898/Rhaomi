@@ -36,7 +36,8 @@ test("production Compose가 external same-image와 최소 service topology를 �
   const publisher = serviceBlock(compose, "publisher", "migration");
   const migration = serviceBlock(compose, "migration", "schema-validate");
   const schemaValidate = serviceBlock(compose, "schema-validate", "initial-admin");
-  const initialAdmin = serviceBlock(compose, "initial-admin", "backup-tool");
+  const initialAdmin = serviceBlock(compose, "initial-admin", "initial-content");
+  const initialContent = serviceBlock(compose, "initial-content", "backup-tool");
   const backupTool = serviceBlock(compose, "backup-tool", "backup-verifier");
   const backupVerifier = serviceBlock(compose, "backup-verifier", "postgres");
   const postgres = serviceBlock(compose, "postgres");
@@ -56,6 +57,7 @@ test("production Compose가 external same-image와 최소 service topology를 �
           "migration:",
           "schema-validate:",
           "initial-admin:",
+          "initial-content:",
           "backup-tool:",
           "backup-verifier:",
           "postgres:",
@@ -68,6 +70,7 @@ test("production Compose가 external same-image와 최소 service topology를 �
       "migration:",
       "schema-validate:",
       "initial-admin:",
+      "initial-content:",
       "backup-tool:",
       "backup-verifier:",
       "postgres:",
@@ -91,7 +94,7 @@ test("production Compose가 external same-image와 최소 service topology를 �
   assert.match(web, /user: "101:101"/u);
   assert.match(web, /homeops\.managed: "true"/u);
   assert.doesNotMatch(
-    `${backend}\n${publisher}\n${migration}\n${schemaValidate}\n${initialAdmin}\n${backupTool}\n${backupVerifier}\n${postgres}`,
+    `${backend}\n${publisher}\n${migration}\n${schemaValidate}\n${initialAdmin}\n${initialContent}\n${backupTool}\n${backupVerifier}\n${postgres}`,
     /homeops\.managed/u,
   );
   assert.match(web, /\/var\/cache\/nginx:rw,noexec,nosuid,size=64m,uid=101,gid=101,mode=0750/u);
@@ -101,7 +104,10 @@ test("production Compose가 external same-image와 최소 service topology를 �
   );
 
   assert.match(web, /127\.0\.0\.1:\$\{RHAOMI_WEB_LOOPBACK_PORT:\?[^}]+\}:8080/u);
-  assert.doesNotMatch(`${backend}\n${publisher}\n${initialAdmin}\n${postgres}`, /ports:/u);
+  assert.doesNotMatch(
+    `${backend}\n${publisher}\n${initialAdmin}\n${initialContent}\n${postgres}`,
+    /ports:/u,
+  );
   assert.match(web, /source: \/private\/var\/lib\/rhaomi\/public[\s\S]*target: \/srv\/rhaomi\/public[\s\S]*read_only: true/u);
   assert.match(backend, /source: \/private\/var\/lib\/rhaomi\/data\/media[\s\S]*target: \/var\/lib\/rhaomi\/media/u);
   assert.match(publisher, /source: \/private\/var\/lib\/rhaomi\/public[\s\S]*target: \/srv\/rhaomi\/public/u);
@@ -146,6 +152,27 @@ test("production Compose가 external same-image와 최소 service topology를 �
     initialAdmin,
     /volumes:|RHAOMI_(?:INITIAL_ADMIN|BOOTSTRAP_ADMIN)_(?:EMAIL|PASSWORD)|RHAOMI_WEBAUTHN|BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN/u,
   );
+  assert.match(initialContent, /profiles: \["production-task"\]/u);
+  assert.match(initialContent, /--rhaomi\.production-task=initial-content/u);
+  assert.match(initialContent, /SPRING_FLYWAY_ENABLED: "false"/u);
+  assert.match(initialContent, /SPRING_JPA_HIBERNATE_DDL_AUTO: validate/u);
+  assert.match(initialContent, /RHAOMI_BOOTSTRAP_ADMIN_ENABLED: "false"/u);
+  assert.match(initialContent, /read_only: true/u);
+  assert.match(initialContent, /cap_drop: \["ALL"\]/u);
+  assert.match(initialContent, /no-new-privileges:true/u);
+  assert.match(initialContent, /networks:\s*\n\s+- data-internal/u);
+  assert.match(
+    initialContent,
+    /source: \/private\/var\/lib\/rhaomi\/state\/initial-content[\s\S]*target: \/run\/rhaomi-initial-content[\s\S]*read_only: true/u,
+  );
+  assert.match(
+    initialContent,
+    /source: \/private\/var\/lib\/rhaomi\/data\/media[\s\S]*target: \/var\/lib\/rhaomi\/media/u,
+  );
+  assert.doesNotMatch(
+    initialContent,
+    /RHAOMI_(?:INITIAL_ADMIN|BOOTSTRAP_ADMIN)_(?:EMAIL|PASSWORD)|RHAOMI_WEBAUTHN|BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN|\/srv\/rhaomi\/public|\/var\/lib\/rhaomi\/(?:publisher|locks|backup-repository|deploy-state)|docker\.sock/u,
+  );
   assert.match(backupTool, /profiles: \["production-backup"\]/u);
   assert.match(backupVerifier, /profiles: \["production-backup"\]/u);
   assert.match(backupVerifier, /entrypoint: \["\/usr\/local\/bin\/rhaomi-backup-verifier"\]/u);
@@ -167,7 +194,7 @@ test("production Compose가 external same-image와 최소 service topology를 �
   assert.doesNotMatch(web, /BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN|POSTGRES_PASSWORD/u);
   assert.doesNotMatch(postgres, /BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN/u);
   assert.doesNotMatch(
-    `${web}\n${publisher}\n${initialAdmin}\n${postgres}`,
+    `${web}\n${publisher}\n${initialAdmin}\n${initialContent}\n${postgres}`,
     /RHAOMI_WEBAUTHN_(?:RP_ID|ORIGIN|RP_NAME)/u,
   );
 
@@ -226,6 +253,11 @@ test("validation overlay가 task temp source와 one-shot service label만 덮어
   assert.match(overlay, /migration:[\s\S]*labels: \*validation-labels/u);
   assert.match(overlay, /schema-validate:[\s\S]*labels: \*validation-labels/u);
   assert.match(overlay, /initial-admin:[\s\S]*labels: \*validation-labels/u);
+  assert.match(overlay, /initial-content:[\s\S]*labels: \*validation-labels/u);
+  assert.match(
+    overlay,
+    /initial-content:[\s\S]*state\/initial-content[\s\S]*target: \/run\/rhaomi-initial-content[\s\S]*read_only: true[\s\S]*data\/media[\s\S]*target: \/var\/lib\/rhaomi\/media/u,
+  );
   assert.match(overlay, /backup-verifier:[\s\S]*labels: \*validation-labels/u);
   assert.match(
     overlay,
@@ -237,9 +269,10 @@ test("validation overlay가 task temp source와 one-shot service label만 덮어
 });
 
 test("provisioning validator가 persistence·runtime 경계와 non-destructive cleanup을 검증한다", async () => {
-  const [entrypoint, contract] = await Promise.all([
+  const [entrypoint, contract, initialContentControl] = await Promise.all([
     source("scripts/validate-production-compose.sh"),
     source("scripts/validate-production-compose-contract.mjs"),
+    source("scripts/validate-production-initial-content.sh"),
   ]);
 
   assert.match(entrypoint, /git -C .* rev-parse HEAD/u);
@@ -252,6 +285,28 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(entrypoint, /run --rm --no-deps migration/u);
   assert.match(entrypoint, /run --rm --no-deps schema-validate/u);
   assert.match(entrypoint, /verify_initial_admin_runtime_boundary/u);
+  assert.match(entrypoint, /validate-production-initial-content\.sh/u);
+  assert.match(entrypoint, /verify_initial_content_runtime_boundary/u);
+  assert.match(entrypoint, /run --rm --no-deps initial-content/u);
+  assert.match(entrypoint, /INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID/u);
+  assert.match(entrypoint, /initialContentPristineAuthorityMutation=0/u);
+  const initialContentBoundaryMatch = entrypoint.match(
+    /verify_initial_content_runtime_boundary\(\) \{\n([\s\S]*?)\n\}/u,
+  );
+  assert.ok(initialContentBoundaryMatch);
+  const initialContentBoundary = initialContentBoundaryMatch[1];
+  const initialContentMutationCheckIndex = initialContentBoundary.indexOf(
+    "initial-content pristine authority fail-close가 mutation 0을 보장하지 못했습니다.",
+  );
+  const initialContentRemovalIndex = initialContentBoundary.indexOf(
+    'docker container rm "$initial_content_id"',
+  );
+  const initialContentAbsenceIndex = initialContentBoundary.indexOf(
+    'docker container inspect "$initial_content_id"',
+  );
+  assert.ok(initialContentMutationCheckIndex >= 0);
+  assert.ok(initialContentRemovalIndex > initialContentMutationCheckIndex);
+  assert.ok(initialContentAbsenceIndex > initialContentRemovalIndex);
   assert.match(entrypoint, /compose_validation create --no-build initial-admin/u);
   assert.doesNotMatch(
     entrypoint,
@@ -342,6 +397,23 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(contract, /assert\.notEqual\([\s\S]*create_host_path/u);
   assert.match(contract, /postgres-data/u);
   assert.match(contract, /BUILD_API_CREDENTIAL/u);
+
+  assert.match(initialContentControl, /validate_task_failure_recovery/u);
+  assert.match(initialContentControl, /validate_recovery_failure_lock_hold/u);
+  assert.match(initialContentControl, /validate_bundle_boundary_fail_closed/u);
+  assert.match(initialContentControl, /group-readable-file/u);
+  assert.match(initialContentControl, /symbolic-link/u);
+  assert.match(initialContentControl, /hard-link/u);
+  assert.match(
+    initialContentControl,
+    /--profile production-task run --rm --no-deps initial-content/u,
+  );
+  assert.match(initialContentControl, /INITIAL_CONTENT_SOURCE_IDENTITY_INVALID/u);
+  assert.match(initialContentControl, /INITIAL_CONTENT_WRITER_RECOVERY_FAILED/u);
+  assert.doesNotMatch(
+    initialContentControl,
+    /down -v|docker (?:system|container|volume|image|network) prune|docker (?:volume|image) rm/u,
+  );
 });
 
 test("Hosted Validate가 기존 3-job에서 exact-head image를 Compose gate에 재사용한다", async () => {

@@ -3,7 +3,7 @@ title: "로드맵"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-10"
+last_updated: "2026-09-11"
 review_trigger: "릴리스 범위 변경 시"
 ---
 
@@ -271,7 +271,7 @@ Phase 1D는 `Production operating architecture CONTRACT COMPLETE`다. D-IMP-1 ca
 6. D-IMP-5b HomeOps incident decision·V14 mapping/audit·30분 cooldown — HomeOps `main@0a8ce9090c76f5ad7afba19ca896e923b96b0cbf` release/application deploy·V14와 run `33569523762` live compatibility 완료; Agent artifact `PUBLISHED`, Agent rollout `NOT_RUN`; public HTTPS expected HTTP status 3회→`rhaomi-web` only, backend unmapped preflight 승인; Rhaomi release/provisioning과 actual activation 미완료
 7. D-IMP-6 verified-empty→private bootstrap→first backup/isolated restore source gate — source와 task-scoped acceptance 완료; actual Mac 실행, domain/content/public HTTPS·iPhone Safari/VoiceOver·rollback/recovery acceptance 미완료
 8. Stage 0A Issue #96 production initial-admin source gate — fixed non-web task·transaction lock·credential/lifecycle/writer recovery 구현; dev integration·Source Release·actual account/passkey 미실행
-9. Stage 0B Issue #97 initial-content import·first canonical publication source gate — #96 integration 후 별도 구현·승인, 현재 미시작
+9. Stage 0B Issue #97 initial-content import·first canonical publication source gate — tracked bundle·fixed non-web task·atomic application validation/write·기존 publisher 연결을 별도 구현·검증, actual owner data/import/publication은 미실행
 
 Issue #95 Stage A production control-plane provisioning은 #96·#97 dev integration, dev→main Source Release, main→dev tree-neutral back-sync과 exact-main CI/security 재검증 후에만 승인을 재요청한다.
 

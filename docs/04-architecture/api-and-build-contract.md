@@ -3,7 +3,7 @@ title: "API·빌드 계약"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-02"
+last_updated: "2026-09-11"
 review_trigger: "관리 API·build 입력 변경 시"
 ---
 
@@ -184,6 +184,18 @@ review_trigger: "관리 API·build 입력 변경 시"
 - status mutation은 status-only PUT이며 403·network·5xx·malformed response에서 자동 retry하거나 낙관 성공으로 확정하지 않는다.
 - media request의 401은 in-memory CSRF와 dashboard state를 제거하고 login 화면으로 돌아간다. mutation 403은 CSRF를 폐기하고 다음 사용자 action에서만 fresh token을 준비한다.
 - UI 오류 문구는 allowlisted status/code로 소유하며 backend raw message·exception detail을 출력하지 않는다.
+
+## Production initial-content task — source authority
+
+`--rhaomi.production-task=initial-content`는 HTTP API가 아닌 fixed non-web one-shot task다. [`manifest-v1.schema.json`](../../contracts/initial-content/manifest-v1.schema.json)과 [`content-v1.schema.json`](../../contracts/initial-content/content-v1.schema.json)의 exact bundle 구조를 읽되, 실제 field 의미는 기존 Admin request/value-object/entity/build validator가 최종 결정한다.
+
+- exactly one active admin과 zero ShopSettings/Breed/Service/Notice/Gallery/media/outbox/revision/generation, empty canonical media storage를 transaction lock 뒤 재확인한다.
+- logical key를 server UUID relation으로 변환하며 client가 id/status/audit/storage key/path/hash를 주입할 수 없다.
+- media는 기존 server ingestion/normalization을 통과하고 실제 소비 byte의 size/SHA-256을 manifest와 다시 비교한다.
+- 모든 row와 immediate `PENDING` outbox event 하나는 같은 transaction에서 commit/rollback된다. Future Notice expiry event만 같은 최초 `contentRevision`의 기존 scheduled contract에 따라 추가될 수 있다.
+- task는 public/admin/build route를 추가하지 않고 Build Snapshot V2·publisher generation/lease/result를 직접 변경하지 않는다. 첫 release는 commit 뒤 기존 publisher가 만든다.
+
+Actual owner bundle, production invocation과 first publication은 이 source contract와 별도 승인 대상이다.
 
 ## publication producer — current
 

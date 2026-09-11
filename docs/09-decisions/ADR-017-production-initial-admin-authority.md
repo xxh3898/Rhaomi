@@ -3,7 +3,7 @@ title: "ADR-017: Production 최초 관리자 authority"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-10"
+last_updated: "2026-09-11"
 review_trigger: "최초 관리자 생성·credential 입력·production lifecycle 경계 변경 시"
 ---
 
@@ -11,7 +11,7 @@ review_trigger: "최초 관리자 생성·credential 입력·production lifecycl
 
 - 결정일: 2026-09-10
 - 상태: Accepted
-- 관련 결정: [ADR-009](ADR-009-spring-boot-backend-admin.md), [ADR-010](ADR-010-production-topology-and-code-release.md), [ADR-016](ADR-016-verified-empty-first-production-activation.md)
+- 관련 결정: [ADR-009](ADR-009-spring-boot-backend-admin.md), [ADR-010](ADR-010-production-topology-and-code-release.md), [ADR-016](ADR-016-verified-empty-first-production-activation.md), [ADR-018](ADR-018-production-initial-content-authority.md)
 
 ## 맥락
 
@@ -87,7 +87,7 @@ Compose render, Docker inspect, process list, shell history, durable config/evid
 
 - Stage 0A source는 독립 unit/PostgreSQL concurrency/Compose/fixed-wrapper regression으로 검증한다.
 - 이 결정은 Flyway V11, API route, dependency, public artifact를 추가하지 않는다.
-- Issue #97 Stage 0B의 owner-approved initial content import와 canonical first publication은 별도 source gate로 남는다.
+- Issue #97 Stage 0B의 owner-approved initial content import와 canonical first publication source는 ADR-018의 별도 fixed one-shot authority다. Initial-admin task가 content를 만들거나 import credential을 보유하지 않는다.
 - #96·#97 integration, dev→main Source Release, main→dev back-sync, exact-main CI/security 재검증 전에 Issue #95 Stage A를 실행하지 않는다.
 - Source·CI PASS는 actual Mac inventory, GitHub control plane, GHCR publish, production DB mutation, admin/passkey/recovery provisioning 증거가 아니다.
 

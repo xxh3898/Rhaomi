@@ -3,7 +3,7 @@ title: "롤백"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-02"
+last_updated: "2026-09-11"
 review_trigger: "배포 저장구조 변경 시"
 ---
 
@@ -55,6 +55,13 @@ approved previous code image/digest
 Nginx 설정이 바뀌지 않았다면 reload 없이 전환하는 구조를 우선한다. 과거 release symlink를 직접 가리켜 public ordering authority인 `publishGeneration`을 감소시키지 않는다.
 
 ## 콘텐츠 롤백
+
+### Initial-content 진행 중
+
+- one-shot transaction commit 전 실패는 전체 DB row/revision/outbox rollback과 해당 attempt의 신규 media cleanup을 확인한다. 기존 bundle·canonical media나 다른 파일을 삭제하지 않는다.
+- commit 뒤 publisher 실패는 destructive rollback이나 re-import 대상이 아니다. Committed content와 durable pending generation을 보존하고 public `current`를 변경하지 않은 채 원인을 진단한다.
+- 자동 re-import, content revision/generation reset, raw SQL 삭제, synthetic/empty first release와 `SUCCESS`/`NOOP` 수동 기록을 금지한다.
+- 복구는 기존 authorized publisher retry/rebuild와 더 높은 generation authority를 별도 승인받아 수행한다.
 
 ### 단일 항목
 

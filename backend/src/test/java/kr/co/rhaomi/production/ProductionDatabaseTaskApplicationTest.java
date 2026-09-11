@@ -27,6 +27,10 @@ class ProductionDatabaseTaskApplicationTest {
                 ProductionDatabaseTaskApplication.Task.INITIAL_ADMIN,
                 ProductionDatabaseTaskApplication.parseTask(
                         new String[] {ProductionDatabaseTaskApplication.INITIAL_ADMIN_ARGUMENT}));
+        assertEquals(
+                ProductionDatabaseTaskApplication.Task.INITIAL_CONTENT,
+                ProductionDatabaseTaskApplication.parseTask(
+                        new String[] {ProductionDatabaseTaskApplication.INITIAL_CONTENT_ARGUMENT}));
 
         assertFalse(ProductionDatabaseTaskApplication.hasModeArgument(
                 new String[] {"--spring.flyway.enabled=true"}));
@@ -70,6 +74,11 @@ class ProductionDatabaseTaskApplicationTest {
                 WebApplicationType.NONE,
                 ProductionDatabaseTaskApplication
                         .createApplication(ProductionDatabaseTaskApplication.Task.INITIAL_ADMIN)
+                        .getWebApplicationType());
+        assertEquals(
+                WebApplicationType.NONE,
+                ProductionDatabaseTaskApplication
+                        .createApplication(ProductionDatabaseTaskApplication.Task.INITIAL_CONTENT)
                         .getWebApplicationType());
     }
 }

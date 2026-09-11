@@ -3,7 +3,7 @@ title: "ADR-011: Transactional outbox와 정적 publisher"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-01"
+last_updated: "2026-09-11"
 review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 방식 변경 시"
 ---
 
@@ -11,7 +11,7 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 
 - 결정일: 2026-08-29
 - 상태: Accepted
-- 관련 결정: [ADR-003](ADR-003-static-publish-on-content-change.md), [ADR-004](ADR-004-static-media-copy.md), [ADR-008](ADR-008-runtime-independent-public-site.md), [ADR-010](ADR-010-production-topology-and-code-release.md), [ADR-015](ADR-015-lossless-int64-json-wire-contract.md)
+- 관련 결정: [ADR-003](ADR-003-static-publish-on-content-change.md), [ADR-004](ADR-004-static-media-copy.md), [ADR-008](ADR-008-runtime-independent-public-site.md), [ADR-010](ADR-010-production-topology-and-code-release.md), [ADR-015](ADR-015-lossless-int64-json-wire-contract.md), [ADR-018](ADR-018-production-initial-content-authority.md)
 
 ## 맥락
 
@@ -40,6 +40,13 @@ review_trigger: "공개 콘텐츠 trigger·build API·publisher·정적 전환 �
 - publisher는 즉시 실행 가능한 pending event와 `availableAt <= now`인 scheduled event를 처리한다. boundary 동안 publisher가 중단돼도 restart 뒤 overdue event를 다시 claim한다.
 - scheduled event를 물리 삭제해야 correctness가 성립하는 계약으로 만들지 않는다. 처리 완료·stale no-op 상태를 내구적으로 기록할 수 있다.
 - 관리 API 저장 성공, publisher 처리 중, 공개 성공·실패 상태를 구분한다.
+
+#### 최초 콘텐츠 one-shot producer
+
+- ADR-018의 initial-content task는 pristine production state에서 ShopSettings와 최소 public Breed·Service·Notice·Gallery·media를 하나의 application transaction으로 완성한다.
+- 개별 domain write의 immediate event는 억제하고 전체 relation/build validation 뒤 content revision 증가와 immediate `PENDING` outbox event를 정확히 한 번 기록한다. Import task는 `publishGeneration`을 선할당하지 않으며 기존 publisher claim이 generation authority다.
+- Future Notice expiry scheduled event는 같은 transaction과 같은 최초 content revision에 별도로 기록할 수 있다. 이 scheduled event와 첫 immediate event는 서로 대체하지 않는다.
+- Commit 뒤 publication 실패는 content와 pending event를 보존한다. 자동 re-import·generation reset·success/noop completion은 금지한다.
 
 #### 현재 구현 경계 — Phase 1C-8f1~8f8
 

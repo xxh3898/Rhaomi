@@ -175,6 +175,7 @@ services:
       - ./backend/production-image-components.json:/workspace/backend/production-image-components.json:ro
       - ./backend/production-image-NOTICE.md:/workspace/backend/production-image-NOTICE.md:ro
       - ./backend/gradle:/workspace/backend/gradle:ro
+      - ./contracts:/workspace/contracts:ro
       - ./infra/nginx/dev.conf:/workspace/infra/nginx/dev.conf:ro
       - ./infra/nginx/publication-acceptance-admin.conf:/workspace/infra/nginx/publication-acceptance-admin.conf:ro
       - ./infra/nginx/publication-acceptance.conf:/workspace/infra/nginx/publication-acceptance.conf:ro
@@ -212,6 +213,8 @@ services:
         "test",
         "--tests",
         "kr.co.rhaomi.publisher.FullPublicationPipelineIntegrationTests",
+        "--tests",
+        "kr.co.rhaomi.production.ProductionInitialContentTaskIntegrationTests.should_publishImportedBundleThroughCanonicalPublisherAndAtomicFirstCurrentSwitch",
         "--no-daemon",
       ]
     depends_on:

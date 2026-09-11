@@ -3,7 +3,7 @@ title: "테스트 전략"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-10"
+last_updated: "2026-09-11"
 review_trigger: "기술·기능 범위 변경 시"
 ---
 
@@ -372,7 +372,7 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - production initial-admin의 TTY-only credential source, invalid email·11-byte ASCII·73 UTF-8 byte 거부·72 byte 허용, BCrypt hash·raw credential output 0
 - PostgreSQL transaction advisory lock·zero-admin re-check, existing-admin/replay mutation 0, concurrent actual context 최대 하나 commit·transaction failure row 0
 - actual PostgreSQL 18.6 clean schema의 migration V1~V10·JPA validate 성공, Flyway-disabled schema validate 성공, empty schema 실패
-- production Compose default four-service 불변, `production-task` profile의 same-image `migration`·`schema-validate`·`initial-admin`, data network only·port/mount 0·restart 0
+- production Compose default four-service 불변, `production-task` profile의 same-image `migration`·`schema-validate`·`initial-admin`·`initial-content`, 각 task의 allowlisted data network·mount와 port 0·restart 0
 - fixed initial-admin wrapper의 valid lifecycle·exact image·shared lock, writer physical exit 후 task, task/recovery failure의 false success 0과 quiescence 불확실 own-lock 보존
 - fixed Mac entrypoint의 lower-case SHA·fixed GHCR digest·SBOM strict input, fixed root/config/Docker credential, owner/mode, release-bound backup gate, atomic mkdir lock·own-token cleanup
 - exact digest pull·RepoDigest·OCI revision을 writer stop 전 검증하고 backend/publisher `exited` 후에만 migration→schema validation 실행
@@ -504,6 +504,22 @@ Mac native Linux arm64와 Hosted Backend Linux amd64는 같은 production image/
 - static HTML의 `lang=ko`, main, heading, image alt, link href, Notice `time[datetime]`, safe Markdown와 SEO contract
 - `.env.example`, tmpfs DB, marker temp root, task-only internal network·required cleanup label을 사용하고 일반 `down` 후 task container/network 0; Docker volume/image delete 없음
 - `scripts/validate-local-publication-acceptance.sh`를 로컬 Mac mini Linux arm64와 기존 Hosted Compose Smoke Linux amd64에서 동일하게 실행
+
+## Production initial-content Stage 0B 자동 검증
+
+- tracked manifest/content structural schema와 runtime parser의 exact field, required category/count, duplicate logical/JSON key, checksum, extra file, symlink/hard-link/traversal 거부
+- PostgreSQL 18.6·Flyway V1~V10에서 fixed non-web task의 exactly one active admin/pristine DB·media gate와 application request/value-object/build validation 재사용
+- valid bundle의 published Shop/Breed/Service/Notice/Gallery/media relation·audit와 content revision 1, generation 미할당 immediate `PENDING` event 1
+- identical replay와 실제 concurrent invocation의 commit 최대 1, existing DB/media partial state fail-close와 기존 media 보존
+- transaction failure checkpoint의 모든 row/revision/outbox rollback과 신규 master cleanup
+- 실제 소비 media byte size/SHA-256 대조 및 기존 JPEG/PNG/HEIC normalization/limit/private-storage 회귀
+- import 뒤 actual Build API Snapshot V2의 canonical decimal revision/generation과 first-publication 필수 content/media relation
+- fixed host wrapper의 `STEADY_STATE`, exact digest/revision, shared lock, writer physical exit/recovery와 task/recovery failure semantics
+- production Compose의 bundle RO·media RW·DB-only network, port/public/state/lock/backup/Docker socket/불필요 credential 0 및 pristine-authority failure mutation 0
+- import가 만든 실제 pending event를 기존 publisher가 claim해 Build API V2→transformer→Static Export→release validator→atomic first-current switch→DB `SUCCESS`까지 완료하고, 최종 static home/detail/media relation에 bundle의 Shop/Notice/Breed/Service/Gallery가 포함되는 연결 E2E
+- publication terminal failure 주입 뒤 committed content·generation/outbox 보존, success completion 0과 동일 bundle re-import 거부
+
+이 검증은 synthetic bundle과 task root만 사용한다. Actual owner content, production filesystem/DB/media/public release, workflow dispatch나 ingress를 변경하지 않는다.
 
 ## 후속 콘텐츠 UI/E2E
 
