@@ -130,6 +130,35 @@ class ProductionInitialContentTaskIntegrationTests {
     }
 
     @Test
+    void should_emitSanitizedMachineFailureAndKeepPristineState_when_adminAuthorityIsMissing()
+            throws Exception {
+        withMigratedSchema(schemaUrl -> {
+            var bundleRoot = InitialContentTestBundle.create(tempDirectory.resolve("no-admin"));
+            var mediaRoot = Files.createDirectories(tempDirectory.resolve("no-admin-media"));
+            var output = new ByteArrayOutputStream();
+
+            var exception = assertThrows(RuntimeException.class, () -> {
+                try (var ignored = runInitialContent(
+                        schemaUrl,
+                        bundleRoot,
+                        mediaRoot,
+                        InitialContentImportCheckpoint.noop(),
+                        new PrintStream(output, true, StandardCharsets.UTF_8))) {}
+            });
+
+            assertTrue(messageChain(exception).contains("INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID"));
+            var evidence = output.toString(StandardCharsets.UTF_8);
+            assertTrue(evidence.contains("\"contract\":\"rhaomi-initial-content-v1\""));
+            assertTrue(evidence.contains("\"status\":\"failure\""));
+            assertTrue(evidence.contains("\"code\":\"INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID\""));
+            assertFalse(evidence.contains(InitialContentTestBundle.SHOP_NAME));
+            assertFalse(evidence.contains(bundleRoot.toString()));
+            assertFalse(evidence.contains(mediaRoot.toString()));
+            assertNoImportedState(schemaUrl, mediaRoot);
+        });
+    }
+
+    @Test
     void should_shareOneContentRevision_when_initialImportIncludesFutureExpiryEvent()
             throws Exception {
         withMigratedSchema(schemaUrl -> {

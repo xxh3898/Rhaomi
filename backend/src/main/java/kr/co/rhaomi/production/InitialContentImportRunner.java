@@ -2,10 +2,14 @@ package kr.co.rhaomi.production;
 
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.util.regex.Pattern;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 
 final class InitialContentImportRunner implements ApplicationRunner {
+
+    private static final Pattern FAILURE_CODE = Pattern.compile("INITIAL_CONTENT_[A-Z0-9_]+");
+    private static final String GENERIC_FAILURE_CODE = "INITIAL_CONTENT_IMPORT_FAILED";
 
     private final Path inputRoot;
     private final InitialContentBundleReader bundleReader;
@@ -29,9 +33,11 @@ final class InitialContentImportRunner implements ApplicationRunner {
         try {
             result = importService.importBundle(bundleReader.read(inputRoot));
         } catch (InitialContentImportException exception) {
+            writeFailure(exception.getMessage());
             throw exception;
         } catch (RuntimeException exception) {
-            throw new InitialContentImportException("INITIAL_CONTENT_IMPORT_FAILED");
+            writeFailure(GENERIC_FAILURE_CODE);
+            throw new InitialContentImportException(GENERIC_FAILURE_CODE);
         }
         output.printf(
                 "{\"contract\":\"rhaomi-initial-content-v1\","
@@ -48,6 +54,17 @@ final class InitialContentImportRunner implements ApplicationRunner {
                 result.serviceCount(),
                 result.noticeCount(),
                 result.galleryItemCount());
+        output.flush();
+    }
+
+    private void writeFailure(String code) {
+        var safeCode = code != null && FAILURE_CODE.matcher(code).matches()
+                ? code
+                : GENERIC_FAILURE_CODE;
+        output.printf(
+                "{\"contract\":\"rhaomi-initial-content-v1\","
+                        + "\"status\":\"failure\",\"code\":\"%s\"}%n",
+                safeCode);
         output.flush();
     }
 }
