@@ -455,11 +455,11 @@ class ProductionInitialContentTaskIntegrationTests {
 
             assertTrue(Files.isSymbolicLink(currentLink));
             assertFalse(Files.exists(previousLink));
-            var releasePackage = currentLink
+            var siteRoot = currentLink
                     .getParent()
                     .resolve(Files.readSymbolicLink(currentLink))
                     .normalize();
-            var siteRoot = releasePackage.resolve("site");
+            var releasePackage = siteRoot.getParent();
             var home = Files.readString(siteRoot.resolve("index.html"), StandardCharsets.UTF_8);
             assertTrue(home.contains(InitialContentTestBundle.SHOP_NAME));
             assertTrue(home.contains(InitialContentTestBundle.BREED_NAME));
