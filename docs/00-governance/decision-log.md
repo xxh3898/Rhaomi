@@ -3,7 +3,7 @@ title: "의사결정 로그"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-31"
+last_updated: "2026-09-11"
 review_trigger: "의사결정 추가·변경 시"
 ---
 
@@ -25,6 +25,10 @@ review_trigger: "의사결정 추가·변경 시"
 | ADR-012 | 초기 production은 PostgreSQL logical dump·private media의 Mac mini local-only application-consistent backup을 사용하고 raw PGDATA volume은 portable authority에서 제외한다. 외장 SSD·iCloud 3-2-1은 future hardening이다. | 승인 | [ADR-012](../09-decisions/ADR-012-application-consistent-backup-restore.md) |
 | ADR-013 | HomeOps를 단일 관제 authority로 사용하고 자동 복구를 stateless 단일 restart로 제한한다. | 승인 | [ADR-013](../09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md) |
 | ADR-014 | Production HEIC runtime은 pinned libheif·libde265 decoder-only image로 구성한다. | 승인 | [ADR-014](../09-decisions/ADR-014-heic-decoder-only-production-runtime.md) |
+| ADR-015 | PostgreSQL/Java int64는 JSON wire와 generated artifact에서 canonical decimal string으로 보존한다. | 승인 | [ADR-015](../09-decisions/ADR-015-lossless-int64-json-wire-contract.md) |
+| ADR-016 | 최초 production은 verified-empty evidence와 private bootstrap·restore acceptance 뒤에만 steady state가 된다. | 승인 | [ADR-016](../09-decisions/ADR-016-verified-empty-first-production-activation.md) |
+| ADR-017 | 최초 관리자는 exact-image TTY-only non-web task와 zero-admin transaction authority로 생성한다. | 승인 | [ADR-017](../09-decisions/ADR-017-production-initial-admin-authority.md) |
+| ADR-018 | 초기 콘텐츠는 tracked owner-bundle과 fixed non-web application transaction으로 적재하고 기존 publisher로 첫 release를 만든다. | 승인 | [ADR-018](../09-decisions/ADR-018-production-initial-content-authority.md) |
 
 ## 변경 규칙
 

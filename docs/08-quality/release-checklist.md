@@ -3,7 +3,7 @@ title: "출시 체크리스트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-10"
+last_updated: "2026-09-11"
 review_trigger: "출시 기준 변경 시"
 ---
 
@@ -244,6 +244,19 @@ review_trigger: "출시 기준 변경 시"
 
 위 완료 표시는 Issue #96 source/task evidence다. Actual production account/password/passkey/recovery code, Mac inventory, workflow dispatch·GHCR publish·release·deploy를 수행하지 않았다. Issue #97 Stage 0B와 Source Release/back-sync/exact-main 재검증 전에 Issue #95 Stage A를 시작하지 않는다.
 
+### Production initial-content Stage 0B source·task validation
+
+- [x] tracked structural schema와 exact manifest field/file/count/size/SHA-256, duplicate key·extra file·traversal·symlink·hard link 거부
+- [x] exact `--rhaomi.production-task=initial-content`, non-web context, controller·bootstrap·publisher loop·Flyway apply 0
+- [x] exactly one active admin·zero content/media/outbox/revision/generation과 empty canonical media를 transaction lock 뒤 재검증
+- [x] 기존 request/value-object/build validator와 media normalization 재사용, relation/audit server authority, 실제 소비 media checksum 재검증
+- [x] 전체 row·revision·immediate `PENDING` event 하나의 atomic commit, replay/concurrent commit 최대 1과 rollback media cleanup
+- [x] production Compose exact image·DB-only network·bundle RO·media RW·port/public/state/lock/backup/credential mount 0
+- [x] fixed Mac wrapper의 `STEADY_STATE`·exact SHA/digest·shared operation lock·writer physical exit/recovery, 불확실 시 own-lock 보존
+- [x] PostgreSQL/Flyway import 뒤 actual Build Snapshot V2 first-publication content 검증
+
+위 완료 표시는 synthetic source/task evidence다. Actual owner bundle 작성·commit·transport, production import, first publisher generation/current switch와 public ingress는 수행하지 않았다. #96·#97 Source Release/back-sync/exact-main 재검증 전에 Issue #95 Stage A를 시작하지 않는다.
+
 ## 보안·운영
 
 - [ ] HTTPS
@@ -255,6 +268,7 @@ review_trigger: "출시 기준 변경 시"
 - [ ] secrets scan
 - [ ] production session `Secure`, TLS와 관리자 WebAuthn/passkey 2차 인증·RP/private-key 경계 확인
 - [ ] exact released image의 fixed initial-admin invocation·zero-admin evidence·bounded non-sensitive result, 후속 passkey/recovery-code physical acceptance
+- [ ] exact released image의 fixed initial-content invocation, owner-approved bundle hash/count·pristine state·one pending event와 canonical first publication/current smoke
 - [ ] exact released image에서 bounded login rate-limit(process-global 10/2초, identifier 5/5분), generic 429·positive `Retry-After`, credential/service failure·concurrency·restart-reset 제한 확인
 - [ ] exact main SHA·immutable image·digest와 `latest` 부재
 - [ ] GitHub production environment 수동 승인과 고정 Tailscale deploy entrypoint

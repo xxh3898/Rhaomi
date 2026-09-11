@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -13,6 +14,7 @@ import kr.co.rhaomi.backend.publication.PublicationEventKind;
 import kr.co.rhaomi.backend.publication.PublicationRecorder;
 import kr.co.rhaomi.backend.publication.PublicationSourceType;
 import kr.co.rhaomi.backend.publication.ScheduledPublicationEvent;
+import kr.co.rhaomi.backend.publication.ScheduledPublicationSourceEvent;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -128,6 +130,31 @@ class PublicationRecorderIntegrationTests {
 
         assertEquals(0L, currentRevision());
         assertEquals(0, eventCount());
+    }
+
+    @Test
+    void should_shareOneRevisionForInitialImmediateAndScheduledEvents() {
+        var boundary = java.time.Instant.parse("2030-01-01T00:00:00.123456Z");
+        var noticeId = UUID.randomUUID();
+        var revision = new TransactionTemplate(transactionManager).execute(status ->
+                publicationRecorder.recordInitialPublication(
+                        PublicationSourceType.SHOP_SETTINGS,
+                        UUID.randomUUID(),
+                        List.of(new ScheduledPublicationSourceEvent(
+                                PublicationSourceType.NOTICE,
+                                noticeId,
+                                new ScheduledPublicationEvent(
+                                        PublicationEventKind.NOTICE_EXPIRES_AT_DUE,
+                                        boundary)))));
+
+        assertEquals(1L, revision);
+        assertEquals(1L, currentRevision());
+        assertEquals(2, eventCount());
+        assertEquals(
+                1,
+                jdbcTemplate.queryForObject(
+                        "SELECT COUNT(DISTINCT content_revision) FROM publishing_outbox",
+                        Integer.class));
     }
 
     private long currentRevision() {

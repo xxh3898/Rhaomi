@@ -2,6 +2,7 @@ package kr.co.rhaomi.backend.publication;
 
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -33,6 +34,42 @@ public class PublicationRecorder {
             validateSource(event, sourceType);
         }
 
+        var revision = allocateRevision();
+
+        if (contentChanged) {
+            insertImmediate(sourceType, sourceId, revision);
+        }
+        for (var event : events) {
+            insertScheduled(sourceType, sourceId, revision, event);
+        }
+        return revision;
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public long recordInitialPublication(
+            PublicationSourceType immediateSourceType,
+            UUID immediateSourceId,
+            List<ScheduledPublicationSourceEvent> scheduledEvents) {
+        Objects.requireNonNull(immediateSourceType, "immediateSourceType");
+        Objects.requireNonNull(immediateSourceId, "immediateSourceId");
+        var events = List.copyOf(Objects.requireNonNull(scheduledEvents, "scheduledEvents"));
+        for (var scheduled : events) {
+            validateSource(scheduled.event(), scheduled.sourceType());
+        }
+
+        var revision = allocateRevision();
+        insertImmediate(immediateSourceType, immediateSourceId, revision);
+        for (var scheduled : events) {
+            insertScheduled(
+                    scheduled.sourceType(),
+                    scheduled.sourceId(),
+                    revision,
+                    scheduled.event());
+        }
+        return revision;
+    }
+
+    private long allocateRevision() {
         var revision = jdbcTemplate.queryForObject(
                 """
                 UPDATE content_revision_state
@@ -43,13 +80,6 @@ public class PublicationRecorder {
                 Long.class);
         if (revision == null) {
             throw new IllegalStateException("Content revision allocation failed");
-        }
-
-        if (contentChanged) {
-            insertImmediate(sourceType, sourceId, revision);
-        }
-        for (var event : events) {
-            insertScheduled(sourceType, sourceId, revision, event);
         }
         return revision;
     }

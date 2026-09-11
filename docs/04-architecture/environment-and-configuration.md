@@ -3,7 +3,7 @@ title: "환경설정"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-10"
+last_updated: "2026-09-11"
 review_trigger: "환경변수·domain·version 변경 시"
 ---
 
@@ -115,6 +115,8 @@ acceptance PostgreSQL은 `/var/lib/postgresql` tmpfs를 사용하고 host port·
 | Fixed backup entrypoint | N | `/private/var/lib/rhaomi/app/bin/backup-rhaomi.sh`; repository path CLI override 금지 |
 | Fixed first-activation entrypoint | N | `/private/var/lib/rhaomi/app/bin/first-activate-rhaomi.sh`; `bootstrap|accept-recovery` fixed action과 exact SHA/digest만 허용 |
 | Fixed initial-admin entrypoint | N | `/private/var/lib/rhaomi/app/bin/provision-initial-admin-rhaomi.sh`; argument 0, interactive TTY-only credential, valid `STEADY_STATE`·exact current image만 허용 |
+| Fixed initial-content entrypoint | N | `/private/var/lib/rhaomi/app/bin/import-initial-content-rhaomi.sh`; argument 0, valid `STEADY_STATE`·exact current image·pristine content/media만 허용 |
+| Initial-content bundle root | Y 취급 | `/private/var/lib/rhaomi/state/initial-content`; owner-approved `manifest.json`·`content.json`·media, owner-only `0700/0600`, task에는 RO mount |
 | Fixed first-activation Compose | N | `/private/var/lib/rhaomi/app/compose.production.first-activation.yaml`; host port·production public/media bind 없는 recovery-only inventory |
 | Fixed HomeOps status entrypoint | N | `/private/var/lib/rhaomi/app/bin/status-rhaomi.py`; argument·public route 없음 |
 | Fixed HomeOps event adapter | N | `/private/var/lib/rhaomi/app/bin/report-rhaomi-event.py`; reporter/URL/Secret override 없음 |
@@ -144,6 +146,8 @@ production release manifest에는 exact `main` SHA, image tag·digest, Flyway ve
 | `/private/var/lib/rhaomi/state/publisher` | publisher `/var/lib/rhaomi/publisher` | RW |
 | `/private/var/lib/rhaomi/state/publisher/build-workspace` | publisher `/opt/rhaomi/source/.rhaomi-publication-work` | RW |
 | `/private/var/lib/rhaomi/state/locks` | publisher `/var/lib/rhaomi/locks` | RW |
+| `/private/var/lib/rhaomi/state/initial-content` | `initial-content` `/run/rhaomi-initial-content` | RO |
+| `/private/var/lib/rhaomi/data/media` | `initial-content` `/var/lib/rhaomi/media` | RW, fixed one-shot only |
 | provisioned `RHAOMI_BACKUP_REPOSITORY_ROOT` | `backup-tool` `/var/lib/rhaomi/backup-repository` | RW |
 | `/private/var/lib/rhaomi/state/deploy` | `backup-tool` `/var/lib/rhaomi/deploy-state` | RW |
 | provisioned `RHAOMI_BACKUP_REPOSITORY_ROOT` | `backup-verifier` `/var/lib/rhaomi/backup-repository` | RO |
@@ -232,13 +236,13 @@ image에는 production credential, domain, Mac host path를 bake하지 않는다
 | project Nginx | `infra/nginx/production.conf` |
 | runtime validator | `scripts/validate-production-compose.sh` |
 | default service inventory | `rhaomi-web`, `backend`, `publisher`, `postgres` |
-| opt-in one-shot inventory | `production-task` profile의 `migration`, `schema-validate`, `initial-admin`; `production-backup` profile의 network-disabled RW `backup-tool`과 read-only `backup-verifier`; 별도 first-activation Compose의 no-port verifier/tmpfs restore/backend/publisher/static smoke |
+| opt-in one-shot inventory | `production-task` profile의 `migration`, `schema-validate`, `initial-admin`, `initial-content`; `production-backup` profile의 network-disabled RW `backup-tool`과 read-only `backup-verifier`; 별도 first-activation Compose의 no-port verifier/tmpfs restore/backend/publisher/static smoke |
 | network | web 전용 non-internal `loopback-edge`; `web-backend`, `build-internal`, `data-internal`은 internal |
 | published port | `127.0.0.1:${RHAOMI_WEB_LOOPBACK_PORT}:8080`만 허용 |
 | external origin | redirect는 relative `Location`; backend forwarded origin은 config가 고정한 `https:443` |
 | DB persistence | Compose project-scoped `postgres-data`, container `/var/lib/postgresql` |
 
-base는 `RHAOMI_PRODUCTION_COMPOSE_PROJECT`, exact `RHAOMI_PRODUCTION_IMAGE`, loopback port, PostgreSQL credential, build service token, publisher owner, public site URL과 release metadata를 required input으로 받는다. actual 값은 repository나 `.env.example`에 두지 않는다. validation overlay만 `RHAOMI_PRODUCTION_VALIDATION_ROOT`, cleanup task/head를 받아 task temp bind와 one-shot service label seam을 추가한다. normal backend/publisher의 `SPRING_FLYWAY_ENABLED=false`, bootstrap 비활성과 secure session cookie는 overlay에서도 바뀌지 않는다. `initial-admin`은 DB credential 외의 WebAuthn/build/admin credential environment와 모든 mount·port를 갖지 않으며 email/password는 Compose/env/file이 아닌 interactive console에서만 받는다.
+base는 `RHAOMI_PRODUCTION_COMPOSE_PROJECT`, exact `RHAOMI_PRODUCTION_IMAGE`, loopback port, PostgreSQL credential, build service token, publisher owner, public site URL과 release metadata를 required input으로 받는다. actual 값은 repository나 `.env.example`에 두지 않는다. validation overlay만 `RHAOMI_PRODUCTION_VALIDATION_ROOT`, cleanup task/head를 받아 task temp bind와 one-shot service label seam을 추가한다. normal backend/publisher의 `SPRING_FLYWAY_ENABLED=false`, bootstrap 비활성과 secure session cookie는 overlay에서도 바뀌지 않는다. `initial-admin`은 DB credential 외의 WebAuthn/build/admin credential environment와 모든 mount·port를 갖지 않으며 email/password는 Compose/env/file이 아닌 interactive console에서만 받는다. `initial-content`는 DB credential 외 secret이 없고 bundle RO·canonical media RW 외 mount와 port가 없다.
 
 validator는 exact-HEAD production image를 재사용하고 Darwin에서는 `/private/var/tmp`, Hosted Linux에서는 runner temp에 marker root를 만든다. base `/private/var/lib/rhaomi`는 생성·수정하지 않는다. external형 synthetic Host의 `/admin` 요청이 `308`과 exact relative `Location: /admin/`을 반환하고 runtime loaded config가 client 입력이 아닌 `https:443`을 backend forwarded origin으로 사용하는지 확인한다. general `down`→`up` 뒤 task named-volume sentinel과 Flyway history를 확인하며 `down -v`, volume/image delete 또는 prune을 실행하지 않는다. task volume은 evidence와 함께 retained resource로 보고한다.
 
@@ -250,9 +254,10 @@ validator는 exact-HEAD production image를 재사용하고 Darwin에서는 `/pr
 - tracked `ops/production/deploy-rhaomi.sh`는 production에서 `/private/var/lib/rhaomi/app/bin/deploy-rhaomi.sh`로 versioned provisioning할 fixed wrapper다. fixed Compose/env/Docker config, backup eligibility와 global deploy lock를 검증하고 requested digest·OCI revision을 writer 정지 전에 확인한다.
 - tracked `ops/production/first-activate-rhaomi.sh`는 predecessor 없는 host의 별도 fixed wrapper다. mutation 전에 verified-empty absence matrix와 `FIRST_ACTIVATION_BOOTSTRAPPING` evidence를 고정하고, public web 없는 exact image bootstrap 뒤 `RECOVERY_ACCEPTANCE_REQUIRED`만 만든다. fixed `first-activation` backup과 별도 no-port recovery Compose의 full-read/restore acceptance가 성공한 뒤에만 `STEADY_STATE`를 원자 기록한다.
 - tracked `ops/production/provision-initial-admin-rhaomi.sh`는 `STEADY_STATE` 후의 최초 계정 fixed wrapper다. Lifecycle SHA/digest와 backend/publisher exact image를 확인하고 shared operation lock·writer physical exit 안에서 TTY-only non-web task를 호출한다. 계정·writer 복구 불확실 시 false success를 금지하고 lock을 보존한다.
+- tracked `ops/production/import-initial-content-rhaomi.sh`는 ADR-018의 owner-approved bundle fixed wrapper다. 같은 lifecycle/image/shared-lock/writer quiescence를 확인하고 argument·path override 없이 application import를 호출한다. Commit 뒤에는 `PENDING` publisher authority를 보존하며 task·writer 복구 불확실 시 false success를 금지한다.
 - tracked HomeOps integration inventory는 compatibility JSON, shared Python core와 status/event/recovery entrypoint를 같은 fixed bin root에 versioned provisioning한다. actual HomeOps reporter absolute path를 Rhaomi env에 저장하지 않고 OS account home 아래 current HomeOps runtime inventory와 pinned owner·mode·SHA를 검증한다. HomeOps endpoint/HMAC secret은 Rhaomi `production.env`, container environment와 CLI에 없다.
 - production backend/publisher 일반 기동은 Flyway mutation을 수행하지 않는다. global deploy lock을 보유한 채 public web을 유지하고 두 writer의 physical exit를 확인한 뒤에만 `migration`→`schema-validate`를 실행한다.
-- migration은 기존 V1~V9를 수정하지 않고 additive V10까지 적용한 뒤 JPA validate를 수행하며, schema task는 Flyway를 끈 채 JPA validate만 수행한다. `initial-admin`은 Flyway-disabled JPA validate 후 PostgreSQL transaction lock에서 zero-admin만 한 번 생성한다. 세 task는 exact CLI opt-in, non-web, 일반 admin bootstrap·publisher worker 0이고 성공 후 종료한다.
+- migration은 기존 V1~V9를 수정하지 않고 additive V10까지 적용한 뒤 JPA validate를 수행하며, schema task는 Flyway를 끈 채 JPA validate만 수행한다. `initial-admin`은 Flyway-disabled JPA validate 후 PostgreSQL transaction lock에서 zero-admin만 한 번 생성하고, `initial-content`는 같은 schema boundary에서 tracked bundle과 pristine content/media state를 검증한 뒤 application transaction만 수행한다. 네 task는 exact CLI opt-in, non-web, 일반 admin bootstrap·publisher worker 0이고 성공 후 종료한다.
 - writer maintenance 시작 뒤 migration/schema/backend health/publisher start/runtime image identity 실패는 false success를 금지하고 backend/publisher를 다시 정지한다. quiescence 확인 뒤에만 own lock을 해제하며 확인 실패 시 lock을 보존한다. old writer를 자동 resume하지 않는다.
 - production session cookie는 TLS에서 `Secure=true`가 아니면 기동을 실패시킨다.
 - 실제 Mac mini에서 canonical directory 생성·ownership·permission, public/media/state/build-workspace bind mount, publisher image source의 workspace 외 read-only와 PostgreSQL named volume identity를 검증한다.

@@ -3,7 +3,7 @@ title: "백업·복구"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-02"
+last_updated: "2026-09-11"
 review_trigger: "저장소·보존 정책 변경 시"
 ---
 
@@ -46,6 +46,8 @@ HomeOps `main@0a8ce9090c76f5ad7afba19ca896e923b96b0cbf`와 run `33569523762`에�
 - publisher 재처리 가능한 임시 artifact
 
 production project-scoped PostgreSQL named volume과 raw PGDATA file은 required backup input이 아니다. primary persistence는 named volume이 담당하지만 portable backup/restore authority는 `pg_dump -Fc`와 `pg_restore`다.
+
+ADR-018 initial-content bundle root는 import 입력·approval evidence이지 canonical backup authority가 아니다. Import commit 뒤 생성된 DB row와 `/private/var/lib/rhaomi/data/media` master는 기존 application-consistent backup 대상에 자동 포함된다. Actual first import/publication 전후 backup 시점과 bundle 원본 보존·폐기는 owner가 별도로 승인하며, bundle을 DB/media restore 대체물로 사용하지 않는다.
 
 ## 초기 local-only repository 계약
 

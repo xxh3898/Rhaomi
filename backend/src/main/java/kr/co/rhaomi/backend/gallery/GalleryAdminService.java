@@ -61,6 +61,19 @@ public class GalleryAdminService {
     }
 
     @Transactional
+    public GalleryResponse createPublishedForInitialImport(
+            GalleryUpdateRequest request, UUID actorId) {
+        Objects.requireNonNull(actorId, "actorId");
+        var values = GalleryValues.fromUpdate(request);
+        if (values.status() != ContentStatus.PUBLISHED) {
+            throw new GalleryPublishInvalidException();
+        }
+        validateRelations(values);
+        var saved = galleryRepository.saveAndFlush(GalleryItem.create(values, actorId));
+        return GalleryResponse.from(saved);
+    }
+
+    @Transactional
     public GalleryResponse update(UUID id, GalleryUpdateRequest request, UUID actorId) {
         Objects.requireNonNull(actorId, "actorId");
         var item = find(id);

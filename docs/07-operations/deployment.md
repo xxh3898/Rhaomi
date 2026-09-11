@@ -3,7 +3,7 @@ title: "배포"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-10"
+last_updated: "2026-09-11"
 review_trigger: "호스트·파이프라인 변경 시"
 ---
 
@@ -144,7 +144,21 @@ Durable cooldown은 30분이고 `FAILED`·`OUTCOME_UNKNOWN` no-auto-retry를 유
 4. `initial-admin` task가 PostgreSQL transaction lock 후 administrator count 0을 재확인하고 validated email과 BCrypt hash row 하나를 commit한다.
 5. Backend health, publisher running과 source image identity 복구 후에만 bounded non-sensitive success를 확정하고 lock을 해제한다.
 
-계정 생성은 passkey·recovery code 생성이 아니다. 후속 HTTPS Stage G에서 zero-passkey initial enrollment, password-only business API deny, recovery-code one-time issuance/offline custody를 검증하기 전에 production admin acceptance를 PASS로 표시하지 않는다. Issue #97 initial content import·first canonical publication도 별도 source/release gate다.
+계정 생성은 passkey·recovery code 생성이 아니다. 후속 HTTPS Stage G에서 zero-passkey initial enrollment, password-only business API deny, recovery-code one-time issuance/offline custody를 검증하기 전에 production admin acceptance를 PASS로 표시하지 않는다. Initial content import와 first canonical publication도 아래의 별도 source/operation gate다.
+
+## Production 초기 콘텐츠 단계
+
+이 단계는 ADR-018 source가 dev integration·Source Release·exact-main 재검증을 마치고, exactly one active admin과 owner-approved bundle transport가 별도로 승인된 뒤에만 실행한다.
+
+1. `/private/var/lib/rhaomi/app/bin/import-initial-content-rhaomi.sh`, tracked schemas, bundle root와 manifest/content/media의 owner·`0700/0600`·link count를 확인한다.
+2. Bundle approval SHA/count와 actual file SHA-256을 content 원문을 evidence에 복사하지 않고 교차 확인한다.
+3. Argument 없이 fixed wrapper를 실행한다. Wrapper가 `STEADY_STATE`, exact current image, shared operation lock과 backend/publisher physical exit를 확인한다.
+4. `initial-content` task가 transaction advisory lock 뒤 active admin 1명, DB/outbox/revision/generation zero와 empty canonical media를 재확인한다.
+5. Application validation/media normalization으로 전체 first-publication state를 commit하고 immediate `PENDING` event 하나를 남긴다. Future Notice expiry event는 별도 scheduled row일 수 있다.
+6. 동일 image backend health와 publisher running을 복구한 뒤에만 wrapper success와 자기 lock 해제를 확인한다.
+7. 기존 publisher가 generation을 claim하고 Build Snapshot V2→transformer→candidate validation→atomic first current→post-switch smoke→DB completion을 끝냈는지 별도 확인한다.
+
+Task commit 전 실패는 DB/content/media/outbox rollback과 새 media cleanup을 요구한다. Commit 뒤 publication 실패는 content와 pending event를 보존하고 `HOLD`로 전환하며 import를 다시 실행하거나 empty/synthetic release로 대체하지 않는다. Actual bundle import와 first release는 이 source PR 범위에서 실행하지 않는다.
 
 ## D-IMP-3 코드 image apply 단계
 

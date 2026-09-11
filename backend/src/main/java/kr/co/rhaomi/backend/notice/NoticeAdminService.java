@@ -66,6 +66,34 @@ public class NoticeAdminService {
     }
 
     @Transactional
+    public NoticeResponse createPublishedForInitialImport(
+            NoticeCreateRequest request, UUID actorId) {
+        Objects.requireNonNull(actorId, "actorId");
+        if (noticeRepository.existsBySlug(request.slug())) {
+            throw new SlugConflictException();
+        }
+        var notice = Notice.create(
+                request.title(),
+                request.slug(),
+                request.summary(),
+                request.bodyMarkdown(),
+                request.pinned(),
+                request.publishedAt(),
+                request.expiresAt(),
+                actorId);
+        notice.update(
+                ContentStatus.PUBLISHED,
+                request.title(),
+                request.summary(),
+                request.bodyMarkdown(),
+                Boolean.TRUE.equals(request.pinned()),
+                request.publishedAt(),
+                request.expiresAt(),
+                actorId);
+        return NoticeResponse.from(save(notice));
+    }
+
+    @Transactional
     public NoticeResponse update(UUID id, NoticeUpdateRequest request, UUID actorId) {
         Objects.requireNonNull(actorId, "actorId");
         var notice = find(id);

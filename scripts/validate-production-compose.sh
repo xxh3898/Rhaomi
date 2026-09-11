@@ -107,6 +107,7 @@ mkdir -p \
   "$validation_root/backup-repository/sets" \
   "$validation_root/restore-media" \
   "$validation_root/state/deploy" \
+  "$validation_root/state/initial-content/media" \
   "$validation_root/state/publisher" \
   "$validation_root/state/publisher/build-workspace" \
   "$validation_root/state/locks" \
@@ -116,6 +117,9 @@ chmod 700 \
   "$validation_root/backup-repository/sets" \
   "$validation_root/restore-media" \
   "$validation_root/state/deploy"
+chmod 700 \
+  "$validation_root/state/initial-content" \
+  "$validation_root/state/initial-content/media"
 printf '%s\n' rhaomi-backup-repository-v1 \
   >"$validation_root/backup-repository/.rhaomi-backup-repository"
 chmod 600 "$validation_root/backup-repository/.rhaomi-backup-repository"
@@ -140,6 +144,48 @@ printf '%s\n' \
   '{"schemaVersion":1,"contentRevision":"0","publishGeneration":"1","generatedAt":"2026-09-01T00:00:00Z"}' \
   >"$validation_root/public/releases/validation/release-manifest.json"
 ln -s "releases/validation/site" "$validation_root/public/current"
+
+cp "$repo_dir/backend/src/test/resources/media/synthetic-source.png" \
+  "$validation_root/state/initial-content/media/cover.png"
+cat >"$validation_root/state/initial-content/content.json" <<'JSON'
+{
+  "schemaVersion": 1,
+  "shopSettings": {
+    "shopName": "synthetic shop", "regionLabel": "validation", "businessType": "grooming",
+    "phone": "02-0000-0000", "address": "validation address", "openingTime": "10:00",
+    "closingTime": "19:00", "closedWeekday": "MONDAY", "parkingAvailable": true,
+    "parkingNote": null, "heroTitle": "synthetic hero", "heroDescription": "synthetic description",
+    "groomerName": "synthetic groomer", "groomerIntro": "synthetic intro",
+    "reservationNotice": "synthetic reservation", "heroMediaKey": "cover",
+    "heroImageAltText": "synthetic cover", "groomerMediaKey": null,
+    "groomerImageAltText": null, "ogMediaKey": "cover", "instagramUrl": null,
+    "naverBlogUrl": null, "naverMapUrl": null, "kakaoMapUrl": null,
+    "naverTalktalkUrl": null, "kakaoChannelUrl": null
+  },
+  "breeds": [{"key":"breed","name":"synthetic breed","slug":"synthetic-breed","description":"synthetic","sortOrder":1}],
+  "services": [{"key":"service","name":"synthetic service","slug":"synthetic-service","description":"synthetic","priceText":null,"sortOrder":1}],
+  "notices": [{"key":"notice","title":"synthetic notice","slug":"synthetic-notice","summary":"synthetic","bodyMarkdown":"synthetic body","pinned":false,"publishedAt":"2026-09-01T00:00:00Z","expiresAt":null}],
+  "galleryItems": [{"key":"gallery","dogName":"synthetic dog","breedKey":"breed","primaryServiceKey":"service","coverMediaKey":"cover","beforeMediaKey":null,"afterMediaKey":null,"summary":"synthetic","altText":"synthetic dog","featured":true,"sortOrder":1,"performedAt":"2026-09-01T00:00:00Z","publishedAt":"2026-09-01T00:00:00Z"}]
+}
+JSON
+initial_content_path="$validation_root/state/initial-content/content.json"
+initial_media_path="$validation_root/state/initial-content/media/cover.png"
+initial_content_size=$(wc -c <"$initial_content_path" | tr -d '[:space:]')
+initial_media_size=$(wc -c <"$initial_media_path" | tr -d '[:space:]')
+initial_content_sha=$(openssl dgst -sha256 "$initial_content_path" | awk '{print $NF}')
+initial_media_sha=$(openssl dgst -sha256 "$initial_media_path" | awk '{print $NF}')
+cat >"$validation_root/state/initial-content/manifest.json" <<JSON
+{
+  "schemaVersion": 1,
+  "content": {"path":"content.json","byteSize":${initial_content_size},"sha256":"${initial_content_sha}"},
+  "media": [{"key":"cover","path":"media/cover.png","contentType":"image/png","byteSize":${initial_media_size},"sha256":"${initial_media_sha}"}],
+  "counts": {"shopSettings":1,"media":1,"breeds":1,"services":1,"notices":1,"galleryItems":1}
+}
+JSON
+chmod 600 \
+  "$validation_root/state/initial-content/manifest.json" \
+  "$initial_content_path" \
+  "$initial_media_path"
 
 build_token=$(openssl rand -hex 32)
 postgres_password=$(openssl rand -hex 24)
@@ -223,6 +269,8 @@ docker run --rm --network none \
 
 sh "$repo_dir/scripts/validate-production-initial-admin.sh" \
   >"$evidence_dir/production-initial-admin-control.txt"
+sh "$repo_dir/scripts/validate-production-initial-content.sh" \
+  >"$evidence_dir/production-initial-content-control.txt"
 
 compose_started=true
 verify_backup_verifier_read_only_boundary
@@ -245,6 +293,7 @@ if compose_validation run --rm --no-deps schema-validate \
   exit 1
 fi
 verify_initial_admin_runtime_boundary
+verify_initial_content_runtime_boundary
 
 compose_runtime up --detach rhaomi-web backend publisher postgres >/dev/null
 wait_healthy postgres 90
@@ -313,6 +362,12 @@ verify_http_contract
 compose_runtime down --remove-orphans >/dev/null
 verify_no_task_containers_or_networks
 verify_preexisting_resources_preserved
+if [ "$validation_bind_ownership_prepared" = true ]; then
+  restore_linux_bind_ownership
+else
+  verify_initial_content_validation_fixture \
+    "$validation_host_uid" "$validation_host_gid"
+fi
 
 printf '%s\n' \
   "contract=production-compose-v1" \
@@ -334,8 +389,14 @@ printf '%s\n' \
   "oneShotMigration=true" \
   "oneShotSchemaValidation=true" \
   "oneShotInitialAdmin=true" \
+  "oneShotInitialContent=true" \
   "initialAdminCredentialIsolation=verified" \
   "initialAdminNonInteractiveMutation=0" \
+  "initialContentBundleReadOnly=true" \
+  "initialContentMediaReadWrite=true" \
+  "initialContentFixtureModes=directories-0700-files-0600" \
+  "initialContentFixtureOwnershipRestored=true" \
+  "initialContentPristineAuthorityMutation=0" \
   "oneShotHttpListener=false" \
   "writerQuiescenceBeforeMigration=true" \
   "publicStaticDuringMaintenance=200" \
@@ -414,17 +475,61 @@ wait_healthy() {
 
 prepare_linux_bind_ownership() {
   if [ "$(uname -s)" != Linux ]; then
+    verify_initial_content_validation_fixture \
+      "$validation_host_uid" "$validation_host_gid"
     return 0
   fi
 
-  run_bind_ownership_helper prepare
   validation_bind_ownership_prepared=true
+  run_bind_ownership_helper prepare
   validation_bind_ownership_mode=docker-helper-root-owned
 }
 
 restore_linux_bind_ownership() {
   run_bind_ownership_helper restore
+  verify_initial_content_validation_fixture \
+    "$validation_host_uid" "$validation_host_gid"
   validation_bind_ownership_prepared=false
+}
+
+verify_initial_content_validation_fixture() {
+  initial_content_expected_uid=$1
+  initial_content_expected_gid=$2
+
+  for initial_content_directory in \
+    "$validation_root/state/initial-content" \
+    "$validation_root/state/initial-content/media"; do
+    initial_content_identity=$(validation_path_identity \
+      "$initial_content_directory")
+    if [ "$initial_content_identity" != \
+      "${initial_content_expected_uid}:${initial_content_expected_gid}:700" ]; then
+      echo "initial-content validation directory ownership/mode가 다릅니다." >&2
+      exit 1
+    fi
+  done
+
+  for initial_content_file in \
+    "$validation_root/state/initial-content/manifest.json" \
+    "$validation_root/state/initial-content/content.json" \
+    "$validation_root/state/initial-content/media/cover.png"; do
+    initial_content_identity=$(validation_path_identity "$initial_content_file")
+    if [ "$initial_content_identity" != \
+      "${initial_content_expected_uid}:${initial_content_expected_gid}:600" ]; then
+      echo "initial-content validation file ownership/mode가 다릅니다." >&2
+      exit 1
+    fi
+  done
+}
+
+validation_path_identity() {
+  case "$(uname -s)" in
+    Darwin) stat -f '%u:%g:%Lp' "$1" ;;
+    Linux) stat -c '%u:%g:%a' "$1" ;;
+    *)
+      echo "지원하지 않는 validation host입니다." >&2
+      exit 1
+      ;;
+  esac
 }
 
 run_bind_ownership_helper() {
@@ -446,18 +551,41 @@ run_bind_ownership_helper() {
     --volume "$validation_root/data/media:/validation/media" \
     --volume "$validation_root/state/publisher:/validation/publisher" \
     --volume "$validation_root/state/locks:/validation/locks" \
+    --volume "$validation_root/state/initial-content:/validation/initial-content" \
     "$production_image" \
     sh -ec '
+      assert_initial_content_identity() {
+        expected_uid=$1
+        expected_gid=$2
+        for directory in \
+          /validation/initial-content \
+          /validation/initial-content/media; do
+          [ "$(stat -c "%u:%g:%a" "$directory")" = \
+            "${expected_uid}:${expected_gid}:700" ] || exit 65
+        done
+        for file in \
+          /validation/initial-content/manifest.json \
+          /validation/initial-content/content.json \
+          /validation/initial-content/media/cover.png; do
+          [ "$(stat -c "%u:%g:%a" "$file")" = \
+            "${expected_uid}:${expected_gid}:600" ] || exit 65
+        done
+      }
+
       case "$1" in
         prepare)
           chown 0:0 /validation/public /validation/media /validation/publisher \
             /validation/publisher/build-workspace /validation/locks
+          chown -R 0:0 /validation/initial-content
           chmod 0755 /validation/public
           chmod 0750 /validation/media /validation/publisher \
             /validation/publisher/build-workspace /validation/locks
+          assert_initial_content_identity 0 0
           ;;
         restore)
-          chown -R "$2:$3" /validation/public /validation/media /validation/publisher /validation/locks
+          chown -R "$2:$3" /validation/public /validation/media \
+            /validation/publisher /validation/locks /validation/initial-content
+          assert_initial_content_identity "$2" "$3"
           ;;
         *) exit 64 ;;
       esac
@@ -612,6 +740,177 @@ verify_initial_admin_runtime_boundary() {
     echo "inspect용 initial-admin container 제거를 확인할 수 없습니다." >&2
     exit 1
   fi
+}
+
+verify_initial_content_runtime_boundary() {
+  content_state_before=$(initial_content_database_state)
+  media_state_before=$(runtime_media_content_digest)
+  initial_content_expected_code=INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID
+  initial_content_raw_output="$validation_root/raw/initial-content-pristine-authority.txt"
+
+  compose_validation create --no-build initial-content >/dev/null
+  initial_content_id=$(compose_validation ps --all --quiet initial-content)
+  [ -n "$initial_content_id" ] || {
+    echo "initial-content one-shot container를 inspect할 수 없습니다." >&2
+    exit 1
+  }
+
+  [ "$(docker inspect "$initial_content_id" --format '{{.HostConfig.ReadonlyRootfs}}')" = true ]
+  initial_content_ports=$(docker inspect "$initial_content_id" --format '{{json .HostConfig.PortBindings}}')
+  [ "$initial_content_ports" = "{}" ] || [ "$initial_content_ports" = "null" ]
+  [ "$(docker inspect "$initial_content_id" --format '{{json .Config.Cmd}}')" = \
+    '["java","-jar","/opt/rhaomi/backend.jar","--rhaomi.production-task=initial-content"]' ]
+  assert_mounts "$initial_content_id" \
+    "/run/rhaomi-initial-content:false /var/lib/rhaomi/media:true"
+  assert_networks "$initial_content_id" "${project_name}_data-internal"
+
+  if docker inspect "$initial_content_id" \
+    --format '{{range .Config.Env}}{{println .}}{{end}}{{json .Config.Cmd}}' |
+    grep -Eq \
+      'RHAOMI_(INITIAL_ADMIN|BOOTSTRAP_ADMIN)_(EMAIL|PASSWORD)|RHAOMI_(WEBAUTHN_RP|BUILD_SERVICE_TOKEN)|BUILD_API_CREDENTIAL'; then
+    echo "initial-content container에 미허용 credential 경계가 있습니다." >&2
+    exit 1
+  fi
+
+  initial_content_non_zero=true
+  if compose_validation run --rm --no-deps initial-content \
+    >"$initial_content_raw_output" 2>&1; then
+    initial_content_non_zero=false
+  fi
+  initial_content_observed_codes=$(collect_initial_content_failure_codes \
+    "$initial_content_raw_output")
+  initial_content_credential_leak=false
+  if grep -Fq "$postgres_password" \
+    "$initial_content_raw_output" ||
+    grep -Fq "$build_token" \
+      "$initial_content_raw_output"; then
+    initial_content_credential_leak=true
+  fi
+
+  content_state_after=$(initial_content_database_state)
+  media_state_after=$(runtime_media_content_digest)
+  initial_content_database_mutation_zero=false
+  initial_content_media_mutation_zero=false
+  if [ "$content_state_after" = "$content_state_before" ]; then
+    initial_content_database_mutation_zero=true
+  fi
+  if [ "$media_state_after" = "$media_state_before" ]; then
+    initial_content_media_mutation_zero=true
+  fi
+
+  write_initial_content_pristine_authority_evidence \
+    "$initial_content_expected_code" \
+    "$initial_content_observed_codes" \
+    "$initial_content_non_zero" \
+    "$initial_content_database_mutation_zero" \
+    "$initial_content_media_mutation_zero"
+
+  if [ "$initial_content_non_zero" != true ]; then
+    echo "admin authority가 없는 initial-content task가 성공했습니다." >&2
+    exit 1
+  fi
+  if [ "$initial_content_credential_leak" = true ]; then
+    echo "initial-content stdout/stderr에 credential이 노출됐습니다." >&2
+    exit 1
+  fi
+  if [ "$initial_content_observed_codes" != "$initial_content_expected_code" ]; then
+    echo "initial-content failure code가 expectedCode와 다릅니다. sanitized evidence를 확인하십시오." >&2
+    exit 1
+  fi
+  if [ "$initial_content_database_mutation_zero" != true ] ||
+    [ "$initial_content_media_mutation_zero" != true ]; then
+    echo "initial-content pristine authority fail-close가 mutation 0을 보장하지 못했습니다." >&2
+    exit 1
+  fi
+
+  if ! docker container rm "$initial_content_id" >/dev/null; then
+    echo "inspect용 initial-content container를 제거하지 못했습니다." >&2
+    exit 1
+  fi
+  if docker container inspect "$initial_content_id" >/dev/null 2>&1; then
+    echo "inspect용 initial-content container 제거를 확인할 수 없습니다." >&2
+    exit 1
+  fi
+}
+
+collect_initial_content_failure_codes() {
+  initial_content_failure_output=$1
+  LC_ALL=C grep -Eo 'INITIAL_CONTENT_[A-Z0-9_]+' \
+    "$initial_content_failure_output" | LC_ALL=C sort -u || true
+}
+
+write_initial_content_pristine_authority_evidence() {
+  initial_content_evidence_expected_code=$1
+  initial_content_evidence_observed_codes=$2
+  initial_content_evidence_non_zero=$3
+  initial_content_evidence_database_mutation_zero=$4
+  initial_content_evidence_media_mutation_zero=$5
+  initial_content_evidence_file="$evidence_dir/production-initial-content-pristine-authority.json"
+  initial_content_evidence_temporary="${initial_content_evidence_file}.tmp"
+
+  {
+    printf '%s\n' '{'
+    printf '  "contract": "rhaomi-initial-content-pristine-authority-v1",\n'
+    printf '  "expectedCode": "%s",\n' "$initial_content_evidence_expected_code"
+    printf '  "observedCodes": ['
+    initial_content_evidence_separator=
+    if [ -n "$initial_content_evidence_observed_codes" ]; then
+      printf '%s\n' "$initial_content_evidence_observed_codes" |
+        while IFS= read -r initial_content_evidence_code; do
+          [ -n "$initial_content_evidence_code" ] || continue
+          printf '%s"%s"' \
+            "$initial_content_evidence_separator" \
+            "$initial_content_evidence_code"
+          initial_content_evidence_separator=', '
+        done
+    fi
+    printf '],\n'
+    printf '  "nonZeroExit": %s,\n' "$initial_content_evidence_non_zero"
+    printf '  "databaseMutationZero": %s,\n' \
+      "$initial_content_evidence_database_mutation_zero"
+    printf '  "mediaMutationZero": %s\n' \
+      "$initial_content_evidence_media_mutation_zero"
+    printf '%s\n' '}'
+  } >"$initial_content_evidence_temporary"
+  chmod 600 "$initial_content_evidence_temporary"
+  mv "$initial_content_evidence_temporary" "$initial_content_evidence_file"
+}
+
+runtime_media_content_digest() {
+  docker run --rm --network none --read-only \
+    --user 0:0 \
+    --security-opt no-new-privileges=true \
+    --cap-drop ALL \
+    --label io.homeserver.cleanup.environment=development \
+    --label io.homeserver.cleanup.project=rhaomi \
+    --label "io.homeserver.cleanup.task=${cleanup_task}" \
+    --label io.homeserver.cleanup.lifecycle=task \
+    --label io.homeserver.cleanup.retain=false \
+    --label "io.homeserver.cleanup.git-head=${git_head}" \
+    --volume "$validation_root/data/media:/validation/media:ro" \
+    "$production_image" \
+    sh -ec '
+      find /validation/media -type f -print | LC_ALL=C sort |
+        while IFS= read -r digest_file; do
+          printf "%s " "${digest_file#/validation/media/}"
+          openssl dgst -sha256 "$digest_file" | awk "{print \$NF}"
+        done |
+        openssl dgst -sha256 | awk "{print \$NF}"
+    '
+}
+
+initial_content_database_state() {
+  database_query \
+    "SELECT CONCAT_WS('|',
+      (SELECT COUNT(*) FROM shop_settings),
+      (SELECT COUNT(*) FROM breeds),
+      (SELECT COUNT(*) FROM services),
+      (SELECT COUNT(*) FROM notices),
+      (SELECT COUNT(*) FROM gallery_items),
+      (SELECT COUNT(*) FROM media_assets),
+      (SELECT COUNT(*) FROM publishing_outbox),
+      (SELECT content_revision FROM content_revision_state WHERE singleton_key = 1),
+      (SELECT publish_generation FROM publish_generation_state WHERE singleton_key = 1));"
 }
 
 directory_content_digest() {

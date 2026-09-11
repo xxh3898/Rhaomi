@@ -3,13 +3,21 @@ title: "콘텐츠 운영 런북"
 status: "proposed"
 owner: "은총쌤"
 reviewers: "조치호"
-last_updated: "2026-08-29"
+last_updated: "2026-09-11"
 review_trigger: "관리자 UI·API·field 변경 시"
 ---
 
 # 콘텐츠 운영 런북
 
-> `/admin` UI와 콘텐츠 CRUD는 아직 구현되지 않았다. 아래 절차는 후속 기능의 운영 수용 기준이며 실제 화면이 생기면 route·label·오류 흐름을 다시 검증한다.
+> `/admin` UI와 콘텐츠 CRUD source는 구현됐지만 production domain/account/content는 아직 provision하지 않았다. 아래 절차는 actual HTTPS와 운영자 physical acceptance 뒤에만 사용한다.
+
+## 최초 콘텐츠 bundle
+
+- 실제 최초 데이터는 ADR-018 tracked schema로 작성하되 owner가 NAP·영업정보·문구·링크·사진과 게시 권리를 검토한 별도 bundle만 사용한다.
+- Repository, Issue/PR comment, CI artifact나 일반 채팅에 actual bundle·media 원본을 올리지 않는다. Exact transport/provisioning은 별도 승인 전 실행하지 않는다.
+- Manifest schema/version, exact file/count/size/SHA-256와 owner approval을 확인하고 fixed zero-argument entrypoint만 사용한다.
+- Initial import는 exactly one active admin과 pristine DB/media에서 한 번만 허용한다. 실패했다고 bundle을 자동 재실행하거나 raw SQL로 보완하지 않는다.
+- Commit 성공 뒤 public release가 실패하면 content와 pending event를 보존하고 `HOLD`로 보고한다. 기존 publisher의 별도 authorized recovery가 성공하기 전 공개 완료로 표시하지 않는다.
 
 ## 로그인
 

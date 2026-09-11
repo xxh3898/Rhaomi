@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -8,6 +10,14 @@ const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 async function source(path) {
   return readFile(join(projectRoot, path), "utf8");
+}
+
+function shellFunction(script, name) {
+  const match = script.match(
+    new RegExp(`^${name}\\(\\) \\{\\n([\\s\\S]*?)^\\}$`, "mu"),
+  );
+  assert.ok(match, `${name} shell function이 필요합니다.`);
+  return `${name}() {\n${match[1]}}`;
 }
 
 function serviceBlock(compose, service, nextService) {
@@ -36,7 +46,8 @@ test("production Compose가 external same-image와 최소 service topology를 �
   const publisher = serviceBlock(compose, "publisher", "migration");
   const migration = serviceBlock(compose, "migration", "schema-validate");
   const schemaValidate = serviceBlock(compose, "schema-validate", "initial-admin");
-  const initialAdmin = serviceBlock(compose, "initial-admin", "backup-tool");
+  const initialAdmin = serviceBlock(compose, "initial-admin", "initial-content");
+  const initialContent = serviceBlock(compose, "initial-content", "backup-tool");
   const backupTool = serviceBlock(compose, "backup-tool", "backup-verifier");
   const backupVerifier = serviceBlock(compose, "backup-verifier", "postgres");
   const postgres = serviceBlock(compose, "postgres");
@@ -56,6 +67,7 @@ test("production Compose가 external same-image와 최소 service topology를 �
           "migration:",
           "schema-validate:",
           "initial-admin:",
+          "initial-content:",
           "backup-tool:",
           "backup-verifier:",
           "postgres:",
@@ -68,6 +80,7 @@ test("production Compose가 external same-image와 최소 service topology를 �
       "migration:",
       "schema-validate:",
       "initial-admin:",
+      "initial-content:",
       "backup-tool:",
       "backup-verifier:",
       "postgres:",
@@ -91,7 +104,7 @@ test("production Compose가 external same-image와 최소 service topology를 �
   assert.match(web, /user: "101:101"/u);
   assert.match(web, /homeops\.managed: "true"/u);
   assert.doesNotMatch(
-    `${backend}\n${publisher}\n${migration}\n${schemaValidate}\n${initialAdmin}\n${backupTool}\n${backupVerifier}\n${postgres}`,
+    `${backend}\n${publisher}\n${migration}\n${schemaValidate}\n${initialAdmin}\n${initialContent}\n${backupTool}\n${backupVerifier}\n${postgres}`,
     /homeops\.managed/u,
   );
   assert.match(web, /\/var\/cache\/nginx:rw,noexec,nosuid,size=64m,uid=101,gid=101,mode=0750/u);
@@ -101,7 +114,10 @@ test("production Compose가 external same-image와 최소 service topology를 �
   );
 
   assert.match(web, /127\.0\.0\.1:\$\{RHAOMI_WEB_LOOPBACK_PORT:\?[^}]+\}:8080/u);
-  assert.doesNotMatch(`${backend}\n${publisher}\n${initialAdmin}\n${postgres}`, /ports:/u);
+  assert.doesNotMatch(
+    `${backend}\n${publisher}\n${initialAdmin}\n${initialContent}\n${postgres}`,
+    /ports:/u,
+  );
   assert.match(web, /source: \/private\/var\/lib\/rhaomi\/public[\s\S]*target: \/srv\/rhaomi\/public[\s\S]*read_only: true/u);
   assert.match(backend, /source: \/private\/var\/lib\/rhaomi\/data\/media[\s\S]*target: \/var\/lib\/rhaomi\/media/u);
   assert.match(publisher, /source: \/private\/var\/lib\/rhaomi\/public[\s\S]*target: \/srv\/rhaomi\/public/u);
@@ -146,6 +162,28 @@ test("production Compose가 external same-image와 최소 service topology를 �
     initialAdmin,
     /volumes:|RHAOMI_(?:INITIAL_ADMIN|BOOTSTRAP_ADMIN)_(?:EMAIL|PASSWORD)|RHAOMI_WEBAUTHN|BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN/u,
   );
+  assert.match(initialContent, /profiles: \["production-task"\]/u);
+  assert.match(initialContent, /--rhaomi\.production-task=initial-content/u);
+  assert.match(initialContent, /SPRING_FLYWAY_ENABLED: "false"/u);
+  assert.match(initialContent, /SPRING_JPA_HIBERNATE_DDL_AUTO: validate/u);
+  assert.match(initialContent, /RHAOMI_BOOTSTRAP_ADMIN_ENABLED: "false"/u);
+  assert.match(initialContent, /read_only: true/u);
+  assert.match(initialContent, /cap_drop: \["ALL"\]/u);
+  assert.doesNotMatch(initialContent, /cap_add:|^\s+user:/mu);
+  assert.match(initialContent, /no-new-privileges:true/u);
+  assert.match(initialContent, /networks:\s*\n\s+- data-internal/u);
+  assert.match(
+    initialContent,
+    /source: \/private\/var\/lib\/rhaomi\/state\/initial-content[\s\S]*target: \/run\/rhaomi-initial-content[\s\S]*read_only: true/u,
+  );
+  assert.match(
+    initialContent,
+    /source: \/private\/var\/lib\/rhaomi\/data\/media[\s\S]*target: \/var\/lib\/rhaomi\/media/u,
+  );
+  assert.doesNotMatch(
+    initialContent,
+    /RHAOMI_(?:INITIAL_ADMIN|BOOTSTRAP_ADMIN)_(?:EMAIL|PASSWORD)|RHAOMI_WEBAUTHN|BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN|\/srv\/rhaomi\/public|\/var\/lib\/rhaomi\/(?:publisher|locks|backup-repository|deploy-state)|docker\.sock/u,
+  );
   assert.match(backupTool, /profiles: \["production-backup"\]/u);
   assert.match(backupVerifier, /profiles: \["production-backup"\]/u);
   assert.match(backupVerifier, /entrypoint: \["\/usr\/local\/bin\/rhaomi-backup-verifier"\]/u);
@@ -167,7 +205,7 @@ test("production Compose가 external same-image와 최소 service topology를 �
   assert.doesNotMatch(web, /BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN|POSTGRES_PASSWORD/u);
   assert.doesNotMatch(postgres, /BUILD_API_CREDENTIAL|RHAOMI_BUILD_SERVICE_TOKEN/u);
   assert.doesNotMatch(
-    `${web}\n${publisher}\n${initialAdmin}\n${postgres}`,
+    `${web}\n${publisher}\n${initialAdmin}\n${initialContent}\n${postgres}`,
     /RHAOMI_WEBAUTHN_(?:RP_ID|ORIGIN|RP_NAME)/u,
   );
 
@@ -226,6 +264,11 @@ test("validation overlay가 task temp source와 one-shot service label만 덮어
   assert.match(overlay, /migration:[\s\S]*labels: \*validation-labels/u);
   assert.match(overlay, /schema-validate:[\s\S]*labels: \*validation-labels/u);
   assert.match(overlay, /initial-admin:[\s\S]*labels: \*validation-labels/u);
+  assert.match(overlay, /initial-content:[\s\S]*labels: \*validation-labels/u);
+  assert.match(
+    overlay,
+    /initial-content:[\s\S]*state\/initial-content[\s\S]*target: \/run\/rhaomi-initial-content[\s\S]*read_only: true[\s\S]*data\/media[\s\S]*target: \/var\/lib\/rhaomi\/media/u,
+  );
   assert.match(overlay, /backup-verifier:[\s\S]*labels: \*validation-labels/u);
   assert.match(
     overlay,
@@ -237,9 +280,10 @@ test("validation overlay가 task temp source와 one-shot service label만 덮어
 });
 
 test("provisioning validator가 persistence·runtime 경계와 non-destructive cleanup을 검증한다", async () => {
-  const [entrypoint, contract] = await Promise.all([
+  const [entrypoint, contract, initialContentControl] = await Promise.all([
     source("scripts/validate-production-compose.sh"),
     source("scripts/validate-production-compose-contract.mjs"),
+    source("scripts/validate-production-initial-content.sh"),
   ]);
 
   assert.match(entrypoint, /git -C .* rev-parse HEAD/u);
@@ -252,6 +296,66 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(entrypoint, /run --rm --no-deps migration/u);
   assert.match(entrypoint, /run --rm --no-deps schema-validate/u);
   assert.match(entrypoint, /verify_initial_admin_runtime_boundary/u);
+  assert.match(entrypoint, /validate-production-initial-content\.sh/u);
+  assert.match(entrypoint, /verify_initial_content_runtime_boundary/u);
+  assert.match(entrypoint, /run --rm --no-deps initial-content/u);
+  assert.match(entrypoint, /INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID/u);
+  assert.match(entrypoint, /initialContentPristineAuthorityMutation=0/u);
+  assert.match(
+    entrypoint,
+    /grep -Eo 'INITIAL_CONTENT_\[A-Z0-9_\]\+'/u,
+  );
+  assert.match(
+    entrypoint,
+    /initial_content_evidence_file="\$evidence_dir\/production-initial-content-pristine-authority\.json"/u,
+  );
+  assert.doesNotMatch(
+    entrypoint,
+    /(?:cp|mv)[^\n]*initial-content-pristine-authority\.txt[^\n]*\$evidence_dir/u,
+  );
+  const initialContentBoundaryMatch = entrypoint.match(
+    /verify_initial_content_runtime_boundary\(\) \{\n([\s\S]*?)\n\}/u,
+  );
+  assert.ok(initialContentBoundaryMatch);
+  const initialContentBoundary = initialContentBoundaryMatch[1];
+  const initialContentMutationCheckIndex = initialContentBoundary.indexOf(
+    "initial-content pristine authority fail-close가 mutation 0을 보장하지 못했습니다.",
+  );
+  const initialContentEvidenceIndex = initialContentBoundary.indexOf(
+    "write_initial_content_pristine_authority_evidence",
+  );
+  const initialContentCodeMismatchIndex = initialContentBoundary.indexOf(
+    "initial-content failure code가 expectedCode와 다릅니다.",
+  );
+  const initialContentRemovalIndex = initialContentBoundary.indexOf(
+    'docker container rm "$initial_content_id"',
+  );
+  const initialContentAbsenceIndex = initialContentBoundary.indexOf(
+    'docker container inspect "$initial_content_id"',
+  );
+  assert.ok(initialContentMutationCheckIndex >= 0);
+  assert.ok(initialContentEvidenceIndex >= 0);
+  assert.ok(initialContentCodeMismatchIndex > initialContentEvidenceIndex);
+  assert.ok(initialContentMutationCheckIndex > initialContentEvidenceIndex);
+  assert.ok(initialContentRemovalIndex > initialContentMutationCheckIndex);
+  assert.ok(initialContentAbsenceIndex > initialContentRemovalIndex);
+  assert.match(
+    initialContentBoundary,
+    /media_state_before=\$\(runtime_media_content_digest\)[\s\S]*media_state_after=\$\(runtime_media_content_digest\)/u,
+  );
+  const runtimeMediaDigestMatch = entrypoint.match(
+    /runtime_media_content_digest\(\) \{\n([\s\S]*?)\n\}/u,
+  );
+  assert.ok(runtimeMediaDigestMatch);
+  const runtimeMediaDigest = runtimeMediaDigestMatch[1];
+  assert.match(runtimeMediaDigest, /--network none --read-only/u);
+  assert.match(runtimeMediaDigest, /--user 0:0/u);
+  assert.match(runtimeMediaDigest, /--cap-drop ALL/u);
+  assert.match(
+    runtimeMediaDigest,
+    /--volume "\$validation_root\/data\/media:\/validation\/media:ro"/u,
+  );
+  assert.match(runtimeMediaDigest, /find \/validation\/media -type f/u);
   assert.match(entrypoint, /compose_validation create --no-build initial-admin/u);
   assert.doesNotMatch(
     entrypoint,
@@ -290,6 +394,49 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(entrypoint, /REDACTED_BUILD_TOKEN/u);
   assert.match(entrypoint, /prepare_linux_bind_ownership/u);
   assert.match(entrypoint, /restore_linux_bind_ownership/u);
+  assert.match(
+    entrypoint,
+    /verify_initial_content_validation_fixture \\\n+\s+"\$validation_host_uid" "\$validation_host_gid"/u,
+  );
+  assert.match(
+    entrypoint,
+    /--volume "\$validation_root\/state\/initial-content:\/validation\/initial-content"/u,
+  );
+  assert.match(entrypoint, /chown -R 0:0 \/validation\/initial-content/u);
+  assert.match(
+    entrypoint,
+    /chown -R "\$2:\$3"[\s\S]*\/validation\/initial-content/u,
+  );
+  assert.match(
+    entrypoint,
+    /validation_bind_ownership_prepared=true\n\s+run_bind_ownership_helper prepare/u,
+  );
+  assert.match(entrypoint, /assert_initial_content_identity 0 0/u);
+  assert.match(
+    entrypoint,
+    /assert_initial_content_identity "\$2" "\$3"/u,
+  );
+  assert.match(
+    entrypoint,
+    /stat -c "%u:%g:%a" "\$directory"[\s\S]*:700/u,
+  );
+  assert.match(
+    entrypoint,
+    /stat -c "%u:%g:%a" "\$file"[\s\S]*:600/u,
+  );
+  const ownershipHelperMatch = entrypoint.match(
+    /run_bind_ownership_helper\(\) \{\n([\s\S]*?)\n\}/u,
+  );
+  assert.ok(ownershipHelperMatch);
+  assert.doesNotMatch(
+    ownershipHelperMatch[1],
+    /chmod[^\n]*initial-content/u,
+  );
+  assert.match(
+    entrypoint,
+    /initialContentFixtureModes=directories-0700-files-0600/u,
+  );
+  assert.match(entrypoint, /initialContentFixtureOwnershipRestored=true/u);
   assert.match(entrypoint, /docker run --rm --network none --read-only/u);
   assert.match(entrypoint, /--user 0:0/u);
   assert.match(entrypoint, /--security-opt no-new-privileges=true/u);
@@ -342,6 +489,90 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(contract, /assert\.notEqual\([\s\S]*create_host_path/u);
   assert.match(contract, /postgres-data/u);
   assert.match(contract, /BUILD_API_CREDENTIAL/u);
+
+  assert.match(initialContentControl, /validate_task_failure_recovery/u);
+  assert.match(initialContentControl, /validate_recovery_failure_lock_hold/u);
+  assert.match(initialContentControl, /validate_bundle_boundary_fail_closed/u);
+  assert.match(initialContentControl, /group-readable-file/u);
+  assert.match(initialContentControl, /symbolic-link/u);
+  assert.match(initialContentControl, /hard-link/u);
+  assert.match(
+    initialContentControl,
+    /--profile production-task run --rm --no-deps initial-content/u,
+  );
+  assert.match(initialContentControl, /INITIAL_CONTENT_SOURCE_IDENTITY_INVALID/u);
+  assert.match(initialContentControl, /INITIAL_CONTENT_WRITER_RECOVERY_FAILED/u);
+  assert.doesNotMatch(
+    initialContentControl,
+    /down -v|docker (?:system|container|volume|image|network) prune|docker (?:volume|image) rm/u,
+  );
+});
+
+test("initial-content failure evidence가 raw cleanup 뒤 sanitized artifact로 남는다", async (context) => {
+  const entrypoint = await source("scripts/validate-production-compose.sh");
+  const temporaryRoot = await mkdtemp(
+    join(tmpdir(), "rhaomi-initial-content-evidence-"),
+  );
+  context.after(() => rm(temporaryRoot, { recursive: true, force: true }));
+
+  const validationRoot = join(temporaryRoot, "validation");
+  const evidenceDir = join(temporaryRoot, "evidence");
+  const rawDir = join(validationRoot, "raw");
+  const rawOutput = join(rawDir, "initial-content-pristine-authority.txt");
+  await mkdir(rawDir, { recursive: true });
+  await mkdir(evidenceDir);
+  await writeFile(
+    rawOutput,
+    [
+      "startup detail that must not survive",
+      "INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID",
+      "INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID",
+      "/private/var/lib/rhaomi/private-path-must-not-survive",
+      "raw stack trace must not survive",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const runner = [
+    "set -eu",
+    "evidence_dir=$1",
+    "validation_root=$2",
+    "raw_output=$3",
+    shellFunction(entrypoint, "collect_initial_content_failure_codes"),
+    shellFunction(
+      entrypoint,
+      "write_initial_content_pristine_authority_evidence",
+    ),
+    'observed_codes=$(collect_initial_content_failure_codes "$raw_output")',
+    "write_initial_content_pristine_authority_evidence \\",
+    "  INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID \\",
+    '  "$observed_codes" true true true',
+    'find "$validation_root" -depth -delete',
+  ].join("\n");
+  const result = spawnSync(
+    "/bin/sh",
+    ["-c", runner, "sh", evidenceDir, validationRoot, rawOutput],
+    { encoding: "utf8" },
+  );
+  assert.equal(result.status, 0, result.stderr);
+
+  const evidenceText = await readFile(
+    join(evidenceDir, "production-initial-content-pristine-authority.json"),
+    "utf8",
+  );
+  assert.deepEqual(JSON.parse(evidenceText), {
+    contract: "rhaomi-initial-content-pristine-authority-v1",
+    expectedCode: "INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID",
+    observedCodes: ["INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID"],
+    nonZeroExit: true,
+    databaseMutationZero: true,
+    mediaMutationZero: true,
+  });
+  assert.doesNotMatch(
+    evidenceText,
+    /startup detail|private-path-must-not-survive|raw stack trace/u,
+  );
+  await assert.rejects(readFile(rawOutput, "utf8"), { code: "ENOENT" });
 });
 
 test("Hosted Validate가 기존 3-job에서 exact-head image를 Compose gate에 재사용한다", async () => {

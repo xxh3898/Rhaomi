@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rhaomi.invalid/contracts/initial-content/manifest-v1.schema.json",
+  "title": "Rhaomi initial content manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "content", "media", "counts"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "byteSize", "sha256"],
+      "properties": {
+        "path": { "const": "content.json" },
+        "byteSize": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "media": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "path", "contentType", "byteSize", "sha256"],
+        "properties": {
+          "key": { "$ref": "#/$defs/key" },
+          "path": {
+            "type": "string",
+            "pattern": "^media/[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+          },
+          "contentType": {
+            "enum": ["image/jpeg", "image/png", "image/heic", "image/heif"]
+          },
+          "byteSize": { "type": "integer", "minimum": 1 },
+          "sha256": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shopSettings", "media", "breeds", "services", "notices", "galleryItems"],
+      "properties": {
+        "shopSettings": { "const": 1 },
+        "media": { "type": "integer", "minimum": 1 },
+        "breeds": { "type": "integer", "minimum": 1 },
+        "services": { "type": "integer", "minimum": 1 },
+        "notices": { "type": "integer", "minimum": 1 },
+        "galleryItems": { "type": "integer", "minimum": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "key": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

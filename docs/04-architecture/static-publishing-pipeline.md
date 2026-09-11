@@ -3,7 +3,7 @@ title: "정적 퍼블리싱 파이프라인"
 status: "proposed"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-01"
+last_updated: "2026-09-11"
 review_trigger: "콘텐츠 배포 방식 변경 시"
 ---
 
@@ -41,6 +41,7 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - executor 직전 container-side configurable `FileChannel.tryLock` global lock을 획득하고, 해당 executor body가 종료됐거나 시작 불가능하다는 wrapper acknowledgment까지 같은 lock scope를 유지한다. production Compose target은 `/var/lib/rhaomi/locks`이며 task validation은 temp bind만 사용하고 actual production host path를 만들지 않는다.
 - code release와 콘텐츠 release가 같은 검증·atomic switch 구현을 사용한다.
 - D-IMP-3 code image apply는 public static web을 계속 serving하는 채 backend·publisher의 physical exit를 확인한 후에만 DB migration/schema validation을 실행하고, backend health 후에만 같은 digest의 publisher를 재기동한다. maintenance 시작 뒤 task/start/runtime image identity가 실패하면 두 writer를 다시 정지하고 physical quiescence 확인 뒤에만 own lock을 해제하며, 확인하지 못하면 lock을 보존한다. 실패 후 old publisher를 자동 resume하지 않는다.
+- ADR-018 initial-content one-shot은 pristine DB/media와 exactly one active admin을 확인하고 첫 public data를 한 transaction으로 commit한다. 완성된 snapshot에 대해 immediate `PENDING` outbox event를 하나만 만들며 generation 할당, transformer, release install과 switch는 이 pipeline의 기존 publisher authority에 남긴다.
 
 ## 현재 producer 경계
 
@@ -122,6 +123,8 @@ Static Export 기반과 기존 release 유지, transactional outbox와 단일 pu
 - UTC Instant와 `Asia/Seoul` offset input을 같은 microsecond authority로 저장한다. 추가 Admin mutation 없이 future publish·expiry를 반영하고, publisher gap의 overdue event, old reschedule stale no-op, `T0 + 30s`에 들어온 근접 publish/expiry를 highest generation으로 coalesce한다.
 - release 후 Admin gateway·runner·PostgreSQL을 중단하고 public-only network의 Nginx에 `current`를 read-only mount한다. 홈·대표 공지·hash media·robots·sitemap은 200, unknown·manifest·admin/build/internal/actuator API는 404이며 HTML은 runtime backend URL·credential·private path를 포함하지 않는다.
 - script는 exact HEAD·marker temp root·read-only mount·network 격리를 확인한다. 일반 Compose `down`과 marker root만 정리하고 durable volume/image와 기존 개발 data를 삭제하지 않는다.
+
+Initial-content source gate는 별도 PostgreSQL integration에서 owner-bundle 구조의 synthetic fixture를 application service로 적재하고 실제 Build Snapshot V2까지 확인한다. 기존 publisher/transformer/release E2E는 같은 V2와 pending-generation downstream 계약을 검증한다. 두 evidence의 조합은 actual owner bundle, production import 또는 first current switch를 실행했다는 의미가 아니다.
 
 ## 현재 구현 pipeline과 후속 운영 경계
 
