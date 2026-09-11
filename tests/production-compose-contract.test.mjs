@@ -307,6 +307,23 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.ok(initialContentMutationCheckIndex >= 0);
   assert.ok(initialContentRemovalIndex > initialContentMutationCheckIndex);
   assert.ok(initialContentAbsenceIndex > initialContentRemovalIndex);
+  assert.match(
+    initialContentBoundary,
+    /media_state_before=\$\(runtime_media_content_digest\)[\s\S]*media_state_after=\$\(runtime_media_content_digest\)/u,
+  );
+  const runtimeMediaDigestMatch = entrypoint.match(
+    /runtime_media_content_digest\(\) \{\n([\s\S]*?)\n\}/u,
+  );
+  assert.ok(runtimeMediaDigestMatch);
+  const runtimeMediaDigest = runtimeMediaDigestMatch[1];
+  assert.match(runtimeMediaDigest, /--network none --read-only/u);
+  assert.match(runtimeMediaDigest, /--user 0:0/u);
+  assert.match(runtimeMediaDigest, /--cap-drop ALL/u);
+  assert.match(
+    runtimeMediaDigest,
+    /--volume "\$validation_root\/data\/media:\/validation\/media:ro"/u,
+  );
+  assert.match(runtimeMediaDigest, /find \/validation\/media -type f/u);
   assert.match(entrypoint, /compose_validation create --no-build initial-admin/u);
   assert.doesNotMatch(
     entrypoint,

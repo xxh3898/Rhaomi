@@ -669,7 +669,7 @@ verify_initial_admin_runtime_boundary() {
 
 verify_initial_content_runtime_boundary() {
   content_state_before=$(initial_content_database_state)
-  media_state_before=$(directory_content_digest "$validation_root/data/media")
+  media_state_before=$(runtime_media_content_digest)
 
   compose_validation create --no-build initial-content >/dev/null
   initial_content_id=$(compose_validation ps --all --quiet initial-content)
@@ -711,7 +711,7 @@ verify_initial_content_runtime_boundary() {
   fi
 
   content_state_after=$(initial_content_database_state)
-  media_state_after=$(directory_content_digest "$validation_root/data/media")
+  media_state_after=$(runtime_media_content_digest)
   if [ "$content_state_after" != "$content_state_before" ] ||
     [ "$media_state_after" != "$media_state_before" ]; then
     echo "initial-content pristine authority fail-close가 mutation 0을 보장하지 못했습니다." >&2
@@ -726,6 +726,29 @@ verify_initial_content_runtime_boundary() {
     echo "inspect용 initial-content container 제거를 확인할 수 없습니다." >&2
     exit 1
   fi
+}
+
+runtime_media_content_digest() {
+  docker run --rm --network none --read-only \
+    --user 0:0 \
+    --security-opt no-new-privileges=true \
+    --cap-drop ALL \
+    --label io.homeserver.cleanup.environment=development \
+    --label io.homeserver.cleanup.project=rhaomi \
+    --label "io.homeserver.cleanup.task=${cleanup_task}" \
+    --label io.homeserver.cleanup.lifecycle=task \
+    --label io.homeserver.cleanup.retain=false \
+    --label "io.homeserver.cleanup.git-head=${git_head}" \
+    --volume "$validation_root/data/media:/validation/media:ro" \
+    "$production_image" \
+    sh -ec '
+      find /validation/media -type f -print | LC_ALL=C sort |
+        while IFS= read -r digest_file; do
+          printf "%s " "${digest_file#/validation/media/}"
+          openssl dgst -sha256 "$digest_file" | awk "{print \$NF}"
+        done |
+        openssl dgst -sha256 | awk "{print \$NF}"
+    '
 }
 
 initial_content_database_state() {
