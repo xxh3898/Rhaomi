@@ -169,6 +169,7 @@ test("production Compose가 external same-image와 최소 service topology를 �
   assert.match(initialContent, /RHAOMI_BOOTSTRAP_ADMIN_ENABLED: "false"/u);
   assert.match(initialContent, /read_only: true/u);
   assert.match(initialContent, /cap_drop: \["ALL"\]/u);
+  assert.doesNotMatch(initialContent, /cap_add:|^\s+user:/mu);
   assert.match(initialContent, /no-new-privileges:true/u);
   assert.match(initialContent, /networks:\s*\n\s+- data-internal/u);
   assert.match(
@@ -393,6 +394,33 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(entrypoint, /REDACTED_BUILD_TOKEN/u);
   assert.match(entrypoint, /prepare_linux_bind_ownership/u);
   assert.match(entrypoint, /restore_linux_bind_ownership/u);
+  assert.match(entrypoint, /verify_initial_content_validation_fixture 0 0/u);
+  assert.match(
+    entrypoint,
+    /verify_initial_content_validation_fixture \\\n+\s+"\$validation_host_uid" "\$validation_host_gid"/u,
+  );
+  assert.match(
+    entrypoint,
+    /--volume "\$validation_root\/state\/initial-content:\/validation\/initial-content"/u,
+  );
+  assert.match(entrypoint, /chown -R 0:0 \/validation\/initial-content/u);
+  assert.match(
+    entrypoint,
+    /chown -R "\$2:\$3"[\s\S]*\/validation\/initial-content/u,
+  );
+  const ownershipHelperMatch = entrypoint.match(
+    /run_bind_ownership_helper\(\) \{\n([\s\S]*?)\n\}/u,
+  );
+  assert.ok(ownershipHelperMatch);
+  assert.doesNotMatch(
+    ownershipHelperMatch[1],
+    /chmod[^\n]*initial-content/u,
+  );
+  assert.match(
+    entrypoint,
+    /initialContentFixtureModes=directories-0700-files-0600/u,
+  );
+  assert.match(entrypoint, /initialContentFixtureOwnershipRestored=true/u);
   assert.match(entrypoint, /docker run --rm --network none --read-only/u);
   assert.match(entrypoint, /--user 0:0/u);
   assert.match(entrypoint, /--security-opt no-new-privileges=true/u);

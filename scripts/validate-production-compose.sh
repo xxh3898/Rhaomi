@@ -362,6 +362,12 @@ verify_http_contract
 compose_runtime down --remove-orphans >/dev/null
 verify_no_task_containers_or_networks
 verify_preexisting_resources_preserved
+if [ "$validation_bind_ownership_prepared" = true ]; then
+  restore_linux_bind_ownership
+else
+  verify_initial_content_validation_fixture \
+    "$validation_host_uid" "$validation_host_gid"
+fi
 
 printf '%s\n' \
   "contract=production-compose-v1" \
@@ -388,6 +394,8 @@ printf '%s\n' \
   "initialAdminNonInteractiveMutation=0" \
   "initialContentBundleReadOnly=true" \
   "initialContentMediaReadWrite=true" \
+  "initialContentFixtureModes=directories-0700-files-0600" \
+  "initialContentFixtureOwnershipRestored=true" \
   "initialContentPristineAuthorityMutation=0" \
   "oneShotHttpListener=false" \
   "writerQuiescenceBeforeMigration=true" \
@@ -467,17 +475,62 @@ wait_healthy() {
 
 prepare_linux_bind_ownership() {
   if [ "$(uname -s)" != Linux ]; then
+    verify_initial_content_validation_fixture \
+      "$validation_host_uid" "$validation_host_gid"
     return 0
   fi
 
   run_bind_ownership_helper prepare
   validation_bind_ownership_prepared=true
+  verify_initial_content_validation_fixture 0 0
   validation_bind_ownership_mode=docker-helper-root-owned
 }
 
 restore_linux_bind_ownership() {
   run_bind_ownership_helper restore
+  verify_initial_content_validation_fixture \
+    "$validation_host_uid" "$validation_host_gid"
   validation_bind_ownership_prepared=false
+}
+
+verify_initial_content_validation_fixture() {
+  initial_content_expected_uid=$1
+  initial_content_expected_gid=$2
+
+  for initial_content_directory in \
+    "$validation_root/state/initial-content" \
+    "$validation_root/state/initial-content/media"; do
+    initial_content_identity=$(validation_path_identity \
+      "$initial_content_directory")
+    if [ "$initial_content_identity" != \
+      "${initial_content_expected_uid}:${initial_content_expected_gid}:700" ]; then
+      echo "initial-content validation directory ownership/mode가 다릅니다." >&2
+      exit 1
+    fi
+  done
+
+  for initial_content_file in \
+    "$validation_root/state/initial-content/manifest.json" \
+    "$validation_root/state/initial-content/content.json" \
+    "$validation_root/state/initial-content/media/cover.png"; do
+    initial_content_identity=$(validation_path_identity "$initial_content_file")
+    if [ "$initial_content_identity" != \
+      "${initial_content_expected_uid}:${initial_content_expected_gid}:600" ]; then
+      echo "initial-content validation file ownership/mode가 다릅니다." >&2
+      exit 1
+    fi
+  done
+}
+
+validation_path_identity() {
+  case "$(uname -s)" in
+    Darwin) stat -f '%u:%g:%Lp' "$1" ;;
+    Linux) stat -c '%u:%g:%a' "$1" ;;
+    *)
+      echo "지원하지 않는 validation host입니다." >&2
+      exit 1
+      ;;
+  esac
 }
 
 run_bind_ownership_helper() {
@@ -499,18 +552,21 @@ run_bind_ownership_helper() {
     --volume "$validation_root/data/media:/validation/media" \
     --volume "$validation_root/state/publisher:/validation/publisher" \
     --volume "$validation_root/state/locks:/validation/locks" \
+    --volume "$validation_root/state/initial-content:/validation/initial-content" \
     "$production_image" \
     sh -ec '
       case "$1" in
         prepare)
           chown 0:0 /validation/public /validation/media /validation/publisher \
             /validation/publisher/build-workspace /validation/locks
+          chown -R 0:0 /validation/initial-content
           chmod 0755 /validation/public
           chmod 0750 /validation/media /validation/publisher \
             /validation/publisher/build-workspace /validation/locks
           ;;
         restore)
-          chown -R "$2:$3" /validation/public /validation/media /validation/publisher /validation/locks
+          chown -R "$2:$3" /validation/public /validation/media \
+            /validation/publisher /validation/locks /validation/initial-content
           ;;
         *) exit 64 ;;
       esac
