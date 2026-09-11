@@ -3,7 +3,7 @@ title: "수용 기준"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-31"
+last_updated: "2026-09-10"
 review_trigger: "제품 기능 변경 시"
 ---
 
@@ -477,3 +477,23 @@ review_trigger: "제품 기능 변경 시"
 **Given** lifecycle이 `STEADY_STATE`이거나 bootstrap/recovery가 partial·unknown일 때
 
 **Then** first-activation 재진입을 거부한다. steady-state release는 기존 fresh `predeploy` backup eligibility를 계속 요구하고 public/admin/content·Cloudflare·HomeOps activation은 별도 production gate로 남는다.
+
+## AC-28 Production 최초 관리자 one-shot authority
+
+**Given** valid `STEADY_STATE`의 exact release image로 backend·publisher가 실행 중이고 administrator가 0명일 때
+
+**When** 별도 승인된 운영자가 fixed initial-admin wrapper를 interactive terminal에서 argument 없이 실행하면
+
+**Then** shared operation lock 획득·writer physical exit 후 non-web task가 PostgreSQL transaction advisory lock에서 zero-admin을 재확인하고 validated email·server-side BCrypt hash를 가진 administrator 하나만 commit한다. Email/password/hash는 argv·environment·file·Docker inspect·log·machine evidence에 남지 않는다.
+
+**Given** 관리자가 하나라도 있거나 동시 invocation N개가 같은 empty authority를 시도할 때
+
+**Then** 성공 commit은 최대 하나이고 나머지는 generic fixed failure로 종료한다. Transaction/zero-admin authority를 확정할 수 없어도 mutation 0이며 raw DB detail을 출력하지 않는다.
+
+**Given** task 성공·실패 후 writer recovery를 시도할 때
+
+**Then** source image의 backend health·publisher running을 확인한 후에만 own operation lock을 해제한다. Physical quiescence나 recovery가 불확실하면 false success를 금지하고 lock을 보존한다.
+
+**Given** initial-admin source·CI가 성공했을 때
+
+**Then** actual account·passkey·recovery code, Issue #97 initial content, Source Release·Mac provisioning이 `NOT RUN`이면 Issue #95 Stage A와 overall production readiness를 `HOLD`로 유지한다.

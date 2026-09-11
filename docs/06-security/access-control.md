@@ -3,7 +3,7 @@ title: "접근제어"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-02"
+last_updated: "2026-09-10"
 review_trigger: "역할·권한·인증 방식 변경 시"
 ---
 
@@ -15,7 +15,7 @@ review_trigger: "역할·권한·인증 방식 변경 시"
 
 ### ADMIN
 
-대상: 실제 운영 계정은 후속 운영 승인에서 생성
+대상: production-safe 최초 계정 source는 [ADR-017](../09-decisions/ADR-017-production-initial-admin-authority.md)로 구현했으며 실제 운영 계정은 후속 승인에서 생성
 
 - 관리자 인증 API 사용
 - 견종·서비스·공지 관리 API에서 생성·조회·전체 수정·archive와 복구 수행
@@ -123,20 +123,21 @@ build API와 stateless credential 경계, Node full release adapter와 credentia
 - 제한 응답은 `429 LOGIN_RATE_LIMITED`, positive integer `Retry-After`, 고정 문구를 사용하고 session·security context를 변경하지 않는다. frontend도 이를 별도 상태로 표시하며 login mutation을 자동 재전송하지 않는다.
 - identifier state는 30분 idle cleanup과 2,048 hard bound를 사용하고 capacity·monotonic-time invariant가 불확실하면 generic 429로 fail closed한다. 현재 단일 backend process memory가 authority이며 process restart 시 quota reset과 multi-instance 비공유는 승인된 초기 제한이다.
 
-## 관리자 bootstrap
+## 관리자 bootstrap과 production 최초 계정
 
 - 기본값은 비활성이다.
 - local/test 환경에서 explicit enable flag, email, password가 모두 있을 때만 idempotent하게 생성한다.
 - password는 최소 12자이면서 UTF-8 최대 72 byte여야 하며 초과 입력은 `PasswordEncoder` 호출 전에 명시적 validation 오류로 중단한다.
 - credential이 일부만 있거나 빈 값이면 기동을 실패시켜 잘못된 보안 상태를 숨기지 않는다.
-- production profile에서는 bootstrap을 실행하지 않는다.
+- production profile의 일반 `AdminBootstrap`은 계속 금지한다.
+- production 최초 계정은 exact image의 fixed `initial-admin` non-web task만 사용한다. PostgreSQL transaction lock 후 zero-admin을 재확인하고, 관리자가 하나라도 있거나 authority를 확정할 수 없으면 mutation 없이 실패한다.
+- 실사용 운영 계정의 interactive email/password 입력·생성, WebAuthn/passkey 2차 인증 registration·복구 절차는 각각 별도 승인·physical acceptance 작업이다.
 - `.env.example`에는 실제 email/password를 넣지 않는다.
-- 실사용 은총쌤 계정 생성은 운영 Secret provisioning, WebAuthn/passkey 2차 인증 registration·복구 절차를 확인하는 별도 승인 작업이다.
 
 ## 2FA와 계정 수명주기
 
 - 관리자 2차 인증의 기본 target은 기존 password/session/CSRF 위의 WebAuthn/passkey다. SMS 2FA는 사용하지 않고 TOTP fallback은 별도 근거 없이 추가하지 않는다.
-- WebAuthn/passkey source는 Spring Security WebAuthn/WebAuthn4J 검증 계층, Flyway V10 credential·recovery table과 `FIRST_FACTOR_VERIFIED → SECOND_FACTOR_VERIFIED` session authority로 구현했다. bootstrap은 계속 password 1차 계정만 만들며 password-only 상태를 production-ready로 표현하지 않는다.
+- WebAuthn/passkey source는 Spring Security WebAuthn/WebAuthn4J 검증 계층, Flyway V10 credential·recovery table과 `FIRST_FACTOR_VERIFIED → SECOND_FACTOR_VERIFIED` session authority로 구현했다. Local/test bootstrap과 production initial-admin task는 password 1차 계정만 만들며 password-only 상태를 production-ready로 표현하지 않는다.
 - active passkey가 0개면 FIRST session에서 최초 registration만 허용한다. 1개 이상이면 추가 registration options와 completion 모두 SECOND session에서만 허용하고 completion transaction이 관리자 row를 잠근 뒤 active count를 다시 검증한다.
 - challenge는 server가 생성한 32 byte 이상 random value이며 account·session·ceremony purpose에 묶고 1~10분 bounded TTL을 적용한다. registration·authentication options 저장과 consume은 같은 `HttpSession`의 짧은 critical section에서 session state만 조작하며, 동시 completion 중 최대 하나만 ceremony를 획득한다. WebAuthn crypto 검증과 DB transaction은 이 경계 밖에서 수행한다. `userVerification=required`와 server-owned RP ID·approved origin을 사용한다.
 - passkey private key는 authenticator/device authority이며 Rhaomi server가 수집·저장·로그하지 않는다. registration ceremony는 credential ID·public key와 필요한 authenticator metadata를, authentication ceremony는 assertion을 RP에 전달한다.

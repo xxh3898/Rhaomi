@@ -23,6 +23,10 @@ class ProductionDatabaseTaskApplicationTest {
                 ProductionDatabaseTaskApplication.Task.SCHEMA_VALIDATE,
                 ProductionDatabaseTaskApplication.parseTask(
                         new String[] {ProductionDatabaseTaskApplication.SCHEMA_VALIDATE_ARGUMENT}));
+        assertEquals(
+                ProductionDatabaseTaskApplication.Task.INITIAL_ADMIN,
+                ProductionDatabaseTaskApplication.parseTask(
+                        new String[] {ProductionDatabaseTaskApplication.INITIAL_ADMIN_ARGUMENT}));
 
         assertFalse(ProductionDatabaseTaskApplication.hasModeArgument(
                 new String[] {"--spring.flyway.enabled=true"}));
@@ -61,6 +65,11 @@ class ProductionDatabaseTaskApplicationTest {
                 WebApplicationType.NONE,
                 ProductionDatabaseTaskApplication
                         .createApplication(ProductionDatabaseTaskApplication.Task.SCHEMA_VALIDATE)
+                        .getWebApplicationType());
+        assertEquals(
+                WebApplicationType.NONE,
+                ProductionDatabaseTaskApplication
+                        .createApplication(ProductionDatabaseTaskApplication.Task.INITIAL_ADMIN)
                         .getWebApplicationType());
     }
 }

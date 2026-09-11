@@ -3,7 +3,7 @@ title: "위협 모델"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-02"
+last_updated: "2026-09-10"
 review_trigger: "외부 노출·관리 기능·인증 변경 시"
 ---
 
@@ -28,7 +28,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - Spring Boot 관리자 login과 `/api/admin/**`
 - WebAuthn registration·authentication·registration revoke/remove와 recovery-code 검증·rotation
 - session cookie와 CSRF token 전달
-- local/test 관리자 bootstrap
+- local/test 관리자 bootstrap과 production fixed initial-admin one-shot task
 - Actuator health
 - local Nginx same-origin `/api/**` proxy와 production `/api/admin/**` edge
 - local Compose env file과 frontend dependency/runtime mount 경계
@@ -57,6 +57,9 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 | session fixation | 로그인 전 session 탈취 연계 | password 성공과 WebAuthn/recovery stage 승격마다 session id 교체, 이전 CSRF 폐기 |
 | 비활성 계정 로그인·stage 승격 | 해지 계정 재사용 | password에서 `active` 확인과 동일한 401, WebAuthn/recovery completion에서 DB active 재확인 후 승격 |
 | bootstrap 오용 | default 관리자 생성 | 기본 비활성, 완전한 env 요구, production profile 차단 |
+| production 최초 관리자 재실행·경쟁 | 복수 관리자, 예상 불가 account authority | fixed non-web task, PostgreSQL transaction advisory lock 후 zero-admin 재검증, 존재·불확실 상태 mutation 0 |
+| initial-admin credential 유출 | argv·Compose·Docker inspect·log·evidence에 plaintext/hash 잔존 | TTY-only password no-echo, argv/env/file/mount credential input 0, console buffer clear, fixed redacted result/error |
+| initial-admin과 production writer 경쟁 | account mutation 중 backend/publisher 동시 write | valid `STEADY_STATE`·exact lifecycle image, shared `rhaomi-deploy.lock`, writer physical exit, recovery 후만 own-lock release |
 | API fail-open | 미설계 endpoint 노출 | login/csrf/health만 anonymous, API·Actuator·non-API 모두 명시 전 `denyAll` |
 | password hash 노출 | offline cracking | entity 직접 반환 금지, DTO allowlist, 인증 완료 credential erase, session principal·log·body 검사 |
 | 인증 service 장애 오분류 | 장애 은폐, 진단 지연 | credential 401 allowlist, service/repository 장애 generic 503 |
@@ -139,6 +142,7 @@ review_trigger: "외부 노출·관리 기능·인증 변경 시"
 - 실제 secret·password·실사용 email 커밋
 - CSRF disable 또는 state-changing anonymous endpoint
 - default production 관리자 자동 생성
+- zero-admin transaction authority·shared operation lock·exact lifecycle image 없이 production 최초 관리자를 생성하거나 raw credential을 argv/environment/file/evidence로 전달
 - 미설계 `/api/**` anonymous 허용
 - backup 없음
 - public build/internal/actuator route 노출

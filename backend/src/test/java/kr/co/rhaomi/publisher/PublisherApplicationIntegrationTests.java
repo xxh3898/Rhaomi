@@ -51,6 +51,8 @@ class PublisherApplicationIntegrationTests {
             assertFalse(context.getEnvironment().getProperty("spring.flyway.enabled", Boolean.class));
             assertTrue(Arrays.asList(context.getEnvironment().getActiveProfiles())
                     .contains("publisher"));
+            assertFalse(context.containsBean("initialAdminCredentialSource"));
+            assertFalse(context.containsBean("initialAdminProvisioningRunner"));
         }
     }
 

@@ -3,7 +3,7 @@ title: "테스트 전략"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-02"
+last_updated: "2026-09-10"
 review_trigger: "기술·기능 범위 변경 시"
 ---
 
@@ -369,8 +369,11 @@ Issue #47은 docs-only이므로 production runtime을 실행하지 않고 다음
 - canonical production Dockerfile의 required `RHAOMI_GIT_HEAD`와 exact release SHA binding, amd64+arm64, exact SHA tag·existing-tag overwrite 거부, returned OCI index digest, platform별 manifest·attestation와 OCI source/revision, attached SPDX SBOM·SLSA provenance·attached-SBOM scan evidence, `latest` 0
 - pinned Tailscale action/binary checksum, strict SSH host authority, fixed remote executable과 세 scalar argv; heredoc·free-form shell·credential argv 0
 - Java one-shot mode의 exact/unknown/duplicate/publisher-mode mutual exclusion, `WebApplicationType.NONE`, controller·admin bootstrap·publisher loop 0
+- production initial-admin의 TTY-only credential source, invalid email·11-byte ASCII·73 UTF-8 byte 거부·72 byte 허용, BCrypt hash·raw credential output 0
+- PostgreSQL transaction advisory lock·zero-admin re-check, existing-admin/replay mutation 0, concurrent actual context 최대 하나 commit·transaction failure row 0
 - actual PostgreSQL 18.6 clean schema의 migration V1~V10·JPA validate 성공, Flyway-disabled schema validate 성공, empty schema 실패
-- production Compose default four-service 불변, `production-task` profile의 same-image `migration`·`schema-validate`, data network only·port/mount 0·restart 0
+- production Compose default four-service 불변, `production-task` profile의 same-image `migration`·`schema-validate`·`initial-admin`, data network only·port/mount 0·restart 0
+- fixed initial-admin wrapper의 valid lifecycle·exact image·shared lock, writer physical exit 후 task, task/recovery failure의 false success 0과 quiescence 불확실 own-lock 보존
 - fixed Mac entrypoint의 lower-case SHA·fixed GHCR digest·SBOM strict input, fixed root/config/Docker credential, owner/mode, release-bound backup gate, atomic mkdir lock·own-token cleanup
 - exact digest pull·RepoDigest·OCI revision을 writer stop 전 검증하고 backend/publisher `exited` 후에만 migration→schema validation 실행
 - task fake Docker의 command ordering, public-static-during-maintenance Compose regression, concurrent lock 거부, migration/schema/backend health/publisher start failure와 backend/publisher runtime image mismatch 뒤 writer 둘 다 quiesced·success evidence 0, failure quiescence 미확인 시 own lock 보존

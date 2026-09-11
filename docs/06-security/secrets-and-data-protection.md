@@ -3,7 +3,7 @@ title: "비밀값·데이터 보호"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-01"
+last_updated: "2026-09-10"
 review_trigger: "비밀관리·인증·저장소 변경 시"
 ---
 
@@ -12,7 +12,7 @@ review_trigger: "비밀관리·인증·저장소 변경 시"
 ## 비밀값
 
 - PostgreSQL 비밀번호
-- 관리자 bootstrap 비밀번호
+- local/test 관리자 bootstrap 비밀번호와 production initial-admin interactive 비밀번호
 - 관리자 session id
 - CSRF token
 - internal build/publisher service credential
@@ -66,13 +66,15 @@ private media master와 server-owned storage key도 공개 정보가 아니며 �
 - logout과 계정 비활성화 절차에서 session 폐기 확인
 - CSRF token은 server session에 저장하고 same-origin CSRF endpoint response에서 browser memory로만 전달한다. session id와 함께 storage·URL·log에 남기지 않음
 
-## bootstrap
+## bootstrap과 production initial-admin
 
-- 기본 비활성, production profile 금지
+- 일반 `AdminBootstrap`은 기본 비활성이고 production profile에서 금지
 - enable flag와 email/password가 모두 있을 때만 local/test에서 실행
 - placeholder를 실제 운영 credential로 사용 금지
 - bootstrap password를 명령 인자나 log에 출력 금지
-- 실제 운영 계정은 별도 운영 Secret provisioning, WebAuthn/passkey registration과 recovery-code 발급·보관 승인 뒤 생성
+- production 최초 계정은 [ADR-017](../09-decisions/ADR-017-production-initial-admin-authority.md)의 fixed non-web task에 interactive console로만 입력한다. Raw email/password를 argv, environment, `production.env`, Compose render, Docker inspect, machine evidence에 저장하지 않는다.
+- password·확인 console buffer는 사용 후 제거하고 DB에는 server-side BCrypt hash만 저장한다. 성공·실패 출력에 email, password, hash를 포함하지 않는다.
+- 실제 운영 계정 생성과 WebAuthn/passkey registration, recovery-code 발급·보관은 별도 운영 승인이며 source/CI PASS로 실행된 것으로 표시하지 않는다.
 
 ## 폐기·교체
 
