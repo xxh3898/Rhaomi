@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -8,6 +10,14 @@ const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
 async function source(path) {
   return readFile(join(projectRoot, path), "utf8");
+}
+
+function shellFunction(script, name) {
+  const match = script.match(
+    new RegExp(`^${name}\\(\\) \\{\\n([\\s\\S]*?)^\\}$`, "mu"),
+  );
+  assert.ok(match, `${name} shell function이 필요합니다.`);
+  return `${name}() {\n${match[1]}}`;
 }
 
 function serviceBlock(compose, service, nextService) {
@@ -290,6 +300,18 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   assert.match(entrypoint, /run --rm --no-deps initial-content/u);
   assert.match(entrypoint, /INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID/u);
   assert.match(entrypoint, /initialContentPristineAuthorityMutation=0/u);
+  assert.match(
+    entrypoint,
+    /grep -Eo 'INITIAL_CONTENT_\[A-Z0-9_\]\+'/u,
+  );
+  assert.match(
+    entrypoint,
+    /initial_content_evidence_file="\$evidence_dir\/production-initial-content-pristine-authority\.json"/u,
+  );
+  assert.doesNotMatch(
+    entrypoint,
+    /(?:cp|mv)[^\n]*initial-content-pristine-authority\.txt[^\n]*\$evidence_dir/u,
+  );
   const initialContentBoundaryMatch = entrypoint.match(
     /verify_initial_content_runtime_boundary\(\) \{\n([\s\S]*?)\n\}/u,
   );
@@ -298,6 +320,12 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
   const initialContentMutationCheckIndex = initialContentBoundary.indexOf(
     "initial-content pristine authority fail-close가 mutation 0을 보장하지 못했습니다.",
   );
+  const initialContentEvidenceIndex = initialContentBoundary.indexOf(
+    "write_initial_content_pristine_authority_evidence",
+  );
+  const initialContentCodeMismatchIndex = initialContentBoundary.indexOf(
+    "initial-content failure code가 expectedCode와 다릅니다.",
+  );
   const initialContentRemovalIndex = initialContentBoundary.indexOf(
     'docker container rm "$initial_content_id"',
   );
@@ -305,6 +333,9 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
     'docker container inspect "$initial_content_id"',
   );
   assert.ok(initialContentMutationCheckIndex >= 0);
+  assert.ok(initialContentEvidenceIndex >= 0);
+  assert.ok(initialContentCodeMismatchIndex > initialContentEvidenceIndex);
+  assert.ok(initialContentMutationCheckIndex > initialContentEvidenceIndex);
   assert.ok(initialContentRemovalIndex > initialContentMutationCheckIndex);
   assert.ok(initialContentAbsenceIndex > initialContentRemovalIndex);
   assert.match(
@@ -431,6 +462,73 @@ test("provisioning validator가 persistence·runtime 경계와 non-destructive c
     initialContentControl,
     /down -v|docker (?:system|container|volume|image|network) prune|docker (?:volume|image) rm/u,
   );
+});
+
+test("initial-content failure evidence가 raw cleanup 뒤 sanitized artifact로 남는다", async (context) => {
+  const entrypoint = await source("scripts/validate-production-compose.sh");
+  const temporaryRoot = await mkdtemp(
+    join(tmpdir(), "rhaomi-initial-content-evidence-"),
+  );
+  context.after(() => rm(temporaryRoot, { recursive: true, force: true }));
+
+  const validationRoot = join(temporaryRoot, "validation");
+  const evidenceDir = join(temporaryRoot, "evidence");
+  const rawDir = join(validationRoot, "raw");
+  const rawOutput = join(rawDir, "initial-content-pristine-authority.txt");
+  await mkdir(rawDir, { recursive: true });
+  await mkdir(evidenceDir);
+  await writeFile(
+    rawOutput,
+    [
+      "startup detail that must not survive",
+      "INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID",
+      "INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID",
+      "/private/var/lib/rhaomi/private-path-must-not-survive",
+      "raw stack trace must not survive",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const runner = [
+    "set -eu",
+    "evidence_dir=$1",
+    "validation_root=$2",
+    "raw_output=$3",
+    shellFunction(entrypoint, "collect_initial_content_failure_codes"),
+    shellFunction(
+      entrypoint,
+      "write_initial_content_pristine_authority_evidence",
+    ),
+    'observed_codes=$(collect_initial_content_failure_codes "$raw_output")',
+    "write_initial_content_pristine_authority_evidence \\",
+    "  INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID \\",
+    '  "$observed_codes" true true true',
+    'find "$validation_root" -depth -delete',
+  ].join("\n");
+  const result = spawnSync(
+    "/bin/sh",
+    ["-c", runner, "sh", evidenceDir, validationRoot, rawOutput],
+    { encoding: "utf8" },
+  );
+  assert.equal(result.status, 0, result.stderr);
+
+  const evidenceText = await readFile(
+    join(evidenceDir, "production-initial-content-pristine-authority.json"),
+    "utf8",
+  );
+  assert.deepEqual(JSON.parse(evidenceText), {
+    contract: "rhaomi-initial-content-pristine-authority-v1",
+    expectedCode: "INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID",
+    observedCodes: ["INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID"],
+    nonZeroExit: true,
+    databaseMutationZero: true,
+    mediaMutationZero: true,
+  });
+  assert.doesNotMatch(
+    evidenceText,
+    /startup detail|private-path-must-not-survive|raw stack trace/u,
+  );
+  await assert.rejects(readFile(rawOutput, "utf8"), { code: "ENOENT" });
 });
 
 test("Hosted Validate가 기존 3-job에서 exact-head image를 Compose gate에 재사용한다", async () => {

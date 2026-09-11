@@ -670,6 +670,8 @@ verify_initial_admin_runtime_boundary() {
 verify_initial_content_runtime_boundary() {
   content_state_before=$(initial_content_database_state)
   media_state_before=$(runtime_media_content_digest)
+  initial_content_expected_code=INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID
+  initial_content_raw_output="$validation_root/raw/initial-content-pristine-authority.txt"
 
   compose_validation create --no-build initial-content >/dev/null
   initial_content_id=$(compose_validation ps --all --quiet initial-content)
@@ -695,25 +697,53 @@ verify_initial_content_runtime_boundary() {
     exit 1
   fi
 
+  initial_content_non_zero=true
   if compose_validation run --rm --no-deps initial-content \
-    >"$validation_root/raw/initial-content-pristine-authority.txt" 2>&1; then
-    echo "admin authority가 없는 initial-content task가 성공했습니다." >&2
-    exit 1
+    >"$initial_content_raw_output" 2>&1; then
+    initial_content_non_zero=false
   fi
-  grep -Fq INITIAL_CONTENT_ADMIN_AUTHORITY_INVALID \
-    "$validation_root/raw/initial-content-pristine-authority.txt"
+  initial_content_observed_codes=$(collect_initial_content_failure_codes \
+    "$initial_content_raw_output")
+  initial_content_credential_leak=false
   if grep -Fq "$postgres_password" \
-    "$validation_root/raw/initial-content-pristine-authority.txt" ||
+    "$initial_content_raw_output" ||
     grep -Fq "$build_token" \
-      "$validation_root/raw/initial-content-pristine-authority.txt"; then
-    echo "initial-content stdout/stderr에 credential이 노출됐습니다." >&2
-    exit 1
+      "$initial_content_raw_output"; then
+    initial_content_credential_leak=true
   fi
 
   content_state_after=$(initial_content_database_state)
   media_state_after=$(runtime_media_content_digest)
-  if [ "$content_state_after" != "$content_state_before" ] ||
-    [ "$media_state_after" != "$media_state_before" ]; then
+  initial_content_database_mutation_zero=false
+  initial_content_media_mutation_zero=false
+  if [ "$content_state_after" = "$content_state_before" ]; then
+    initial_content_database_mutation_zero=true
+  fi
+  if [ "$media_state_after" = "$media_state_before" ]; then
+    initial_content_media_mutation_zero=true
+  fi
+
+  write_initial_content_pristine_authority_evidence \
+    "$initial_content_expected_code" \
+    "$initial_content_observed_codes" \
+    "$initial_content_non_zero" \
+    "$initial_content_database_mutation_zero" \
+    "$initial_content_media_mutation_zero"
+
+  if [ "$initial_content_non_zero" != true ]; then
+    echo "admin authority가 없는 initial-content task가 성공했습니다." >&2
+    exit 1
+  fi
+  if [ "$initial_content_credential_leak" = true ]; then
+    echo "initial-content stdout/stderr에 credential이 노출됐습니다." >&2
+    exit 1
+  fi
+  if [ "$initial_content_observed_codes" != "$initial_content_expected_code" ]; then
+    echo "initial-content failure code가 expectedCode와 다릅니다. sanitized evidence를 확인하십시오." >&2
+    exit 1
+  fi
+  if [ "$initial_content_database_mutation_zero" != true ] ||
+    [ "$initial_content_media_mutation_zero" != true ]; then
     echo "initial-content pristine authority fail-close가 mutation 0을 보장하지 못했습니다." >&2
     exit 1
   fi
@@ -726,6 +756,49 @@ verify_initial_content_runtime_boundary() {
     echo "inspect용 initial-content container 제거를 확인할 수 없습니다." >&2
     exit 1
   fi
+}
+
+collect_initial_content_failure_codes() {
+  initial_content_failure_output=$1
+  LC_ALL=C grep -Eo 'INITIAL_CONTENT_[A-Z0-9_]+' \
+    "$initial_content_failure_output" | LC_ALL=C sort -u || true
+}
+
+write_initial_content_pristine_authority_evidence() {
+  initial_content_evidence_expected_code=$1
+  initial_content_evidence_observed_codes=$2
+  initial_content_evidence_non_zero=$3
+  initial_content_evidence_database_mutation_zero=$4
+  initial_content_evidence_media_mutation_zero=$5
+  initial_content_evidence_file="$evidence_dir/production-initial-content-pristine-authority.json"
+  initial_content_evidence_temporary="${initial_content_evidence_file}.tmp"
+
+  {
+    printf '%s\n' '{'
+    printf '  "contract": "rhaomi-initial-content-pristine-authority-v1",\n'
+    printf '  "expectedCode": "%s",\n' "$initial_content_evidence_expected_code"
+    printf '  "observedCodes": ['
+    initial_content_evidence_separator=
+    if [ -n "$initial_content_evidence_observed_codes" ]; then
+      printf '%s\n' "$initial_content_evidence_observed_codes" |
+        while IFS= read -r initial_content_evidence_code; do
+          [ -n "$initial_content_evidence_code" ] || continue
+          printf '%s"%s"' \
+            "$initial_content_evidence_separator" \
+            "$initial_content_evidence_code"
+          initial_content_evidence_separator=', '
+        done
+    fi
+    printf '],\n'
+    printf '  "nonZeroExit": %s,\n' "$initial_content_evidence_non_zero"
+    printf '  "databaseMutationZero": %s,\n' \
+      "$initial_content_evidence_database_mutation_zero"
+    printf '  "mediaMutationZero": %s\n' \
+      "$initial_content_evidence_media_mutation_zero"
+    printf '%s\n' '}'
+  } >"$initial_content_evidence_temporary"
+  chmod 600 "$initial_content_evidence_temporary"
+  mv "$initial_content_evidence_temporary" "$initial_content_evidence_file"
 }
 
 runtime_media_content_digest() {
