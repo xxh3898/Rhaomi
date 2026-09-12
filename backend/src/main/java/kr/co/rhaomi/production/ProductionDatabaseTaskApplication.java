@@ -16,6 +16,8 @@ public final class ProductionDatabaseTaskApplication {
             "--rhaomi.production-task=schema-validate";
     public static final String INITIAL_ADMIN_ARGUMENT =
             "--rhaomi.production-task=initial-admin";
+    public static final String INITIAL_CONTENT_ARGUMENT =
+            "--rhaomi.production-task=initial-content";
     private static final String TASK_OPTION = "--rhaomi.production-task";
     private static final String TASK_PREFIX = TASK_OPTION + "=";
 
@@ -28,7 +30,11 @@ public final class ProductionDatabaseTaskApplication {
         INITIAL_ADMIN(
                 false,
                 "production-initial-admin-task",
-                ProductionInitialAdminTaskConfiguration.class);
+                ProductionInitialAdminTaskConfiguration.class),
+        INITIAL_CONTENT(
+                false,
+                "production-initial-content-task",
+                ProductionInitialContentTaskConfiguration.class);
 
         private final boolean flywayEnabled;
         private final String profile;
@@ -72,6 +78,7 @@ public final class ProductionDatabaseTaskApplication {
             case MIGRATE_ARGUMENT -> Task.MIGRATE;
             case SCHEMA_VALIDATE_ARGUMENT -> Task.SCHEMA_VALIDATE;
             case INITIAL_ADMIN_ARGUMENT -> Task.INITIAL_ADMIN;
+            case INITIAL_CONTENT_ARGUMENT -> Task.INITIAL_CONTENT;
             default -> throw new IllegalArgumentException("Invalid production database task mode");
         };
     }
@@ -116,6 +123,27 @@ public final class ProductionDatabaseTaskApplication {
             context.getBeanFactory()
                     .registerSingleton("initialAdminCredentialSource", credentialSource);
             context.getBeanFactory().registerSingleton("initialAdminOutput", output);
+        });
+        return application.run(arguments);
+    }
+
+    static ConfigurableApplicationContext runInitialContent(
+            String[] arguments,
+            java.nio.file.Path inputRoot,
+            java.time.Clock clock,
+            InitialContentImportCheckpoint checkpoint,
+            java.io.PrintStream output) {
+        var task = parseTask(arguments);
+        if (task != Task.INITIAL_CONTENT) {
+            throw new IllegalArgumentException("Invalid production initial content task mode");
+        }
+
+        var application = createApplication(task);
+        application.addInitializers(context -> {
+            context.getBeanFactory().registerSingleton("initialContentInputRoot", inputRoot);
+            context.getBeanFactory().registerSingleton("initialContentClock", clock);
+            context.getBeanFactory().registerSingleton("initialContentImportCheckpoint", checkpoint);
+            context.getBeanFactory().registerSingleton("initialContentOutput", output);
         });
         return application.run(arguments);
     }

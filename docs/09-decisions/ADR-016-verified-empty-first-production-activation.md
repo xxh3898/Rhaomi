@@ -3,7 +3,7 @@ title: "ADR-016: Verified-empty 최초 production activation"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-10"
+last_updated: "2026-09-11"
 review_trigger: "최초 production lifecycle·backup·public activation 경계 변경 시"
 ---
 
@@ -11,7 +11,7 @@ review_trigger: "최초 production lifecycle·backup·public activation 경계 �
 
 - 결정일: 2026-09-02
 - 상태: Accepted
-- 관련 결정: [ADR-010](ADR-010-production-topology-and-code-release.md), [ADR-012](ADR-012-application-consistent-backup-restore.md), [ADR-017](ADR-017-production-initial-admin-authority.md)
+- 관련 결정: [ADR-010](ADR-010-production-topology-and-code-release.md), [ADR-012](ADR-012-application-consistent-backup-restore.md), [ADR-017](ADR-017-production-initial-admin-authority.md), [ADR-018](ADR-018-production-initial-content-authority.md)
 
 ## 맥락
 
@@ -89,7 +89,7 @@ Recovery는 별도 Compose project에서 다음을 실행한다.
 - `STEADY_STATE` 이후 first-activation bootstrap/backup/recovery는 영구 거부한다.
 - scheduled/on-demand/predeploy backup과 normal deploy는 valid `STEADY_STATE` evidence를 요구한다.
 - 이후 release는 기존 `<24h` exact-release `predeploy backup → read-only verifier → deploy` 계약을 그대로 사용한다.
-- `STEADY_STATE`는 public ingress, administrator/passkey, recovery code, content, Cloudflare 또는 HomeOps activation 승인이 아니다. Administrator source authority는 ADR-017의 fixed one-shot task를 사용하되 실제 invocation과 passkey/recovery acceptance는 별도 production gate다.
+- `STEADY_STATE`는 public ingress, administrator/passkey, recovery code, content, Cloudflare 또는 HomeOps activation 승인이 아니다. Administrator source authority는 ADR-017, 초기 content source authority는 ADR-018의 서로 다른 fixed one-shot task를 사용한다. 각 actual invocation과 passkey/recovery/publication acceptance는 별도 production gate다.
 
 ## 이유
 

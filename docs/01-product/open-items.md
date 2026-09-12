@@ -3,7 +3,7 @@ title: "미확정 항목"
 status: "draft"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-10"
+last_updated: "2026-09-11"
 review_trigger: "항목 확정 시"
 ---
 
@@ -30,7 +30,7 @@ review_trigger: "항목 확정 시"
 | 관리자 login rate limit | source 구현 / release 미반영 | 조치호 | process-global 10/2초·identifier 5/5분 bounded 정책과 generic 429 regression은 구현됨; exact image release·production HTTPS 검증 전 public 관리자 인증 활성화 금지 |
 | 최초 production activation | source gate 구현 / 운영 미실행 | 조치호 | actual Mac verified-empty evidence, exact image private bootstrap, first application-consistent backup·isolated restore acceptance와 `STEADY_STATE` 확정; public/admin/content activation은 이후 별도 승인 |
 | production 최초 관리자 | Stage 0A source 구현 / 운영 미실행 | 조치호 | #96 dev integration·Source Release 후 valid `STEADY_STATE`·exact image에서 별도 승인된 fixed one-shot 생성, WebAuthn/passkey·recovery-code physical acceptance; raw credential evidence 0 |
-| production 초기 콘텐츠 | Stage 0B source 미구현 | 조치호·은총쌤 | #97 owner-approved bundle·atomic application validation/write·canonical first publication source, dev integration·Source Release·exact-main 재검증 |
+| production 초기 콘텐츠 | Stage 0B source 구현 / 운영 미실행 | 조치호·은총쌤 | #97 tracked owner-bundle·atomic application validation/write·canonical first publication source의 dev integration·Source Release·exact-main 재검증 후 actual bundle 승인/transport/import/publication |
 | 실제 iPhone HEIC 업로드 | 미검증 | 조치호·은총쌤 | 후속 `/admin` UI에서 iPhone Safari 원본 선택·업로드·방향·색상 확인 |
 | 실제 iPhone Safari·VoiceOver | 미검증 | 조치호·은총쌤 | actual public HTTPS와 `/admin`의 320px·focus·form·VoiceOver 표본 acceptance |
 

@@ -55,6 +55,24 @@ public class MediaAdminService {
             String declaredContentType,
             String originalFilename,
             UUID actorId) {
+        return upload(inputStream, declaredContentType, originalFilename, actorId, true);
+    }
+
+    @Transactional
+    public MediaResponse uploadForInitialImport(
+            InputStream inputStream,
+            String declaredContentType,
+            String originalFilename,
+            UUID actorId) {
+        return upload(inputStream, declaredContentType, originalFilename, actorId, false);
+    }
+
+    private MediaResponse upload(
+            InputStream inputStream,
+            String declaredContentType,
+            String originalFilename,
+            UUID actorId,
+            boolean recordPublication) {
         Objects.requireNonNull(actorId, "actorId");
         if (inputStream == null) {
             throw new MediaInvalidRequestException();
@@ -82,7 +100,9 @@ public class MediaAdminService {
                     processed.height(),
                     processed.sha256());
             var asset = mediaAssetRepository.saveAndFlush(MediaAsset.create(assetId, stored, actorId));
-            publicationRecorder.record(PublicationSourceType.MEDIA_ASSET, asset.getId(), false);
+            if (recordPublication) {
+                publicationRecorder.record(PublicationSourceType.MEDIA_ASSET, asset.getId(), false);
+            }
             return MediaResponse.from(asset);
         } catch (RuntimeException exception) {
             if (storageKey != null) {

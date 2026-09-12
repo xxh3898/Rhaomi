@@ -53,6 +53,24 @@ public class BreedAdminService {
     }
 
     @Transactional
+    public BreedResponse createPublishedForInitialImport(
+            BreedCreateRequest request, UUID actorId) {
+        Objects.requireNonNull(actorId, "actorId");
+        if (breedRepository.existsBySlug(request.slug())) {
+            throw new SlugConflictException();
+        }
+        var breed = Breed.create(
+                request.name(), request.slug(), request.description(), request.sortOrder(), actorId);
+        breed.update(
+                ContentStatus.PUBLISHED,
+                request.name(),
+                request.description(),
+                request.sortOrder() == null ? 100 : request.sortOrder(),
+                actorId);
+        return BreedResponse.from(save(breed));
+    }
+
+    @Transactional
     public BreedResponse update(UUID id, BreedUpdateRequest request, UUID actorId) {
         Objects.requireNonNull(actorId, "actorId");
         var breed = find(id);

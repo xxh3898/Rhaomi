@@ -11,7 +11,7 @@ public class BackendApplication {
 	public static void main(String[] args) {
 		if (ProductionDatabaseTaskApplication.hasModeArgument(args)) {
 			try (var ignored = ProductionDatabaseTaskApplication.run(args)) {
-				// Flyway와 Hibernate schema validation 완료 뒤 one-shot context를 종료한다.
+				// 선택한 production one-shot task 완료 뒤 context를 종료한다.
 			}
 			return;
 		}
