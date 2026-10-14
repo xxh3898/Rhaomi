@@ -94,6 +94,8 @@ test("production image acceptance가 image surface, actual media와 supply chain
   assert.match(supplyChain, /libde265/);
   assert.match(supplyChain, /imageio-heif/);
   assert.match(supplyChain, /x265/i);
+  assert.match(supplyChain, /production-scan-policy\.mjs/u);
+  assert.match(entrypoint, /production-scan-policy\.mjs:\/validation\/production-scan-policy\.mjs:ro/u);
 });
 
 test("Hosted Validate는 3-job과 read-only permission을 유지한다", async () => {

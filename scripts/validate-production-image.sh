@@ -330,6 +330,7 @@ docker run --rm --network none \
   --read-only \
   --tmpfs /tmp:rw,noexec,nosuid \
   --volume "$repo_dir/scripts/validate-production-supply-chain.mjs:/validation/validate-production-supply-chain.mjs:ro" \
+  --volume "$repo_dir/scripts/production-scan-policy.mjs:/validation/production-scan-policy.mjs:ro" \
   --volume "$repo_dir/backend/production-image-components.json:/validation/components.json:ro" \
   --volume "$evidence_dir:/evidence" \
   --label io.homeserver.cleanup.environment=development \
