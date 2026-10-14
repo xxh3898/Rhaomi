@@ -26,8 +26,8 @@ test("production image가 fixed dependency와 decoder-only runtime을 고정한�
     /LIBHEIF_ARCHIVE_SHA256=9fdb7410222a9fd12387f4332e3f93cf428c976ac16f1379fcd7f6415ebe03c0/,
   );
   assert.match(dockerfile, /LIBDE265_VERSION=1\.0\.16-r0/);
-  assert.match(dockerfile, /LIBEXPAT_VERSION=2\.8\.4-r0/);
-  assert.match(dockerfile, /OPENSSL_VERSION=3\.5\.8-r0/);
+  assert.match(dockerfile, /LIBEXPAT_VERSION=2\.8\.5-r0/);
+  assert.match(dockerfile, /OPENSSL_VERSION=3\.5\.9-r0/);
   assert.match(
     dockerfile,
     /eclipse-temurin:25\.0\.4_7-jre-alpine-3\.23@sha256:f8b38ad02cacf5a1618a329dd22915fb1e2f2914fe6242e6daaf5cc7d22d6677/,
@@ -66,8 +66,10 @@ test("production image acceptance가 image surface, actual media와 supply chain
   assert.match(entrypoint, /test -x \/usr\/local\/bin\/rhaomi-backup-verifier/u);
   assert.match(entrypoint, /amd64 \| arm64/);
   assert.match(entrypoint, /apk info -e libde265/);
-  assert.match(entrypoint, /libexpat=2\.8\.4-r0/);
-  assert.match(entrypoint, /libcrypto3=3\.5\.8-r0/);
+  assert.match(entrypoint, /libexpat=2\.8\.5-r0/);
+  assert.match(entrypoint, /libcrypto3=3\.5\.9-r0/);
+  assert.match(entrypoint, /libssl3=3\.5\.9-r0/);
+  assert.match(entrypoint, /openssl=3\.5\.9-r0/);
   assert.match(entrypoint, /x265-libs/);
   assert.match(entrypoint, /ldd .*libheif/);
   assert.match(entrypoint, /validate-production-image-media\.mjs/);

@@ -3,7 +3,7 @@ title: "의존성·라이선스 정책"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-09"
+last_updated: "2026-10-14"
 review_trigger: "주요 의존성·라이선스 변경 시"
 ---
 
@@ -14,7 +14,8 @@ review_trigger: "주요 의존성·라이선스 변경 시"
 - Java 25 LTS
 - Spring Boot `4.1.1`
 - Apache Tomcat Embed `11.0.25` — Spring Boot 4.1.1의 `tomcat.version` security override
-- Alpine `libexpat 2.8.4-r0` — production final image의 exact security pin
+- Alpine `libexpat 2.8.5-r0` — production final image의 exact security pin (MIT)
+- Alpine `openssl`, `libcrypto3`, `libssl3` `3.5.9-r0` — production final image의 동일 version exact security pin (Apache-2.0)
 - Spring Security WebAuthn `7.1.1` — Apache-2.0, RP ceremony와 Spring Security integration
 - WebAuthn4J `0.31.9.RELEASE` — Apache-2.0, transitive CBOR·COSE·attestation·assertion 검증 계층
 - Gradle Wrapper `9.7.1`
@@ -29,6 +30,10 @@ review_trigger: "주요 의존성·라이선스 변경 시"
 - Docker image는 검증한 exact tag를 사용하고 운영에서는 가능하면 digest까지 고정
 
 Spring Boot 버전은 구현 시점의 Spring 공식 stable과 system requirements를 확인해 선택했다. Spring Boot 4.1.1 BOM의 Tomcat `11.0.24`는 fixed `11.0.25`보다 낮아 공식 managed-version property인 `tomcat.version`으로 Tomcat family 전체를 `11.0.25`에 맞춘다. 이후 Spring Boot 4.1 patch가 fixed 이상을 관리하면 dependency graph와 전체 회귀를 검증하는 별도 변경에서 override 제거 여부를 판단한다. WebAuthn은 Spring Boot BOM이 관리하는 Spring Security module과 그 transitive WebAuthn4J를 사용하며 application code가 CBOR·COSE·signature crypto를 직접 구현하지 않는다. major/minor 변경은 별도 Issue에서 Java·Gradle·plugin 호환성과 보안 변경을 함께 검토한다.
+
+2026-10-14 기준 공식 Alpine v3.23 main index와 고정 Temurin base에서 amd64·arm64의 위 exact APK 설치를 확인했다. Base image digest는 보존하며 runtime acceptance에서도 설치 version을 검증한다. Alpine repository의 index는 갱신되므로 immutable base digest만으로 APK까지 재현되지는 않는다. 향후 exact package가 사라지거나 scan이 실패하면 build를 차단하고 별도 corrective로 검증하며, downgrade·pin 제거·scan 우회로 해결하지 않는다.
+
+공식 package 근거: [libexpat aarch64](https://pkgs.alpinelinux.org/package/v3.23/main/aarch64/libexpat), [OpenSSL x86_64](https://pkgs.alpinelinux.org/package/v3.23/main/x86_64/openssl).
 
 ## 현재 개발 HEIC runtime 인벤토리
 
