@@ -3,7 +3,7 @@ title: "Rhaomi 프로젝트"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-11"
+last_updated: "2026-10-14"
 review_trigger: "프로젝트 구조 또는 핵심 범위 변경 시"
 ---
 
@@ -215,7 +215,8 @@ sh scripts/validate-production-first-activation.sh
 - 고객 페이지는 정적 HTML로 배포하며 SSR을 사용하지 않는다.
 - 공개 사이트는 런타임에 Spring Boot나 PostgreSQL에 의존하지 않는다.
 - 관리자 인증은 HttpOnly session cookie와 CSRF 보호를 사용하는 Spring Security password+WebAuthn 기반이다. password 성공은 first factor일 뿐이며 passkey second factor 전에는 콘텐츠·미디어 business API를 사용할 수 없다.
-- WebAuthn source 구현과 별개로 login rate limit은 아직 구현되지 않은 production blocker다. bounded rate-limit 계약을 구현·검증하기 전에는 public 관리자 인증을 활성화하지 않는다.
+- login rate limit은 source 구현·Source Release·Hosted CI 검증을 완료했다. 실제 production HTTPS의 generic 429·positive `Retry-After` acceptance는 별도 blocker이며, 이 evidence 전에는 public 관리자 인증을 활성화하지 않는다. single-process/restart-reset 제한을 유지한다.
+- Stage 0A 최초 관리자와 Stage 0B 초기 콘텐츠 source는 dev integration·dev→main Source Release·main→dev back-sync를 완료했고 exact-main Hosted Validate도 통과했다. [날짜·PR·CI 근거](docs/07-operations/production-readiness.md#stage-0-source-release-검증-기록)는 실제 관리자 생성, owner bundle import, first activation 또는 public deployment 완료를 뜻하지 않는다.
 - `/admin/`은 noindex인 Static Export client shell이며 backend session이 최종 보안 경계다. login POST와 identity 검증이 끝나면 form credential과 pre-login CSRF를 먼저 제거하고, fresh CSRF 뒤 WebAuthn 상태를 확인한다. active passkey가 없으면 초기 등록과 recovery code rotation, 있으면 passkey assertion을 마친 뒤 session ID 재교체와 다시 받은 fresh CSRF까지 성공해야 mutation-ready dashboard가 열린다. recovery code 사용 session은 새 code set을 rotation하기 전까지 제한된다.
 - local browser 요청은 Nginx gateway의 same-origin `/api/**`를 사용한다. frontend는 host port를 열지 않고 gateway는 PostgreSQL network에 참여하지 않는다.
 - 견종·서비스 기준정보는 관리자 session·CSRF가 적용된 API로 생성·조회·수정·보관할 수 있다.

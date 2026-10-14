@@ -3,7 +3,7 @@ title: "문서 인덱스"
 status: "approved"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-08-31"
+last_updated: "2026-10-14"
 review_trigger: "문서 추가·이동 시"
 ---
 
@@ -117,6 +117,10 @@ review_trigger: "문서 추가·이동 시"
 - [ADR-012: Application-consistent backup과 restore](09-decisions/ADR-012-application-consistent-backup-restore.md)
 - [ADR-013: HomeOps 통합 관제·알림·자동 복구 경계](09-decisions/ADR-013-homeops-monitoring-recovery-boundary.md)
 - [ADR-014: HEIC decoder-only production runtime](09-decisions/ADR-014-heic-decoder-only-production-runtime.md)
+- [ADR-015: 손실 없는 int64 JSON wire 계약](09-decisions/ADR-015-lossless-int64-json-wire-contract.md)
+- [ADR-016: Verified-empty 최초 production activation](09-decisions/ADR-016-verified-empty-first-production-activation.md)
+- [ADR-017: Production 최초 관리자 authority](09-decisions/ADR-017-production-initial-admin-authority.md)
+- [ADR-018: Production 초기 콘텐츠 authority](09-decisions/ADR-018-production-initial-content-authority.md)
 
 ## 10. 템플릿
 

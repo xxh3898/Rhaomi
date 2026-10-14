@@ -3,7 +3,7 @@ title: "배포"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-11"
+last_updated: "2026-10-14"
 review_trigger: "호스트·파이프라인 변경 시"
 ---
 
@@ -20,6 +20,8 @@ review_trigger: "호스트·파이프라인 변경 시"
 - Source: GitHub `xxh3898/Rhaomi`
 
 ## 구현 상태
+
+아래 source/task validation의 provisioning·운영 미수행 설명은 해당 구현 작업 범위의 기록이다. 현재 설치·runtime 완료 여부는 fresh preflight로 확인하며 Source Release 완료와 구분한다.
 
 [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)의 topology와 release 절차에 따라 canonical image·Compose·project Nginx, `.github/workflows/production-release.yml`, fixed deploy entrypoint와 non-web one-shot Flyway/schema task를 구현했다. D-IMP-4는 같은 operation lock을 쓰는 fixed backup entrypoint, strict complete set과 exact-release eligibility bridge를 추가했다. [ADR-016](../09-decisions/ADR-016-verified-empty-first-production-activation.md)은 verified-empty evidence, public ingress 없는 one-time bootstrap, 첫 backup·isolated restore acceptance와 `STEADY_STATE` 전환 source를 추가했다. D-IMP-5a는 deploy/backup lifecycle의 HomeOps current exact payload adapter와 bounded status/recovery target을 추가했고, HomeOps D-IMP-5b는 incident decision·V14 mapping/audit·durable 30분 cooldown을 구현했다. HomeOps application과 V14는 별도 HomeOps release에서 production에 배포됐지만, 이 Rhaomi source와 task-scoped local/Hosted evidence는 private GHCR package/visibility, GitHub `production` Environment·reviewer·secret, Tailscale identity, actual Rhaomi host entrypoint/path·volume·backup repository·HomeOps monitor/control·schedule·Secret·FQDN을 provision한 것이 아니다. Rhaomi workflow dispatch·release·deploy·production migration·backup·restore·mapping·Agent rollout·restart는 수행하지 않았다.
 
@@ -43,6 +45,20 @@ feature → dev 검증
 ```
 
 `main` merge와 production apply는 독립 gate다. public repository PR source를 production Mac mini runner에서 실행하지 않고 `latest`를 사용하지 않는다.
+
+### Publish와 host deploy 승인 경계
+
+현재 `.github/workflows/production-release.yml`은 `workflow_dispatch`만 허용하고 다음 job dependency를 사용한다.
+
+```text
+validate_release
+→ publish_image
+→ deploy_production [environment: production]
+```
+
+`publish_image`는 production Environment를 참조하지 않으며 `validate_release` 성공 뒤 immutable multi-arch image를 GHCR에 publish한다. Environment required reviewer 승인은 `deploy_production`의 Tailscale/SSH와 host mutation만 gate하므로 publish 자체의 승인으로 해석하지 않는다. Dispatch 전에 immutable GHCR publish 범위를 별도로 승인받고, production host deploy는 별도 승인과 preflight를 요구한다. Publish 뒤 deploy가 보류·실패해도 artifact를 삭제·덮어쓰거나 동일 SHA를 자동 재-dispatch하지 않는다.
+
+Stage 0A/0B의 dev integration·Source Release·back-sync·exact-main Hosted Validate 완료는 [날짜가 있는 source 기록](production-readiness.md#stage-0-source-release-검증-기록)으로 확인한다. 실제 first activation·backup/restore, 관리자 생성·초기 콘텐츠 import·canonical first publication·public ingress는 아래 각각의 별도 승인·acceptance gate를 유지한다.
 
 ### 콘텐츠 배포
 
@@ -73,9 +89,9 @@ Spring Boot 콘텐츠 transaction
 
 ## HomeOps production activation preflight
 
-[Tracked preflight](../../ops/production/homeops-activation-preflight.json)는 historical D-IMP-5b source evidence와 current production release evidence를 분리한다. Live 재검증된 production compatibility authority는 HomeOps `main@0a8ce9090c76f5ad7afba19ca896e923b96b0cbf`다. Publish and Deploy run `33569523762`의 application deploy와 V14 `APPLIED`, Agent artifact `PUBLISHED` exact digest를 기록하되 Agent rollout은 `NOT_RUN`으로 분리한다.
+[Tracked preflight](../../ops/production/homeops-activation-preflight.json)는 historical D-IMP-5b source evidence와 current production release evidence를 분리한다. 당시 live 재검증된 production compatibility authority는 HomeOps `main@0a8ce9090c76f5ad7afba19ca896e923b96b0cbf`다. Publish and Deploy run `33569523762`의 application deploy와 V14 `APPLIED`, Agent artifact `PUBLISHED` exact digest를 기록하되 Agent rollout은 `NOT_RUN`으로 분리한다.
 
-Cross-repository release 순서는 `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning`이다. 앞의 두 단계는 exact main/tree/run과 reporter·DTO·monitoring contract 대조를 통과했고, Rhaomi release/provisioning은 아직 시작하지 않았다. 향후 HomeOps authority가 바뀌거나 current runtime 결과가 불확실해지면 Rhaomi release/provisioning을 시작하지 않는다.
+Cross-repository release 순서는 `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning`이다. 당시 앞의 두 단계는 exact main/tree/run과 reporter·DTO·monitoring contract 대조를 통과했고, Rhaomi production release/provisioning은 미수행으로 기록됐다. 이 historical evidence를 현재 HomeOps runtime이나 Rhaomi provisioning의 대체 근거로 사용하지 않는다. 향후 HomeOps authority가 바뀌거나 current runtime 결과가 불확실해지면 Rhaomi release/provisioning을 시작하지 않는다.
 
 Activation은 V14 production state 확인 → public HTTPS expected HTTP status monitored-service의 disabled `rhaomi-web` mapping → fixed Rhaomi inventory → exact Agent rollout과 fresh capability → read-only end-to-end compatibility → explicit enable approval → controlled single drill approval → post-health/audit/Activity → observation window 순서다. Backend mapping은 만들지 않는다. Deploy/backup shared lock, current runtime identity, 정상 backup/restore eligibility와 previous Agent rollback identity 중 하나라도 불확실하면 중단한다.
 
