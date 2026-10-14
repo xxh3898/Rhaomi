@@ -474,15 +474,21 @@ wait_healthy() {
 }
 
 prepare_linux_bind_ownership() {
-  if [ "$(uname -s)" != Linux ]; then
-    verify_initial_content_validation_fixture \
-      "$validation_host_uid" "$validation_host_gid"
-    return 0
-  fi
-
-  validation_bind_ownership_prepared=true
-  run_bind_ownership_helper prepare
-  validation_bind_ownership_mode=docker-helper-root-owned
+  case "$(uname -s)" in
+    Darwin)
+      initialize_initial_content_validation_fixture
+      return 0
+      ;;
+    Linux)
+      validation_bind_ownership_prepared=true
+      run_bind_ownership_helper prepare
+      validation_bind_ownership_mode=docker-helper-root-owned
+      ;;
+    *)
+      echo "지원하지 않는 validation host입니다." >&2
+      exit 1
+      ;;
+  esac
 }
 
 restore_linux_bind_ownership() {
@@ -492,7 +498,69 @@ restore_linux_bind_ownership() {
   validation_bind_ownership_prepared=false
 }
 
+initialize_initial_content_validation_fixture() {
+  if [ "$validation_host_uid" != "$(id -u)" ] ||
+    [ "$validation_host_gid" != "$(id -g)" ]; then
+    echo "검증된 host UID/GID가 필요합니다." >&2
+    exit 1
+  fi
+  verify_initial_content_validation_paths
+  # macOS mkdir가 임시 부모의 그룹을 상속하므로 자기 fixture만 정렬한다.
+  for initial_content_fixture in \
+    "$validation_root/state/initial-content" \
+    "$validation_root/state/initial-content/media" \
+    "$validation_root/state/initial-content/manifest.json" \
+    "$validation_root/state/initial-content/content.json" \
+    "$validation_root/state/initial-content/media/cover.png"; do
+    chgrp "$validation_host_gid" "$initial_content_fixture"
+  done
+  verify_initial_content_validation_fixture \
+    "$validation_host_uid" "$validation_host_gid"
+}
+
+verify_initial_content_validation_paths() {
+  if [ -z "$validation_root" ] || [ ! -d "$validation_root" ] ||
+    [ -L "$validation_root" ] ||
+    [ "$(CDPATH= cd -- "$validation_root" && pwd -P)" != "$validation_root" ] ||
+    [ "$marker" != "$validation_root/.rhaomi-production-compose-validation" ] ||
+    [ ! -f "$marker" ] || [ -L "$marker" ] ||
+    [ "$(sed -n '1p' "$marker")" != "$project_name" ]; then
+    echo "소유한 validation fixture 경로가 필요합니다." >&2
+    exit 1
+  fi
+  case "$(validation_path_identity "$validation_root")" in
+    "${validation_host_uid}:"*:700) ;;
+    *) echo "validation root ownership/mode가 다릅니다." >&2; exit 1 ;;
+  esac
+  for initial_content_directory in \
+    "$validation_root/state" \
+    "$validation_root/state/initial-content" \
+    "$validation_root/state/initial-content/media"; do
+    [ -d "$initial_content_directory" ] && [ ! -L "$initial_content_directory" ] || exit 1
+    case "$(validation_path_identity "$initial_content_directory")" in
+      "${validation_host_uid}:"*) ;;
+      *) exit 1 ;;
+    esac
+  done
+  for initial_content_file in \
+    "$validation_root/state/initial-content/manifest.json" \
+    "$validation_root/state/initial-content/content.json" \
+    "$validation_root/state/initial-content/media/cover.png"; do
+    [ -f "$initial_content_file" ] && [ ! -L "$initial_content_file" ] || exit 1
+    case "$(validation_path_identity "$initial_content_file")" in
+      "${validation_host_uid}:"*) ;;
+      *) exit 1 ;;
+    esac
+    case "$(uname -s)" in
+      Darwin) [ "$(stat -f '%l' "$initial_content_file")" = 1 ] || exit 1 ;;
+      Linux) [ "$(stat -c '%h' "$initial_content_file")" = 1 ] || exit 1 ;;
+      *) exit 1 ;;
+    esac
+  done
+}
+
 verify_initial_content_validation_fixture() {
+  verify_initial_content_validation_paths
   initial_content_expected_uid=$1
   initial_content_expected_gid=$2
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -594,4 +594,95 @@ test("Hosted Validate가 기존 3-job에서 exact-head image를 Compose gate에 
     /RHAOMI_PRODUCTION_IMAGE: rhaomi-production-ci:\$\{\{ github\.event\.pull_request\.head\.sha \}\}/u,
   );
   assert.doesNotMatch(workflow, /github\.sha|packages:\s*write|ghcr\.io/iu);
+});
+
+
+async function fixtureOwnershipRunner(context, mutation = "", expectedOffset = 0) {
+  const entrypoint = await source("scripts/validate-production-compose.sh");
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "rhaomi-compose-owner-"));
+  context.after(() => rm(temporaryRoot, { recursive: true, force: true }));
+  const root = join(temporaryRoot, "validation");
+  const fixture = join(root, "state/initial-content");
+  await mkdir(join(fixture, "media"), { recursive: true });
+  await chmod(root, 0o700);
+  for (const directory of [fixture, join(fixture, "media")]) await chmod(directory, 0o700);
+  for (const file of ["manifest.json", "content.json", "media/cover.png"]) {
+    await writeFile(join(fixture, file), "synthetic fixture");
+    await chmod(join(fixture, file), 0o600);
+  }
+  await writeFile(join(root, ".rhaomi-production-compose-validation"), "owned-test\n");
+  const runner = [
+    "set -eu",
+    'validation_root=$(cd "$1" && pwd -P)',
+    'marker="$validation_root/.rhaomi-production-compose-validation"',
+    "project_name=owned-test",
+    "validation_host_uid=$(id -u)",
+    "validation_host_gid=$(id -g)",
+    shellFunction(entrypoint, "validation_path_identity"),
+    shellFunction(entrypoint, "verify_initial_content_validation_paths"),
+    shellFunction(entrypoint, "verify_initial_content_validation_fixture"),
+    shellFunction(entrypoint, "initialize_initial_content_validation_fixture"),
+    mutation,
+    "initialize_initial_content_validation_fixture",
+    `verify_initial_content_validation_fixture "$((validation_host_uid + ${expectedOffset}))" "$validation_host_gid"`,
+    'printf success > "$2"',
+  ].join("\n");
+  const evidence = join(temporaryRoot, "success.txt");
+  const result = spawnSync("/bin/sh", ["-c", runner, "sh", root, evidence], { encoding: "utf8" });
+  const successEvidence = await readFile(evidence, "utf8").catch(() => null);
+  return { result, successEvidence };
+}
+
+test("검증 fixture가 실제 호스트 UID/GID와 0700/0600으로 초기화된다", async (context) => {
+  const { result, successEvidence } = await fixtureOwnershipRunner(context);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(successEvidence, "success");
+});
+
+for (const [name, mutation, offset] of [
+  ["wrong expected ownership", "", 1],
+  ["root mode", 'chmod 755 "$validation_root"', 0],
+  ["directory mode", 'chmod 755 "$validation_root/state/initial-content/media"', 0],
+  ["file mode", 'chmod 640 "$validation_root/state/initial-content/content.json"', 0],
+  ["foreign file owner", 'if [ "$(id -u)" = 0 ]; then chown "$((validation_host_uid + 1))" "$validation_root/state/initial-content/content.json"; else validation_host_uid=$((validation_host_uid + 1)); fi', 0],
+  ["unverified host UID", 'validation_host_uid=$((validation_host_uid + 1))', 0],
+  ["unverified host GID", 'validation_host_gid=$((validation_host_gid + 1))', 0],
+  ["missing marker", 'unlink "$marker"', 0],
+  ["marker identity", 'printf foreign > "$marker"', 0],
+  ["file symlink escape", 'mv "$validation_root/state/initial-content/content.json" "$validation_root/../outside.json"; ln -s "$validation_root/../outside.json" "$validation_root/state/initial-content/content.json"', 0],
+  ["directory symlink escape", 'mv "$validation_root/state/initial-content/media" "$validation_root/../outside-media"; ln -s "$validation_root/../outside-media" "$validation_root/state/initial-content/media"', 0],
+  ["parent symlink escape", 'mv "$validation_root/state" "$validation_root/../outside-state"; ln -s "$validation_root/../outside-state" "$validation_root/state"', 0],
+  ["hardlink escape", 'ln "$validation_root/state/initial-content/content.json" "$validation_root/../outside-hardlink"', 0],
+]) {
+  test(`검증 fixture가 ${name}를 거부하고 성공 evidence를 쓰지 않는다`, async (context) => {
+    const { result, successEvidence } = await fixtureOwnershipRunner(context, mutation, offset);
+    assert.notEqual(result.status, 0, result.stderr);
+    assert.equal(successEvidence, null);
+  });
+}
+
+test("Darwin fixture 초기화가 Linux helper와 Production root ownership을 변경하지 않는다", async () => {
+  const entrypoint = await source("scripts/validate-production-compose.sh");
+  const prepare = shellFunction(entrypoint, "prepare_linux_bind_ownership");
+  assert.match(prepare, /Darwin\)[\s\S]*initialize_initial_content_validation_fixture/u);
+  assert.match(prepare, /Linux\)[\s\S]*validation_bind_ownership_prepared=true[\s\S]*run_bind_ownership_helper prepare/u);
+  const initialize = shellFunction(entrypoint, "initialize_initial_content_validation_fixture");
+  assert.match(initialize, /verify_initial_content_validation_paths/u);
+  assert.match(initialize, /chgrp "\$validation_host_gid" "\$initial_content_fixture"/u);
+  assert.doesNotMatch(initialize, /chgrp -R|chown|chmod|sudo|docker/u);
+  assert.match(shellFunction(entrypoint, "run_bind_ownership_helper"), /assert_initial_content_identity 0 0/u);
+});
+
+
+test("검증 fixture가 상속된 다른 그룹을 실제 chgrp로 정렬한다", async (context) => {
+  const mutation = [
+    'if [ "$(id -u)" = 0 ]; then',
+    '  for fixture in "$validation_root/state/initial-content" "$validation_root/state/initial-content/media" "$validation_root/state/initial-content/manifest.json" "$validation_root/state/initial-content/content.json" "$validation_root/state/initial-content/media/cover.png"; do',
+    '    chgrp "$((validation_host_gid + 1))" "$fixture"',
+    '  done',
+    'fi',
+  ].join("\n");
+  const { result, successEvidence } = await fixtureOwnershipRunner(context, mutation);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(successEvidence, "success");
 });
