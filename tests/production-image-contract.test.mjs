@@ -28,6 +28,7 @@ test("production image가 fixed dependency와 decoder-only runtime을 고정한�
   assert.match(dockerfile, /LIBDE265_VERSION=1\.0\.16-r0/);
   assert.match(dockerfile, /LIBEXPAT_VERSION=2\.8\.5-r0/);
   assert.match(dockerfile, /OPENSSL_VERSION=3\.5\.9-r0/);
+  assert.match(dockerfile, /ZLIB_VERSION=1\.3\.2-r1/);
   assert.match(
     dockerfile,
     /eclipse-temurin:25\.0\.4_7-jre-alpine-3\.23@sha256:f8b38ad02cacf5a1618a329dd22915fb1e2f2914fe6242e6daaf5cc7d22d6677/,
@@ -70,6 +71,7 @@ test("production image acceptance가 image surface, actual media와 supply chain
   assert.match(entrypoint, /libcrypto3=3\.5\.9-r0/);
   assert.match(entrypoint, /libssl3=3\.5\.9-r0/);
   assert.match(entrypoint, /openssl=3\.5\.9-r0/);
+  assert.match(entrypoint, /zlib=1\.3\.2-r1/);
   assert.match(entrypoint, /x265-libs/);
   assert.match(entrypoint, /ldd .*libheif/);
   assert.match(entrypoint, /validate-production-image-media\.mjs/);

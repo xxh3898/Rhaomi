@@ -3,7 +3,7 @@ title: "이미지 파이프라인"
 status: "proposed"
 owner: "조치호"
 reviewers: "은총쌤"
-last_updated: "2026-09-11"
+last_updated: "2026-10-14"
 review_trigger: "미디어 형식·저장소 변경 시"
 ---
 
@@ -102,7 +102,7 @@ Gallery·Hero profile은 Phase 1C-8f4의 구현 계약이다. source가 후보 �
 
 ### 현재 public derivative transformer
 
-- Node.js 24와 exact `sharp 0.35.4`
+- Node.js 24와 exact `sharp 0.35.5`
 - Gallery card `360/640/960`, large `768/1200/1600`, Hero `768/1280/1920`
 - AVIF quality 50/effort 4, WebP quality 80/effort 4, progressive JPEG quality 82
 - orientation 적용, sRGB 변환, metadata 제거, alpha JPEG는 white background로 flatten

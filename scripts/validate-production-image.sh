@@ -90,6 +90,7 @@ docker run --rm --network none \
     apk info -e "libcrypto3=3.5.9-r0" >/dev/null
     apk info -e "libssl3=3.5.9-r0" >/dev/null
     apk info -e "openssl=3.5.9-r0" >/dev/null
+    apk info -e "zlib=1.3.2-r1" >/dev/null
     if apk info -e x265-libs || apk info -e x265; then
       echo "x265 package가 final image에 있습니다." >&2
       exit 1
