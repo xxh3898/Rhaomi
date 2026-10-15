@@ -3,13 +3,13 @@ title: "브랜치·릴리스 정책"
 status: "proposed"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-08-29"
+last_updated: "2026-10-14"
 review_trigger: "GitHub 운영 방식 확정 시"
 ---
 
 # 브랜치·릴리스 정책
 
-이 문서는 저장소와 운영 release에 적용할 목표 계약이다. 실제 브랜치 보호·GitHub production environment 설정 전에는 `proposed`를 유지한다.
+이 문서는 저장소와 운영 release에 적용할 목표 계약이다. 실제 설정의 존재와 정책 문서의 승인은 별개이므로 `proposed`를 유지한다. 아래 권장 보호 규칙을 현재 GitHub에서 모두 강제하는 것으로 해석하지 않는다.
 
 ## 브랜치
 
@@ -48,7 +48,7 @@ feature/* ──PR──> dev ──Release PR──> main
 - 관리자 승인 후 merge
 - force push와 branch deletion 금지
 
-### `production` environment — planned
+### `production` environment — 목표 계약
 
 - `main` exact SHA의 GitHub-hosted 검증과 immutable image build
 - required reviewer의 수동 승인
@@ -57,10 +57,12 @@ feature/* ──PR──> dev ──Release PR──> main
 - Tailscale SSH와 고정·versioned deploy entrypoint만 허용
 - production Mac mini에서 PR source build 금지
 
+2026-10-14 GitHub metadata 조회에서 `main`·`dev`의 active `PR-only main-dev` ruleset, deletion·non-fast-forward 금지와 bypass actor 0을 확인했다. required status check 강제는 확인되지 않았으므로 위 검증 목표의 충족으로 표시하지 않는다. `production` Environment는 reviewer `xxh3898`, main-only branch policy, admin bypass 금지와 `prevent_self_review=false`로 존재한다. 이 snapshot은 Secret의 유효성, GHCR artifact, 실제 host deploy 또는 production acceptance 증거가 아니다. 설정 변경과 정책 승인은 별도 gate다.
+
 ## 머지 방식
 
 - 기능 PR은 squash merge를 권장한다.
-- Release PR은 merge commit 또는 squash 중 하나로 프로젝트 초기에 통일한다.
+- Release PR은 적용 AGENTS.md에 따라 dev ancestry와 fast-forward back-sync를 보존하는 merge commit을 사용하고, merge 뒤 main→dev back-sync를 별도 승인 범위에서 확인한다.
 - 커밋 메시지는 변경 목적이 식별되도록 작성한다.
 
 ## 배포 트리거
@@ -70,4 +72,4 @@ feature/* ──PR──> dev ──Release PR──> main
 - 콘텐츠 release 후보: Spring Boot가 같은 transaction에 기록한 publishing outbox
 - 두 트리거 모두 동일한 `build → validate → atomic switch` 파이프라인으로 수렴한다.
 
-[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)이 production release와 콘텐츠 publisher의 상세 계약을 정의한다. publisher DB state, dedicated non-web control loop와 local/CI full release adapter는 구현됐지만 실제 production workflow·environment·image·secret·Mac path service provisioning은 아직 구현되지 않았다.
+[ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md)과 [ADR-011](../09-decisions/ADR-011-transactional-outbox-static-publisher.md)이 production release와 콘텐츠 publisher의 상세 계약을 정의한다. publisher DB state, dedicated non-web control loop, local/CI full release adapter와 workflow_dispatch-only Production Release workflow source는 구현됐다. workflow는 `validate_release → publish_image → deploy_production`이며 production Environment 승인은 마지막 deploy job에만 적용된다. Immutable GHCR publish와 production host deploy는 별도 승인 gate다. Source Release·Hosted CI와 actual image·credential·Mac runtime provisioning/acceptance는 [readiness](../07-operations/production-readiness.md)에서 분리한다.

@@ -3,7 +3,7 @@ title: "Production readiness matrix"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호·은총쌤"
-last_updated: "2026-09-11"
+last_updated: "2026-10-14"
 review_trigger: "production 구현·provisioning·외부 승인·물리 기기 증거 변경 시"
 ---
 
@@ -21,7 +21,25 @@ APPROVED CONTRACT
 ≠ PHYSICAL DEVICE ACCEPTED
 ```
 
-Phase 1D는 `Production operating architecture CONTRACT COMPLETE`다. production 구현·provisioning·deploy는 완료되지 않았고 현재 overall production readiness는 `HOLD`다.
+Phase 1D는 `Production operating architecture CONTRACT COMPLETE`다. 아래 source 구현·Release·CI evidence와 actual production provisioning·deploy·acceptance는 별개이며 `overallProductionReadiness=HOLD`를 유지한다.
+
+## Stage 0 source Release 검증 기록
+
+2026-10-14 KST GitHub 재조회 기준의 source snapshot이다. 이후 변경 시 live branch/PR/CI authority를 다시 확인한다.
+
+| source prerequisite | 확인한 근거 | 판정 |
+|---|---|---|
+| #96 Stage 0A 구현·dev integration | [Issue #96](https://github.com/xxh3898/Rhaomi/issues/96) CLOSED, [PR #98](https://github.com/xxh3898/Rhaomi/pull/98) MERGED | COMPLETE |
+| #97 Stage 0B 구현·dev integration | [Issue #97](https://github.com/xxh3898/Rhaomi/issues/97) CLOSED, [PR #102](https://github.com/xxh3898/Rhaomi/pull/102) MERGED | COMPLETE |
+| dev→main Source Release | Stage 0A [PR #100](https://github.com/xxh3898/Rhaomi/pull/100), Stage 0B [PR #104](https://github.com/xxh3898/Rhaomi/pull/104) MERGED | COMPLETE |
+| main→dev ancestry back-sync | [PR #105](https://github.com/xxh3898/Rhaomi/pull/105) MERGED, main이 dev의 조상이며 dev ahead 1/behind 0·changed files 0 | COMPLETE |
+| exact-main Hosted Validate | [run 34671533006](https://github.com/xxh3898/Rhaomi/actions/runs/34671533006), pull_request/main, attempt 1, Frontend·Backend·Compose Smoke SUCCESS | HOSTED CI VERIFIED |
+
+- main: `fd2ae982b667569422840b45138c6e4df1b4ddac`
+- dev: `d8b5a0f7cb07adf662ce576b53c8317ed651a149`
+- 두 source tree: `771ae7e3157118f04116b670d8ea8d5da4cfc423`; merge-base는 위 main이다.
+
+ADR-017/018의 Stage A 진입 전 source 조건은 위 snapshot에서 충족됐다. Issue #95의 과거 `STAGE_0_SOURCE_IMPLEMENTATION_REQUIRED` 판단은 현재 source blocker가 아니다. 조건문 자체와 Stage A의 별도 승인은 유지한다. 이 기록은 Production Release dispatch, GHCR publish, actual verified-empty/first activation·backup/restore·`STEADY_STATE`, 관리자/passkey/recovery 생성, owner bundle import·첫 정적 release·public deployment 완료 evidence가 아니다. 당시 Hosted native pre-publish image scan의 High 0/Critical 0도 actual published multi-arch artifact의 attached SBOM/scan 검증을 대체하지 않는다.
 
 ## 상태 vocabulary
 
@@ -42,8 +60,8 @@ matrix의 `현재 상태`는 해당 행에서 가장 가까운 다음 gate 하�
 |---|---|---|---|---:|---|
 | ingress / public web | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md), [배포](deployment.md) | canonical project Nginx와 web-only loopback Compose source, task static/admin/deny/404 smoke | `PROVISIONING_REQUIRED` | 예 | actual loopback port/FQDN, Cloudflare DNS/HTTPS→Tunnel→host edge와 public HTTPS smoke |
 | backend / admin session·CSRF | [ADR-009](../09-decisions/ADR-009-spring-boot-backend-admin.md), [접근제어](../06-security/access-control.md) | Java 25/PostgreSQL auth·session fixation·CSRF·fail-closed API 계약과 Hosted CI | `PROVISIONING_REQUIRED` | 예 | production TLS·`Secure` cookie와 운영 계정 |
-| production 최초 관리자 authority | [ADR-017](../09-decisions/ADR-017-production-initial-admin-authority.md), [배포](deployment.md) | exact-image TTY-only non-web task, PostgreSQL transaction lock·zero-admin concurrency, shared operation lock·writer recovery의 source/task evidence | `LOCAL_CI_VERIFIED` | 예 | #96 integration·Source Release 후 actual `STEADY_STATE` host에서 별도 승인된 account 생성; passkey/recovery acceptance 전 password-only production 금지 |
-| production 초기 콘텐츠 authority | [ADR-018](../09-decisions/ADR-018-production-initial-content-authority.md), [배포](deployment.md) | tracked exact bundle schema, fixed non-web task, application validation/media normalization, pristine lock·single transaction·one pending event, replay/concurrency/rollback의 source/task evidence | `LOCAL_CI_VERIFIED` | 예 | #97 integration·Source Release 후 actual owner bundle 승인/transport, pristine host import와 canonical publisher first release acceptance |
+| production 최초 관리자 authority | [ADR-017](../09-decisions/ADR-017-production-initial-admin-authority.md), [배포](deployment.md) | exact-image TTY-only non-web task, PostgreSQL transaction lock·zero-admin concurrency, shared operation lock·writer recovery의 source/task evidence와 Stage 0A integration·Source Release 완료 | `LOCAL_CI_VERIFIED` | 예 | actual `STEADY_STATE` host에서 별도 승인된 account 생성; passkey/recovery acceptance 전 password-only production 금지 |
+| production 초기 콘텐츠 authority | [ADR-018](../09-decisions/ADR-018-production-initial-content-authority.md), [배포](deployment.md) | tracked exact bundle schema, fixed non-web task, application validation/media normalization, pristine lock·single transaction·one pending event, replay/concurrency/rollback의 source/task evidence와 Stage 0B integration·Source Release 완료 | `LOCAL_CI_VERIFIED` | 예 | actual owner bundle 승인/transport, pristine host import와 canonical publisher first release acceptance |
 | login rate limit | [접근제어](../06-security/access-control.md), [위협 모델](../06-security/threat-model.md) | process-global 10/2초·SHA-256 identifier 5/5분 limiter, generic 429, refill/reset/503 복구·concurrency·CSRF/validation ordering regression | `LOCAL_CI_VERIFIED` | 예 | exact released image와 production HTTPS에서 generic 429·`Retry-After` smoke; single-process/restart-reset 제한 유지 확인 |
 | admin second factor | [접근제어](../06-security/access-control.md), [위협 모델](../06-security/threat-model.md) | Spring Security WebAuthn/WebAuthn4J, FIRST/SECOND/RECOVERY authority, V10 RP-side credential·one-way recovery code, Static Export ceremony와 automated contract 구현 | `PROVISIONING_REQUIRED` | 예 | exact production RP ID·approved HTTPS origin·RP name, 실제 운영 account/passkey enrollment·recovery-code 발급/보관, public HTTPS Safari/VoiceOver와 session rotation evidence; password-only production 금지 |
 | PostgreSQL persistence / migration | [ADR-010](../09-decisions/ADR-010-production-topology-and-code-release.md), [환경설정](../04-architecture/environment-and-configuration.md) | PostgreSQL 18.6·Flyway V1~V10, exact CLI non-web migration/schema task, task project-scoped volume identity·일반 `down` sentinel persistence | `PROVISIONING_REQUIRED` | 예 | actual production volume identity·capacity·restart persistence, approved backup 후 actual one-shot V10 migration·schema validate |
@@ -90,7 +108,7 @@ Admin second factor의 `PROVISIONING_REQUIRED`는 source 구현 완료만 뜻한
 
 외장 SSD/iCloud 3-2-1은 D-IMP-4의 초기 production 범위가 아니라 후속 hardening이다. 새 architecture 결정이 필요해지면 구현 Issue에서 임의 선택하지 않고 별도 결정 gate로 되돌린다.
 
-D-IMP-1 canonical image, D-IMP-2 production Compose/project Nginx, D-IMP-3 exact-main release workflow·fixed deploy entrypoint·one-shot Flyway/schema task, D-IMP-4 shared-lock backup/manifest/eligibility/isolated restore, D-IMP-5a Rhaomi adapter/target와 D-IMP-5b HomeOps incident decision·V14 mapping/audit·durable cooldown source는 구현·검증됐다. D-IMP-5b production 순서는 `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning`이다. 앞의 두 단계는 HomeOps `main@0a8ce9090c76f5ad7afba19ca896e923b96b0cbf`와 run `33569523762` 근거로 완료했고, Rhaomi release/provisioning은 `NOT_RUN`이다. HomeOps application과 V14는 배포됐고 Agent artifact는 `PUBLISHED`지만 Agent rollout은 `NOT_RUN`이다. Actual Rhaomi fixed inventory, monitor/mapping/control/notification, Agent capability, production named volume·backup repository·schedule, private GHCR package/visibility, GitHub `production` Environment·reviewer·secret, Tailscale identity, Mac entrypoint/config, Secret·FQDN·host edge·Cloudflare는 미완료다.
+D-IMP-1 canonical image, D-IMP-2 production Compose/project Nginx, D-IMP-3 exact-main release workflow·fixed deploy entrypoint·one-shot Flyway/schema task, D-IMP-4 shared-lock backup/manifest/eligibility/isolated restore, D-IMP-5a Rhaomi adapter/target와 D-IMP-5b HomeOps incident decision·V14 mapping/audit·durable cooldown source는 구현·검증됐다. D-IMP-5b production 순서는 `HomeOps release → live compatibility 재검증 → Rhaomi release/provisioning`이다. 당시 앞의 두 단계는 HomeOps `main@0a8ce9090c76f5ad7afba19ca896e923b96b0cbf`와 run `33569523762` 근거로 완료됐고, Rhaomi production release/provisioning은 `NOT_RUN`으로 기록됐다. 당시 HomeOps application과 V14 배포, Agent artifact `PUBLISHED`·Agent rollout `NOT_RUN`은 historical evidence이며 현재 live 상태를 대신하지 않는다. Rhaomi Source Release 완료는 위 Stage 0 기록으로 별도 확인한다. Actual Rhaomi fixed inventory, monitor/mapping/control/notification, Agent capability, production named volume·backup repository·schedule, private GHCR package/visibility, GitHub `production` Environment·reviewer·secret, Tailscale identity, Mac entrypoint/config, Secret·FQDN·host edge·Cloudflare의 완료 여부는 source evidence가 아니라 각 단계의 fresh provisioning/acceptance evidence로 확인한다.
 
 ## accepted residual risks
 
@@ -100,4 +118,4 @@ D-IMP-1 canonical image, D-IMP-2 production Compose/project Nginx, D-IMP-3 exact
 
 ## 비수행 경계
 
-HomeOps application release/deploy와 V14는 별도 HomeOps workflow에서 완료됐고 Rhaomi는 이를 read-only로 재검증했다. 이 Rhaomi 작업은 실제 GitHub Environment·GHCR package·Tailscale identity, Mac canonical path·entrypoint·production volume·backup repository·schedule·Secret·FQDN·HomeOps mapping·Cloudflare를 생성·변경하지 않았다. Rhaomi workflow dispatch, package push, merge, release, deploy, production migration·backup·restore, mapping create/enable, Agent rollout, restart/drill·mutation도 수행하지 않았다. Overall production readiness는 계속 `HOLD`다.
+당시 HomeOps application release/deploy와 V14는 별도 HomeOps workflow에서 완료됐고 Rhaomi는 이를 read-only로 재검증했다. 해당 source/task validation은 실제 GitHub Environment·GHCR package·Tailscale identity, Mac canonical path·entrypoint·production volume·backup repository·schedule·Secret·FQDN·HomeOps mapping·Cloudflare를 생성·변경하지 않았다. 해당 validation의 workflow dispatch, package push, merge, release, deploy, production migration·backup·restore, mapping create/enable, Agent rollout, restart/drill·mutation 미수행 기록은 이후 Source Release나 현재 provisioning 상태의 부재 근거로 사용하지 않는다. Overall production readiness는 계속 `HOLD`다.
