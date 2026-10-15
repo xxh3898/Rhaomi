@@ -96,19 +96,38 @@ jobs:
           .
 
       - name: PostgreSQL·Flyway·인증·media 계약 검증
-        run: >-
-          docker run --rm
-          --network host
-          --workdir /workspace/backend
-          --volume "${{ github.workspace }}/backend:/workspace/backend"
-          --volume "$HOME/.gradle:/root/.gradle"
-          --env SPRING_DATASOURCE_URL
-          --env SPRING_DATASOURCE_USERNAME
-          --env SPRING_DATASOURCE_PASSWORD
-          --env RHAOMI_TEST_DATABASE_ALLOWED
-          --env RHAOMI_MEDIA_ROOT=/tmp/rhaomi-media-ci
-          rhaomi-backend-ci:${{ github.event.pull_request.head.sha }}
-          ./gradlew test --no-daemon
+        run: |
+          python3 -m unittest discover -s tests -p 'test_ci_credential_output.py'
+          status_code=0
+          docker run --rm \
+            --network host \
+            --workdir /workspace/backend \
+            --volume "${{ github.workspace }}/backend:/workspace/backend" \
+            --volume "$HOME/.gradle:/root/.gradle" \
+            --env SPRING_DATASOURCE_URL \
+            --env SPRING_DATASOURCE_USERNAME \
+            --env SPRING_DATASOURCE_PASSWORD \
+            --env RHAOMI_TEST_DATABASE_ALLOWED \
+            --env RHAOMI_MEDIA_ROOT=/tmp/rhaomi-media-ci \
+            rhaomi-backend-ci:${{ github.event.pull_request.head.sha }} \
+            ./gradlew test --no-daemon >"$RUNNER_TEMP/backend-test-output.log" 2>&1 || status_code=$?
+          echo "Backend test exit code: $status_code"
+          exit "$status_code"
+
+      - name: Java·JUnit·PostgreSQL credential 비노출 검증
+        if: always()
+        env:
+          POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
+          VALIDATION_GIT_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -o pipefail
+          docker logs "$POSTGRES_SERVICE_ID" 2>&1 |
+            python3 scripts/validate-ci-credential-output.py \
+              --git-head "$VALIDATION_GIT_HEAD" \
+              --stdin-label postgres \
+              --file "$RUNNER_TEMP/backend-test-output.log" \
+              --junit-dir backend/build/test-results/test \
+              --output "$RUNNER_TEMP/ci-credential-output-evidence/backend-output.json"
 
       - name: HomeOps D-IMP-5b source·activation preflight 계약 검증
         env:
@@ -152,6 +171,31 @@ jobs:
           RHAOMI_PRODUCTION_IMAGE: rhaomi-production-ci:${{ github.event.pull_request.head.sha }}
           RHAOMI_WEB_LOOPBACK_PORT: "18055"
         run: sh scripts/validate-production-backup.sh
+
+      - name: CI artifact credential 비노출 검증
+        if: always()
+        env:
+          VALIDATION_GIT_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 scripts/validate-ci-credential-output.py \
+            --git-head "$VALIDATION_GIT_HEAD" \
+            --directory "$RUNNER_TEMP/rhaomi-production-image-evidence" \
+            --directory "$RUNNER_TEMP/rhaomi-homeops-evidence" \
+            --directory "$RUNNER_TEMP/rhaomi-production-compose-evidence" \
+            --directory "$RUNNER_TEMP/rhaomi-production-deploy-evidence" \
+            --directory "$RUNNER_TEMP/rhaomi-production-backup-control-evidence" \
+            --directory "$RUNNER_TEMP/rhaomi-production-first-activation-evidence" \
+            --directory "$RUNNER_TEMP/rhaomi-production-backup-evidence" \
+            --output "$RUNNER_TEMP/ci-credential-output-evidence/artifacts.json"
+
+      - name: CI credential count-only evidence 보존
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ci-credential-output-evidence-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/ci-credential-output-evidence
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Production image 공급망 evidence 보존
         if: always()

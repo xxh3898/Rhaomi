@@ -15,22 +15,43 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import kr.co.rhaomi.backend.config.AdminBootstrap;
 import kr.co.rhaomi.publisher.PublisherControlLoop;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.web.server.context.WebServerApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.RestController;
 
+@ExtendWith(OutputCaptureExtension.class)
 class ProductionInitialAdminTaskIntegrationTests {
 
     private static final String ADMIN_EMAIL = "INITIAL.ADMIN@example.com";
     private static final String ADMIN_PASSWORD = "synthetic-initial-password-123!";
+
+    private final java.util.Set<String> credentialValues = ConcurrentHashMap.newKeySet();
+
+    @AfterEach
+    void should_keepCredentialsOutOfApplicationOutput(CapturedOutput output) {
+        var captured = output.getAll();
+        for (var value : credentialValues) {
+            assertFalse(captured.contains(value), "application output에 credential이 없어야 합니다.");
+            assertFalse(captured.contains(value.toLowerCase(java.util.Locale.ROOT)),
+                    "application output에 정규화된 credential이 없어야 합니다.");
+        }
+        assertFalse(Pattern.compile("\\$2[aby]\\$\\d{2}\\$[./A-Za-z0-9]{53}")
+                .matcher(captured).find(), "application output에 BCrypt hash가 없어야 합니다.");
+    }
 
     @Test
     void should_createExactlyOneHashedAdmin_withoutWebOrLongLivedBeans() throws Exception {
@@ -53,6 +74,7 @@ class ProductionInitialAdminTaskIntegrationTests {
                     queryString(schemaUrl, "SELECT email FROM admin_users"));
             var passwordHash = queryString(schemaUrl, "SELECT password_hash FROM admin_users");
             assertNotEquals(ADMIN_PASSWORD, passwordHash);
+            assertTrue(passwordHash.matches("\\$2[aby]\\$12\\$[./A-Za-z0-9]{53}"));
             assertTrue(new BCryptPasswordEncoder(12).matches(ADMIN_PASSWORD, passwordHash));
             assertEquals(
                     0L,
@@ -143,7 +165,38 @@ class ProductionInitialAdminTaskIntegrationTests {
     @Test
     void should_leaveDatabaseEmpty_when_insertFailsInsideTransaction() throws Exception {
         withMigratedSchema(schemaUrl -> {
-            execute(schemaUrl, "ALTER TABLE admin_users ADD CONSTRAINT ck_test_reject_admin CHECK (FALSE)");
+            // 실제 admin INSERT 뒤 민감정보가 없는 guard row에서 실패시켜 DB DETAIL을 안전하게 유지한다.
+            execute(schemaUrl, """
+                    CREATE TABLE initial_admin_rollback_guard (
+                        marker INTEGER CONSTRAINT ck_test_initial_admin_rollback_guard CHECK (FALSE)
+                    )
+                    """);
+            execute(schemaUrl, """
+                    CREATE FUNCTION reject_initial_admin_insert() RETURNS TRIGGER AS $$
+                    BEGIN
+                        IF (SELECT COUNT(*) FROM admin_users) <> 1 THEN
+                            RAISE EXCEPTION 'TEST_ADMIN_INSERT_NOT_OBSERVED';
+                        END IF;
+                        INSERT INTO initial_admin_rollback_guard (marker) VALUES (1);
+                        RETURN NULL;
+                    END;
+                    $$ LANGUAGE plpgsql
+                    """);
+            execute(schemaUrl, """
+                    CREATE TRIGGER reject_initial_admin_insert AFTER INSERT ON admin_users
+                    FOR EACH STATEMENT EXECUTE FUNCTION reject_initial_admin_insert()
+                    """);
+
+            try (var context = initialAdminServiceContext(schemaUrl)) {
+                rememberCredentials(ADMIN_EMAIL, ADMIN_PASSWORD);
+                var failure = assertThrows(RuntimeException.class, () -> context
+                        .getBean(InitialAdminProvisioningService.class)
+                        .provision(new InitialAdminCredential(ADMIN_EMAIL, ADMIN_PASSWORD)));
+                assertTrue(hasSqlState(failure, "23514"), "실제 PostgreSQL CHECK 실패가 필요합니다.");
+                assertTrue(messageChain(failure).contains("ck_test_initial_admin_rollback_guard"));
+            }
+            assertEquals(0L, queryLong(schemaUrl, "SELECT COUNT(*) FROM admin_users"));
+            assertEquals(0L, queryLong(schemaUrl, "SELECT COUNT(*) FROM initial_admin_rollback_guard"));
 
             var exception = assertThrows(
                     RuntimeException.class,
@@ -154,6 +207,7 @@ class ProductionInitialAdminTaskIntegrationTests {
                             new PrintStream(new ByteArrayOutputStream())));
 
             assertEquals(0L, queryLong(schemaUrl, "SELECT COUNT(*) FROM admin_users"));
+            assertEquals(0L, queryLong(schemaUrl, "SELECT COUNT(*) FROM initial_admin_rollback_guard"));
             assertFalse(messageChain(exception).contains(ADMIN_EMAIL));
             assertFalse(messageChain(exception).contains(ADMIN_PASSWORD));
             assertEquals(
@@ -168,6 +222,7 @@ class ProductionInitialAdminTaskIntegrationTests {
             String password,
             CountDownLatch ready,
             CountDownLatch start) {
+        rememberCredentials(email, password);
         ready.countDown();
         try {
             if (!start.await(30, TimeUnit.SECONDS)) {
@@ -204,8 +259,24 @@ class ProductionInitialAdminTaskIntegrationTests {
 
     private org.springframework.context.ConfigurableApplicationContext runInitialAdmin(
             String schemaUrl, String email, String password, PrintStream output) {
+        rememberCredentials(email, password);
         return ProductionDatabaseTaskApplication.runInitialAdmin(
                 taskArguments(schemaUrl), () -> new InitialAdminCredential(email, password), output);
+    }
+
+    private void rememberCredentials(String email, String password) {
+        credentialValues.add(email);
+        credentialValues.add(password);
+    }
+
+    private boolean hasSqlState(Throwable failure, String sqlState) {
+        for (var current = failure; current != null; current = current.getCause()) {
+            if (current instanceof SQLException sqlException
+                    && sqlState.equals(sqlException.getSQLState())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String[] taskArguments(String schemaUrl) {
