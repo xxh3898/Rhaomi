@@ -3,7 +3,7 @@ title: "의존성·라이선스 정책"
 status: "approved"
 owner: "조치호"
 reviewers: "조치호"
-last_updated: "2026-09-09"
+last_updated: "2026-10-14"
 review_trigger: "주요 의존성·라이선스 변경 시"
 ---
 
@@ -14,21 +14,30 @@ review_trigger: "주요 의존성·라이선스 변경 시"
 - Java 25 LTS
 - Spring Boot `4.1.1`
 - Apache Tomcat Embed `11.0.25` — Spring Boot 4.1.1의 `tomcat.version` security override
-- Alpine `libexpat 2.8.4-r0` — production final image의 exact security pin
+- Alpine `libexpat 2.8.5-r0` — production final image의 exact security pin (MIT)
+- Alpine `openssl`, `libcrypto3`, `libssl3` `3.5.9-r0` — production final image의 동일 version exact security pin (Apache-2.0)
+- Alpine `zlib 1.3.2-r1` — production final image의 exact security pin (Zlib)
+- Jackson `tools.jackson` BOM `3.1.7` — Boot 4.1.1의 `jackson-bom.version` security override, core·databind·CBOR 정렬 (Apache-2.0)
+- Next.js와 `eslint-config-next` `16.3.8` — Static Export와 build/lint toolchain의 동일 patch 유지 (MIT)
+- `source-map-js 1.2.2` — 기존 transitive consumer 범위 안의 lockfile security patch (BSD-3-Clause)
 - Spring Security WebAuthn `7.1.1` — Apache-2.0, RP ceremony와 Spring Security integration
 - WebAuthn4J `0.31.9.RELEASE` — Apache-2.0, transitive CBOR·COSE·attestation·assertion 검증 계층
 - Gradle Wrapper `9.7.1`
 - PostgreSQL `18.6-alpine3.23`
 - NightMonkeys `imageio-heif 1.1.0` — MIT, Java 22+ FFM ImageIO adapter
 - Alpine `libheif 1.23.0-r0` — LGPL-3.0-or-later, amd64·arm64 native HEIC/HEIF decode/color transform
-- `sharp 0.35.4` — Apache-2.0, Node 24 build transformer의 JPEG·PNG 재검증과 AVIF·WebP·JPEG 파생본
-- `@img/sharp-libvips-* 1.3.3` — LGPL-3.0-or-later, lockfile로 고정한 Linux amd64·arm64 prebuilt libvips runtime
+- `sharp 0.35.5` — Apache-2.0, Node 24 build transformer의 JPEG·PNG 재검증과 AVIF·WebP·JPEG 파생본
+- `@img/sharp-libvips-* 1.3.4` — LGPL-3.0-or-later, lockfile로 고정한 Linux amd64·arm64 prebuilt libvips runtime
 - `markdown-it 15.0.1` — MIT, raw HTML을 비활성화한 Notice build-time Markdown renderer
 - `parse5 8.0.1` — MIT, release HTML/link/canonical/asset validator parser
 - Next.js와 frontend dependency는 `package-lock.json` 기준
 - Docker image는 검증한 exact tag를 사용하고 운영에서는 가능하면 digest까지 고정
 
 Spring Boot 버전은 구현 시점의 Spring 공식 stable과 system requirements를 확인해 선택했다. Spring Boot 4.1.1 BOM의 Tomcat `11.0.24`는 fixed `11.0.25`보다 낮아 공식 managed-version property인 `tomcat.version`으로 Tomcat family 전체를 `11.0.25`에 맞춘다. 이후 Spring Boot 4.1 patch가 fixed 이상을 관리하면 dependency graph와 전체 회귀를 검증하는 별도 변경에서 override 제거 여부를 판단한다. WebAuthn은 Spring Boot BOM이 관리하는 Spring Security module과 그 transitive WebAuthn4J를 사용하며 application code가 CBOR·COSE·signature crypto를 직접 구현하지 않는다. major/minor 변경은 별도 Issue에서 Java·Gradle·plugin 호환성과 보안 변경을 함께 검토한다.
+
+2026-10-14 기준 공식 Alpine v3.23 main index와 고정 Temurin base에서 amd64·arm64의 위 exact APK 설치를 확인했다. Base image digest는 보존하며 runtime acceptance에서도 설치 version을 검증한다. Alpine repository의 index는 갱신되므로 immutable base digest만으로 APK까지 재현되지는 않는다. 향후 exact package가 사라지거나 scan이 실패하면 build를 차단하고 별도 corrective로 검증하며, downgrade·pin 제거·scan 우회로 해결하지 않는다.
+
+공식 package 근거: [libexpat aarch64](https://pkgs.alpinelinux.org/package/v3.23/main/aarch64/libexpat), [OpenSSL x86_64](https://pkgs.alpinelinux.org/package/v3.23/main/x86_64/openssl).
 
 ## 현재 개발 HEIC runtime 인벤토리
 
@@ -49,12 +58,12 @@ Alpine package가 동적 link하는 현재 runtime package와 Alpine metadata의
 
 ## 현재 build transformer runtime 인벤토리
 
-`package.json`과 `package-lock.json`은 `sharp 0.35.4`를 exact로 고정한다. lockfile은 Hosted Linux amd64와 Mac mini Docker Linux arm64에 필요한 glibc·musl `sharp` binary와 `sharp-libvips 1.3.3` optional package를 포함한다. Compose contract-check는 container architecture를 확인한 뒤 실제 transformer suite를 실행한다.
+`package.json`과 `package-lock.json`은 `sharp 0.35.5`를 exact로 고정한다. lockfile은 Hosted Linux amd64와 Mac mini Docker Linux arm64에 필요한 glibc·musl `sharp` binary와 `sharp-libvips 1.3.4` optional package를 포함한다. Compose contract-check는 container architecture를 확인한 뒤 실제 transformer suite를 실행한다.
 
 | package | version | license | 현재 용도 |
 |---|---|---|---|
-| `sharp` | `0.35.4` | Apache-2.0 | decode, orientation, sRGB, resize, AVIF·WebP·JPEG encode |
-| `@img/sharp-libvips-*` | `1.3.3` | LGPL-3.0-or-later | Linux x64·arm64 image processing runtime |
+| `sharp` | `0.35.5` | Apache-2.0 | decode, orientation, sRGB, resize, AVIF·WebP·JPEG encode |
+| `@img/sharp-libvips-*` | `1.3.4` | LGPL-3.0-or-later | Linux x64·arm64 image processing runtime |
 | `markdown-it` | `15.0.1` | MIT | raw HTML disabled Markdown→static HTML, link/image policy 적용 |
 | `parse5` | `8.0.1` | MIT | exported HTML 구조·link·canonical·asset 검증 |
 
@@ -78,7 +87,9 @@ application runtime에서 codec·binary를 다운로드하지 않고 preinstalle
 
 production image build와 image-level acceptance는 구현됐고 `backend/production-image-components.json`이 최소 runtime의 source·exact identity·license·obligation 상태를 추적한다. validation은 exact image ID·Git HEAD에 연결된 CycloneDX SBOM, pinned Syft·Grype report, CMake build contract와 x265 package/link/plugin absence를 생성한다. generated evidence는 CI artifact로 보존하고 source tree에는 커밋하지 않는다. encoder 제거는 남은 native dependency의 LGPL source·license·재연결 등 배포 의무 검토를 생략하는 근거가 아니다.
 
-GHCR publish, registry scan policy, production Compose·Secret·deploy는 아직 구현하지 않았다. scanner는 finding을 숨기는 blanket suppression을 사용하지 않으며 새 severity policy를 이 단계에서 만들지 않는다. actual HIGH/CRITICAL finding은 fixed package로 해소하거나 pinned architecture와 충돌하면 별도 결정 gate로 되돌린다.
+Source의 pre-publish image validator와 실제 published artifact verifier는 공통 severity policy를 사용한다. 고정 Grype descriptor/version과 valid database evidence, match/vulnerability/artifact identity 및 명시적 canonical severity를 검증한다. High 또는 Critical이 한 건이라도 있으면 fix 유무와 관계없이 실패한다. 유효한 scan의 counts는 schemaVersion 1 summary에 실패 evidence로 보존하며 성공 메시지를 출력하지 않는다. JSON 손상·누락/잘못된 severity는 실패시키고 `Unknown`으로 바꾸지 않는다. 명시적인 Unknown·Negligible·Low·Medium은 evidence에 보존하며 별도 잔여 위험으로 보고한다.
+
+Published verifier는 두 실제 platform의 OCI identity·SPDX·provenance·x265 absence와 High0/Critical0을 유지하며 pre-validation summary의 counts도 검증한다. 검사 제거·blanket suppression·only-fixed filtering으로 통과시키지 않는다. 고정 base/architecture에서 보안 patch가 해결되지 않으면 별도 결정 gate로 되돌린다. 이 source 구현과 개발/CI evidence는 Production workflow dispatch, GHCR publish, Secret·Mac provisioning 또는 실제 deploy 완료를 뜻하지 않는다.
 
 ## Directus 결정 기록
 
@@ -130,7 +141,7 @@ validation에서 machine-readable inventory를 생성하고, 출시 전 exact re
 - libheif v1.23.1: `https://github.com/strukturag/libheif/releases/tag/v1.23.1`
 - libde265: `https://github.com/strukturag/libde265/`
 - sharp: `https://sharp.pixelplumbing.com/`
-- sharp license: `https://github.com/lovell/sharp/blob/v0.35.4/LICENSE`
+- sharp license: `https://github.com/lovell/sharp/blob/v0.35.5/LICENSE`
 
 ## 폰트·아이콘·사진
 
