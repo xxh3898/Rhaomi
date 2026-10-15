@@ -266,9 +266,6 @@ jobs:
     timeout-minutes: 20
     env:
       RHAOMI_HOMEOPS_VALIDATION_GIT_HEAD: ${{ github.event.pull_request.head.sha }}
-      RHAOMI_BOOTSTRAP_ADMIN_ENABLED: "true"
-      RHAOMI_BOOTSTRAP_ADMIN_EMAIL: admin.smoke@example.com
-      RHAOMI_BOOTSTRAP_ADMIN_PASSWORD: "local-smoke-password-123!"
     steps:
       - name: 저장소 checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -279,4 +276,10 @@ jobs:
         run: cp .env.example .env.dev.local
 
       - name: Compose health·인증·재기동 검증
-        run: sh scripts/validate-backend-compose.sh .env.dev.local
+        run: |
+          export RHAOMI_BOOTSTRAP_ADMIN_ENABLED=true
+          RHAOMI_BOOTSTRAP_ADMIN_EMAIL="compose-smoke-$(openssl rand -hex 12)@example.invalid"
+          RHAOMI_BOOTSTRAP_ADMIN_PASSWORD=$(openssl rand -hex 32)
+          printf '::add-mask::%s\n' "$RHAOMI_BOOTSTRAP_ADMIN_EMAIL" "$RHAOMI_BOOTSTRAP_ADMIN_PASSWORD"
+          export RHAOMI_BOOTSTRAP_ADMIN_EMAIL RHAOMI_BOOTSTRAP_ADMIN_PASSWORD
+          sh scripts/validate-backend-compose.sh .env.dev.local

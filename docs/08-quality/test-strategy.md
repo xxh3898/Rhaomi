@@ -25,6 +25,7 @@ review_trigger: "기술·기능 범위 변경 시"
 - Java capture와 정상 Backend CI의 Java/JUnit·PostgreSQL service log에서 합성 email·BCrypt hash·initial-admin 합성 password 계열을 검사한다. 실패·누락·skip을 성공 evidence로 처리하지 않는다.
 - CI scanner는 `example.com`, `example.invalid`, `build.example` 테스트 email과 BCrypt 형식 및 initial-admin 합성 password 계열을 탐지한다. 일반 secret scanner를 대체하지 않는다. 원문이나 raw test log를 artifact에 올리지 않고 건수·행 위치와 JUnit 결과만 보존한다.
 - 기존 CI artifact도 업로드 전 동일 검사로 확인하며, exact-head Hosted job 전체 로그는 실행 종료 후 별도로 재검사한다. PostgreSQL service 로그 자체를 광범위하게 끄지 않는다.
+- Compose Smoke의 합성 bootstrap credential은 job 환경에 고정값으로 두지 않는다. Step 내부에서 일회용 값을 생성하고 Actions mask 등록 후 기존 smoke에 전달해 환경 진단 출력의 노출을 막는다.
 - ADR-012의 초기 로컬 백업·격리 복원 계약은 유지한다. NAS 외부 백업은 `DEFERRED_UNTIL_NAS_READY`이며 초기 오픈의 선행 조건이 아니다. NAS 구축 전 구현·설정·스케줄링은 수행하지 않는다.
 
 ## 현재 Phase 1C-8f3 자동 검증

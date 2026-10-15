@@ -85,6 +85,23 @@ class CredentialOutputTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     SCANNER.junit_summary(directory)
 
+    def test_compose_step_generates_and_masks_ephemeral_credentials(self):
+        workflow = (ROOT / ".github/workflows/validate.yml").read_text()
+        step = workflow.split("- name: Compose health·인증·재기동 검증\n", 1)[1]
+        command = "\n".join(line[10:] for line in step.split("run: |\n", 1)[1].splitlines())
+        command = command.replace(
+            "sh scripts/validate-backend-compose.sh .env.dev.local",
+            'test "$RHAOMI_BOOTSTRAP_ADMIN_ENABLED" = true\n'
+            'test "${#RHAOMI_BOOTSTRAP_ADMIN_PASSWORD}" -eq 64\n'
+            'case "$RHAOMI_BOOTSTRAP_ADMIN_EMAIL" in '
+            'compose-smoke-*@example.invalid) ;; *) exit 1 ;; esac',
+        )
+        result = subprocess.run(["sh", "-eu", "-c", command], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0)
+        lines = result.stdout.splitlines()
+        self.assertEqual(len(lines), 2)
+        self.assertTrue(all(line.startswith("::add-mask::") for line in lines))
+
 
 if __name__ == "__main__":
     unittest.main()
