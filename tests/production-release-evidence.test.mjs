@@ -108,7 +108,7 @@ async function createEvidenceFixture() {
       },
     });
     await writeJson(join(evidenceDir, `${platform.key}-grype.json`), {
-      descriptor: { name: "grype", version: "0.104.1" },
+      descriptor: { name: "grype", version: "0.104.1", db: { status: { valid: true } } },
       source: { type: "sbom", target: `${platform.key}-sbom.spdx.json` },
       matches: [],
     });
@@ -214,7 +214,7 @@ test("published platform의 Medium, Low와 Unknown finding을 evidence에 보존
   ]);
   await replacePlatformMatches(fixture.evidenceDir, "linux-arm64", [
     vulnerabilityMatch("Low", "CVE-2099-0004"),
-    vulnerabilityMatch(undefined, "CVE-2099-0005"),
+    vulnerabilityMatch("Unknown", "CVE-2099-0005"),
   ]);
 
   const result = verify(fixture);
@@ -223,6 +223,57 @@ test("published platform의 Medium, Low와 Unknown finding을 evidence에 보존
   const evidence = JSON.parse(await readFile(fixture.output, "utf8"));
   assert.deepEqual(evidence.platforms[0].severityCounts, { Medium: 1 });
   assert.deepEqual(evidence.platforms[1].severityCounts, { Low: 1, Unknown: 1 });
+});
+
+test("published scan의 malformed descriptor/match/severity를 실패시킨다", async (t) => {
+  const cases = [
+    ["scanner descriptor", (scan) => { scan.descriptor.name = "syft"; }],
+    ["DB invalid", (scan) => { scan.descriptor.db.status.valid = false; }],
+    ["matches missing", (scan) => { delete scan.matches; }],
+    ["match missing", (scan) => { scan.matches = [null]; }],
+    ["artifact missing", (scan) => { scan.matches = [{ vulnerability: { id: "fixture", severity: "Low" } }]; }],
+    ["vulnerability missing", (scan) => { scan.matches = [{ artifact: { name: "fixture" } }]; }],
+    ...[undefined, null, "", 1, "high", "HIGH", "Other"].map((severity) => [
+      `severity ${String(severity)}`,
+      (scan) => { scan.matches = [vulnerabilityMatch(severity, "CVE-2099-0006")]; },
+    ]),
+  ];
+  for (const [name, mutate] of cases) {
+    await t.test(name, async () => {
+      const fixture = await createEvidenceFixture();
+      const path = join(fixture.evidenceDir, "linux-amd64-grype.json");
+      const scan = JSON.parse(await readFile(path, "utf8"));
+      mutate(scan);
+      await writeJson(path, scan);
+      const result = verify(fixture);
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /PUBLISHED_IMAGE_EVIDENCE_INVALID/u);
+      await assert.rejects(readFile(fixture.output, "utf8"), { code: "ENOENT" });
+    });
+  }
+});
+
+test("published scanner JSON 손상에 release evidence를 생성하지 않는다", async () => {
+  const fixture = await createEvidenceFixture();
+  await writeFile(join(fixture.evidenceDir, "linux-arm64-grype.json"), "{", "utf8");
+  const result = verify(fixture);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /PUBLISHED_IMAGE_EVIDENCE_INVALID/u);
+  await assert.rejects(readFile(fixture.output, "utf8"), { code: "ENOENT" });
+});
+
+test("pre-publish summary의 High/Critical 또는 invalid counts를 차단한다", async (t) => {
+  for (const counts of [{ High: 1 }, { Critical: 1 }, { High: -1 }, { High: "0" }, { Other: 1 }]) {
+    await t.test(JSON.stringify(counts), async () => {
+      const fixture = await createEvidenceFixture();
+      const summary = JSON.parse(await readFile(fixture.validationSummary, "utf8"));
+      summary.severityCounts = counts;
+      await writeJson(fixture.validationSummary, summary);
+      const result = verify(fixture);
+      assert.notEqual(result.status, 0);
+      await assert.rejects(readFile(fixture.output, "utf8"), { code: "ENOENT" });
+    });
+  }
 });
 
 test("platform attestation, OCI identity, SBOM 또는 provenance가 다르면 fail-closed한다", async (t) => {

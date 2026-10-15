@@ -86,10 +86,11 @@ docker run --rm --network none \
     java -version 2>&1 | grep '\''version "25\.'\''
     node --version | grep '\''^v24\.20\.0$'\''
     apk info -e libde265
-    apk info -e "libexpat=2.8.4-r0" >/dev/null
-    apk info -e "libcrypto3=3.5.8-r0" >/dev/null
-    apk info -e "libssl3=3.5.8-r0" >/dev/null
-    apk info -e "openssl=3.5.8-r0" >/dev/null
+    apk info -e "libexpat=2.8.5-r0" >/dev/null
+    apk info -e "libcrypto3=3.5.9-r0" >/dev/null
+    apk info -e "libssl3=3.5.9-r0" >/dev/null
+    apk info -e "openssl=3.5.9-r0" >/dev/null
+    apk info -e "zlib=1.3.2-r1" >/dev/null
     if apk info -e x265-libs || apk info -e x265; then
       echo "x265 package가 final image에 있습니다." >&2
       exit 1
@@ -330,6 +331,7 @@ docker run --rm --network none \
   --read-only \
   --tmpfs /tmp:rw,noexec,nosuid \
   --volume "$repo_dir/scripts/validate-production-supply-chain.mjs:/validation/validate-production-supply-chain.mjs:ro" \
+  --volume "$repo_dir/scripts/production-scan-policy.mjs:/validation/production-scan-policy.mjs:ro" \
   --volume "$repo_dir/backend/production-image-components.json:/validation/components.json:ro" \
   --volume "$evidence_dir:/evidence" \
   --label io.homeserver.cleanup.environment=development \

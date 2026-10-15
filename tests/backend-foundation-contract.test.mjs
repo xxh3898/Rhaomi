@@ -584,13 +584,13 @@ test("build snapshot transformer dependency와 amd64/arm64 Compose smoke를 고�
 
   const manifest = JSON.parse(packageJson);
   const lock = JSON.parse(packageLock);
-  assert.equal(manifest.dependencies.sharp, "0.35.4");
+  assert.equal(manifest.dependencies.sharp, "0.35.5");
   assert.equal(
     manifest.scripts["test:orchestration"],
     "vitest run src/build-orchestration",
   );
   assert.equal(manifest.scripts["test:transformer"], "vitest run src/build-transformer");
-  assert.equal(lock.packages["node_modules/sharp"].version, "0.35.4");
+  assert.equal(lock.packages["node_modules/sharp"].version, "0.35.5");
   for (const platform of [
     "linux-x64",
     "linux-arm64",
@@ -599,11 +599,11 @@ test("build snapshot transformer dependency와 amd64/arm64 Compose smoke를 고�
   ]) {
     assert.equal(
       lock.packages[`node_modules/@img/sharp-${platform}`].version,
-      "0.35.4",
+      "0.35.5",
     );
     assert.equal(
       lock.packages[`node_modules/@img/sharp-libvips-${platform}`].version,
-      "1.3.3",
+      "1.3.4",
     );
   }
   assert.match(composeSmoke, /architecture=\$\(uname -m\)/);

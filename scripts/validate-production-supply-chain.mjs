@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
+import { assertNoBlockingSeverities, scanSeverityCounts } from "./production-scan-policy.mjs";
 
 const [sbomPath, scanPath, inventoryPath, summaryPath, imageId, gitHead] =
   process.argv.slice(2);
@@ -14,9 +15,8 @@ const inventory = JSON.parse(await readFile(inventoryPath, "utf8"));
 
 assert.equal(sbom.bomFormat, "CycloneDX");
 assert(Array.isArray(sbom.components));
-assert(Array.isArray(scan.matches), "Grype scan 결과 형식이 올바르지 않습니다.");
-assert(scan.descriptor && typeof scan.descriptor === "object");
 assert.equal(inventory.schemaVersion, 1);
+const severityCounts = scanSeverityCounts(scan);
 
 const REQUIRED_RUNTIME_COMPONENTS = [
   "libheif",
@@ -71,12 +71,6 @@ assert(
   "금지된 x265 component가 scanner 결과에 포함됐습니다.",
 );
 
-const severityCounts = {};
-for (const match of scan.matches) {
-  const severity = String(match.vulnerability?.severity ?? "Unknown");
-  severityCounts[severity] = (severityCounts[severity] ?? 0) + 1;
-}
-
 const summary = {
   schemaVersion: 1,
   imageId,
@@ -92,6 +86,8 @@ const summary = {
 };
 
 await writeFile(summaryPath, `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+// 유효한 scan의 차단 counts도 실패 evidence로 보존한다.
+assertNoBlockingSeverities(severityCounts);
 console.log(
   `Supply-chain validation passed: components=${summary.sbomComponentCount} matches=${summary.vulnerabilityMatchCount} high=${severityCounts.High ?? 0} critical=${severityCounts.Critical ?? 0}`,
 );

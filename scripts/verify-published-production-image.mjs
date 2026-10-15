@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { assertNoBlockingSeverities, scanSeverityCounts } from "./production-scan-policy.mjs";
 
 const EXPECTED_REPOSITORY = "ghcr.io/xxh3898/rhaomi";
 const EXPECTED_SOURCE = "https://github.com/xxh3898/Rhaomi";
@@ -52,22 +53,6 @@ function scanContainsX265(scan) {
     const artifact = record(match.artifact ?? {});
     return [artifact.name, artifact.purl, artifact.id].some(x265Identity);
   });
-}
-
-function severityCounts(matches) {
-  const counts = {};
-  for (const matchValue of matches) {
-    const match = record(matchValue);
-    const vulnerability = record(match.vulnerability ?? {});
-    const severity =
-      typeof vulnerability.severity === "string" && vulnerability.severity.length > 0
-        ? vulnerability.severity
-        : "Unknown";
-    counts[severity] = (counts[severity] ?? 0) + 1;
-  }
-  return Object.fromEntries(Object.entries(counts).sort(([left], [right]) =>
-    left.localeCompare(right, "en"),
-  ));
 }
 
 function findPlatformDescriptors(index) {
@@ -149,13 +134,10 @@ async function verifyPlatform(evidenceDir, descriptor, releaseSha) {
   );
 
   const scan = record(scanFile.value);
-  assert.equal(record(scan.descriptor).name, "grype");
+  const platformSeverityCounts = scanSeverityCounts(scan);
   assert.equal(record(scan.source).type, "sbom");
-  assert(Array.isArray(scan.matches));
   assert.equal(scanContainsX265(scan), false);
-  const platformSeverityCounts = severityCounts(scan.matches);
-  assert.equal(platformSeverityCounts.High ?? 0, 0);
-  assert.equal(platformSeverityCounts.Critical ?? 0, 0);
+  assertNoBlockingSeverities(platformSeverityCounts);
 
   return {
     platform: descriptor.platform,
@@ -208,6 +190,7 @@ async function main() {
   assert(Number.isSafeInteger(validation.vulnerabilityMatchCount) &&
     validation.vulnerabilityMatchCount >= 0);
   record(validation.severityCounts);
+  assertNoBlockingSeverities(validation.severityCounts);
   assert(Array.isArray(validation.inventoryComponents) &&
     validation.inventoryComponents.length > 0);
 
